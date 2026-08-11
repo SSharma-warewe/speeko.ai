@@ -1,0 +1,145 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import type { AuthPrincipal } from '../auth/auth.types';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { UserGuard } from '../auth/guards/user.guard';
+import { CreateOrganizationIntegrationDto } from './dto/create-organization-integration.dto';
+import {
+  OrganizationIntegrationResponseDto,
+  OrganizationIntegrationTestResponseDto,
+} from './dto/organization-integration-response.dto';
+import { UpdateOrganizationIntegrationDto } from './dto/update-organization-integration.dto';
+import { OrganizationIntegrationsService } from './organization-integrations.service';
+
+@ApiTags('user-integrations')
+@ApiBearerAuth('bearer')
+@UseGuards(JwtAuthGuard, UserGuard)
+@Controller('users/integrations')
+export class UserOrganizationIntegrationsController {
+  constructor(
+    private readonly organizationIntegrationsService: OrganizationIntegrationsService,
+  ) {}
+
+  @Get()
+  @ApiOperation({
+    summary: 'List third-party integrations for the caller organization',
+    description:
+      'Nylas calendar connections, etc. API keys are never returned.',
+  })
+  @ApiOkResponse({ type: [OrganizationIntegrationResponseDto] })
+  list(
+    @CurrentUser() principal: AuthPrincipal,
+  ): Promise<OrganizationIntegrationResponseDto[]> {
+    return this.organizationIntegrationsService.listForOrg(
+      this.orgIdFrom(principal),
+    );
+  }
+
+  @Post()
+  @ApiOperation({
+    summary: 'Add a Nylas (or other) integration with API key + grant',
+    description:
+      'Store org-owned credentials. The full API key is accepted only on create/update and never returned on GET.',
+  })
+  @ApiCreatedResponse({ type: OrganizationIntegrationResponseDto })
+  create(
+    @CurrentUser() principal: AuthPrincipal,
+    @Body() dto: CreateOrganizationIntegrationDto,
+  ): Promise<OrganizationIntegrationResponseDto> {
+    const userId = principal.typ === 'user' ? principal.id : null;
+    return this.organizationIntegrationsService.createForOrg(
+      this.orgIdFrom(principal),
+      dto,
+      userId,
+    );
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get one integration (no secret)' })
+  @ApiOkResponse({ type: OrganizationIntegrationResponseDto })
+  getOne(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<OrganizationIntegrationResponseDto> {
+    return this.organizationIntegrationsService.getOneForOrg(
+      this.orgIdFrom(principal),
+      id,
+    );
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update integration fields (optional new API key)' })
+  @ApiOkResponse({ type: OrganizationIntegrationResponseDto })
+  update(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateOrganizationIntegrationDto,
+  ): Promise<OrganizationIntegrationResponseDto> {
+    return this.organizationIntegrationsService.updateForOrg(
+      this.orgIdFrom(principal),
+      id,
+      dto,
+    );
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Delete integration',
+    description:
+      'Agents linked via calendar_integration_id are set to null (FK SET NULL).',
+  })
+  @ApiNoContentResponse()
+  async remove(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    await this.organizationIntegrationsService.removeForOrg(
+      this.orgIdFrom(principal),
+      id,
+    );
+  }
+
+  @Post(':id/test')
+  @ApiOperation({
+    summary: 'Smoke-test Nylas credentials (list calendars)',
+  })
+  @ApiOkResponse({ type: OrganizationIntegrationTestResponseDto })
+  test(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<OrganizationIntegrationTestResponseDto> {
+    return this.organizationIntegrationsService.testConnection(
+      this.orgIdFrom(principal),
+      id,
+    );
+  }
+
+  private orgIdFrom(principal: AuthPrincipal): string {
+    if (principal.typ !== 'user' || !principal.orgId) {
+      throw new ForbiddenException('Organization context required');
+    }
+    return principal.orgId;
+  }
+}

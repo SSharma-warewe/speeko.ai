@@ -1,0 +1,293 @@
+.ca-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: var(--font-body);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-normal) ease,
+    background var(--duration-normal) ease,
+    border-color var(--duration-normal) ease,
+    color var(--duration-normal) ease,
+    opacity var(--duration-normal) ease;
+}
+
+.ca-btn:disabled,
+.ca-btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.ca-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* ── Sizes ── */
+.ca-btn--sm {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  border-radius: var(--radius-md);
+}
+
+.ca-btn--md {
+  padding: 0.55rem 1.05rem;
+  font-size: 0.88rem;
+}
+
+.ca-btn--lg {
+  padding: 0.85rem 1.35rem;
+  font-size: 0.95rem;
+  border-radius: var(--radius-lg);
+}
+
+.ca-btn--xl {
+  padding: 0.95rem 1.85rem;
+  font-size: 1rem;
+  border-radius: var(--radius-md);
+}
+
+.ca-btn--full {
+  width: 100%;
+}
+
+/* ── Primary (dark) — btn-primary / config-btn-primary ── */
+.ca-btn--primary {
+  background: var(--accent-primary);
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.ca-btn--primary:hover:not(:disabled):not([aria-disabled="true"]) {
+  opacity: 0.95;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+}
+
+.ca-btn--primary:active:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(0) scale(0.985);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+}
+
+/* ── Secondary (outline) ── */
+.ca-btn--secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  box-shadow: none;
+}
+
+.ca-btn--secondary:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.ca-btn--secondary:active:not(:disabled):not([aria-disabled="true"]) {
+  transform: scale(0.985);
+}
+
+/* ── Ghost ── */
+.ca-btn--ghost {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  box-shadow: none;
+  font-weight: 500;
+}
+
+.ca-btn--ghost:hover:not(:disabled):not([aria-disabled="true"]) {
+  color: var(--text);
+  background: rgba(10, 10, 10, 0.04);
+}
+
+/* Ghost on dark surfaces (landing secondary) */
+.ca-btn--ghostOnDark {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.ca-btn--ghostOnDark:hover:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+}
+
+.ca-btn--ghostOnDark:active:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(0) scale(0.98);
+}
+
+/* ── CTA gold (marketing primary) ── */
+.ca-btn--cta {
+  overflow: hidden;
+  background: var(--accent-yellow-strong);
+  color: var(--accent-primary);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 6px 16px rgba(202, 138, 4, 0.2);
+}
+
+.ca-btn--cta:hover:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(-2px) scale(1.02);
+  background: var(--accent-yellow-hot);
+  box-shadow: var(--shadow-cta);
+}
+
+.ca-btn--cta:active:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 4px 12px rgba(253, 230, 138, 0.25);
+}
+
+/* Compact nav CTA size tweak when md */
+.ca-btn--cta.ca-btn--sm {
+  padding: 10px 20px;
+  font-size: 14px;
+}
+
+/* Soft pulse (hero CTA) */
+.ca-btn--pulse {
+  animation: ca-soft-pulse 2.6s ease-in-out infinite;
+}
+
+.ca-btn--pulse:hover:not(:disabled):not([aria-disabled="true"]) {
+  animation: none;
+}
+
+/* Shine sweep */
+.ca-btn--shine::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.55),
+    transparent
+  );
+  transform: translateX(-120%) skewX(-18deg);
+  pointer-events: none;
+}
+
+.ca-btn--shine:hover:not(:disabled):not([aria-disabled="true"])::before {
+  animation: ca-btn-shine 0.65s ease;
+}
+
+/* ── CTA dark ── */
+.ca-btn--ctaDark {
+  overflow: hidden;
+  background: var(--accent-primary);
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.ca-btn--ctaDark:hover:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+}
+
+.ca-btn--ctaDark:active:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(0) scale(0.98);
+}
+
+/* ── Command bar variants (ops dashboard) ── */
+.ca-btn--command {
+  min-height: 3rem;
+  padding: 0.85rem 1.25rem;
+  border-radius: var(--radius-lg);
+  background: var(--ops-gold);
+  color: var(--ops-ink);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 8px 20px -10px rgba(253, 230, 138, 0.55);
+}
+
+.ca-btn--command:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: #fef3c7;
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.4) inset,
+    0 10px 24px -10px rgba(253, 230, 138, 0.65);
+}
+
+.ca-btn--commandSecondary {
+  min-height: 2.75rem;
+  border-radius: var(--radius-lg);
+  background: #fafaf9;
+  color: var(--ops-ink);
+  font-weight: 600;
+  border: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.ca-btn--commandSecondary:hover:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(-1px);
+}
+
+.ca-btn--commandGhost {
+  min-height: 2.75rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: rgba(250, 250, 249, 0.88);
+  background: transparent;
+  box-shadow: none;
+}
+
+.ca-btn--commandGhost:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #fafaf9;
+}
+
+/* Danger ghost (config remove) */
+.ca-btn--dangerGhost {
+  background: transparent;
+  border: none;
+  color: var(--text-faint);
+  box-shadow: none;
+}
+
+.ca-btn--dangerGhost:hover:not(:disabled):not([aria-disabled="true"]) {
+  color: #dc2626;
+}
+
+/* Arrow */
+.ca-btn__arrow {
+  display: inline-block;
+  transition: transform 0.22s var(--ease-spring);
+}
+
+.ca-btn:hover:not(:disabled):not([aria-disabled="true"]) .ca-btn__arrow {
+  transform: translateX(4px);
+}
+
+.ca-btn__label {
+  position: relative;
+  z-index: 1;
+}
+
+.ca-btn__spinner {
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: ca-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}

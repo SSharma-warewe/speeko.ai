@@ -1,0 +1,42 @@
+.ca-wave-indicator {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+  transition: transform 0.2s ease;
+}
+
+.ca-wave-indicator span {
+  display: block;
+  width: 3px;
+  border-radius: 2px;
+  background: currentColor;
+  animation: ca-wave 1.2s ease-in-out infinite;
+}
+
+.ca-wave-indicator span:nth-child(1) {
+  height: 40%;
+  animation-delay: 0s;
+}
+.ca-wave-indicator span:nth-child(2) {
+  height: 80%;
+  animation-delay: 0.15s;
+}
+.ca-wave-indicator span:nth-child(3) {
+  height: 55%;
+  animation-delay: 0.3s;
+}
+.ca-wave-indicator span:nth-child(4) {
+  height: 90%;
+  animation-delay: 0.45s;
+}
+.ca-wave-indicator span:nth-child(5) {
+  height: 65%;
+  animation-delay: 0.6s;
+}
+
+.ca-wave-indicator--paused span {
+  animation: none;
+  opacity: 0.4;
+  transform: scaleY(0.5);
+}

@@ -1,0 +1,56 @@
+.ca-input {
+  display: block;
+  width: 100%;
+  min-height: 2.5rem;
+  box-sizing: border-box;
+  font: inherit;
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 0.9rem;
+  line-height: 1.25;
+  color: var(--text);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.55rem 0.75rem;
+  transition:
+    border-color var(--duration-normal) ease,
+    box-shadow var(--duration-normal) ease,
+    background var(--duration-normal) ease;
+}
+
+.ca-input::placeholder {
+  color: var(--text-faint);
+}
+
+.ca-input:hover:not(:disabled):not(:focus) {
+  border-color: var(--border-strong);
+}
+
+.ca-input:focus {
+  outline: none;
+  background: var(--bg-base);
+  border-color: var(--accent-live);
+  box-shadow: 0 0 0 3px rgba(202, 138, 4, 0.18);
+}
+
+.ca-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ca-input--error {
+  border-color: #fca5a5;
+}
+
+.ca-input--error:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+.ca-input--lg {
+  min-height: 2.75rem;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.95rem;
+  border-radius: var(--radius-lg);
+}

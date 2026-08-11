@@ -1,0 +1,78 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build / compile output
+dist/
+**/dist/
+build/
+**/build/
+*.tsbuildinfo
+
+# Vite
+**/.vite/
+apps/web/dist/
+apps/portal/dist/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Env / secrets (keep .env.example)
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.staging
+!.env.example
+
+# Tests / coverage
+coverage/
+**/coverage/
+.nyc_output/
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDEs / editors
+.idea/
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+*.swp
+*.swo
+*~
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Temp
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Railway / deploy scratch (never commit tokens or CLI dumps)
+.railway/
+railway-login.txt
+railway-out.txt
+railway-*.txt
+
+# Optional local tooling
+*.pem
+*.key
+.turbo/
+.cache/

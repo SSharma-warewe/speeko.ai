@@ -1,0 +1,83 @@
+/**
+ * Call Agent design tokens
+ * Source: web/src/index.css (+ spacing/radius helpers for the package)
+ *
+ * Font faces (Newsreader, IBM Plex Sans/Mono) are loaded by the host app
+ * (e.g. Google Fonts in index.html). This file only declares stacks.
+ */
+:root {
+  color-scheme: light;
+
+  /* Type stacks */
+  --font-display: "Newsreader", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  /* Surfaces */
+  --bg-base: #ffffff;
+  --bg-surface: #fafafa;
+  --bg-elevated: #f5f5f5;
+
+  /* Borders */
+  --border: #e5e5e5;
+  --border-strong: #d4d4d4;
+
+  /* Text */
+  --text: #0a0a0a;
+  --text-muted: #525252;
+  --text-dim: #737373;
+  --text-faint: #a3a3a3;
+
+  /* Accents */
+  --accent-yellow: #fef3c7;
+  --accent-yellow-strong: #fde68a;
+  --accent-yellow-hot: #fef08a;
+  --accent-yellow-text: #854d0e;
+  --accent-live: #ca8a04;
+  --accent-primary: #0a0a0a;
+  --accent-positive: #166534;
+  --accent-negative: #991b1b;
+  --accent-info: #1e3a5f;
+  --accent-warn: #a16207;
+
+  /* Semantic surfaces */
+  --success-bg: #ecfdf5;
+  --success-border: #a7f3d0;
+  --success-text: #065f46;
+  --error-bg: #fef2f2;
+  --error-border: #fecaca;
+  --error-text: #991b1b;
+  --info-bg: #eef2f7;
+  --info-border: #cbd8e6;
+  --info-text: #1e3a5f;
+  --warn-bg: #fffbeb;
+  --warn-border: #fde68a;
+  --warn-text: #78350f;
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 14px;
+  --radius-pill: 999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 10px 30px -12px rgba(0, 0, 0, 0.1), 0 4px 12px -4px rgba(0, 0, 0, 0.06);
+  --shadow-cta: 0 12px 28px rgba(253, 230, 138, 0.35);
+  --shadow-focus: 0 0 0 3px rgba(202, 138, 4, 0.25);
+  --shadow-focus-neutral: 0 0 0 3px rgba(0, 0, 0, 0.04);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-fast: 0.1s;
+  --duration-normal: 0.15s;
+  --duration-slow: 0.22s;
+
+  /* Ops command bar (dashboard) */
+  --ops-gold: #fde68a;
+  --ops-ink: #0a0a0a;
+}

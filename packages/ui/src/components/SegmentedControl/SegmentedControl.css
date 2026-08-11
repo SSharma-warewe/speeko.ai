@@ -1,0 +1,45 @@
+.ca-segment {
+  display: grid;
+  gap: 5px;
+  padding: 4px;
+  background: var(--bg-elevated);
+  border-radius: 11px;
+  border: 1px solid var(--border);
+}
+
+.ca-segment__btn {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 9px 8px;
+  cursor: pointer;
+  transition:
+    background var(--duration-normal) ease,
+    color var(--duration-normal) ease,
+    box-shadow var(--duration-normal) ease,
+    transform var(--duration-fast) ease;
+}
+
+.ca-segment__btn:hover:not(:disabled):not(.ca-segment__btn--active) {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.ca-segment__btn--active {
+  background: var(--accent-primary);
+  color: var(--accent-yellow-strong);
+  box-shadow: 0 2px 8px rgba(10, 10, 10, 0.15);
+}
+
+.ca-segment__btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.ca-segment__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -1,0 +1,77 @@
+/**
+ * Base resets aligned with the reference web app.
+ * Scope is intentional: form controls + focus only (no full body reset
+ * so host apps keep their layout).
+ */
+
+.ca-ui {
+  font-family: var(--font-body);
+  color: var(--text);
+  line-height: 1.55;
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+.ca-ui *,
+.ca-ui *::before,
+.ca-ui *::after {
+  box-sizing: border-box;
+}
+
+.ca-ui button,
+.ca-ui input,
+.ca-ui select,
+.ca-ui textarea {
+  font: inherit;
+  font-family: var(--font-body);
+}
+
+.ca-ui button {
+  cursor: pointer;
+}
+
+.ca-ui button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ca-ui button:focus-visible,
+.ca-ui a:focus-visible,
+.ca-ui input:focus-visible,
+.ca-ui select:focus-visible,
+.ca-ui textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+  border-radius: var(--radius-sm);
+}
+
+.ca-ui h1,
+.ca-ui h2,
+.ca-ui h3,
+.ca-ui h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
+.ca-mono {
+  font-family: var(--font-mono);
+}
+
+.ca-tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "kern" 1;
+}
+
+.ca-muted {
+  color: var(--text-muted);
+}
+
+.ca-dim {
+  color: var(--text-dim);
+}

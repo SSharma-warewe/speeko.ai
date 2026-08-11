@@ -1,0 +1,30 @@
+.ca-label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #404040;
+  letter-spacing: 0.01em;
+}
+
+.ca-label__text {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.ca-label__required {
+  color: var(--accent-negative);
+  font-weight: 600;
+}
+
+.ca-label--inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}

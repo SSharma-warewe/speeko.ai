@@ -1,0 +1,136 @@
+/**
+ * Shared keyframes + utility classes.
+ * Unifies rise-in / cw-rise / gd-rise and other duplicated motion.
+ */
+
+@keyframes ca-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ca-rise-simple {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ca-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ca-pulse-live {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes ca-pulse-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.35;
+  }
+  70% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+@keyframes ca-wave {
+  0%,
+  100% {
+    transform: scaleY(0.5);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes ca-btn-shine {
+  0% {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(220%) skewX(-18deg);
+  }
+}
+
+@keyframes ca-soft-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(253, 230, 138, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(253, 230, 138, 0);
+  }
+}
+
+@keyframes ca-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes ca-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Utility classes */
+.ca-animate-rise {
+  animation: ca-rise 0.45s ease both;
+  animation-delay: var(--ca-delay, 0s);
+}
+
+.ca-animate-rise-simple {
+  animation: ca-rise-simple 0.4s ease both;
+  animation-delay: var(--ca-delay, 0s);
+}
+
+.ca-animate-spin {
+  animation: ca-spin 0.7s linear infinite;
+}
+
+.ca-animate-pulse-live {
+  animation: ca-pulse-live 2s ease infinite;
+}
+
+.ca-animate-float {
+  animation: ca-float 6s ease-in-out infinite;
+}
+
+.ca-animate-pop {
+  animation: ca-pop 0.4s ease both;
+}

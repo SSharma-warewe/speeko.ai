@@ -1,0 +1,29 @@
+/* App shell reset — full-bleed layout (no browser default margin/border gap) */
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  min-height: 100%;
+}
+
+html {
+  background: #0a0a0a;
+}
+
+body {
+  background: #f0eee9;
+  overflow-x: hidden;
+}
+
+/* Dashboard locks document scroll; main column scrolls inside .ops-content */
+body:has(.ops) {
+  overflow: hidden;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}

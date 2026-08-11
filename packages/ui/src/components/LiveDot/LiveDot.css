@@ -1,0 +1,46 @@
+.ca-live-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: fit-content;
+}
+
+.ca-live-dot__core {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-live);
+  position: relative;
+  flex-shrink: 0;
+  animation: ca-pulse-live 2s ease infinite;
+}
+
+.ca-live-dot__core::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1px solid var(--accent-live);
+  opacity: 0.35;
+  animation: ca-pulse-ring 2.4s ease-out infinite;
+}
+
+.ca-live-dot--badge {
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--accent-yellow-strong);
+  background: var(--accent-yellow);
+  color: var(--accent-yellow-text);
+  font-weight: 600;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ca-live-dot--badge .ca-live-dot__core {
+  background: var(--accent-live);
+}
+
+.ca-live-dot__label {
+  line-height: 1;
+}

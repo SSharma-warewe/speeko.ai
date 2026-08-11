@@ -1,0 +1,27 @@
+@media (prefers-reduced-motion: reduce) {
+  .ca-animate-rise,
+  .ca-animate-rise-simple,
+  .ca-animate-spin,
+  .ca-animate-pulse-live,
+  .ca-animate-float,
+  .ca-animate-pop,
+  .ca-btn--shine,
+  .ca-btn--pulse,
+  .ca-live-dot__core,
+  .ca-live-dot__core::after,
+  .ca-wave-indicator span {
+    animation: none !important;
+  }
+
+  .ca-btn,
+  .ca-chip,
+  .ca-card,
+  .ca-segment__btn {
+    transition: none !important;
+  }
+
+  .ca-btn:hover,
+  .ca-card--lift:hover {
+    transform: none !important;
+  }
+}

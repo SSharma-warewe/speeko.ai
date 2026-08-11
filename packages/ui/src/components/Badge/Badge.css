@@ -1,0 +1,56 @@
+.ca-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  line-height: 1.2;
+}
+
+.ca-badge--neutral {
+  border-color: var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-dim);
+}
+
+.ca-badge--amber {
+  border-color: var(--accent-yellow-strong);
+  background: var(--accent-yellow);
+  color: var(--accent-yellow-text);
+}
+
+.ca-badge--live {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #14532d;
+}
+
+.ca-badge--info {
+  border-color: var(--info-border);
+  background: var(--info-bg);
+  color: var(--info-text);
+}
+
+.ca-badge--success {
+  border-color: var(--success-border);
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.ca-badge--danger {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: var(--accent-negative);
+}
+
+.ca-badge--warn {
+  border-color: var(--warn-border);
+  background: var(--warn-bg);
+  color: var(--warn-text);
+}

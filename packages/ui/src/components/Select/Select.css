@@ -1,0 +1,58 @@
+.ca-select {
+  display: block;
+  width: 100%;
+  min-height: 2.5rem;
+  font: inherit;
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 0.9rem;
+  line-height: 1.25;
+  color: var(--text);
+  background-color: var(--bg-surface);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23737373' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.55rem 2.25rem 0.55rem 0.75rem;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-normal) ease,
+    box-shadow var(--duration-normal) ease,
+    background-color var(--duration-normal) ease;
+}
+
+.ca-select:hover:not(:disabled):not(:focus) {
+  border-color: var(--border-strong);
+}
+
+.ca-select:focus {
+  outline: none;
+  background-color: var(--bg-base);
+  border-color: var(--accent-live);
+  box-shadow: 0 0 0 3px rgba(202, 138, 4, 0.18);
+}
+
+.ca-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ca-select--error {
+  border-color: #fca5a5;
+}
+
+.ca-select--error:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+.ca-select--lg {
+  min-height: 2.75rem;
+  padding: 0.7rem 2.4rem 0.7rem 0.9rem;
+  font-size: 0.95rem;
+  border-radius: var(--radius-lg);
+}

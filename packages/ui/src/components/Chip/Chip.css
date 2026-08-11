@@ -1,0 +1,64 @@
+.ca-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+  transition:
+    background var(--duration-normal) ease,
+    border-color var(--duration-normal) ease,
+    color var(--duration-normal) ease,
+    transform var(--duration-fast) ease,
+    box-shadow var(--duration-normal) ease;
+}
+
+.ca-chip:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--accent-primary);
+  transform: translateY(-1px);
+}
+
+.ca-chip:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.ca-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Amber / filter active (history filters, gd-chip) */
+.ca-chip--active {
+  border-color: var(--accent-yellow-strong);
+  background: var(--accent-yellow);
+  color: var(--accent-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+/* Dark inverted active (day-chip, demo filters) */
+.ca-chip--activeDark {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fafafa;
+}
+
+.ca-chip__count {
+  padding: 0.05rem 0.35rem;
+  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.06);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.68rem;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.ca-chip--activeDark .ca-chip__count {
+  background: rgba(255, 255, 255, 0.15);
+}

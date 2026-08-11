@@ -1,0 +1,31 @@
+# Portal (Vite SPA) — org user + platform admin surfaces
+FROM node:22-bookworm-slim AS build
+WORKDIR /app
+
+# UI kit (source imported via Vite alias)
+COPY packages/ui/package.json packages/ui/package-lock.json ./packages/ui/
+RUN cd packages/ui && npm ci --legacy-peer-deps
+
+COPY apps/portal/package.json apps/portal/package-lock.json ./apps/portal/
+RUN cd apps/portal && npm ci --legacy-peer-deps
+
+COPY packages/ui ./packages/ui
+COPY apps/portal ./apps/portal
+
+# Injected at build time (Railway service variables)
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL}
+ARG VITE_MARKETING_URL
+ENV VITE_MARKETING_URL=${VITE_MARKETING_URL}
+
+WORKDIR /app/apps/portal
+RUN npm run build
+
+FROM node:22-bookworm-slim AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+RUN npm install -g serve@14
+COPY --from=build /app/apps/portal/dist ./dist
+EXPOSE 8080
+# Railway injects PORT (commonly 8080); domain targetPort must match
+CMD ["sh", "-c", "serve -s dist -l tcp://0.0.0.0:${PORT:-8080}"]
