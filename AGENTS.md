@@ -724,14 +724,14 @@ Work **top-down by risk**: security → money/dial side effects → multi-tenant
 | P0 | `users` | **Done** | Create user, org scope, password hash, unique email per org, toSafeUser redaction |
 | P0 | `organizations` | **Done** | Create org, slug uniqueness/lowercase, name trim, `isActive` default, findById/Slug/IdOrSlug |
 | P1 | `integration-endpoints` | Todo | API key hash/prefix, rotate, public enqueue merge context, inactive key reject, never leak secrets |
-| P1 | `queue` | Todo | Claim/retry classification, backoff, quiet hours, batch pause/cancel, stale dialing/ready sweeper (mock `DataSource` / time) |
-| P1 | `calls` | Todo | Enqueue vs immediate outbound, metadata pack, complete + requeue, org scoping on list/get |
+| P1 | `queue` | **Done** | Claim/retry classification, backoff, quiet hours, batch pause/cancel, stale dialing/ready sweeper (mock `DataSource` / time) |
+| P1 | `calls` | **Done** | Enqueue vs immediate outbound, metadata pack, complete + requeue, org scoping on list/get |
 | P1 | `agents` / org agents | **Done** | Create/clone/slug collision, persona vs template isolation, hook null/empty/whitespace, calendar same-org FK, FK-blocked delete |
 | P1 | `tools` (profiles) | Todo | Platform vs org custom, known tool ids, delete-if-unused, always include `endCall` |
 | P2 | `sip-trunks` / `sip-dispatch-rules` | **Done** | Draft vs publish, password redaction, inbound LiveKit delete (404 ignore), dispatch metadata pack, LiveKit adapter mocked |
 | P2 | `organization-integrations` | **Done** | Secrets never returned (mapper + CRUD), test connection, calendar resolve/freeBusy matrix (Nylas mocked) |
 | P2 | `email` | Todo | Soft-disable without key, never throws, `send` / `sendText` mapping |
-| P2 | `livekit` | Todo | Thin adapter only if pure URL/token helpers; mock SDK for anything network |
+| P2 | `livekit` | **Done** | URL helper; adapter with mocked SDK (rooms, dispatch, token/meet, SIP trunks/rules/participant, hasRemoteCallee) |
 | P3 | Worker (`apps/worker`) | Todo | Metadata parse, prompt/tool/task builders, hangup helpers — no LiveKit cloud in unit tests |
 | P3 | Portal / web | Todo | Separate tooling later (Vitest/Playwright); not part of root `npm test` yet |
 
