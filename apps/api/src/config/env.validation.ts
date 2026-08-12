@@ -9,6 +9,9 @@ export const envValidationSchema = Joi.object({
   DATABASE_NAME: Joi.string().required(),
   JWT_SECRET: Joi.string().min(8).required(),
   JWT_EXPIRES_IN: Joi.string().default('8h'),
+  // Login abuse controls (in-process; per API instance)
+  AUTH_LOGIN_MAX_ATTEMPTS: Joi.number().integer().min(1).default(10),
+  AUTH_LOGIN_WINDOW_MS: Joi.number().integer().min(1000).default(60_000),
   ADMIN_EMAIL: Joi.string().email().required(),
   ADMIN_PASSWORD: Joi.string().min(8).required(),
   ADMIN_NAME: Joi.string().optional().allow(''),

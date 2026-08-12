@@ -1,11 +1,15 @@
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ApiModule } from './api.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(ApiModule);
+  const app = await NestFactory.create<NestExpressApplication>(ApiModule);
+
+  // Railway / reverse proxies: trust X-Forwarded-For so login rate limits key on real client IP.
+  app.set('trust proxy', 1);
 
   app.setGlobalPrefix('api');
   app.useGlobalPipes(

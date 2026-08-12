@@ -107,19 +107,21 @@ export class AuthService {
     if (!user || !user.isActive) {
       throw new UnauthorizedException();
     }
+    // Org deactivation must revoke access even if the user row is still active.
+    if (!user.organization || !user.organization.isActive) {
+      throw new UnauthorizedException();
+    }
     return {
       id: user.id,
       email: user.email,
       name: user.name,
       role: user.role,
       isActive: user.isActive,
-      organization: user.organization
-        ? {
-            id: user.organization.id,
-            name: user.organization.name,
-            slug: user.organization.slug,
-          }
-        : { id: user.organizationId },
+      organization: {
+        id: user.organization.id,
+        name: user.organization.name,
+        slug: user.organization.slug,
+      },
       typ: 'user' as const,
     };
   }

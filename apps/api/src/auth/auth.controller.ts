@@ -4,6 +4,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiTags,
+  ApiTooManyRequestsResponse,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -13,6 +14,7 @@ import { UserLoginDto } from './dto/user-login.dto';
 import type { AuthPrincipal } from './auth.types';
 import { AdminGuard } from './guards/admin.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { LoginRateLimitGuard } from './guards/login-rate-limit.guard';
 import { UserGuard } from './guards/user.guard';
 
 @ApiTags('auth')
@@ -21,19 +23,27 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('admin/login')
+  @UseGuards(LoginRateLimitGuard)
   @ApiOperation({ summary: 'Platform admin login' })
   @ApiOkResponse({ type: TokenResponseDto })
+  @ApiTooManyRequestsResponse({
+    description: 'Too many login attempts for this IP + email',
+  })
   adminLogin(@Body() dto: AdminLoginDto): Promise<TokenResponseDto> {
     return this.authService.adminLogin(dto);
   }
 
   @Post('login')
+  @UseGuards(LoginRateLimitGuard)
   @ApiOperation({
     summary: 'Organization user login',
     description:
-      'Requires organizationSlug or organizationId because emails are unique per organization only.',
+      'Requires organizationSlug or organizationId because emails are unique per organization only. Rate-limited per IP + email.',
   })
   @ApiOkResponse({ type: TokenResponseDto })
+  @ApiTooManyRequestsResponse({
+    description: 'Too many login attempts for this IP + email',
+  })
   userLogin(@Body() dto: UserLoginDto): Promise<TokenResponseDto> {
     return this.authService.userLogin(dto);
   }

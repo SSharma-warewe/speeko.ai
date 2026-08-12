@@ -160,6 +160,8 @@ Known tool ids: `endCall`, `booking`, `cancelBooking`, `transferCall`, `lookupCu
 - Passwords: bcrypt only; **never** return `passwordHash` / `password_hash` in API responses.
 - Org login requires `organizationSlug` or `organizationId` (email uniqueness is per-org).
 - Tokens: Bearer access JWT only (no refresh/session store yet).
+- **Live revalidation:** after signature/expiry checks, `JwtStrategy` reloads admin/user from Postgres on every authenticated request. Reject if admin/user is missing or `isActive=false`. For users, also reject if the org is missing or `organization.isActive=false`. Principal `orgId` / `role` / `email` / `name` come from the DB row (not stale JWT claims). `/me` profile endpoints re-check the same rules.
+- **Login rate limits:** `POST /api/auth/login` and `POST /api/auth/admin/login` use an in-process fixed window keyed by `route + client IP + email` (`LoginRateLimitGuard`). Defaults: 10 attempts / 60s (`AUTH_LOGIN_MAX_ATTEMPTS`, `AUTH_LOGIN_WINDOW_MS`). Counters are **per API process** (not shared across Railway replicas). API sets Express `trust proxy` so `X-Forwarded-For` yields the real client IP behind a reverse proxy. Over limit → **429**.
 - **Integration API keys** are separate from JWT: one secret per `integration_endpoints` row (`ca_live_…`), hashed with SHA-256. Full key returned only on create/rotate. Public CRM routes authenticate with Bearer or `X-Api-Key`, not org-user login.
 
 ### Seeded admin
@@ -235,6 +237,8 @@ Default local DB credentials (see `.env.example`):
 | `EMAIL_NOTIFY_TO` | API | Optional platform inbox for product notify mail; read via `EmailService.getNotifyTo()` |
 | `ENDPOINT_URL` | API | Full integration enqueue URL for marketing get-demo (`…/api/integrations/:publicId/calls`). Soft-required: demo submit returns 503 if unset |
 | `SPEEKO_API` | API | Integration API key (`ca_live_…`) used only server-side by `POST /api/demo/request`. **Never** put in Vite / browser env |
+| `AUTH_LOGIN_MAX_ATTEMPTS` | API | Max login attempts per IP+email window (default `10`) |
+| `AUTH_LOGIN_WINDOW_MS` | API | Login rate-limit window in ms (default `60000`) |
 
 Models use **LiveKit Inference** (STT/LLM/TTS + **cloud turn detector v1**) — no separate OpenAI/Deepgram keys. Pins live in `apps/worker/src/models.ts`. Local EOT mini model is **not** loaded (saves ~138 MB idle); in-process Silero VAD remains for barge-in.
 
