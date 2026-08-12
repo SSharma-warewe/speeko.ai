@@ -650,6 +650,109 @@ controller → service → repository → TypeORM entity → Postgres
 18. Queue dialer runs in the Nest API process (`@nestjs/schedule`); do not move dial ownership into the LiveKit worker.
 19. **Product UI** lives in `apps/web` (marketing) and `apps/portal` (auth + dashboards). Both reuse `@call-agent/ui` (`packages/ui`) for buttons, forms, badges, cards, chips, alerts, and motion primitives. Import `@call-agent/ui/styles.css` once per app. Do not re-duplicate design tokens or keyframes in page-local styles. Do not put dashboard/auth code in marketing or marketing landing pages in portal.
 20. All outbound email goes through `EmailService` (Resend); do not call the Resend SDK from other modules. Treat send failures as non-fatal for product flows.
+21. **Add or update unit tests** when changing service business rules, guards, or security-sensitive paths (see **Testing**). Prefer service-level unit tests over full e2e unless the flow is HTTP-guard integration.
+
+## Testing
+
+Unit tests use **Jest** + **ts-jest** + **`@nestjs/testing`** from the monorepo root. Specs live next to the module under a `test/` folder (not colocated `*.service.spec.ts` in the module root).
+
+### Commands
+
+```bash
+# All unit tests (any **/*.spec.ts under apps/)
+npm test
+
+# One module
+npx jest --testPathPatterns=auth/test --no-coverage
+npx jest --testPathPatterns=admins/test --no-coverage
+npx jest --testPathPatterns=demo/test --no-coverage
+npx jest --testPathPatterns=users/test --no-coverage
+npx jest --testPathPatterns=organizations/test --no-coverage
+npx jest --testPathPatterns=organization-integrations/test --no-coverage
+npx jest --testPathPatterns=agents/test --no-coverage
+npx jest --testPathPatterns=sip-trunks/test --no-coverage
+npx jest --testPathPatterns=sip-dispatch-rules/test --no-coverage
+
+# Watch / coverage
+npm run test:watch
+npm run test:cov
+
+# API e2e scaffold (separate config; not the main unit suite)
+npm run test:e2e
+```
+
+Jest 30 path filter flag: **`--testPathPatterns`** (plural), not `--testPathPattern`.
+
+### Layout & conventions
+
+```
+apps/api/src/<module>/test/
+  <name>.spec.ts
+  helpers/                 # optional shared mocks
+```
+
+| Rule | Detail |
+|------|--------|
+| **Target** | Services, guards, strategies, pure utils — where business rules live |
+| **Skip by default** | Thin controllers (one-line pass-through), TypeORM repositories (pass-through), entities, Swagger DTOs |
+| **Dependencies** | Mock repositories / sibling services / `ConfigService` / external I/O (`fetch`, LiveKit, Resend) — **no real Postgres** in unit tests |
+| **Nest wiring** | `Test.createTestingModule` with `{ provide: X, useValue: mock }` **or** `new Service(mockDeps)` for simple constructors |
+| **Assertions** | Exception **types** + important user-facing messages; call args to mocks; return shapes |
+| **Security** | Prefer explicit cases for authz, tenant isolation, secret redaction, inactive principal rejection |
+| **IDE noise** | `apps/api/tsconfig.app.json` excludes `**/*spec.ts` from Nest build. Red squiggles in the editor are often ESLint type-checked rules on mocks, not failed tests — trust `npm test` |
+
+### What to test per layer
+
+| Layer | Unit-test? | Focus |
+|-------|------------|--------|
+| Service | **Yes** | Happy path, not-found/conflict, normalization, org scoping, status gates |
+| Guard / strategy | **Yes** | Allow/deny matrix, principal shape from DB, worker secret, rate limit |
+| Controller | Optional | Only if non-trivial orchestration; else covered via service + thin guard tests |
+| Repository | No | TypeORM only; integration tests later if needed |
+| Worker tasks/tools | Later | Pure helpers first; LiveKit session code is integration-heavy |
+| Portal / web SPA | Later | Not in the Jest API suite today |
+
+### Coverage plan (API modules)
+
+Work **top-down by risk**: security → money/dial side effects → multi-tenant data → thin adapters.
+
+| Priority | Module | Status | Primary cases |
+|----------|--------|--------|----------------|
+| P0 | `auth` | **Done** | Login isolation, inactive admin/user/org, JWT live revalidation, Admin/User/WorkerSecret guards, login rate limit, protected routes |
+| P0 | `admins` | **Done** | Email normalize, findById/email, create defaults (`isActive`, name) |
+| P0 | `demo` | **Done** | Config gate (503), body shaping, `fetch` proxy, 401/403 vs generic 502 |
+| P0 | `users` | **Done** | Create user, org scope, password hash, unique email per org, toSafeUser redaction |
+| P0 | `organizations` | **Done** | Create org, slug uniqueness/lowercase, name trim, `isActive` default, findById/Slug/IdOrSlug |
+| P1 | `integration-endpoints` | Todo | API key hash/prefix, rotate, public enqueue merge context, inactive key reject, never leak secrets |
+| P1 | `queue` | Todo | Claim/retry classification, backoff, quiet hours, batch pause/cancel, stale dialing/ready sweeper (mock `DataSource` / time) |
+| P1 | `calls` | Todo | Enqueue vs immediate outbound, metadata pack, complete + requeue, org scoping on list/get |
+| P1 | `agents` / org agents | **Done** | Create/clone/slug collision, persona vs template isolation, hook null/empty/whitespace, calendar same-org FK, FK-blocked delete |
+| P1 | `tools` (profiles) | Todo | Platform vs org custom, known tool ids, delete-if-unused, always include `endCall` |
+| P2 | `sip-trunks` / `sip-dispatch-rules` | **Done** | Draft vs publish, password redaction, inbound LiveKit delete (404 ignore), dispatch metadata pack, LiveKit adapter mocked |
+| P2 | `organization-integrations` | **Done** | Secrets never returned (mapper + CRUD), test connection, calendar resolve/freeBusy matrix (Nylas mocked) |
+| P2 | `email` | Todo | Soft-disable without key, never throws, `send` / `sendText` mapping |
+| P2 | `livekit` | Todo | Thin adapter only if pure URL/token helpers; mock SDK for anything network |
+| P3 | Worker (`apps/worker`) | Todo | Metadata parse, prompt/tool/task builders, hangup helpers — no LiveKit cloud in unit tests |
+| P3 | Portal / web | Todo | Separate tooling later (Vitest/Playwright); not part of root `npm test` yet |
+
+Update the **Status** column when a module suite lands or expands.
+
+### Checklist when adding a module suite
+
+1. Create `apps/api/src/<module>/test/<focus>.spec.ts`.
+2. Mock all I/O (repo, `fetch`, ConfigService, LivekitService, EmailService).
+3. Cover success + primary failure paths (404/409/401/403/503 as applicable).
+4. For multi-tenant code: assert **org A cannot read/mutate org B**.
+5. For secrets: assert response mappers / services never return hashes or full keys (except documented create/rotate once).
+6. Run `npx jest --testPathPatterns=<module>/test --no-coverage` and fix failures before commit.
+7. Tick status in this section when the first solid suite exists.
+
+### Not in unit tests (use manual / deploy smoke)
+
+- LiveKit room/SIP against real cloud
+- Full inbound ring → persisted `calls` row (not fully wired)
+- Railway production DB / `synchronize` side effects
+- Marketing get-demo against real `ENDPOINT_URL` (unit suite mocks `fetch`)
 
 ## What not to do
 
