@@ -162,6 +162,26 @@ describe('DemoService', () => {
     });
   });
 
+  describe('honeypot', () => {
+    it('returns ok without GHL or enqueue when website is filled', async () => {
+      await expect(
+        service.requestDemo({ ...baseDto, website: 'https://spam.test' }, '9.9.9.9'),
+      ).resolves.toEqual({ ok: true });
+      expect(ghlUpsert).not.toHaveBeenCalled();
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('does not trip on whitespace-only website', async () => {
+      fetchMock.mockResolvedValue(jsonResponse({ callId: 'call-1' }));
+
+      await expect(
+        service.requestDemo({ ...baseDto, website: '   ' }),
+      ).resolves.toEqual({ ok: true, callId: 'call-1' });
+      expect(ghlUpsert).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('request shaping', () => {
     beforeEach(() => {
       fetchMock.mockResolvedValue(jsonResponse({ callId: 'call-1' }));

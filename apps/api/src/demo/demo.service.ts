@@ -22,7 +22,17 @@ export class DemoService {
    * Save the lead to GHL (best-effort), then proxy to the integration enqueue URL.
    * Uses ENDPOINT_URL + SPEEKO_API (server-side only — never expose to the SPA).
    */
-  async requestDemo(dto: RequestDemoDto): Promise<RequestDemoResponseDto> {
+  async requestDemo(
+    dto: RequestDemoDto,
+    requestIp?: string,
+  ): Promise<RequestDemoResponseDto> {
+    if (dto.website?.trim()) {
+      this.logger.warn(
+        `Demo honeypot tripped${requestIp ? ` ip=${requestIp}` : ''}`,
+      );
+      return { ok: true };
+    }
+
     const phoneNumber = dto.phone.trim();
     const email = dto.email.trim().toLowerCase();
     const firstName = dto.firstName.trim();

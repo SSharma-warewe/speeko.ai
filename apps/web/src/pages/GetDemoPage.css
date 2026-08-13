@@ -383,6 +383,15 @@
           gap: 11px;
         }
 
+        .gd-hp {
+          position: absolute;
+          left: -10000px;
+          top: auto;
+          width: 1px;
+          height: 1px;
+          overflow: hidden;
+        }
+
         .gd-error {
           font-size: 13px;
           color: #991b1b;

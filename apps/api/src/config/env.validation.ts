@@ -46,6 +46,15 @@ export const envValidationSchema = Joi.object({
   // Marketing get-demo → integration enqueue (server-side proxy; soft-required)
   ENDPOINT_URL: Joi.string().uri().optional().allow(''),
   SPEEKO_API: Joi.string().optional().allow(''),
+  // Public get-demo abuse limits (in-process; per API instance)
+  DEMO_MAX_PER_IP: Joi.number().integer().min(1).default(5),
+  DEMO_IP_WINDOW_MS: Joi.number().integer().min(1000).default(900_000),
+  DEMO_MAX_PER_PHONE: Joi.number().integer().min(1).default(1),
+  DEMO_PHONE_WINDOW_MS: Joi.number().integer().min(1000).default(3_600_000),
+  DEMO_MAX_PER_EMAIL: Joi.number().integer().min(1).default(2),
+  DEMO_EMAIL_WINDOW_MS: Joi.number().integer().min(1000).default(3_600_000),
+  DEMO_MAX_GLOBAL: Joi.number().integer().min(1).default(30),
+  DEMO_GLOBAL_WINDOW_MS: Joi.number().integer().min(1000).default(3_600_000),
   // GoHighLevel CRM (optional; get-demo lead upsert soft-disabled when either is empty)
   GHL_API_KEY: Joi.string().optional().allow(''),
   GHL_LOCATION_ID: Joi.string().optional().allow(''),

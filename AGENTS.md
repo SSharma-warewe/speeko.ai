@@ -162,6 +162,7 @@ Known tool ids: `endCall`, `booking`, `cancelBooking`, `transferCall`, `lookupCu
 - Tokens: Bearer access JWT only (no refresh/session store yet).
 - **Live revalidation:** after signature/expiry checks, `JwtStrategy` reloads admin/user from Postgres on every authenticated request. Reject if admin/user is missing or `isActive=false`. For users, also reject if the org is missing or `organization.isActive=false`. Principal `orgId` / `role` / `email` / `name` come from the DB row (not stale JWT claims). `/me` profile endpoints re-check the same rules.
 - **Login rate limits:** `POST /api/auth/login` and `POST /api/auth/admin/login` use an in-process fixed window keyed by `route + client IP + email` (`LoginRateLimitGuard`). Defaults: 10 attempts / 60s (`AUTH_LOGIN_MAX_ATTEMPTS`, `AUTH_LOGIN_WINDOW_MS`). Counters are **per API process** (not shared across Railway replicas). API sets Express `trust proxy` so `X-Forwarded-For` yields the real client IP behind a reverse proxy. Over limit → **429**.
+- **Get-demo abuse limits:** `POST /api/demo/request` uses `DemoAbuseGuard`. When `CORS_ORIGIN` is set, `Origin` (or `Referer` origin) must match that allowlist (403). Then in-process fixed windows: IP (default 5 / 15 min), phone (1 / hour), email (2 / hour), global (30 / hour). Over limit → **429**. Hidden honeypot field `website`: if filled, API returns `{ ok: true }` without GHL or enqueue. Counters are **per API process**. Country / team size / calls-per-day / integrations are allowlisted to the marketing form.
 - **Integration API keys** are separate from JWT: one secret per `integration_endpoints` row (`ca_live_…`), hashed with SHA-256. Full key returned only on create/rotate. Public CRM routes authenticate with Bearer or `X-Api-Key`, not org-user login.
 
 ### Seeded admin
@@ -241,6 +242,14 @@ Default local DB credentials (see `.env.example`):
 | `GHL_LOCATION_ID` | API | GHL sub-account (location) id required with the key. Soft-disabled when empty |
 | `AUTH_LOGIN_MAX_ATTEMPTS` | API | Max login attempts per IP+email window (default `10`) |
 | `AUTH_LOGIN_WINDOW_MS` | API | Login rate-limit window in ms (default `60000`) |
+| `DEMO_MAX_PER_IP` | API | Get-demo max submits per client IP (default `5`) |
+| `DEMO_IP_WINDOW_MS` | API | Get-demo IP window in ms (default `900000` = 15 min) |
+| `DEMO_MAX_PER_PHONE` | API | Get-demo max submits per phone digits (default `1`) |
+| `DEMO_PHONE_WINDOW_MS` | API | Get-demo phone window in ms (default `3600000`) |
+| `DEMO_MAX_PER_EMAIL` | API | Get-demo max submits per email (default `2`) |
+| `DEMO_EMAIL_WINDOW_MS` | API | Get-demo email window in ms (default `3600000`) |
+| `DEMO_MAX_GLOBAL` | API | Get-demo max submits across all clients on this process (default `30`) |
+| `DEMO_GLOBAL_WINDOW_MS` | API | Get-demo global window in ms (default `3600000`) |
 
 Models use **LiveKit Inference** (STT/LLM/TTS + **cloud turn detector v1**) — no separate OpenAI/Deepgram keys. Pins live in `apps/worker/src/models.ts`. Local EOT mini model is **not** loaded (saves ~138 MB idle); in-process Silero VAD remains for barge-in.
 
@@ -349,13 +358,14 @@ Do **not** redeploy every service by default — match the surface you changed.
 ### Marketing get-demo → dial + CRM
 
 ```
-Web form → POST /api/demo/request → API DemoService
+Web form → POST /api/demo/request → DemoAbuseGuard (origin + rate limits)
+  → API DemoService (honeypot short-circuit if `website` filled)
   1. GhlService.upsertLead (best-effort contact in GoHighLevel)
   2. POST ENDPOINT_URL + Bearer SPEEKO_API
   → integration enqueue → queue dialer → agent SIP call
 ```
 
-Form fields go in integration `context` (`source: get_demo`, name, company, email, etc.) and, when GHL env is set, onto a GHL contact. Agent/task/trunk are fixed on the integration endpoint in the portal — not on the form. CRM failure does not fail the HTTP request.
+Form fields go in integration `context` (`source: get_demo`, name, company, email, etc.) and, when GHL env is set, onto a GHL contact. Agent/task/trunk are fixed on the integration endpoint in the portal — not on the form. CRM failure does not fail the HTTP request. Abuse 403/429 never enqueue.
 
 ### Schema / DB after deploys
 
@@ -408,7 +418,7 @@ Worker health is “registered with LiveKit” in service logs, not a public HTM
 | GET | `/api/auth/admin/me` | admin JWT |
 | POST | `/api/auth/login` | public (org user) |
 | GET | `/api/auth/me` | user JWT |
-| POST | `/api/demo/request` | public — marketing get-demo; best-effort GHL contact upsert, then proxy to `ENDPOINT_URL` with `SPEEKO_API` (integration enqueue → queue dial) |
+| POST | `/api/demo/request` | public — marketing get-demo; `DemoAbuseGuard` (origin + rate limits); honeypot; best-effort GHL contact upsert, then proxy to `ENDPOINT_URL` with `SPEEKO_API` (integration enqueue → queue dial) |
 | POST | `/api/admin/organizations` | admin JWT |
 | GET | `/api/admin/organizations` | admin JWT |
 | GET | `/api/admin/organizations/:id` | admin JWT |
@@ -632,7 +642,7 @@ controller → service → repository → TypeORM entity → Postgres
 - `livekit` is an infrastructure adapter (service only), not a repository-backed domain module.
 - `email` is an infrastructure adapter (global `EmailService` only), not a repository-backed domain module.
 - `ghl` is an infrastructure adapter (global `GhlService` only), not a repository-backed domain module.
-- `demo` is a thin public proxy (no repository): marketing form → GHL upsert (best-effort) → `ENDPOINT_URL` + `SPEEKO_API` → integration enqueue.
+- `demo` is a thin public proxy (no repository): `DemoAbuseGuard` (origin + rate limits) → honeypot → GHL upsert (best-effort) → `ENDPOINT_URL` + `SPEEKO_API` → integration enqueue.
 - `queue` uses raw SQL for atomic claim (`FOR UPDATE SKIP LOCKED`) via TypeORM `DataSource`; settings/batches use repositories.
 
 ## Coding guidelines
@@ -728,7 +738,7 @@ Work **top-down by risk**: security → money/dial side effects → multi-tenant
 |----------|--------|--------|----------------|
 | P0 | `auth` | **Done** | Login isolation, inactive admin/user/org, JWT live revalidation, Admin/User/WorkerSecret guards, login rate limit, protected routes |
 | P0 | `admins` | **Done** | Email normalize, findById/email, create defaults (`isActive`, name) |
-| P0 | `demo` | **Done** | Config gate (503), body shaping, `fetch` proxy, 401/403 vs generic 502, GHL upsert before enqueue (CRM fail does not block dial) |
+| P0 | `demo` | **Done** | Config gate (503), body shaping, `fetch` proxy, 401/403 vs generic 502, GHL upsert before enqueue (CRM fail does not block dial), honeypot short-circuit, origin + IP/phone/email/global rate limits |
 | P0 | `users` | **Done** | Create user, org scope, password hash, unique email per org, toSafeUser redaction |
 | P0 | `organizations` | **Done** | Create org, slug uniqueness/lowercase, name trim, `isActive` default, findById/Slug/IdOrSlug |
 | P1 | `integration-endpoints` | Todo | API key hash/prefix, rotate, public enqueue merge context, inactive key reject, never leak secrets |
