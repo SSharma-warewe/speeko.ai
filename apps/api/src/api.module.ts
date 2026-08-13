@@ -9,6 +9,7 @@ import { envValidationSchema } from './config/env.validation';
 import { CallsModule } from './calls/calls.module';
 import { DemoModule } from './demo/demo.module';
 import { EmailModule } from './email/email.module';
+import { GhlModule } from './ghl/ghl.module';
 import { IntegrationEndpointsModule } from './integration-endpoints/integration-endpoints.module';
 import { OrganizationIntegrationsModule } from './organization-integrations/organization-integrations.module';
 import { OrganizationsModule } from './organizations/organizations.module';
@@ -41,6 +42,7 @@ import { UsersModule } from './users/users.module';
       }),
     }),
     EmailModule,
+    GhlModule,
     AdminsModule,
     OrganizationsModule,
     UsersModule,

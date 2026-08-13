@@ -3,6 +3,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { GhlService } from '../../ghl/ghl.service';
 import { DemoService } from '../demo.service';
 import { RequestDemoDto } from '../dto/request-demo.dto';
 
@@ -23,7 +24,21 @@ describe('DemoService', () => {
     integrations: [' HubSpot ', '', '  Google Calendar  ', '   '],
   };
 
+  const expectedLead = {
+    firstName: 'Alex',
+    lastName: 'Morgan',
+    email: 'alex@acme.health',
+    phone: '+15550102000',
+    company: 'Acme Health',
+    country: 'United States',
+    teamSize: '11–50',
+    callsPerDay: '50–200',
+    direction: 'outbound',
+    integrations: ['HubSpot', 'Google Calendar'],
+  };
+
   let configGet: jest.Mock;
+  let ghlUpsert: jest.Mock;
   let service: DemoService;
   let fetchMock: jest.SpyInstance;
 
@@ -32,13 +47,18 @@ describe('DemoService', () => {
       ENDPOINT_URL: endpointUrl,
       SPEEKO_API: apiKey,
     },
+    ghlResult: { ok: boolean } = { ok: true },
   ): DemoService {
     configGet = jest.fn((key: string) => {
       if (key === 'ENDPOINT_URL') return env.ENDPOINT_URL;
       if (key === 'SPEEKO_API') return env.SPEEKO_API;
       return undefined;
     });
-    return new DemoService({ get: configGet } as unknown as ConfigService);
+    ghlUpsert = jest.fn().mockResolvedValue(ghlResult);
+    return new DemoService(
+      { get: configGet } as unknown as ConfigService,
+      { upsertLead: ghlUpsert } as unknown as GhlService,
+    );
   }
 
   function jsonResponse(
@@ -102,6 +122,42 @@ describe('DemoService', () => {
         ok: true,
         callId: 'call-1',
       });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('4b. still upserts the GHL lead when dial env is missing', async () => {
+      service = makeService({ ENDPOINT_URL: undefined, SPEEKO_API: apiKey });
+
+      await expect(service.requestDemo(baseDto)).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+      expect(ghlUpsert).toHaveBeenCalledWith(expectedLead);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GHL lead capture', () => {
+    beforeEach(() => {
+      fetchMock.mockResolvedValue(jsonResponse({ callId: 'call-1' }));
+    });
+
+    it('upserts the normalized lead before enqueue', async () => {
+      await service.requestDemo(baseDto);
+
+      expect(ghlUpsert).toHaveBeenCalledWith(expectedLead);
+      expect(ghlUpsert.mock.invocationCallOrder[0]).toBeLessThan(
+        fetchMock.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('still enqueues when GHL returns ok:false', async () => {
+      service = makeService(undefined, { ok: false });
+
+      await expect(service.requestDemo(baseDto)).resolves.toEqual({
+        ok: true,
+        callId: 'call-1',
+      });
+      expect(ghlUpsert).toHaveBeenCalledTimes(1);
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
   });

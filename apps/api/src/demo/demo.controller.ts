@@ -20,9 +20,10 @@ export class DemoController {
   @ApiOperation({
     summary: 'Request a product demo call',
     description:
-      'Public marketing form. Server proxies to ENDPOINT_URL with SPEEKO_API ' +
-      '(integration enqueue). Agent, task, and trunk are fixed on that endpoint. ' +
-      'Creates a pending outbound call; the queue dialer places the SIP leg.',
+      'Public marketing form. Best-effort upsert of a GoHighLevel contact, then ' +
+      'proxies to ENDPOINT_URL with SPEEKO_API (integration enqueue). Agent, task, ' +
+      'and trunk are fixed on that endpoint. Creates a pending outbound call; the ' +
+      'queue dialer places the SIP leg. CRM failure does not fail the request.',
   })
   @ApiOkResponse({ type: RequestDemoResponseDto })
   @ApiServiceUnavailableResponse({

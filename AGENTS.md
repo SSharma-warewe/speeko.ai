@@ -237,12 +237,16 @@ Default local DB credentials (see `.env.example`):
 | `EMAIL_NOTIFY_TO` | API | Optional platform inbox for product notify mail; read via `EmailService.getNotifyTo()` |
 | `ENDPOINT_URL` | API | Full integration enqueue URL for marketing get-demo (`…/api/integrations/:publicId/calls`). Soft-required: demo submit returns 503 if unset |
 | `SPEEKO_API` | API | Integration API key (`ca_live_…`) used only server-side by `POST /api/demo/request`. **Never** put in Vite / browser env |
+| `GHL_API_KEY` | API | GoHighLevel Private Integration Token (`pit-…`) for get-demo contact upsert. Soft-disabled when empty |
+| `GHL_LOCATION_ID` | API | GHL sub-account (location) id required with the key. Soft-disabled when empty |
 | `AUTH_LOGIN_MAX_ATTEMPTS` | API | Max login attempts per IP+email window (default `10`) |
 | `AUTH_LOGIN_WINDOW_MS` | API | Login rate-limit window in ms (default `60000`) |
 
 Models use **LiveKit Inference** (STT/LLM/TTS + **cloud turn detector v1**) — no separate OpenAI/Deepgram keys. Pins live in `apps/worker/src/models.ts`. Local EOT mini model is **not** loaded (saves ~138 MB idle); in-process Silero VAD remains for barge-in.
 
 **Email (Resend):** inject global `EmailService` and call `send()` / `sendText()`. Never throws — failures return `{ ok: false }` and are logged. Until a custom domain is verified, Resend only delivers to the account owner address; still pass the real recipient.
+
+**GoHighLevel (get-demo leads):** inject global `GhlService` and call `upsertLead()`. Never throws — missing `GHL_API_KEY` / `GHL_LOCATION_ID` or API errors return `{ ok: false }` and are logged (token never logged). Upserts a contact (`source=Speeko Get Demo`), then adds tags `speeko-get-demo` + `direction:…` and a note with team/calls/integrations.
 
 ### Test inbound / outbound (web)
 
@@ -338,18 +342,20 @@ railway logs -s api --build
 | Only worker env vars (runtime) | variable change + `railway restart -s worker` (no rebuild if code unchanged) |
 | Only SPA `VITE_*` | variable change + **rebuild** that SPA |
 | `ENDPOINT_URL` / `SPEEKO_API` (get-demo dial) | set on **api** only (runtime); restart/redeploy `api` |
+| `GHL_API_KEY` / `GHL_LOCATION_ID` (get-demo CRM) | set on **api** only (runtime); restart/redeploy `api` |
 
 Do **not** redeploy every service by default — match the surface you changed.
 
-### Marketing get-demo → dial
+### Marketing get-demo → dial + CRM
 
 ```
 Web form → POST /api/demo/request → API DemoService
-  → POST ENDPOINT_URL + Bearer SPEEKO_API
+  1. GhlService.upsertLead (best-effort contact in GoHighLevel)
+  2. POST ENDPOINT_URL + Bearer SPEEKO_API
   → integration enqueue → queue dialer → agent SIP call
 ```
 
-Form fields go in integration `context` (`source: get_demo`, name, company, email, etc.). Agent/task/trunk are fixed on the integration endpoint in the portal — not on the form.
+Form fields go in integration `context` (`source: get_demo`, name, company, email, etc.) and, when GHL env is set, onto a GHL contact. Agent/task/trunk are fixed on the integration endpoint in the portal — not on the form. CRM failure does not fail the HTTP request.
 
 ### Schema / DB after deploys
 
@@ -402,7 +408,7 @@ Worker health is “registered with LiveKit” in service logs, not a public HTM
 | GET | `/api/auth/admin/me` | admin JWT |
 | POST | `/api/auth/login` | public (org user) |
 | GET | `/api/auth/me` | user JWT |
-| POST | `/api/demo/request` | public — marketing get-demo; server proxies to `ENDPOINT_URL` with `SPEEKO_API` (integration enqueue → queue dial) |
+| POST | `/api/demo/request` | public — marketing get-demo; best-effort GHL contact upsert, then proxy to `ENDPOINT_URL` with `SPEEKO_API` (integration enqueue → queue dial) |
 | POST | `/api/admin/organizations` | admin JWT |
 | GET | `/api/admin/organizations` | admin JWT |
 | GET | `/api/admin/organizations/:id` | admin JWT |
@@ -625,7 +631,8 @@ controller → service → repository → TypeORM entity → Postgres
 - Examples: `admins.repository.ts`, `organizations.repository.ts`, `users.repository.ts`, `agents.repository.ts`, `organization-agents.repository.ts`, `sip-trunks.repository.ts`, `sip-dispatch-rules.repository.ts`, `calls.repository.ts`, `organization-queue-settings.repository.ts`, `call-batches.repository.ts`, `integration-endpoints.repository.ts`.
 - `livekit` is an infrastructure adapter (service only), not a repository-backed domain module.
 - `email` is an infrastructure adapter (global `EmailService` only), not a repository-backed domain module.
-- `demo` is a thin public proxy (no repository): marketing form → `ENDPOINT_URL` + `SPEEKO_API` → integration enqueue.
+- `ghl` is an infrastructure adapter (global `GhlService` only), not a repository-backed domain module.
+- `demo` is a thin public proxy (no repository): marketing form → GHL upsert (best-effort) → `ENDPOINT_URL` + `SPEEKO_API` → integration enqueue.
 - `queue` uses raw SQL for atomic claim (`FOR UPDATE SKIP LOCKED`) via TypeORM `DataSource`; settings/batches use repositories.
 
 ## Coding guidelines
@@ -634,7 +641,7 @@ controller → service → repository → TypeORM entity → Postgres
 2. Put LiveKit agent job work in `apps/worker` (tsx + `@livekit/agents`, not Nest webpack).
 3. Validate all inputs with `class-validator` DTOs; document with `@nestjs/swagger`.
 4. Never commit real secrets; use `.env` (gitignored) + `.env.example`.
-5. Prefer clear module boundaries: `auth`, `admins`, `organizations`, `users`, `agents`, `tools` (profiles), `integration-endpoints`, `organization-integrations` (Nylas calendar keys + worker calendar proxy), `demo` (get-demo proxy), `sip-trunks`, `sip-dispatch-rules`, `calls`, `queue`, `livekit` (adapter), `email` (Resend adapter).
+5. Prefer clear module boundaries: `auth`, `admins`, `organizations`, `users`, `agents`, `tools` (profiles), `integration-endpoints`, `organization-integrations` (Nylas calendar keys + worker calendar proxy), `demo` (get-demo proxy), `sip-trunks`, `sip-dispatch-rules`, `calls`, `queue`, `livekit` (adapter), `email` (Resend adapter), `ghl` (GoHighLevel adapter).
 6. Persistence: one custom repository per entity; services own business logic only.
 7. When adding telephony (numbers, trunks, dispatch rules) or schema for calls/queue, update Erflow + this file in the same change set.
 8. **Update this AGENTS.md** when project conventions, scripts, schema ownership, or Railway deploy layout change.
@@ -650,7 +657,8 @@ controller → service → repository → TypeORM entity → Postgres
 18. Queue dialer runs in the Nest API process (`@nestjs/schedule`); do not move dial ownership into the LiveKit worker.
 19. **Product UI** lives in `apps/web` (marketing) and `apps/portal` (auth + dashboards). Both reuse `@call-agent/ui` (`packages/ui`) for buttons, forms, badges, cards, chips, alerts, and motion primitives. Import `@call-agent/ui/styles.css` once per app. Do not re-duplicate design tokens or keyframes in page-local styles. Do not put dashboard/auth code in marketing or marketing landing pages in portal.
 20. All outbound email goes through `EmailService` (Resend); do not call the Resend SDK from other modules. Treat send failures as non-fatal for product flows.
-21. **Add or update unit tests** when changing service business rules, guards, or security-sensitive paths (see **Testing**). Prefer service-level unit tests over full e2e unless the flow is HTTP-guard integration.
+21. All GoHighLevel CRM writes go through `GhlService`; do not call `services.leadconnectorhq.com` from other modules. Treat upsert failures as non-fatal for get-demo. Never log `GHL_API_KEY`.
+22. **Add or update unit tests** when changing service business rules, guards, or security-sensitive paths (see **Testing**). Prefer service-level unit tests over full e2e unless the flow is HTTP-guard integration.
 
 ## Testing
 
@@ -720,7 +728,7 @@ Work **top-down by risk**: security → money/dial side effects → multi-tenant
 |----------|--------|--------|----------------|
 | P0 | `auth` | **Done** | Login isolation, inactive admin/user/org, JWT live revalidation, Admin/User/WorkerSecret guards, login rate limit, protected routes |
 | P0 | `admins` | **Done** | Email normalize, findById/email, create defaults (`isActive`, name) |
-| P0 | `demo` | **Done** | Config gate (503), body shaping, `fetch` proxy, 401/403 vs generic 502 |
+| P0 | `demo` | **Done** | Config gate (503), body shaping, `fetch` proxy, 401/403 vs generic 502, GHL upsert before enqueue (CRM fail does not block dial) |
 | P0 | `users` | **Done** | Create user, org scope, password hash, unique email per org, toSafeUser redaction |
 | P0 | `organizations` | **Done** | Create org, slug uniqueness/lowercase, name trim, `isActive` default, findById/Slug/IdOrSlug |
 | P1 | `integration-endpoints` | Todo | API key hash/prefix, rotate, public enqueue merge context, inactive key reject, never leak secrets |
@@ -731,6 +739,7 @@ Work **top-down by risk**: security → money/dial side effects → multi-tenant
 | P2 | `sip-trunks` / `sip-dispatch-rules` | **Done** | Draft vs publish, password redaction, inbound LiveKit delete (404 ignore), dispatch metadata pack, LiveKit adapter mocked |
 | P2 | `organization-integrations` | **Done** | Secrets never returned (mapper + CRUD), test connection, calendar resolve/freeBusy matrix (Nylas mocked) |
 | P2 | `email` | Todo | Soft-disable without key, never throws, `send` / `sendText` mapping |
+| P2 | `ghl` | **Done** | Soft-disable without key/location, upsert + tags/note, never throws, never log token |
 | P2 | `livekit` | **Done** | URL helper; adapter with mocked SDK (rooms, dispatch, token/meet, SIP trunks/rules/participant, hasRemoteCallee) |
 | P3 | Worker (`apps/worker`) | Todo | Metadata parse, prompt/tool/task builders, hangup helpers — no LiveKit cloud in unit tests |
 | P3 | Portal / web | Todo | Separate tooling later (Vitest/Playwright); not part of root `npm test` yet |
@@ -757,11 +766,12 @@ Update the **Status** column when a module suite lands or expands.
 ## What not to do
 
 - Do not mix platform admin and org-user identity tables or JWT `typ` checks.
-- Do not log passwords, JWT secrets, SIP auth passwords, or integration API keys.
+- Do not log passwords, JWT secrets, SIP auth passwords, integration API keys, or `GHL_API_KEY`.
 - Do not skip Erflow updates after schema edits.
 - Do not confuse user role `agent` with the `agents` / `organization_agents` AI tables.
 - Do not put agent resolution or call lifecycle into `LivekitService` — keep it a thin adapter.
 - Do not call Resend (or any mail SDK) outside `email/`; inject `EmailService` instead.
+- Do not call the GoHighLevel API outside `ghl/`; inject `GhlService` instead.
 - Do not dial SIP from the worker — keep dialing + queue claim/retry in the API for continuous/outbound orchestration.
 - Do not skip org queue settings when adding bulk outbound paths — enqueue should create `call_batches` and respect concurrency/rate limits via the dialer.
 - Do not encode workflow steps (“call John…”, “ask these questions…”) in the system prompt — use a Task.

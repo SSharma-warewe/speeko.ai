@@ -5,6 +5,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { GhlService } from '../ghl/ghl.service';
 import { RequestDemoDto } from './dto/request-demo.dto';
 import { RequestDemoResponseDto } from './dto/request-demo-response.dto';
 
@@ -12,13 +13,39 @@ import { RequestDemoResponseDto } from './dto/request-demo-response.dto';
 export class DemoService {
   private readonly logger = new Logger(DemoService.name);
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly ghl: GhlService,
+  ) {}
 
   /**
-   * Proxy marketing get-demo form to the configured integration enqueue URL.
+   * Save the lead to GHL (best-effort), then proxy to the integration enqueue URL.
    * Uses ENDPOINT_URL + SPEEKO_API (server-side only — never expose to the SPA).
    */
   async requestDemo(dto: RequestDemoDto): Promise<RequestDemoResponseDto> {
+    const phoneNumber = dto.phone.trim();
+    const email = dto.email.trim().toLowerCase();
+    const firstName = dto.firstName.trim();
+    const lastName = dto.lastName.trim();
+    const company = dto.company.trim();
+    const country = dto.country.trim();
+    const teamSize = dto.teamSize.trim();
+    const callsPerDay = dto.callsPerDay.trim();
+    const integrations = dto.integrations.map((i) => i.trim()).filter(Boolean);
+
+    await this.ghl.upsertLead({
+      firstName,
+      lastName,
+      email,
+      phone: phoneNumber,
+      company,
+      country,
+      teamSize,
+      callsPerDay,
+      direction: dto.direction,
+      integrations,
+    });
+
     const endpointUrl = this.config.get<string>('ENDPOINT_URL')?.trim() ?? '';
     const apiKey = this.config.get<string>('SPEEKO_API')?.trim() ?? '';
 
@@ -31,22 +58,20 @@ export class DemoService {
       );
     }
 
-    const phoneNumber = dto.phone.trim();
-    const email = dto.email.trim().toLowerCase();
     const body = {
       phoneNumber,
       externalId: `get-demo:${email}`,
       context: {
         source: 'get_demo',
-        firstName: dto.firstName.trim(),
-        lastName: dto.lastName.trim(),
-        company: dto.company.trim(),
+        firstName,
+        lastName,
+        company,
         email,
-        country: dto.country.trim(),
-        teamSize: dto.teamSize.trim(),
-        callsPerDay: dto.callsPerDay.trim(),
+        country,
+        teamSize,
+        callsPerDay,
         direction: dto.direction,
-        integrations: dto.integrations.map((i) => i.trim()).filter(Boolean),
+        integrations,
       },
     };
 

@@ -46,4 +46,7 @@ export const envValidationSchema = Joi.object({
   // Marketing get-demo → integration enqueue (server-side proxy; soft-required)
   ENDPOINT_URL: Joi.string().uri().optional().allow(''),
   SPEEKO_API: Joi.string().optional().allow(''),
+  // GoHighLevel CRM (optional; get-demo lead upsert soft-disabled when either is empty)
+  GHL_API_KEY: Joi.string().optional().allow(''),
+  GHL_LOCATION_ID: Joi.string().optional().allow(''),
 });
