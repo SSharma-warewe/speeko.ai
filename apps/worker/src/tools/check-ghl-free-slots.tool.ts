@@ -19,8 +19,9 @@ const BASE_DESCRIPTION = [
   '',
   'HOW TO CALL:',
   '- startTime / endTime: ISO-8601 preferred or unix seconds.',
-  '- Resolve relative phrases (today, tomorrow) from the AUTHORITATIVE CLOCK below.',
-  '- Use a useful window (half-day or full day) when shopping for times.',
+  '- Resolve relative phrases (today, tomorrow, Monday) from the AUTHORITATIVE CLOCK below — use that weekday’s ymd, not a guess.',
+  '- If the caller spoke local time, pass timezone AND a naive local ISO (2026-08-14T15:30:00). Do NOT append Z — Z means UTC and will search the wrong hour.',
+  '- Use a useful window (half-day or full day) when shopping for times. Do not probe a single 60-minute needle.',
   '- timezone: IANA (e.g. Asia/Kolkata) when the caller spoke in local time.',
   '',
   'HOW TO INTERPRET RESULTS:',
@@ -44,7 +45,7 @@ export const createCheckGhlFreeSlotsTool: ToolFactory = ({
       startTime: z
         .string()
         .describe(
-          `Start of the search window as ISO-8601 (preferred) or unix seconds. ${clockHint}`,
+          `Start of the search window. For local spoken times use naive ISO (no Z) plus timezone. ${clockHint}`,
         ),
       endTime: z
         .string()

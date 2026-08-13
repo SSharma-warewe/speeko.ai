@@ -29,6 +29,8 @@ export type CallClockSnapshot = {
   now: Date;
   today: FormattedDay;
   tomorrow: FormattedDay;
+  /** Today plus the next 6 local calendar days (weekday → ymd). */
+  week: FormattedDay[];
   localTime: string;
   utcIso: string;
 };
@@ -55,12 +57,13 @@ export function formatClockBlock(clock: CallClockSnapshot): string {
     `Right now (local): ${clock.today.weekday}, ${clock.today.longDate} at ${clock.localTime}`,
     `Today: ${clock.today.weekday} ${clock.today.longDate} (${clock.today.ymd})`,
     `Tomorrow: ${clock.tomorrow.weekday} ${clock.tomorrow.longDate} (${clock.tomorrow.ymd})`,
+    `Next 7 days: ${formatWeekMap(clock.week)}`,
     `UTC now: ${clock.utcIso}`,
     'Rules:',
     '- When the caller says “today”, “tomorrow”, “this afternoon”, “next Monday”, resolve using THIS clock only.',
     '- Never use a different calendar year or month than shown above (models often hallucinate 2023–2025 — that is wrong if today is different).',
-    '- For calendar tools, pass concrete ISO-8601 datetimes grounded on Today/Tomorrow above (prefer offset for local time, or Z for UTC).',
-    '- Example: if they say “tomorrow at 3pm”, start with Tomorrow’s ymd in this timezone, not a guess.',
+    '- For local spoken times, pass a timezone-naive ISO (no Z) plus timezone. Z means UTC — do not append Z to a local wall-clock.',
+    `- Example: “tomorrow at 3pm” in ${clock.timeZone} is ${clock.tomorrow.ymd}T15:00:00 with timezone=${clock.timeZone}, NOT ${clock.tomorrow.ymd}T15:00:00Z.`,
     '=== END CLOCK ===',
   ].join('\n');
 }
@@ -69,8 +72,9 @@ export function formatClockBlock(clock: CallClockSnapshot): string {
 export function buildToolClockHint(meta: AgentJobMetadata): string {
   const clock = snapshotCallClock(meta);
   return [
-    `Authoritative clock for this call: timezone=${clock.timeZone}; today=${clock.today.ymd} (${clock.today.weekday}); tomorrow=${clock.tomorrow.ymd}; now_local=${clock.localTime}; utc=${clock.utcIso}.`,
-    `Resolve “today/tomorrow” only with these ymd values. Do not invent years (e.g. do not use 2025 if today is ${clock.today.ymd.slice(0, 4)}).`,
+    `Authoritative clock for this call: timezone=${clock.timeZone}; today=${clock.today.ymd} (${clock.today.weekday}); tomorrow=${clock.tomorrow.ymd}; week=${formatWeekMap(clock.week)}; now_local=${clock.localTime}; utc=${clock.utcIso}.`,
+    `Resolve “today/tomorrow/Monday” only with these ymd values. Do not invent years (e.g. do not use 2025 if today is ${clock.today.ymd.slice(0, 4)}).`,
+    `For local times pass YYYY-MM-DDTHH:mm:ss WITHOUT Z plus timezone=${clock.timeZone}. Never append Z to a local wall-clock.`,
   ].join(' ');
 }
 
@@ -83,6 +87,9 @@ export function snapshotCallClock(
   const tomorrowDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
   // Prefer calendar-day tomorrow in local TZ rather than +24h near DST; +24h is close enough for voice.
   const tomorrow = formatDayInTimeZone(addLocalCalendarDays(now, timeZone, 1), timeZone);
+  const week = Array.from({ length: 7 }, (_, i) =>
+    formatDayInTimeZone(addLocalCalendarDays(now, timeZone, i), timeZone),
+  );
   const localTime = new Intl.DateTimeFormat('en-US', {
     timeZone,
     hour: 'numeric',
@@ -97,9 +104,14 @@ export function snapshotCallClock(
     now,
     today,
     tomorrow,
+    week,
     localTime,
     utcIso: now.toISOString(),
   };
+}
+
+function formatWeekMap(week: FormattedDay[]): string {
+  return week.map((d) => `${d.weekday}=${d.ymd}`).join(', ');
 }
 
 /**

@@ -25,6 +25,24 @@ export type DemoBookingResult = {
   notes?: string;
 };
 
+function bookingToolLines(enabledTools: string[]): string[] {
+  const ids = new Set(enabledTools);
+  const useGhl =
+    ids.has('checkGhlFreeSlots') || ids.has('scheduleGhlMeeting');
+  if (useGhl) {
+    return [
+      '- ALWAYS call check_ghl_free_slots for the proposed day or window before confirming a time.',
+      '- If free, book with schedule_ghl_meeting (title like “Demo — {name}”, include email when known). Pass the exact startIso from check_ghl_free_slots.',
+      '- NEVER claim the demo is booked unless schedule_ghl_meeting returned ok. If tools fail, say so and offer another time or a human callback.',
+    ];
+  }
+  return [
+    '- ALWAYS call check_calendar_availability (or checkCalendarAvailability) for the proposed slot before confirming.',
+    '- If free, create the event with create_calendar_event / createCalendarEvent (title like “Demo — {name}”, include email when known).',
+    '- NEVER claim the demo is booked unless create_calendar_event returned ok/success. If tools fail, say so and offer another time or a human callback.',
+  ];
+}
+
 function displayNameFromContext(
   context: Record<string, unknown> | undefined,
 ): string | undefined {
@@ -68,10 +86,8 @@ export const createDemoBookingTask: TaskFactory = ({
       'PHASE 1 — BOOKING (do this first):',
       '- Confirm it is a good time to talk briefly.',
       '- Ask for a preferred date and time for a demo (default duration 30 minutes if unspecified).',
-      '- Resolve relative times using the authoritative call clock in system instructions.',
-      '- ALWAYS call check_calendar_availability (or checkCalendarAvailability) for the proposed slot before confirming.',
-      '- If free, create the event with create_calendar_event / createCalendarEvent (title like “Demo — {name}”, include email when known).',
-      '- NEVER claim the demo is booked unless create_calendar_event returned ok/success. If tools fail, say so and offer another time or a human callback.',
+      '- Resolve relative times using the authoritative call clock in system instructions. Never append Z to a local wall-clock time.',
+      ...bookingToolLines(meta.enabledTools),
       '- After a successful book, read back the confirmed time in natural language once.',
       '',
       'PHASE 2 — PRODUCT DISCOVERY (only after booking succeeds, or if they refuse to book but still want to talk):',
@@ -109,7 +125,9 @@ export const createDemoBookingTask: TaskFactory = ({
           eventId: z
             .string()
             .optional()
-            .describe('Calendar event id from create_calendar_event when booked'),
+            .describe(
+              'Calendar event / appointment id from schedule_ghl_meeting or create_calendar_event when booked',
+            ),
           scheduledStart: z
             .string()
             .optional()

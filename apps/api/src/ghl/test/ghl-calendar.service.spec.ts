@@ -2,7 +2,11 @@ import { ConfigService } from '@nestjs/config';
 import { CallsRepository } from '../../calls/calls.repository';
 import { GhlCalendarToolsService } from '../ghl-calendar-tools.service';
 import { GhlService } from '../ghl.service';
-import { mapGhlFreeSlots } from '../ghl-time';
+import {
+  expandShortWindowToLocalDays,
+  mapGhlFreeSlots,
+  parseTimeToUnix,
+} from '../ghl-time';
 
 describe('mapGhlFreeSlots', () => {
   it('maps live date→slots shape and drops traceId', () => {
@@ -45,6 +49,54 @@ describe('mapGhlFreeSlots', () => {
     });
     expect(slots).toHaveLength(12);
     expect(slots.every((s) => typeof s.startIso === 'string')).toBe(true);
+  });
+});
+
+describe('parseTimeToUnix (GHL wall-clock)', () => {
+  it('treats Z + Asia/Kolkata as local wall-clock (not UTC)', () => {
+    expect(parseTimeToUnix('2026-08-14T15:00:00Z', 'Asia/Kolkata')).toBe(
+      Date.parse('2026-08-14T09:30:00.000Z') / 1000,
+    );
+  });
+
+  it('honors a numeric offset even when timezone is set', () => {
+    expect(parseTimeToUnix('2026-08-14T15:00:00+05:30', 'Asia/Kolkata')).toBe(
+      Date.parse('2026-08-14T09:30:00.000Z') / 1000,
+    );
+  });
+
+  it('keeps Z as UTC when timezone is omitted', () => {
+    expect(parseTimeToUnix('2026-08-14T15:00:00Z')).toBe(
+      Date.parse('2026-08-14T15:00:00.000Z') / 1000,
+    );
+  });
+
+  it('treats naive ISO + timezone as local wall-clock', () => {
+    expect(parseTimeToUnix('2026-08-14T15:30:00', 'Asia/Kolkata')).toBe(
+      Date.parse('2026-08-14T10:00:00.000Z') / 1000,
+    );
+  });
+
+  it('leaves unix seconds unchanged', () => {
+    expect(parseTimeToUnix('1786700000', 'Asia/Kolkata')).toBe(1786700000);
+  });
+});
+
+describe('expandShortWindowToLocalDays', () => {
+  it('expands a 60-minute IST window to that local calendar day', () => {
+    const start = parseTimeToUnix('2026-08-14T15:00:00Z', 'Asia/Kolkata')!;
+    const end = parseTimeToUnix('2026-08-14T16:00:00Z', 'Asia/Kolkata')!;
+    const win = expandShortWindowToLocalDays(start, end, 'Asia/Kolkata');
+    expect(win.expanded).toBe(true);
+    expect(win.startSec).toBe(Date.parse('2026-08-13T18:30:00.000Z') / 1000);
+    expect(win.endSec).toBe(Date.parse('2026-08-14T18:30:00.000Z') / 1000);
+  });
+
+  it('does not expand a window of 4 hours or more', () => {
+    const start = parseTimeToUnix('2026-08-14T09:00:00+05:30')!;
+    const end = parseTimeToUnix('2026-08-14T18:00:00+05:30')!;
+    const win = expandShortWindowToLocalDays(start, end, 'Asia/Kolkata');
+    expect(win).toEqual({ startSec: start, endSec: end, expanded: false });
   });
 });
 
@@ -304,9 +356,11 @@ describe('GhlCalendarToolsService', () => {
       slotMinutes: 30,
       slots: [{ startIso: '2026-08-14T10:00:00+05:30', endIso: '2026-08-14T10:30:00+05:30' }],
     });
+    const startTime = '2028-06-15T09:00:00+05:30';
+    const endTime = '2028-06-15T18:00:00+05:30';
     const res = await service.freeSlots(CALL_ID, {
-      startTime: futureStart,
-      endTime: futureEnd,
+      startTime,
+      endTime,
       timezone: 'Asia/Kolkata',
     });
     expect(res.ok).toBe(true);
@@ -325,10 +379,32 @@ describe('GhlCalendarToolsService', () => {
       endMs: number;
       timezone?: string;
     };
-    expect(arg.startMs).toBe(Math.floor(Date.parse(futureStart) / 1000) * 1000);
-    expect(arg.endMs).toBe(Math.floor(Date.parse(futureEnd) / 1000) * 1000);
+    expect(arg.startMs).toBe(Date.parse(startTime));
+    expect(arg.endMs).toBe(Date.parse(endTime));
     expect(arg.timezone).toBe('Asia/Kolkata');
     expect(JSON.stringify(res)).not.toMatch(/title|contactId|event/i);
+  });
+
+  it('reinterprets Z+timezone as local and expands a short window to the day', async () => {
+    callsRepository.findById.mockResolvedValue({ id: CALL_ID, context: {} });
+    ghl.getFreeSlots.mockResolvedValue({
+      ok: true,
+      slotMinutes: 30,
+      timezone: 'Asia/Kolkata',
+      slots: [{ startIso: '2028-06-15T15:30:00+05:30', endIso: '2028-06-15T16:00:00+05:30' }],
+    });
+    const res = await service.freeSlots(CALL_ID, {
+      startTime: '2028-06-15T15:00:00Z',
+      endTime: '2028-06-15T16:00:00Z',
+      timezone: 'Asia/Kolkata',
+    });
+    expect(res.ok).toBe(true);
+    const arg = ghl.getFreeSlots.mock.calls[0][0] as {
+      startMs: number;
+      endMs: number;
+    };
+    expect(arg.startMs).toBe(Date.parse('2028-06-14T18:30:00.000Z'));
+    expect(arg.endMs).toBe(Date.parse('2028-06-15T18:30:00.000Z'));
   });
 
   it('books using call context email when tool omits identity', async () => {
@@ -383,5 +459,36 @@ describe('GhlCalendarToolsService', () => {
     ).resolves.toMatchObject({ ok: false, error: 'missing_contact' });
     expect(ghl.upsertContact).not.toHaveBeenCalled();
     expect(ghl.createAppointment).not.toHaveBeenCalled();
+  });
+
+  it('books a Z+timezone spoken time as local IST, not UTC', async () => {
+    callsRepository.findById.mockResolvedValue({
+      id: CALL_ID,
+      context: { email: 'ada@example.com' },
+    });
+    ghl.upsertContact.mockResolvedValue({
+      ok: true,
+      contactId: 'ct_1',
+      created: false,
+    });
+    ghl.createAppointment.mockResolvedValue({
+      ok: true,
+      appointmentId: 'apt_1',
+      startTime: '2028-06-15T15:00:00+05:30',
+      endTime: '2028-06-15T15:30:00+05:30',
+      title: 'Meeting',
+    });
+
+    await service.scheduleMeeting(CALL_ID, {
+      startTime: '2028-06-15T15:00:00Z',
+      timezone: 'Asia/Kolkata',
+    });
+
+    expect(ghl.createAppointment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startTime: '2028-06-15T09:30:00.000Z',
+        endTime: '2028-06-15T10:00:00.000Z',
+      }),
+    );
   });
 });

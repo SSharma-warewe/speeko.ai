@@ -9,6 +9,8 @@ import { GhlService } from './ghl.service';
 import {
   GHL_SLOT_MINUTES,
   addMinutesKeepingOffset,
+  expandShortWindowToLocalDays,
+  hasNumericUtcOffset,
   parseTimeToUnix,
   pastWindowError,
   unixToIso,
@@ -40,8 +42,9 @@ export class GhlCalendarToolsService {
       };
     }
 
-    const start = parseTimeToUnix(dto.startTime);
-    const end = parseTimeToUnix(dto.endTime);
+    const tz = dto.timezone?.trim() || undefined;
+    const start = parseTimeToUnix(dto.startTime, tz);
+    const end = parseTimeToUnix(dto.endTime, tz);
     if (start == null || end == null) {
       return {
         ok: false,
@@ -60,10 +63,17 @@ export class GhlCalendarToolsService {
     const past = pastWindowError(start, end);
     if (past) return past;
 
+    const window = expandShortWindowToLocalDays(start, end, tz);
+    if (window.expanded) {
+      this.logger.log(
+        `ghl free-slots callId=${callId} expanded ${unixToIso(start)}..${unixToIso(end)} → ${unixToIso(window.startSec)}..${unixToIso(window.endSec)} tz=${tz ?? 'UTC'}`,
+      );
+    }
+
     const result = await this.ghl.getFreeSlots({
-      startMs: start * 1000,
-      endMs: end * 1000,
-      timezone: dto.timezone,
+      startMs: window.startSec * 1000,
+      endMs: window.endSec * 1000,
+      timezone: tz,
     });
     if (!result.ok) {
       this.logger.warn(
@@ -79,7 +89,7 @@ export class GhlCalendarToolsService {
     const n = result.slots.length;
     const message =
       n === 0
-        ? `No open ${result.slotMinutes}-minute slots between ${unixToIso(start)} and ${unixToIso(end)}. Offer another day or a callback.`
+        ? `No open ${result.slotMinutes}-minute slots between ${unixToIso(window.startSec)} and ${unixToIso(window.endSec)}. Offer another day or a callback.`
         : `${n} open ${result.slotMinutes}-minute slot(s). Speak only these times. Do not mention other appointments.`;
 
     this.logger.log(`ghl free-slots callId=${callId} ok=true slots=${n}`);
@@ -107,7 +117,8 @@ export class GhlCalendarToolsService {
       };
     }
 
-    const start = parseTimeToUnix(dto.startTime);
+    const tz = dto.timezone?.trim() || undefined;
+    const start = parseTimeToUnix(dto.startTime, tz);
     if (start == null) {
       return {
         ok: false,
@@ -115,7 +126,9 @@ export class GhlCalendarToolsService {
         message: 'startTime must be unix seconds or ISO-8601.',
       };
     }
-    const endRaw = dto.endTime ? parseTimeToUnix(dto.endTime) : start + GHL_SLOT_MINUTES * 60;
+    const endRaw = dto.endTime
+      ? parseTimeToUnix(dto.endTime, tz)
+      : start + GHL_SLOT_MINUTES * 60;
     if (endRaw == null) {
       return {
         ok: false,
@@ -158,11 +171,11 @@ export class GhlCalendarToolsService {
       };
     }
 
-    const startTime = looksLikeIso(dto.startTime)
+    const startTime = hasNumericUtcOffset(dto.startTime)
       ? dto.startTime.trim()
       : unixToIso(start);
     const endTime = dto.endTime
-      ? looksLikeIso(dto.endTime)
+      ? hasNumericUtcOffset(dto.endTime)
         ? dto.endTime.trim()
         : unixToIso(endRaw)
       : addMinutesKeepingOffset(startTime, GHL_SLOT_MINUTES);
@@ -203,10 +216,6 @@ export class GhlCalendarToolsService {
       },
     };
   }
-}
-
-function looksLikeIso(value: string): boolean {
-  return /T/.test(value) || /[+-]\d{2}:\d{2}$/.test(value) || /Z$/i.test(value);
 }
 
 function contextField(

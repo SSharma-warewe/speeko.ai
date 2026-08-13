@@ -142,7 +142,7 @@ Known tool ids: `endCall`, `booking`, `cancelBooking`, `transferCall`, `lookupCu
 
 **Calendar tools (Nylas):** org stores API key + grant on `organization_integrations`; link via `organization_agents.calendar_integration_id`; enable tool ids on a tool profile. Worker tools call `POST /api/internal/calls/:callId/calendar/*` with `X-Worker-Secret` — API holds secrets (never in LiveKit metadata).
 
-**Calendar tools (platform GHL):** env `GHL_CALENDAR` (PIT) + `GHL_LOCATION_ID` + `GHL_CALENDAR_ID`. Worker tools `checkGhlFreeSlots` / `scheduleGhlMeeting` call `POST /api/internal/calls/:callId/ghl-calendar/*`. Free slots return **open times only** (never existing appointments). Not org-scoped; enable the ids on a tool profile when wanted. `GhlService` is the only GHL HTTP client.
+**Calendar tools (platform GHL):** env `GHL_CALENDAR` (PIT) + `GHL_LOCATION_ID` + `GHL_CALENDAR_ID`. Worker tools `checkGhlFreeSlots` / `scheduleGhlMeeting` call `POST /api/internal/calls/:callId/ghl-calendar/*`. Free slots return **open times only** (never existing appointments). Not org-scoped; enable the ids on a tool profile when wanted. `GhlService` is the only GHL HTTP client. Worker/API treat naive or `Z` ISO **plus IANA `timezone`** as local wall-clock (LLMs often tag IST times with `Z`); numeric offsets (`+05:30`) stay absolute. Short free-slot windows (< 4h) expand to the local calendar day(s) before calling GHL.
 
 ### Naming note
 

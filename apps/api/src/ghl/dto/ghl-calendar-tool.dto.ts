@@ -20,7 +20,8 @@ export class GhlFreeSlotsDto {
 
   @ApiPropertyOptional({
     example: 'Asia/Kolkata',
-    description: 'IANA timezone for GHL slot labels',
+    description:
+      'IANA timezone. Naive or Z timestamps are treated as wall-clock in this zone; numeric offsets are honored. Also used for GHL slot labels.',
   })
   @IsOptional()
   @IsString()
