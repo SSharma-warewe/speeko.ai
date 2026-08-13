@@ -15,6 +15,9 @@ export const KNOWN_TOOL_IDS = [
   'listCalendarEvents',
   'createCalendarEvent',
   'cancelCalendarEvent',
+  /** Platform GHL calendar — env GHL_CALENDAR + GHL_CALENDAR_ID (not Nylas) */
+  'checkGhlFreeSlots',
+  'scheduleGhlMeeting',
 ] as const;
 
 export type KnownToolId = (typeof KNOWN_TOOL_IDS)[number];

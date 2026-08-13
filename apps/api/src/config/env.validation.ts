@@ -55,7 +55,9 @@ export const envValidationSchema = Joi.object({
   DEMO_EMAIL_WINDOW_MS: Joi.number().integer().min(1000).default(3_600_000),
   DEMO_MAX_GLOBAL: Joi.number().integer().min(1).default(30),
   DEMO_GLOBAL_WINDOW_MS: Joi.number().integer().min(1000).default(3_600_000),
-  // GoHighLevel CRM (optional; get-demo lead upsert soft-disabled when either is empty)
+  // GoHighLevel CRM + platform calendar (optional; each feature soft-disabled when required vars empty)
   GHL_API_KEY: Joi.string().optional().allow(''),
   GHL_LOCATION_ID: Joi.string().optional().allow(''),
+  GHL_CALENDAR: Joi.string().optional().allow(''),
+  GHL_CALENDAR_ID: Joi.string().optional().allow(''),
 });

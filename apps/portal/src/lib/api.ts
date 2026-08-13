@@ -129,6 +129,8 @@ export const KNOWN_TOOL_IDS = [
   "listCalendarEvents",
   "createCalendarEvent",
   "cancelCalendarEvent",
+  "checkGhlFreeSlots",
+  "scheduleGhlMeeting",
 ] as const;
 
 /** Optional short labels for tool profile UI. */
@@ -144,6 +146,8 @@ export const TOOL_ID_HINTS: Record<string, string> = {
   listCalendarEvents: "Nylas list events — requires agent calendar link",
   createCalendarEvent: "Nylas create event — requires agent calendar link",
   cancelCalendarEvent: "Nylas cancel event — requires agent calendar link",
+  checkGhlFreeSlots: "GHL open slots only (platform calendar, hides existing meetings)",
+  scheduleGhlMeeting: "GHL book a meeting (platform calendar)",
 };
 
 export interface OrganizationIntegration {

@@ -138,9 +138,11 @@ Parse metadata → PromptBuilder → ToolBuilder (registry) → TaskBuilder → 
 ```
 
 Known task keys: `general`, `confirm_appointment`, `lead_qualification`, `customer_support`, `survey`, `debt_collection`, `demo_booking` (schedule calendar demo then short product discovery).  
-Known tool ids: `endCall`, `booking`, `cancelBooking`, `transferCall`, `lookupCustomer`, `confirmAppointment`, `checkCalendarAvailability`, `listCalendarEvents`, `createCalendarEvent`, `cancelCalendarEvent`.
+Known tool ids: `endCall`, `booking`, `cancelBooking`, `transferCall`, `lookupCustomer`, `confirmAppointment`, `checkCalendarAvailability`, `listCalendarEvents`, `createCalendarEvent`, `cancelCalendarEvent`, `checkGhlFreeSlots`, `scheduleGhlMeeting`.
 
 **Calendar tools (Nylas):** org stores API key + grant on `organization_integrations`; link via `organization_agents.calendar_integration_id`; enable tool ids on a tool profile. Worker tools call `POST /api/internal/calls/:callId/calendar/*` with `X-Worker-Secret` — API holds secrets (never in LiveKit metadata).
+
+**Calendar tools (platform GHL):** env `GHL_CALENDAR` (PIT) + `GHL_LOCATION_ID` + `GHL_CALENDAR_ID`. Worker tools `checkGhlFreeSlots` / `scheduleGhlMeeting` call `POST /api/internal/calls/:callId/ghl-calendar/*`. Free slots return **open times only** (never existing appointments). Not org-scoped; enable the ids on a tool profile when wanted. `GhlService` is the only GHL HTTP client.
 
 ### Naming note
 
@@ -238,8 +240,10 @@ Default local DB credentials (see `.env.example`):
 | `EMAIL_NOTIFY_TO` | API | Optional platform inbox for product notify mail; read via `EmailService.getNotifyTo()` |
 | `ENDPOINT_URL` | API | Full integration enqueue URL for marketing get-demo (`…/api/integrations/:publicId/calls`). Soft-required: demo submit returns 503 if unset |
 | `SPEEKO_API` | API | Integration API key (`ca_live_…`) used only server-side by `POST /api/demo/request`. **Never** put in Vite / browser env |
-| `GHL_API_KEY` | API | GoHighLevel Private Integration Token (`pit-…`) for get-demo contact upsert. Soft-disabled when empty |
+| `GHL_API_KEY` | API | GoHighLevel Private Integration Token (`pit-…`) for get-demo + booking contact upsert. Soft-disabled when empty |
 | `GHL_LOCATION_ID` | API | GHL sub-account (location) id required with the key. Soft-disabled when empty |
+| `GHL_CALENDAR` | API | Calendar-scoped PIT (`pit-…`) for free-slots + create appointment. Soft-disabled when empty |
+| `GHL_CALENDAR_ID` | API | GHL calendar id to book onto. Required with `GHL_CALENDAR` |
 | `AUTH_LOGIN_MAX_ATTEMPTS` | API | Max login attempts per IP+email window (default `10`) |
 | `AUTH_LOGIN_WINDOW_MS` | API | Login rate-limit window in ms (default `60000`) |
 | `DEMO_MAX_PER_IP` | API | Get-demo max submits per client IP (default `5`) |
@@ -256,6 +260,8 @@ Models use **LiveKit Inference** (STT/LLM/TTS + **cloud turn detector v1**) — 
 **Email (Resend):** inject global `EmailService` and call `send()` / `sendText()`. Never throws — failures return `{ ok: false }` and are logged. Until a custom domain is verified, Resend only delivers to the account owner address; still pass the real recipient.
 
 **GoHighLevel (get-demo leads):** inject global `GhlService` and call `upsertLead()`. Never throws — missing `GHL_API_KEY` / `GHL_LOCATION_ID` or API errors return `{ ok: false }` and are logged (token never logged). Upserts a contact (`source=Speeko Get Demo`), then adds tags `speeko-get-demo` + `direction:…` and a note with team/calls/integrations.
+
+**GoHighLevel (platform calendar):** `GhlService.getFreeSlots()` / `createAppointment()` / `upsertContact()`. Calendar HTTP uses `GHL_CALENDAR`; contacts use `GHL_API_KEY`. Free-slots `startDate`/`endDate` are unix **milliseconds**. Response to the worker is open `{ startIso, endIso }` only (cap 12) — never `GET /calendars/events`. Tokens never logged.
 
 ### Test inbound / outbound (web)
 
@@ -352,6 +358,7 @@ railway logs -s api --build
 | Only SPA `VITE_*` | variable change + **rebuild** that SPA |
 | `ENDPOINT_URL` / `SPEEKO_API` (get-demo dial) | set on **api** only (runtime); restart/redeploy `api` |
 | `GHL_API_KEY` / `GHL_LOCATION_ID` (get-demo CRM) | set on **api** only (runtime); restart/redeploy `api` |
+| `GHL_CALENDAR` / `GHL_CALENDAR_ID` (platform calendar tools) | set on **api** only (runtime); redeploy `api` + `worker` when adding the tools |
 
 Do **not** redeploy every service by default — match the surface you changed.
 
@@ -463,6 +470,8 @@ Worker health is “registered with LiveKit” in service logs, not a public HTM
 | POST | `/api/internal/calls/:callId/calendar/events/list` | worker secret — list events |
 | POST | `/api/internal/calls/:callId/calendar/events` | worker secret — create event |
 | POST | `/api/internal/calls/:callId/calendar/events/cancel` | worker secret — cancel/delete event |
+| POST | `/api/internal/calls/:callId/ghl-calendar/free-slots` | worker secret — platform GHL open slots only |
+| POST | `/api/internal/calls/:callId/ghl-calendar/appointments` | worker secret — platform GHL book appointment |
 | POST | `/api/integrations/:publicId/calls` | integration API key — thin enqueue (`phoneNumber` + optional `context` / `externalId`) |
 | GET | `/api/admin/tool-profiles` | admin JWT — list platform tool profiles |
 | GET | `/api/admin/tool-profiles/known-tools` | admin JWT — known worker tool ids |
@@ -641,7 +650,7 @@ controller → service → repository → TypeORM entity → Postgres
 - Examples: `admins.repository.ts`, `organizations.repository.ts`, `users.repository.ts`, `agents.repository.ts`, `organization-agents.repository.ts`, `sip-trunks.repository.ts`, `sip-dispatch-rules.repository.ts`, `calls.repository.ts`, `organization-queue-settings.repository.ts`, `call-batches.repository.ts`, `integration-endpoints.repository.ts`.
 - `livekit` is an infrastructure adapter (service only), not a repository-backed domain module.
 - `email` is an infrastructure adapter (global `EmailService` only), not a repository-backed domain module.
-- `ghl` is an infrastructure adapter (global `GhlService` only), not a repository-backed domain module.
+- `ghl` is an infrastructure adapter (`GhlService` + worker-secret calendar controller). Not org-scoped; not a repository-backed domain module.
 - `demo` is a thin public proxy (no repository): `DemoAbuseGuard` (origin + rate limits) → honeypot → GHL upsert (best-effort) → `ENDPOINT_URL` + `SPEEKO_API` → integration enqueue.
 - `queue` uses raw SQL for atomic claim (`FOR UPDATE SKIP LOCKED`) via TypeORM `DataSource`; settings/batches use repositories.
 
@@ -667,7 +676,7 @@ controller → service → repository → TypeORM entity → Postgres
 18. Queue dialer runs in the Nest API process (`@nestjs/schedule`); do not move dial ownership into the LiveKit worker.
 19. **Product UI** lives in `apps/web` (marketing) and `apps/portal` (auth + dashboards). Both reuse `@call-agent/ui` (`packages/ui`) for buttons, forms, badges, cards, chips, alerts, and motion primitives. Import `@call-agent/ui/styles.css` once per app. Do not re-duplicate design tokens or keyframes in page-local styles. Do not put dashboard/auth code in marketing or marketing landing pages in portal.
 20. All outbound email goes through `EmailService` (Resend); do not call the Resend SDK from other modules. Treat send failures as non-fatal for product flows.
-21. All GoHighLevel CRM writes go through `GhlService`; do not call `services.leadconnectorhq.com` from other modules. Treat upsert failures as non-fatal for get-demo. Never log `GHL_API_KEY`.
+21. All GoHighLevel CRM and calendar HTTP goes through `GhlService`; do not call `services.leadconnectorhq.com` from other modules. Treat upsert failures as non-fatal for get-demo. Never log `GHL_API_KEY` or `GHL_CALENDAR`. Never return existing GHL appointments to the agent (free slots only).
 22. **Add or update unit tests** when changing service business rules, guards, or security-sensitive paths (see **Testing**). Prefer service-level unit tests over full e2e unless the flow is HTTP-guard integration.
 
 ## Testing
@@ -749,7 +758,7 @@ Work **top-down by risk**: security → money/dial side effects → multi-tenant
 | P2 | `sip-trunks` / `sip-dispatch-rules` | **Done** | Draft vs publish, password redaction, inbound LiveKit delete (404 ignore), dispatch metadata pack, LiveKit adapter mocked |
 | P2 | `organization-integrations` | **Done** | Secrets never returned (mapper + CRUD), test connection, calendar resolve/freeBusy matrix (Nylas mocked) |
 | P2 | `email` | Todo | Soft-disable without key, never throws, `send` / `sendText` mapping |
-| P2 | `ghl` | **Done** | Soft-disable without key/location, upsert + tags/note, never throws, never log token |
+| P2 | `ghl` | **Done** | Soft-disable without key/location, upsert + tags/note, never throws, never log token, free-slots map + ms query, book upsert+appointment, hide existing events |
 | P2 | `livekit` | **Done** | URL helper; adapter with mocked SDK (rooms, dispatch, token/meet, SIP trunks/rules/participant, hasRemoteCallee) |
 | P3 | Worker (`apps/worker`) | Todo | Metadata parse, prompt/tool/task builders, hangup helpers — no LiveKit cloud in unit tests |
 | P3 | Portal / web | Todo | Separate tooling later (Vitest/Playwright); not part of root `npm test` yet |
@@ -776,7 +785,7 @@ Update the **Status** column when a module suite lands or expands.
 ## What not to do
 
 - Do not mix platform admin and org-user identity tables or JWT `typ` checks.
-- Do not log passwords, JWT secrets, SIP auth passwords, integration API keys, or `GHL_API_KEY`.
+- Do not log passwords, JWT secrets, SIP auth passwords, integration API keys, `GHL_API_KEY`, or `GHL_CALENDAR`.
 - Do not skip Erflow updates after schema edits.
 - Do not confuse user role `agent` with the `agents` / `organization_agents` AI tables.
 - Do not put agent resolution or call lifecycle into `LivekitService` — keep it a thin adapter.

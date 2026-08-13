@@ -3,11 +3,13 @@ import { createBookingTool } from './booking.tool.js';
 import { createCancelBookingTool } from './cancel-booking.tool.js';
 import { createCancelCalendarEventTool } from './cancel-calendar-event.tool.js';
 import { createCheckCalendarAvailabilityTool } from './check-calendar-availability.tool.js';
+import { createCheckGhlFreeSlotsTool } from './check-ghl-free-slots.tool.js';
 import { createConfirmAppointmentTool } from './confirm-appointment.tool.js';
 import { createCreateCalendarEventTool } from './create-calendar-event.tool.js';
 import { createEndCallTool } from './end-call.tool.js';
 import { createListCalendarEventsTool } from './list-calendar-events.tool.js';
 import { createLookupCustomerTool } from './lookup-customer.tool.js';
+import { createScheduleGhlMeetingTool } from './schedule-ghl-meeting.tool.js';
 import { TOOL_IDS } from './tool-ids.js';
 import { createTransferCallTool } from './transfer-call.tool.js';
 import type { ToolFactory, ToolFactoryContext } from './types.js';
@@ -23,6 +25,8 @@ const factories = new Map<string, ToolFactory>([
   [TOOL_IDS.listCalendarEvents, createListCalendarEventsTool],
   [TOOL_IDS.createCalendarEvent, createCreateCalendarEventTool],
   [TOOL_IDS.cancelCalendarEvent, createCancelCalendarEventTool],
+  [TOOL_IDS.checkGhlFreeSlots, createCheckGhlFreeSlotsTool],
+  [TOOL_IDS.scheduleGhlMeeting, createScheduleGhlMeetingTool],
 ]);
 
 function toolEntryKey(entry: ToolContextEntry, fallback: string): string {

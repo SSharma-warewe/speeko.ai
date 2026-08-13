@@ -31,7 +31,12 @@ export async function callCalendarApi(
   callId: string | undefined,
   path: string,
   body: Record<string, unknown>,
-  opts?: { userData?: SessionUserData; toolId?: string },
+  opts?: {
+    userData?: SessionUserData;
+    toolId?: string;
+    /** Default `calendar` (Nylas). Use `ghl-calendar` for platform GHL tools. */
+    namespace?: 'calendar' | 'ghl-calendar';
+  },
 ): Promise<CalendarToolResult> {
   const toolId = opts?.toolId ?? `calendar:${path}`;
   const started = Date.now();
@@ -76,7 +81,8 @@ export async function callCalendarApi(
     });
   }
 
-  const url = `${cfg.baseUrl}/api/internal/calls/${callId}/calendar/${path}`;
+  const ns = opts?.namespace ?? 'calendar';
+  const url = `${cfg.baseUrl}/api/internal/calls/${callId}/${ns}/${path}`;
   try {
     const res = await fetch(url, {
       method: 'POST',

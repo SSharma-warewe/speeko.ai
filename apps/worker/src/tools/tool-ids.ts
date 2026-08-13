@@ -10,6 +10,9 @@ export const TOOL_IDS = {
   listCalendarEvents: 'listCalendarEvents',
   createCalendarEvent: 'createCalendarEvent',
   cancelCalendarEvent: 'cancelCalendarEvent',
+  /** Platform GHL calendar (env GHL_CALENDAR + GHL_CALENDAR_ID) */
+  checkGhlFreeSlots: 'checkGhlFreeSlots',
+  scheduleGhlMeeting: 'scheduleGhlMeeting',
 } as const;
 
 export type ToolId = (typeof TOOL_IDS)[keyof typeof TOOL_IDS];
