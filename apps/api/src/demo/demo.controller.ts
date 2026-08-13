@@ -16,7 +16,7 @@ import {
   ApiTags,
   ApiTooManyRequestsResponse,
 } from '@nestjs/swagger';
-import { Request } from 'express';
+import type { Request } from 'express';
 import { clientIp } from '../common/client-ip';
 import { DemoService } from './demo.service';
 import { RequestDemoDto } from './dto/request-demo.dto';
