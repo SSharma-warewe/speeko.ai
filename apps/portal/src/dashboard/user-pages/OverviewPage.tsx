@@ -24,7 +24,7 @@ export default function UserOverviewPage() {
   const { data, error, loading, reload } = useUserAsync(async () => {
     const [stats, calls, agents] = await Promise.all([
       getUserQueueStats(),
-      listUserCalls({ limit: 22 }),
+      listUserCalls({ limit: 5 }),
       listUserAgents(),
     ]);
     return { stats, calls, agents };

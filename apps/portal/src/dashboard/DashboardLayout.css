@@ -1063,8 +1063,9 @@
   }
 
   .ops-ov-ticker {
-    min-height: 16rem;
-    max-height: 18rem;
+    height: calc(var(--ops-ov-ticker-head-h) + var(--ops-ov-recent-n) * var(--ops-ov-tape-row-h));
+    min-height: 0;
+    max-height: none;
   }
 }
 
@@ -1095,7 +1096,7 @@
 .ops-ov-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-rows: minmax(20rem, 1fr) minmax(20rem, 1fr);
+  grid-template-rows: auto minmax(20rem, 1fr);
   gap: 1rem;
   align-items: stretch;
 }
@@ -1230,6 +1231,10 @@
 }
 
 .ops-ov-ticker {
+  --ops-ov-recent-n: 5;
+  --ops-ov-tape-row-h: 2.75rem;
+  --ops-ov-ticker-head-h: 2.85rem;
+  height: calc(var(--ops-ov-ticker-head-h) + var(--ops-ov-recent-n) * var(--ops-ov-tape-row-h));
   animation: ops-rise 0.45s var(--ease-out, ease) 0.14s both;
 }
 
@@ -1250,7 +1255,9 @@
   grid-template-columns: auto minmax(0, 1.3fr) minmax(0, 0.8fr) auto;
   gap: 0.65rem;
   align-items: center;
-  padding: 0.72rem 1rem;
+  min-height: var(--ops-ov-tape-row-h, 2.75rem);
+  box-sizing: border-box;
+  padding: 0.55rem 1rem;
   border-bottom: 1px solid var(--ops-line);
   text-decoration: none;
   color: inherit;
@@ -1406,8 +1413,9 @@
   }
 
   .ops-ov-ticker {
-    min-height: 16rem;
-    max-height: 18rem;
+    height: calc(var(--ops-ov-ticker-head-h) + var(--ops-ov-recent-n) * var(--ops-ov-tape-row-h));
+    min-height: 0;
+    max-height: none;
   }
 
   .ops-ov-kpis-cell {
