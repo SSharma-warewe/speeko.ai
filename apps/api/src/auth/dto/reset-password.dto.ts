@@ -1,0 +1,53 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsEmail,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
+
+export class ResetPasswordDto {
+  @ApiProperty({ example: 'agent@acme.com' })
+  @IsEmail()
+  email!: string;
+
+  @ApiProperty({ example: 'acme' })
+  @IsString()
+  @MinLength(2)
+  organizationSlug!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(16)
+  token!: string;
+
+  @ApiProperty({ minLength: 8, maxLength: 128 })
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  newPassword!: string;
+}
+
+export class AdminResetPasswordDto {
+  @ApiProperty({ example: 'admin@speeko.ai' })
+  @IsEmail()
+  email!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  organizationSlug?: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(16)
+  token!: string;
+
+  @ApiProperty({ minLength: 8, maxLength: 128 })
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  newPassword!: string;
+}

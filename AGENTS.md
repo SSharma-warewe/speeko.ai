@@ -52,7 +52,8 @@ Do **not** leave entities and Erflow out of sync.
 
 ```
 organizations
-├── users                              (org members)
+├── users                              (org members; password set via invite email)
+├── password_reset_tokens              (invite + reset hashes; hang off users/admins)
 ├── organization_agents                (named org AI configs; many per template → tool_profiles)
 ├── organization_queue_settings        (1:1 outbound dial queue config)
 ├── call_batches                       (bulk enqueue groups + pause/cancel)
@@ -71,7 +72,8 @@ tool_profiles                  (capability bundles: platform seeds + org-owned c
 
 - `admins` — platform super-admins (separate from org users)
 - `organizations` — tenants (hub)
-- `users` — org members (`organization_id` FK, unique `(organization_id, email)`). Optional stored `role` (`org_admin` | `agent` | `supervisor`) is **not enforced** yet; any org user may use org-scoped user APIs.
+- `users` — org members (`organization_id` FK, unique `(organization_id, email)`). `password_hash` is **nullable** until the member sets a password from the invite email. Optional stored `role` (`org_admin` | `agent` | `supervisor`) is **not enforced** yet; any org user may use org-scoped user APIs.
+- `password_reset_tokens` — hashed invite / reset tokens (`kind` `user` \| `admin`, `purpose` `invite` \| `reset`). Raw token is emailed once; only SHA-256 is stored. Unused siblings are invalidated on re-issue, set, change, or reset.
 - `tool_profiles` — named capability bundles (`key`, `name`, optional `organization_id`). Platform seeds (`organization_id` null): `default`, `outbound`. Org users may create **custom** profiles (pick known worker tool ids; `endCall` always included) and select them on agents.
 - `tool_profile_tools` — rows of `tool_id` strings (worker registry ids, e.g. `endCall`, `booking`). **Not** JSON tool schemas.
 - `agents` — **platform AI agent templates** (seeded: `inbound`, `outbound`). **Persona** via `system_prompt` (identity, tone, policies). Optional LiveKit hook instructions: `on_enter_instructions` / `on_exit_instructions` (`null` = worker default, empty string = silent). Also: `default_task_key`, `default_tool_profile_id`, optional `voice` / `model` / `temperature`. Not the same as user role `agent`.
@@ -235,9 +237,13 @@ Default local DB credentials (see `.env.example`):
 | `QUEUE_DEFAULT_MAX_CONCURRENT` | API | Default org max concurrent in-flight SIP legs (default `1`; set to trunk channel limit) |
 | `QUEUE_DEFAULT_MAX_DIALS_PER_MINUTE` | API | Default org dial rate (default `30`) |
 | `QUEUE_DEFAULT_MAX_ATTEMPTS` | API | Default max attempts when enqueue omits it (default `3`) |
-| `RESEND_API_KEY` | API | Resend API key; empty/unset soft-disables email (send no-ops) |
-| `EMAIL_FROM` | API | Default From header (default `Speeko <onboarding@resend.dev>` until custom domain is verified) |
+| `PLUNK_API_KEY` | API | Plunk API key; empty/unset soft-disables email (send no-ops) |
+| `PLUNK_API_BASE` | API | Optional Plunk API origin (default `https://api.useplunk.com`) |
+| `EMAIL_FROM` | API | Default From header (must be a domain verified in Plunk) |
 | `EMAIL_NOTIFY_TO` | API | Optional platform inbox for product notify mail; read via `EmailService.getNotifyTo()` |
+| `PORTAL_PUBLIC_URL` | API | Public portal origin for invite/reset links (e.g. `https://portal.speeko.ai`) |
+| `PASSWORD_INVITE_TTL_MS` | API | Set-password invite TTL (default 7 days) |
+| `PASSWORD_RESET_TTL_MS` | API | Forgot-password reset TTL (default 1 hour) |
 | `ENDPOINT_URL` | API | Full integration enqueue URL for marketing get-demo (`…/api/integrations/:publicId/calls`). Soft-required: demo submit returns 503 if unset |
 | `SPEEKO_API` | API | Integration API key (`ca_live_…`) used only server-side by `POST /api/demo/request`. **Never** put in Vite / browser env |
 | `GHL_API_KEY` | API | GoHighLevel Private Integration Token (`pit-…`) for get-demo + booking contact upsert. Soft-disabled when empty |
@@ -257,7 +263,7 @@ Default local DB credentials (see `.env.example`):
 
 Models use **LiveKit Inference** (STT/LLM/TTS + **cloud turn detector v1**) — no separate OpenAI/Deepgram keys. Pins live in `apps/worker/src/models.ts`. Local EOT mini model is **not** loaded (saves ~138 MB idle); in-process Silero VAD remains for barge-in.
 
-**Email (Resend):** inject global `EmailService` and call `send()` / `sendText()`. Never throws — failures return `{ ok: false }` and are logged. Until a custom domain is verified, Resend only delivers to the account owner address; still pass the real recipient.
+**Email (Plunk):** inject global `EmailService` and call `send()` / `sendText()`. Never throws — failures return `{ ok: false }` and are logged. `from` must use a domain verified in Plunk. Soft-disabled without `PLUNK_API_KEY`.
 
 **GoHighLevel (get-demo leads):** inject global `GhlService` and call `upsertLead()`. Never throws — missing `GHL_API_KEY` / `GHL_LOCATION_ID` or API errors return `{ ok: false }` and are logged (token never logged). Upserts a contact (`source=Speeko Get Demo`), then adds tags `speeko-get-demo` + `direction:…` and a note with team/calls/integrations.
 
@@ -425,12 +431,20 @@ Worker health is “registered with LiveKit” in service logs, not a public HTM
 | GET | `/api/auth/admin/me` | admin JWT |
 | POST | `/api/auth/login` | public (org user) |
 | GET | `/api/auth/me` | user JWT |
+| POST | `/api/auth/password` | user JWT — change password (current + new); confirmation email |
+| POST | `/api/auth/admin/password` | admin JWT — change password |
+| POST | `/api/auth/set-password` | public — complete invite (`email` + `organizationSlug` + token + newPassword) |
+| POST | `/api/auth/forgot-password` | public — always `{ ok: true }`; reset email if password set, invite if not |
+| POST | `/api/auth/reset-password` | public — complete user reset |
+| POST | `/api/auth/admin/forgot-password` | public — always `{ ok: true }` |
+| POST | `/api/auth/admin/reset-password` | public — complete admin reset |
 | POST | `/api/demo/request` | public — marketing get-demo; `DemoAbuseGuard` (origin + rate limits); honeypot; best-effort GHL contact upsert, then proxy to `ENDPOINT_URL` with `SPEEKO_API` (integration enqueue → queue dial) |
 | POST | `/api/admin/organizations` | admin JWT |
 | GET | `/api/admin/organizations` | admin JWT |
 | GET | `/api/admin/organizations/:id` | admin JWT |
-| POST | `/api/admin/organizations/:orgId/users` | admin JWT |
-| GET | `/api/admin/organizations/:orgId/users` | admin JWT |
+| POST | `/api/admin/organizations/:orgId/users` | admin JWT — create member **without** a password; emails set-password invite |
+| GET | `/api/admin/organizations/:orgId/users` | admin JWT — list (includes `hasPassword`, never the hash) |
+| POST | `/api/admin/organizations/:orgId/users/:userId/invite` | admin JWT — re-send invite; 409 if password already set |
 | GET | `/api/admin/tool-profiles` | admin JWT |
 | GET | `/api/admin/tool-profiles/:id` | admin JWT |
 | GET | `/api/admin/agents` | admin JWT |
@@ -511,7 +525,7 @@ Worker health is “registered with LiveKit” in service logs, not a public HTM
 | PATCH | `/api/users/queue/settings` | user JWT — update concurrency/retries/quiet hours |
 | POST | `/api/users/queue/pause` | user JWT — pause org dialer claims |
 | POST | `/api/users/queue/resume` | user JWT — resume org dialer |
-| GET | `/api/users/queue/stats` | user JWT — live pollable queue stats |
+| GET | `/api/users/queue/stats` | user JWT — live pollable queue stats + last 14 UTC days of call volume (`daily`) |
 | GET | `/api/users/queue/batches` | user JWT — list call batches |
 | GET | `/api/users/queue/batches/:id` | user JWT — batch + per-status counts |
 | POST | `/api/users/queue/batches/:id/pause` | user JWT |
@@ -609,7 +623,7 @@ Test: `POST /api/admin/calls/test` accepts optional `task` + `context`.
 | `sip-trunks` | Org SIP trunk CRUD: admin outbound; **user outbound** create/link/update/delete; user inbound draft + publish; combined inbound publish orchestrator |
 | `sip-dispatch-rules` | Org dispatch-rule draft CRUD + publish to LiveKit (`CreateSIPDispatchRule` + agent `roomConfig`) |
 | `livekit` | Thin adapter only: rooms, dispatch, tokens, **SIP** (`createSipOutboundTrunk`, `createSipInboundTrunk`, `createSipDispatchRule`, `createSipParticipant`, `deleteSipTrunk`, `deleteSipDispatchRule`) — **no** controllers or agent business logic |
-| `email` | Thin Resend adapter only: `EmailService.send()` / `sendText()` — **no** controllers; soft-disabled without `RESEND_API_KEY`; never throws |
+| `email` | Thin Plunk adapter only: `EmailService.send()` / `sendText()` — **no** controllers; soft-disabled without `PLUNK_API_KEY`; never throws |
 
 ### LiveKit worker
 
@@ -649,7 +663,7 @@ controller → service → repository → TypeORM entity → Postgres
 - Register repositories in the module `providers` alongside services.
 - Examples: `admins.repository.ts`, `organizations.repository.ts`, `users.repository.ts`, `agents.repository.ts`, `organization-agents.repository.ts`, `sip-trunks.repository.ts`, `sip-dispatch-rules.repository.ts`, `calls.repository.ts`, `organization-queue-settings.repository.ts`, `call-batches.repository.ts`, `integration-endpoints.repository.ts`.
 - `livekit` is an infrastructure adapter (service only), not a repository-backed domain module.
-- `email` is an infrastructure adapter (global `EmailService` only), not a repository-backed domain module.
+- `email` is an infrastructure adapter (global `EmailService` only), not a repository-backed domain module. Uses Plunk `POST /v1/send`.
 - `ghl` is an infrastructure adapter (`GhlService` + worker-secret calendar controller). Not org-scoped; not a repository-backed domain module.
 - `demo` is a thin public proxy (no repository): `DemoAbuseGuard` (origin + rate limits) → honeypot → GHL upsert (best-effort) → `ENDPOINT_URL` + `SPEEKO_API` → integration enqueue.
 - `queue` uses raw SQL for atomic claim (`FOR UPDATE SKIP LOCKED`) via TypeORM `DataSource`; settings/batches use repositories.
@@ -660,7 +674,7 @@ controller → service → repository → TypeORM entity → Postgres
 2. Put LiveKit agent job work in `apps/worker` (tsx + `@livekit/agents`, not Nest webpack).
 3. Validate all inputs with `class-validator` DTOs; document with `@nestjs/swagger`.
 4. Never commit real secrets; use `.env` (gitignored) + `.env.example`.
-5. Prefer clear module boundaries: `auth`, `admins`, `organizations`, `users`, `agents`, `tools` (profiles), `integration-endpoints`, `organization-integrations` (Nylas calendar keys + worker calendar proxy), `demo` (get-demo proxy), `sip-trunks`, `sip-dispatch-rules`, `calls`, `queue`, `livekit` (adapter), `email` (Resend adapter), `ghl` (GoHighLevel adapter).
+5. Prefer clear module boundaries: `auth`, `admins`, `organizations`, `users`, `agents`, `tools` (profiles), `integration-endpoints`, `organization-integrations` (Nylas calendar keys + worker calendar proxy), `demo` (get-demo proxy), `sip-trunks`, `sip-dispatch-rules`, `calls`, `queue`, `livekit` (adapter), `email` (Plunk adapter), `ghl` (GoHighLevel adapter).
 6. Persistence: one custom repository per entity; services own business logic only.
 7. When adding telephony (numbers, trunks, dispatch rules) or schema for calls/queue, update Erflow + this file in the same change set.
 8. **Update this AGENTS.md** when project conventions, scripts, schema ownership, or Railway deploy layout change.
@@ -675,7 +689,7 @@ controller → service → repository → TypeORM entity → Postgres
 17. Inbound config is **draft-then-publish**: local rows first; LiveKit ids set only on publish (409 if already live). **Inbound trunk delete** removes the LiveKit trunk when live, then the local row (not-found on LiveKit is ignored). Outbound trunk delete and dispatch-rule delete remain local-only unless updated.
 18. Queue dialer runs in the Nest API process (`@nestjs/schedule`); do not move dial ownership into the LiveKit worker.
 19. **Product UI** lives in `apps/web` (marketing) and `apps/portal` (auth + dashboards). Both reuse `@call-agent/ui` (`packages/ui`) for buttons, forms, badges, cards, chips, alerts, and motion primitives. Import `@call-agent/ui/styles.css` once per app. Do not re-duplicate design tokens or keyframes in page-local styles. Do not put dashboard/auth code in marketing or marketing landing pages in portal.
-20. All outbound email goes through `EmailService` (Resend); do not call the Resend SDK from other modules. Treat send failures as non-fatal for product flows.
+20. All outbound email goes through `EmailService` (Plunk); do not call the Plunk API from other modules. Treat send failures as non-fatal for product flows.
 21. All GoHighLevel CRM and calendar HTTP goes through `GhlService`; do not call `services.leadconnectorhq.com` from other modules. Treat upsert failures as non-fatal for get-demo. Never log `GHL_API_KEY` or `GHL_CALENDAR`. Never return existing GHL appointments to the agent (free slots only).
 22. **Add or update unit tests** when changing service business rules, guards, or security-sensitive paths (see **Testing**). Prefer service-level unit tests over full e2e unless the flow is HTTP-guard integration.
 
@@ -722,7 +736,7 @@ apps/api/src/<module>/test/
 |------|--------|
 | **Target** | Services, guards, strategies, pure utils — where business rules live |
 | **Skip by default** | Thin controllers (one-line pass-through), TypeORM repositories (pass-through), entities, Swagger DTOs |
-| **Dependencies** | Mock repositories / sibling services / `ConfigService` / external I/O (`fetch`, LiveKit, Resend) — **no real Postgres** in unit tests |
+| **Dependencies** | Mock repositories / sibling services / `ConfigService` / external I/O (`fetch`, LiveKit, Plunk) — **no real Postgres** in unit tests |
 | **Nest wiring** | `Test.createTestingModule` with `{ provide: X, useValue: mock }` **or** `new Service(mockDeps)` for simple constructors |
 | **Assertions** | Exception **types** + important user-facing messages; call args to mocks; return shapes |
 | **Security** | Prefer explicit cases for authz, tenant isolation, secret redaction, inactive principal rejection |
@@ -757,7 +771,7 @@ Work **top-down by risk**: security → money/dial side effects → multi-tenant
 | P1 | `tools` (profiles) | Todo | Platform vs org custom, known tool ids, delete-if-unused, always include `endCall` |
 | P2 | `sip-trunks` / `sip-dispatch-rules` | **Done** | Draft vs publish, password redaction, inbound LiveKit delete (404 ignore), dispatch metadata pack, LiveKit adapter mocked |
 | P2 | `organization-integrations` | **Done** | Secrets never returned (mapper + CRUD), test connection, calendar resolve/freeBusy matrix (Nylas mocked) |
-| P2 | `email` | Todo | Soft-disable without key, never throws, `send` / `sendText` mapping |
+| P2 | `email` | **Done** | Soft-disable without key, never throws, Plunk `send` / `sendText`, never log API key |
 | P2 | `ghl` | **Done** | Soft-disable without key/location, upsert + tags/note, never throws, never log token, free-slots map + ms query, book upsert+appointment, hide existing events |
 | P2 | `livekit` | **Done** | URL helper; adapter with mocked SDK (rooms, dispatch, token/meet, SIP trunks/rules/participant, hasRemoteCallee) |
 | P3 | Worker (`apps/worker`) | Todo | Metadata parse, prompt/tool/task builders, hangup helpers — no LiveKit cloud in unit tests |
@@ -789,7 +803,7 @@ Update the **Status** column when a module suite lands or expands.
 - Do not skip Erflow updates after schema edits.
 - Do not confuse user role `agent` with the `agents` / `organization_agents` AI tables.
 - Do not put agent resolution or call lifecycle into `LivekitService` — keep it a thin adapter.
-- Do not call Resend (or any mail SDK) outside `email/`; inject `EmailService` instead.
+- Do not call Plunk (or any mail SDK) outside `email/`; inject `EmailService` instead.
 - Do not call the GoHighLevel API outside `ghl/`; inject `GhlService` instead.
 - Do not dial SIP from the worker — keep dialing + queue claim/retry in the API for continuous/outbound orchestration.
 - Do not skip org queue settings when adding bulk outbound paths — enqueue should create `call_batches` and respect concurrency/rate limits via the dialer.

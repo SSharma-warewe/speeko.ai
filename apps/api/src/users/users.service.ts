@@ -1,9 +1,12 @@
 import {
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
-import { hashPassword, normalizeEmail } from '../common/password.util';
+import { AuthService } from '../auth/auth.service';
+import { normalizeEmail } from '../common/password.util';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { User, UserRole } from './user.entity';
@@ -14,13 +17,15 @@ export class UsersService {
   constructor(
     private readonly usersRepository: UsersRepository,
     private readonly organizationsService: OrganizationsService,
+    @Inject(forwardRef(() => AuthService))
+    private readonly authService: AuthService,
   ) {}
 
   async createForOrganization(
     organizationId: string,
     dto: CreateUserDto,
   ): Promise<User> {
-    await this.organizationsService.findById(organizationId);
+    const org = await this.organizationsService.findById(organizationId);
 
     const email = normalizeEmail(dto.email);
     const existing = await this.usersRepository.findByOrgAndEmail(
@@ -33,16 +38,41 @@ export class UsersService {
       );
     }
 
-    const passwordHash = await hashPassword(dto.password);
     const user = this.usersRepository.create({
       organizationId,
       email,
-      passwordHash,
+      passwordHash: null,
       name: dto.name?.trim() ?? null,
       role: dto.role ?? UserRole.AGENT,
       isActive: true,
     });
-    return this.usersRepository.save(user);
+    const saved = await this.usersRepository.save(user);
+    await this.authService.sendUserInvite(saved, {
+      name: org.name,
+      slug: org.slug,
+    });
+    return saved;
+  }
+
+  async resendInvite(organizationId: string, userId: string): Promise<void> {
+    const org = await this.organizationsService.findById(organizationId);
+    const user = await this.usersRepository.findByIdWithOrganization(userId);
+    if (!user || user.organizationId !== organizationId) {
+      throw new NotFoundException(`User not found: ${userId}`);
+    }
+    if (user.passwordHash) {
+      throw new ConflictException('User already has a password');
+    }
+    await this.authService.sendUserInvite(user, {
+      name: org.name,
+      slug: org.slug,
+    });
+  }
+
+  async updatePasswordHash(id: string, passwordHash: string): Promise<void> {
+    const user = await this.getOrThrow(id);
+    user.passwordHash = passwordHash;
+    await this.usersRepository.save(user);
   }
 
   async listByOrganization(organizationId: string): Promise<User[]> {
@@ -72,6 +102,7 @@ export class UsersService {
       name: user.name,
       role: user.role,
       isActive: user.isActive,
+      hasPassword: Boolean(user.passwordHash),
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };

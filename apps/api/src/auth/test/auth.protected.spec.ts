@@ -10,9 +10,12 @@ import { UsersService } from '../../users/users.service';
 import { UserRole } from '../../users/user.entity';
 import { AuthController } from '../auth.controller';
 import { AuthService } from '../auth.service';
+import { EmailService } from '../../email/email.service';
 import { LoginRateLimitGuard } from '../guards/login-rate-limit.guard';
+import { PasswordPublicRateLimitGuard } from '../guards/password-public-rate-limit.guard';
 import { JwtStrategy } from '../jwt.strategy';
 import { LoginRateLimitService } from '../login-rate-limit.service';
+import { PasswordTokensService } from '../password-tokens.service';
 
 const JWT_SECRET = 'test-secret-for-protected-routes';
 const WRONG_SECRET = 'wrong-secret-other-key';
@@ -80,11 +83,28 @@ describe('Auth protected routes (JwtAuthGuard + AdminGuard)', () => {
         JwtStrategy,
         LoginRateLimitService,
         LoginRateLimitGuard,
+        PasswordPublicRateLimitGuard,
+        {
+          provide: EmailService,
+          useValue: { send: jest.fn(), sendText: jest.fn() },
+        },
+        {
+          provide: PasswordTokensService,
+          useValue: {
+            issueUserToken: jest.fn(),
+            issueAdminToken: jest.fn(),
+            findValid: jest.fn(),
+            markUsed: jest.fn(),
+            invalidateForUser: jest.fn(),
+            invalidateForAdmin: jest.fn(),
+          },
+        },
         {
           provide: AdminsService,
           useValue: {
             findByEmail: jest.fn(),
             findById: adminsFindById,
+            updatePasswordHash: jest.fn(),
           },
         },
         {
@@ -92,6 +112,7 @@ describe('Auth protected routes (JwtAuthGuard + AdminGuard)', () => {
           useValue: {
             findByOrgAndEmail: jest.fn(),
             findById: usersFindById,
+            updatePasswordHash: jest.fn(),
           },
         },
         {

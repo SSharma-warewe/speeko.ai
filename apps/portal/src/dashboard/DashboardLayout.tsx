@@ -24,6 +24,7 @@ const NAV = [
         desc: "Capability bundles",
       },
       { to: "/admin-dashboard/calls", label: "All calls", desc: "Transcripts & status" },
+      { to: "/admin-dashboard/account", label: "Account", desc: "Password" },
     ],
   },
 ] as const;
@@ -34,6 +35,7 @@ function crumbFromPath(pathname: string): string {
   if (pathname.startsWith("/admin-dashboard/agents")) return "Agent templates";
   if (pathname.startsWith("/admin-dashboard/tool-profiles")) return "Tool profiles";
   if (pathname.startsWith("/admin-dashboard/calls")) return "Calls";
+  if (pathname.startsWith("/admin-dashboard/account")) return "Account";
   return "Dashboard";
 }
 

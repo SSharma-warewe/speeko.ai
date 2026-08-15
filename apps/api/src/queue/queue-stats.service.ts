@@ -7,10 +7,21 @@ import { CallBatchesRepository } from './call-batches.repository';
 import {
   AdminQueueStatsResponseDto,
   OrgQueueStatsResponseDto,
+  QueueStatsDailyDto,
 } from './dto/queue-stats-response.dto';
 import { OrganizationQueueSettingsService } from './organization-queue-settings.service';
 import { QueueClaimService } from './queue-claim.service';
 import { QueueDialerService } from './queue-dialer.service';
+
+export const DAILY_HISTORY_DAYS = 14;
+
+type DailyQueryRow = {
+  day: Date | string;
+  total: number | string;
+  completed: number | string;
+  failed: number | string;
+  cancelled: number | string;
+};
 
 @Injectable()
 export class QueueStatsService {
@@ -45,6 +56,7 @@ export class QueueStatsService {
       CallBatchStatus.PAUSED,
     );
     const dialer = this.dialer.getHealth();
+    const daily = await this.dailyVolume(organizationId);
 
     return {
       organizationId,
@@ -81,6 +93,7 @@ export class QueueStatsService {
         lastClaimCount: dialer.lastClaimCount,
         lastError: dialer.lastError,
       },
+      daily,
       asOf: new Date(),
     };
   }
@@ -188,4 +201,87 @@ export class QueueStatsService {
     );
     return Math.round(Number(rows[0]?.avg ?? 0) * 100) / 100;
   }
+
+  private async dailyVolume(
+    organizationId: string,
+    now = new Date(),
+  ): Promise<QueueStatsDailyDto[]> {
+    const rows = (await this.dataSource.query(
+      `
+      SELECT to_char((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day,
+             COUNT(*)::int AS total,
+             COUNT(*) FILTER (WHERE status = $2)::int AS completed,
+             COUNT(*) FILTER (WHERE status = $3)::int AS failed,
+             COUNT(*) FILTER (WHERE status = $4)::int AS cancelled
+      FROM calls
+      WHERE organization_id = $1
+        AND created_at >= ((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date - ($5::int - 1))
+      GROUP BY 1
+      ORDER BY 1
+      `,
+      [
+        organizationId,
+        CallStatus.COMPLETED,
+        CallStatus.FAILED,
+        CallStatus.CANCELLED,
+        DAILY_HISTORY_DAYS,
+      ],
+    )) as DailyQueryRow[];
+    return this.padDailyWindow(rows, DAILY_HISTORY_DAYS, now);
+  }
+
+  padDailyWindow(
+    rows: DailyQueryRow[],
+    days = DAILY_HISTORY_DAYS,
+    now = new Date(),
+  ): QueueStatsDailyDto[] {
+    const byDay = new Map<string, QueueStatsDailyDto>();
+    for (const row of rows) {
+      const date = utcDateKey(row.day);
+      byDay.set(date, {
+        date,
+        total: Number(row.total) || 0,
+        completed: Number(row.completed) || 0,
+        failed: Number(row.failed) || 0,
+        cancelled: Number(row.cancelled) || 0,
+      });
+    }
+    const end = utcDateKey(now);
+    const start = shiftUtcDateKey(end, -(days - 1));
+    const out: QueueStatsDailyDto[] = [];
+    for (let i = 0; i < days; i++) {
+      const date = shiftUtcDateKey(start, i);
+      out.push(
+        byDay.get(date) ?? {
+          date,
+          total: 0,
+          completed: 0,
+          failed: 0,
+          cancelled: 0,
+        },
+      );
+    }
+    return out;
+  }
+}
+
+function utcDateKey(value: Date | string): string {
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+  const trimmed = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+    return trimmed.slice(0, 10);
+  }
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+  return trimmed.slice(0, 10);
+}
+
+function shiftUtcDateKey(key: string, days: number): string {
+  const d = new Date(`${key}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }

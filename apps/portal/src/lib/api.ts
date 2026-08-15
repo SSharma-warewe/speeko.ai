@@ -77,6 +77,7 @@ export interface OrgUser {
   name: string | null;
   role: "org_admin" | "agent" | "supervisor";
   isActive: boolean;
+  hasPassword?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -403,6 +404,13 @@ export interface OrgQueueStats {
     lastClaimCount: number;
     lastError: string | null;
   };
+  daily: Array<{
+    date: string;
+    total: number;
+    completed: number;
+    failed: number;
+    cancelled: number;
+  }>;
   asOf: string;
 }
 
@@ -586,7 +594,6 @@ export const createOrgUser = (
   orgId: string,
   data: {
     email: string;
-    password: string;
     name?: string;
     role?: OrgUser["role"];
   },
@@ -595,6 +602,103 @@ export const createOrgUser = (
     method: "POST",
     body: data,
   });
+
+export const resendOrgUserInvite = (orgId: string, userId: string) =>
+  adminFetch<{ ok: true }>(`/admin/organizations/${orgId}/users/${userId}/invite`, {
+    method: "POST",
+  });
+
+export const changeAdminPassword = (data: {
+  currentPassword: string;
+  newPassword: string;
+}) =>
+  adminFetch<{ ok: true }>("/auth/admin/password", {
+    method: "POST",
+    body: data,
+  });
+
+export const changeUserPassword = (data: {
+  currentPassword: string;
+  newPassword: string;
+}) =>
+  userFetch<{ ok: true }>("/auth/password", {
+    method: "POST",
+    body: data,
+  });
+
+export async function publicJson<T>(
+  path: string,
+  body: unknown,
+  fallbackError: string,
+): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path.startsWith("/") ? path : `/${path}`}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiError("Could not reach the API. Is it running?", 0);
+  }
+
+  let parsed: unknown = null;
+  try {
+    parsed = await res.json();
+  } catch {
+    // non-JSON
+  }
+
+  if (!res.ok) {
+    throw new ApiError(parseErrorMessage(parsed, fallbackError), res.status);
+  }
+  return parsed as T;
+}
+
+export const forgotUserPassword = (email: string, organizationSlug: string) =>
+  publicJson<{ ok: true }>(
+    "/auth/forgot-password",
+    { email, organizationSlug },
+    "Could not send reset email.",
+  );
+
+export const forgotAdminPassword = (email: string) =>
+  publicJson<{ ok: true }>(
+    "/auth/admin/forgot-password",
+    { email },
+    "Could not send reset email.",
+  );
+
+export const setUserPassword = (data: {
+  email: string;
+  organizationSlug: string;
+  token: string;
+  newPassword: string;
+}) =>
+  publicJson<{ ok: true }>("/auth/set-password", data, "Could not set password.");
+
+export const resetUserPassword = (data: {
+  email: string;
+  organizationSlug: string;
+  token: string;
+  newPassword: string;
+}) =>
+  publicJson<{ ok: true }>(
+    "/auth/reset-password",
+    data,
+    "Could not reset password.",
+  );
+
+export const resetAdminPassword = (data: {
+  email: string;
+  token: string;
+  newPassword: string;
+}) =>
+  publicJson<{ ok: true }>(
+    "/auth/admin/reset-password",
+    data,
+    "Could not reset password.",
+  );
 
 /* ── Platform agents ── */
 export const listAgentTemplates = () => adminFetch<Agent[]>("/admin/agents");

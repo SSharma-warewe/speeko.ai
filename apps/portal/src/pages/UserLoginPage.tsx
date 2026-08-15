@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from "react";
-import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Alert, Button, Field, Input, Spinner } from "@call-agent/ui";
 import { useUserAuth } from "../lib/auth";
 import {
@@ -23,8 +23,9 @@ export default function UserLoginPage() {
       ? (location.state as { from: string }).from
       : "/dashboard";
 
-  const [orgSlug, setOrgSlug] = useState("");
-  const [email, setEmail] = useState("");
+  const [params] = useSearchParams();
+  const [orgSlug, setOrgSlug] = useState(params.get("org") ?? "");
+  const [email, setEmail] = useState(params.get("email") ?? "");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -143,6 +144,9 @@ export default function UserLoginPage() {
             >
               Log in
             </Button>
+            <p className="admin-login__muted" style={{ margin: 0 }}>
+              <Link to="/forgot-password">Forgot password?</Link>
+            </p>
           </form>
 
           <p

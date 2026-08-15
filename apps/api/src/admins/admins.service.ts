@@ -28,4 +28,13 @@ export class AdminsService {
     });
     return this.adminsRepository.save(admin);
   }
+
+  async updatePasswordHash(id: string, passwordHash: string): Promise<void> {
+    const admin = await this.findById(id);
+    if (!admin) {
+      return;
+    }
+    admin.passwordHash = passwordHash;
+    await this.adminsRepository.save(admin);
+  }
 }

@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Alert, Button, Field, Input, Spinner } from "@call-agent/ui";
 import { useAdminAuth } from "../lib/auth";
 import {
@@ -23,7 +23,8 @@ export default function AdminLoginPage() {
       ? (location.state as { from: string }).from
       : "/admin-dashboard";
 
-  const [email, setEmail] = useState("");
+  const [params] = useSearchParams();
+  const [email, setEmail] = useState(params.get("email") ?? "");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -129,6 +130,9 @@ export default function AdminLoginPage() {
             >
               Log in
             </Button>
+            <p className="admin-login__muted" style={{ margin: 0 }}>
+              <Link to="/admin-forgot-password">Forgot password?</Link>
+            </p>
           </form>
         </div>
       )}

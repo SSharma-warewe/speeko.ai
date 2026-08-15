@@ -3,6 +3,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { AuthService } from '../../auth/auth.service';
 import { Organization } from '../../organizations/organization.entity';
 import { OrganizationsService } from '../../organizations/organizations.service';
 import { CreateUserDto } from '../dto/create-user.dto';
@@ -21,6 +22,9 @@ describe('UsersService', () => {
   };
   let organizationsService: {
     findById: jest.Mock;
+  };
+  let authService: {
+    sendUserInvite: jest.Mock;
   };
 
   const ORG_ID = 'org-id';
@@ -50,7 +54,6 @@ describe('UsersService', () => {
 
   const baseDto: CreateUserDto = {
     email: '  Jane@Acme.COM  ',
-    password: 'SecurePass123!',
     name: '  Jane Agent  ',
   };
 
@@ -71,12 +74,16 @@ describe('UsersService', () => {
     organizationsService = {
       findById: jest.fn().mockResolvedValue(org),
     };
+    authService = {
+      sendUserInvite: jest.fn().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
         { provide: UsersRepository, useValue: usersRepository },
         { provide: OrganizationsService, useValue: organizationsService },
+        { provide: AuthService, useValue: authService },
       ],
     }).compile();
 
@@ -145,21 +152,23 @@ describe('UsersService', () => {
       expect(usersRepository.save).not.toHaveBeenCalled();
     });
 
-    it('6. hashes password — create payload is not the plain password', async () => {
+    it('6. creates the user with no password hash and sends an invite', async () => {
       await service.createForOrganization(ORG_ID, baseDto);
 
       const createArg = usersRepository.create.mock.calls[0][0] as {
-        passwordHash: string;
+        passwordHash: string | null;
       };
-      expect(createArg.passwordHash).not.toBe(baseDto.password);
-      expect(createArg.passwordHash.length).toBeGreaterThan(20);
-      expect(createArg.passwordHash.startsWith('$2')).toBe(true);
+      expect(createArg.passwordHash).toBeNull();
+      expect(authService.sendUserInvite).toHaveBeenCalledTimes(1);
+      expect(authService.sendUserInvite).toHaveBeenCalledWith(
+        expect.objectContaining({ email: 'jane@acme.com' }),
+        { name: org.name, slug: org.slug },
+      );
     });
 
     it('7. defaults role to AGENT when role is omitted', async () => {
       await service.createForOrganization(ORG_ID, {
         email: 'agent@acme.com',
-        password: 'SecurePass123!',
       });
 
       expect(usersRepository.create).toHaveBeenCalledWith(
@@ -170,7 +179,6 @@ describe('UsersService', () => {
     it('8. preserves provided role', async () => {
       await service.createForOrganization(ORG_ID, {
         email: 'admin@acme.com',
-        password: 'SecurePass123!',
         role: UserRole.ORG_ADMIN,
       });
 
@@ -188,7 +196,6 @@ describe('UsersService', () => {
       usersRepository.create.mockClear();
       await service.createForOrganization(ORG_ID, {
         email: 'noname@acme.com',
-        password: 'SecurePass123!',
       });
       expect(usersRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({ name: null }),
@@ -215,7 +222,7 @@ describe('UsersService', () => {
       const createdEntity = {
         organizationId: ORG_ID,
         email: 'jane@acme.com',
-        passwordHash: 'hashed',
+        passwordHash: null,
         name: 'Jane Agent',
         role: UserRole.AGENT,
         isActive: true,
@@ -313,9 +320,47 @@ describe('UsersService', () => {
         name: existingUser.name,
         role: existingUser.role,
         isActive: existingUser.isActive,
+        hasPassword: true,
         createdAt: existingUser.createdAt,
         updatedAt: existingUser.updatedAt,
       });
+    });
+  });
+
+  describe('resendInvite', () => {
+    it('re-sends when the user has no password', async () => {
+      usersRepository.findByIdWithOrganization.mockResolvedValue({
+        ...existingUser,
+        passwordHash: null,
+      });
+
+      await service.resendInvite(ORG_ID, USER_ID);
+
+      expect(authService.sendUserInvite).toHaveBeenCalledWith(
+        expect.objectContaining({ id: USER_ID, passwordHash: null }),
+        { name: org.name, slug: org.slug },
+      );
+    });
+
+    it('409 when the user already has a password', async () => {
+      usersRepository.findByIdWithOrganization.mockResolvedValue(existingUser);
+
+      await expect(service.resendInvite(ORG_ID, USER_ID)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(authService.sendUserInvite).not.toHaveBeenCalled();
+    });
+
+    it('404 when the user is in another org', async () => {
+      usersRepository.findByIdWithOrganization.mockResolvedValue({
+        ...existingUser,
+        organizationId: 'other-org',
+        passwordHash: null,
+      });
+
+      await expect(service.resendInvite(ORG_ID, USER_ID)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 

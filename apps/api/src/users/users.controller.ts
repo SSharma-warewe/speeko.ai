@@ -63,6 +63,20 @@ export class UsersController {
     return users.map((u) => this.usersService.toSafeUser(u));
   }
 
+  @Post('admin/organizations/:orgId/users/:userId/invite')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiOperation({
+    summary: 'Re-send the set-password invite for a user who has not set one',
+  })
+  @ApiOkResponse({ description: '{ ok: true }' })
+  async resendInvite(
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+  ) {
+    await this.usersService.resendInvite(orgId, userId);
+    return { ok: true };
+  }
+
   // ── Org user: configure agents for own organization ────────────────────
 
   @Get('users/agent-templates')

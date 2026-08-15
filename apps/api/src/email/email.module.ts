@@ -2,7 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { EmailService } from './email.service';
 
 /**
- * Resend-backed transactional email adapter.
+ * Plunk-backed transactional email adapter.
  * Infrastructure only — no HTTP controllers. Inject EmailService elsewhere.
  */
 @Global()

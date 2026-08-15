@@ -8,13 +8,19 @@ import {
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
+import { AdminForgotPasswordDto, ForgotPasswordDto } from './dto/forgot-password.dto';
 import { AdminLoginDto } from './dto/admin-login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { OkResponseDto } from './dto/ok-response.dto';
+import { AdminResetPasswordDto, ResetPasswordDto } from './dto/reset-password.dto';
+import { SetPasswordDto } from './dto/set-password.dto';
 import { TokenResponseDto } from './dto/token-response.dto';
 import { UserLoginDto } from './dto/user-login.dto';
 import type { AuthPrincipal } from './auth.types';
 import { AdminGuard } from './guards/admin.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LoginRateLimitGuard } from './guards/login-rate-limit.guard';
+import { PasswordPublicRateLimitGuard } from './guards/password-public-rate-limit.guard';
 import { UserGuard } from './guards/user.guard';
 
 @ApiTags('auth')
@@ -62,5 +68,76 @@ export class AuthController {
   @ApiOperation({ summary: 'Current organization user profile' })
   userMe(@CurrentUser() principal: AuthPrincipal) {
     return this.authService.getUserProfile(principal.id);
+  }
+
+  @Post('password')
+  @ApiBearerAuth('bearer')
+  @UseGuards(JwtAuthGuard, UserGuard)
+  @ApiOperation({ summary: 'Change the current org user password' })
+  @ApiOkResponse({ type: OkResponseDto })
+  changeUserPassword(
+    @CurrentUser() principal: AuthPrincipal,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.authService.changeUserPassword(principal.id, dto);
+  }
+
+  @Post('admin/password')
+  @ApiBearerAuth('bearer')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiOperation({ summary: 'Change the current platform admin password' })
+  @ApiOkResponse({ type: OkResponseDto })
+  changeAdminPassword(
+    @CurrentUser() principal: AuthPrincipal,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.authService.changeAdminPassword(principal.id, dto);
+  }
+
+  @Post('set-password')
+  @UseGuards(PasswordPublicRateLimitGuard)
+  @ApiOperation({ summary: 'Set password from an invite link' })
+  @ApiOkResponse({ type: OkResponseDto })
+  @ApiTooManyRequestsResponse({ description: 'Too many attempts' })
+  setPassword(@Body() dto: SetPasswordDto) {
+    return this.authService.setUserPassword(dto);
+  }
+
+  @Post('forgot-password')
+  @UseGuards(PasswordPublicRateLimitGuard)
+  @ApiOperation({
+    summary: 'Request a user password reset (or re-send invite if unset)',
+  })
+  @ApiOkResponse({ type: OkResponseDto })
+  @ApiTooManyRequestsResponse({ description: 'Too many attempts' })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotUserPassword(dto);
+  }
+
+  @Post('reset-password')
+  @UseGuards(PasswordPublicRateLimitGuard)
+  @ApiOperation({ summary: 'Reset an org user password from email token' })
+  @ApiOkResponse({ type: OkResponseDto })
+  @ApiTooManyRequestsResponse({ description: 'Too many attempts' })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetUserPassword(dto);
+  }
+
+  @Post('admin/forgot-password')
+  @UseGuards(PasswordPublicRateLimitGuard)
+  @ApiOperation({ summary: 'Request a platform admin password reset' })
+  @ApiOkResponse({ type: OkResponseDto })
+  @ApiTooManyRequestsResponse({ description: 'Too many attempts' })
+  forgotAdminPassword(@Body() dto: AdminForgotPasswordDto) {
+    return this.authService.forgotAdminPassword(dto.email);
+  }
+
+  @Post('admin/reset-password')
+  @UseGuards(PasswordPublicRateLimitGuard)
+  @ApiOperation({ summary: 'Reset a platform admin password from email token' })
+  @ApiOkResponse({ type: OkResponseDto })
+  @ApiTooManyRequestsResponse({ description: 'Too many attempts' })
+  resetAdminPassword(@Body() dto: AdminResetPasswordDto) {
+    return this.authService.resetAdminPassword(dto);
   }
 }

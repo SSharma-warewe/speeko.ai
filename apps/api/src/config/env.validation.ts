@@ -37,10 +37,14 @@ export const envValidationSchema = Joi.object({
   QUEUE_DEFAULT_MAX_CONCURRENT: Joi.number().optional(),
   QUEUE_DEFAULT_MAX_DIALS_PER_MINUTE: Joi.number().optional(),
   QUEUE_DEFAULT_MAX_ATTEMPTS: Joi.number().optional(),
-  // Resend transactional email (optional; soft-disabled when key empty)
-  RESEND_API_KEY: Joi.string().optional().allow(''),
+  // Plunk transactional email (optional; soft-disabled when key empty)
+  PLUNK_API_KEY: Joi.string().optional().allow(''),
+  PLUNK_API_BASE: Joi.string().uri().optional().allow(''),
   EMAIL_FROM: Joi.string().optional().allow(''),
   EMAIL_NOTIFY_TO: Joi.string().email().optional().allow(''),
+  PORTAL_PUBLIC_URL: Joi.string().uri().optional().allow(''),
+  PASSWORD_INVITE_TTL_MS: Joi.number().integer().min(60_000).optional(),
+  PASSWORD_RESET_TTL_MS: Joi.number().integer().min(60_000).optional(),
   // Comma-separated browser origins allowed by CORS (e.g. https://web.up.railway.app)
   CORS_ORIGIN: Joi.string().optional().allow(''),
   // Marketing get-demo → integration enqueue (server-side proxy; soft-required)

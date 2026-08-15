@@ -12,19 +12,19 @@ import {
 } from "../../lib/api";
 import { useUserAuth } from "../../lib/auth";
 import { formatRelative } from "../../lib/format";
+import { CallOutcomeDonut } from "../components/CallOutcomeDonut";
+import { CallsVolumeChart } from "../components/CallsVolumeChart";
 import { ErrorBlock } from "../components/ErrorBlock";
-import { KpiCard } from "../components/KpiCard";
 import { LoadingBlock } from "../components/LoadingBlock";
-import { PageHeader } from "../components/PageHeader";
 import { StatusBadge } from "../components/StatusBadge";
 import { useUserAsync } from "../hooks/useAsync";
 
 export default function UserOverviewPage() {
-  const { logout, user } = useUserAuth();
+  const { logout } = useUserAuth();
   const { data, error, loading, reload } = useUserAsync(async () => {
     const [stats, calls, agents] = await Promise.all([
       getUserQueueStats(),
-      listUserCalls({ limit: 12 }),
+      listUserCalls({ limit: 22 }),
       listUserAgents(),
     ]);
     return { stats, calls, agents };
@@ -53,8 +53,7 @@ export default function UserOverviewPage() {
   if (error || !data) return <ErrorBlock message={error ?? "Failed to load"} onRetry={reload} />;
 
   const { stats, calls, agents } = data;
-  const orgLabel =
-    user?.organization?.name || user?.organization?.slug || "your organization";
+  const activeAgents = agents.filter((a) => a.isActive).length;
   const queueLabel = stats.queue.paused
     ? "Paused"
     : stats.queue.enabled
@@ -62,94 +61,75 @@ export default function UserOverviewPage() {
       : "Disabled";
 
   return (
-    <div>
-      <PageHeader
-        eyebrow={orgLabel}
-        title="Ops overview"
-        description="Live dial queue health, shortcuts to enqueue and dial, and recent call activity."
-        actions={
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-            {stats.queue.paused ? (
-              <Button type="button" variant="primary" size="sm" onClick={() => handlePauseResume("resume")}>
-                Resume queue
-              </Button>
-            ) : (
-              <Button type="button" variant="secondary" size="sm" onClick={() => handlePauseResume("pause")}>
-                Pause queue
-              </Button>
-            )}
-            <Button type="button" variant="secondary" size="sm" onClick={reload}>
-              Refresh
+    <div className="ops-ov">
+      <div className="ops-ov-strip">
+        <div className="ops-ov-strip-live">
+          <StatusBadge
+            status={stats.queue.paused ? "warn" : stats.queue.enabled ? "live" : "inactive"}
+            label={queueLabel}
+          />
+          <span className="ops-muted" style={{ margin: 0 }}>
+            {stats.queue.inProgress}/{stats.queue.maxConcurrent} slots ·{" "}
+            {stats.queue.dialsLastMinute} dials/min
+          </span>
+        </div>
+        <div className="ops-ov-strip-actions">
+          {stats.queue.paused ? (
+            <Button type="button" variant="primary" size="sm" onClick={() => handlePauseResume("resume")}>
+              Resume queue
             </Button>
-          </div>
-        }
-      />
-
-      <div
-        className="ops-panel"
-        style={{ marginBottom: "1.25rem" }}
-      >
-        <div className="ops-panel-body" style={{ display: "flex", flexWrap: "wrap", gap: "1rem", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
-            <StatusBadge
-              status={stats.queue.paused ? "warn" : stats.queue.enabled ? "live" : "inactive"}
-              label={queueLabel}
-            />
-            <span className="ops-muted" style={{ margin: 0 }}>
-              {stats.queue.inProgress}/{stats.queue.maxConcurrent} slots ·{" "}
-              {stats.queue.dialsLastMinute} dials/min ·{" "}
-              {stats.batches.running} batch{stats.batches.running === 1 ? "" : "es"} running
-            </span>
-          </div>
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-            <Link to="/dashboard/enqueue">
-              <Button type="button" variant="primary" size="sm">
-                Enqueue
-              </Button>
-            </Link>
-            <Link to="/dashboard/dial">
-              <Button type="button" variant="secondary" size="sm">
-                Dial now
-              </Button>
-            </Link>
-            <Link to="/dashboard/agents">
-              <Button type="button" variant="ghost" size="sm">
-                Agents ({agents.length})
-              </Button>
-            </Link>
-          </div>
+          ) : (
+            <Button type="button" variant="secondary" size="sm" onClick={() => handlePauseResume("pause")}>
+              Pause queue
+            </Button>
+          )}
+          <Button type="button" variant="ghost" size="sm" onClick={reload}>
+            Refresh
+          </Button>
         </div>
       </div>
 
-      <div className="ops-kpis">
-        <KpiCard
-          value={stats.counts.pending}
-          label="Pending"
-          hint={`${stats.counts.pendingReadyNow} ready now`}
-        />
-        <KpiCard
-          value={stats.queue.inProgress}
-          label="In flight"
-          hint={`${stats.queue.availableSlots} slots free`}
-          highlight={stats.queue.inProgress > 0}
-        />
-        <KpiCard value={stats.counts.dialing} label="Dialing" />
-        <KpiCard
-          value={stats.counts.completed}
-          label="Completed"
-          hint={`${stats.counts.failed} failed`}
-        />
-      </div>
+      <div className="ops-ov-grid">
+        <section className="ops-panel ops-ov-cell ops-ov-kpis-cell">
+          <div className="ops-panel-head">
+            <h2>Live</h2>
+            <span className="ops-faint">Queue snapshot</span>
+          </div>
+          <div className="ops-ov-kpis">
+            <Link to="/dashboard/agents" className="ops-ov-kpi is-agents">
+              <span className="ops-ov-kpi-label">Agents</span>
+              <span className="ops-ov-kpi-value">{agents.length}</span>
+              <span className="ops-ov-kpi-hint">{activeAgents} active</span>
+            </Link>
+            <Link to="/dashboard/calls?bucket=pending" className="ops-ov-kpi is-pending">
+              <span className="ops-ov-kpi-label">Pending</span>
+              <span className="ops-ov-kpi-value">{stats.counts.pending}</span>
+              <span className="ops-ov-kpi-hint">{stats.counts.pendingReadyNow} ready now</span>
+            </Link>
+            <Link to="/dashboard/calls?bucket=done" className="ops-ov-kpi is-done">
+              <span className="ops-ov-kpi-label">Done</span>
+              <span className="ops-ov-kpi-value">{stats.counts.completed}</span>
+              <span className="ops-ov-kpi-hint">{stats.counts.failed} failed</span>
+            </Link>
+            <Link
+              to="/dashboard/calls?bucket=in_progress"
+              className={`ops-ov-kpi is-dialing${stats.counts.dialing > 0 ? " is-live" : ""}`}
+            >
+              <span className="ops-ov-kpi-label">Dialing</span>
+              <span className="ops-ov-kpi-value">{stats.counts.dialing}</span>
+              <span className="ops-ov-kpi-hint">{stats.queue.inProgress} in flight</span>
+            </Link>
+          </div>
+        </section>
 
-      <div className="ops-two-col">
-        <section className="ops-panel">
+        <section className="ops-panel ops-ov-cell ops-ov-ticker">
           <div className="ops-panel-head">
             <h2>Recent calls</h2>
             <Link to="/dashboard/calls" className="ops-mono">
               View all →
             </Link>
           </div>
-          <div className="ops-panel-body is-flush">
+          <div className="ops-ov-ticker-body">
             {calls.length === 0 ? (
               <div className="ops-state">
                 <p>
@@ -159,75 +139,47 @@ export default function UserOverviewPage() {
                 </p>
               </div>
             ) : (
-              <div className="ops-table-wrap">
-                <table className="ops-table">
-                  <thead>
-                    <tr>
-                      <th>Status</th>
-                      <th>To</th>
-                      <th>Task</th>
-                      <th>When</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {calls.map((c) => (
-                      <tr key={c.id}>
-                        <td>
-                          <Link to={`/dashboard/calls/${c.id}`}>
-                            <StatusBadge status={c.status} />
-                          </Link>
-                        </td>
-                        <td className="ops-mono">
-                          {c.toNumber || c.participantIdentity || "—"}
-                        </td>
-                        <td className="ops-mono">{c.taskKey || "—"}</td>
-                        <td className="ops-faint">{formatRelative(c.createdAt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ol className="ops-ov-tape">
+                {calls.map((c) => (
+                  <li key={c.id}>
+                    <Link to={`/dashboard/calls/${c.id}`} className="ops-ov-tape-row">
+                      <StatusBadge status={c.status} />
+                      <span className="ops-ov-tape-to">
+                        {c.toNumber || c.participantIdentity || "—"}
+                      </span>
+                      <span className="ops-ov-tape-task">{c.taskKey || "—"}</span>
+                      <time className="ops-ov-tape-when" dateTime={c.createdAt}>
+                        {formatRelative(c.createdAt)}
+                      </time>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
             )}
           </div>
         </section>
 
-        <section className="ops-panel">
+        <section className="ops-panel ops-ov-cell ops-ov-chart">
           <div className="ops-panel-head">
-            <h2>Dialer</h2>
-            <StatusBadge
-              status={stats.dialer.globalEnabled ? "live" : "inactive"}
-              label={stats.dialer.globalEnabled ? "Enabled" : "Disabled"}
+            <h2>Outcomes</h2>
+            <span className="ops-faint">Finished calls</span>
+          </div>
+          <div className="ops-panel-body ops-ov-chart-body">
+            <CallOutcomeDonut
+              completed={stats.counts.completed}
+              failed={stats.counts.failed}
+              cancelled={stats.counts.cancelled}
             />
           </div>
-          <div className="ops-panel-body">
-            <dl className="ops-detail-grid">
-              <div className="ops-detail-item">
-                <dt>Retries scheduled</dt>
-                <dd>{stats.retries.scheduled}</dd>
-              </div>
-              <div className="ops-detail-item">
-                <dt>Last claim count</dt>
-                <dd>{stats.dialer.lastClaimCount}</dd>
-              </div>
-              <div className="ops-detail-item">
-                <dt>Batches paused</dt>
-                <dd>{stats.batches.paused}</dd>
-              </div>
-              <div className="ops-detail-item">
-                <dt>Avg attempts</dt>
-                <dd>{stats.retries.avgAttemptCount}</dd>
-              </div>
-            </dl>
-            {stats.dialer.lastError ? (
-              <p className="ops-muted" style={{ marginTop: "1rem", marginBottom: 0 }}>
-                Last error: {stats.dialer.lastError}
-              </p>
-            ) : null}
-            <p style={{ marginTop: "1.25rem", marginBottom: 0 }}>
-              <Link to="/dashboard/queue">Queue settings →</Link>
-              {" · "}
-              <Link to="/dashboard/batches">Batches →</Link>
-            </p>
+        </section>
+
+        <section className="ops-panel ops-ov-cell ops-ov-chart is-volume">
+          <div className="ops-panel-head">
+            <h2>Calls made</h2>
+            <span className="ops-faint">Created per day</span>
+          </div>
+          <div className="ops-panel-body ops-ov-chart-body">
+            <CallsVolumeChart days={stats.daily ?? []} />
           </div>
         </section>
       </div>

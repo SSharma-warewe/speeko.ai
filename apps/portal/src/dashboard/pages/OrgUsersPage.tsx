@@ -5,6 +5,7 @@ import {
   ApiError,
   createOrgUser,
   listOrgUsers,
+  resendOrgUserInvite,
   UnauthorizedError,
   type OrgUser,
 } from "../../lib/api";
@@ -25,33 +26,30 @@ export default function OrgUsersPage() {
 
   const [showForm, setShowForm] = useState(false);
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<OrgUser["role"]>("agent");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
     setFormError(null);
-    if (!email.trim() || !password) {
-      setFormError("Email and password are required.");
-      return;
-    }
-    if (password.length < 8) {
-      setFormError("Password must be at least 8 characters.");
+    setNotice(null);
+    if (!email.trim()) {
+      setFormError("Email is required.");
       return;
     }
     setSubmitting(true);
     try {
       await createOrgUser(orgId, {
         email: email.trim(),
-        password,
         name: name.trim() || undefined,
         role,
       });
+      setNotice(`Invite sent to ${email.trim()}.`);
       setEmail("");
-      setPassword("");
       setName("");
       setRole("agent");
       setShowForm(false);
@@ -64,6 +62,23 @@ export default function OrgUsersPage() {
       setFormError(err instanceof ApiError ? err.message : "Could not create user.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleResend = async (user: OrgUser) => {
+    setNotice(null);
+    setResendingId(user.id);
+    try {
+      await resendOrgUserInvite(orgId, user.id);
+      setNotice(`Invite re-sent to ${user.email}.`);
+    } catch (err) {
+      if (err instanceof UnauthorizedError) {
+        logout();
+        return;
+      }
+      setNotice(err instanceof ApiError ? err.message : "Could not resend invite.");
+    } finally {
+      setResendingId(null);
     }
   };
 
@@ -85,21 +100,12 @@ export default function OrgUsersPage() {
         <form className="ops-inline-form ops-form" onSubmit={handleCreate} noValidate>
           {formError ? <Alert tone="error">{formError}</Alert> : null}
           <div className="ops-form-grid">
-            <Field label="Email" htmlFor="user-email" required>
+            <Field label="Email" htmlFor="user-email" required hint="They will get a set-password invite">
               <Input
                 id="user-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                disabled={submitting}
-              />
-            </Field>
-            <Field label="Password" htmlFor="user-password" required hint="Min 8 characters">
-              <Input
-                id="user-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
                 disabled={submitting}
               />
             </Field>
@@ -137,17 +143,23 @@ export default function OrgUsersPage() {
           </div>
           <div className="ops-form-actions">
             <Button type="submit" variant="primary" loading={submitting} disabled={submitting}>
-              Create user
+              Send invite
             </Button>
           </div>
         </form>
+      ) : null}
+
+      {notice ? (
+        <div style={{ padding: "0 0 0.75rem" }}>
+          <Alert tone="info">{notice}</Alert>
+        </div>
       ) : null}
 
       <div className="ops-panel-body is-flush">
         {users.length === 0 ? (
           <EmptyState
             title="No users"
-            description="Add an org member so they can log in with the organization slug."
+            description="Invite an org member. They set their own password from the email link."
           />
         ) : (
           <div className="ops-table-wrap">
@@ -159,6 +171,7 @@ export default function OrgUsersPage() {
                   <th>Role</th>
                   <th>Status</th>
                   <th>Created</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -169,11 +182,37 @@ export default function OrgUsersPage() {
                     <td className="ops-mono">{u.role}</td>
                     <td>
                       <StatusBadge
-                        status={u.isActive ? "active" : "inactive"}
-                        label={u.isActive ? "Active" : "Inactive"}
+                        status={
+                          !u.isActive
+                            ? "inactive"
+                            : u.hasPassword === false
+                              ? "pending"
+                              : "active"
+                        }
+                        label={
+                          !u.isActive
+                            ? "Inactive"
+                            : u.hasPassword === false
+                              ? "Invite pending"
+                              : "Active"
+                        }
                       />
                     </td>
                     <td className="ops-faint">{formatDateTime(u.createdAt)}</td>
+                    <td>
+                      {u.hasPassword === false ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          loading={resendingId === u.id}
+                          disabled={resendingId === u.id}
+                          onClick={() => handleResend(u)}
+                        >
+                          Resend invite
+                        </Button>
+                      ) : null}
+                    </td>
                   </tr>
                 ))}
               </tbody>

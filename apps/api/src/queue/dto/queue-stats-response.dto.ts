@@ -23,6 +23,23 @@ export class QueueStatsQueueDto {
   dialsLastMinute!: number;
 }
 
+export class QueueStatsDailyDto {
+  @ApiProperty({ example: '2026-08-02', description: 'UTC calendar day (YYYY-MM-DD)' })
+  date!: string;
+
+  @ApiProperty({ description: 'Calls created that day' })
+  total!: number;
+
+  @ApiProperty()
+  completed!: number;
+
+  @ApiProperty()
+  failed!: number;
+
+  @ApiProperty()
+  cancelled!: number;
+}
+
 export class QueueStatsCountsDto {
   @ApiProperty()
   pending!: number;
@@ -97,6 +114,12 @@ export class OrgQueueStatsResponseDto {
 
   @ApiProperty({ type: QueueDialerHealthDto })
   dialer!: QueueDialerHealthDto;
+
+  @ApiProperty({
+    type: [QueueStatsDailyDto],
+    description: 'Last 14 UTC days of call volume (zeros filled)',
+  })
+  daily!: QueueStatsDailyDto[];
 
   @ApiProperty({ type: String, format: 'date-time' })
   asOf!: Date;

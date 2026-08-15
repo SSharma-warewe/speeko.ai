@@ -63,13 +63,23 @@ describe('QueueStatsService', () => {
     );
   });
 
-  function mockOrgQueries(statusRows: Array<{ status: string; cnt: number }>) {
-    // forOrganization runs: countByStatus, countPendingReady, countScheduledRetries, avgAttemptCount
+  function mockOrgQueries(
+    statusRows: Array<{ status: string; cnt: number }>,
+    dailyRows: Array<{
+      day: string;
+      total: number;
+      completed: number;
+      failed: number;
+      cancelled: number;
+    }> = [],
+  ) {
+    // forOrganization: countByStatus, pendingReady, scheduledRetries, avgAttempt, dailyVolume
     dataSource.query
       .mockResolvedValueOnce(statusRows)
       .mockResolvedValueOnce([{ cnt: 1 }]) // pendingReadyNow
       .mockResolvedValueOnce([{ cnt: 4 }]) // scheduledRetries
-      .mockResolvedValueOnce([{ avg: 1.5 }]); // avgAttemptCount
+      .mockResolvedValueOnce([{ avg: 1.5 }]) // avgAttemptCount
+      .mockResolvedValueOnce(dailyRows);
   }
 
   it('1. forOrganization assembles shape with inProgress and availableSlots', async () => {
@@ -123,6 +133,11 @@ describe('QueueStatsService', () => {
       lastError: null,
     });
     expect(result.asOf).toBeInstanceOf(Date);
+    expect(result.daily).toHaveLength(14);
+    expect(result.daily.every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d.date))).toBe(
+      true,
+    );
+    expect(result.daily.every((d) => d.total === 0)).toBe(true);
     expect(batchesRepo.countByOrganizationAndStatus).toHaveBeenCalledWith(
       ORG_ID,
       CallBatchStatus.RUNNING,
@@ -159,6 +174,7 @@ describe('QueueStatsService', () => {
       .mockResolvedValueOnce([{ cnt: 0 }])
       .mockResolvedValueOnce([{ cnt: 0 }])
       .mockResolvedValueOnce([{ avg: 1 }])
+      .mockResolvedValueOnce([])
       // org2 queries
       .mockResolvedValueOnce([
         { status: CallStatus.PENDING, cnt: 3 },
@@ -168,7 +184,8 @@ describe('QueueStatsService', () => {
       ])
       .mockResolvedValueOnce([{ cnt: 0 }])
       .mockResolvedValueOnce([{ cnt: 0 }])
-      .mockResolvedValueOnce([{ avg: 0 }]);
+      .mockResolvedValueOnce([{ avg: 0 }])
+      .mockResolvedValueOnce([]);
 
     batchesRepo.countByOrganizationAndStatus.mockResolvedValue(0);
     claimService.countDialsLastMinute.mockResolvedValue(0);
@@ -197,7 +214,8 @@ describe('QueueStatsService', () => {
       .mockResolvedValueOnce([]) // no status rows
       .mockResolvedValueOnce([{ cnt: 0 }])
       .mockResolvedValueOnce([{ cnt: 0 }])
-      .mockResolvedValueOnce([{ avg: 0 }]);
+      .mockResolvedValueOnce([{ avg: 0 }])
+      .mockResolvedValueOnce([]);
     claimService.countDialsLastMinute.mockResolvedValue(0);
 
     const result = await service.forOrganization(ORG_ID);
@@ -205,5 +223,55 @@ describe('QueueStatsService', () => {
     expect(result.queue.availableSlots).toBe(3);
     expect(result.counts.pending).toBe(0);
     expect(Number.isNaN(result.retries.avgAttemptCount)).toBe(false);
+    expect(result.daily).toHaveLength(14);
+  });
+
+  it('4. padDailyWindow fills 14 UTC days and keeps known totals', () => {
+    const now = new Date('2026-08-15T18:00:00.000Z');
+    const padded = service.padDailyWindow(
+      [
+        {
+          day: '2026-08-15',
+          total: 4,
+          completed: 2,
+          failed: 1,
+          cancelled: 1,
+        },
+        {
+          day: new Date('2026-08-10T00:00:00.000Z'),
+          total: 3,
+          completed: 3,
+          failed: 0,
+          cancelled: 0,
+        },
+      ],
+      14,
+      now,
+    );
+
+    expect(padded).toHaveLength(14);
+    expect(padded[0].date).toBe('2026-08-02');
+    expect(padded[13].date).toBe('2026-08-15');
+    expect(padded[13]).toEqual({
+      date: '2026-08-15',
+      total: 4,
+      completed: 2,
+      failed: 1,
+      cancelled: 1,
+    });
+    expect(padded[8]).toEqual({
+      date: '2026-08-10',
+      total: 3,
+      completed: 3,
+      failed: 0,
+      cancelled: 0,
+    });
+    expect(padded[1]).toEqual({
+      date: '2026-08-03',
+      total: 0,
+      completed: 0,
+      failed: 0,
+      cancelled: 0,
+    });
   });
 });

@@ -31,12 +31,30 @@ import UserToolProfilesPage from "./dashboard/user-pages/ToolProfilesPage";
 import UserIntegrationsPage from "./dashboard/user-pages/IntegrationsPage";
 import AdminLoginPage from "./pages/AdminLoginPage";
 import UserLoginPage from "./pages/UserLoginPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import SetOrResetPasswordPage from "./pages/SetOrResetPasswordPage";
+import AdminAccountPage from "./dashboard/pages/AccountPage";
+import UserAccountPage from "./dashboard/user-pages/AccountPage";
 
 export default function App() {
   return (
     <Routes>
       <Route path="/admin-login" element={<AdminLoginPage />} />
       <Route path="/login" element={<UserLoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route
+        path="/admin-forgot-password"
+        element={<ForgotPasswordPage admin />}
+      />
+      <Route path="/set-password" element={<SetOrResetPasswordPage mode="set" />} />
+      <Route
+        path="/reset-password"
+        element={<SetOrResetPasswordPage mode="reset" />}
+      />
+      <Route
+        path="/admin-reset-password"
+        element={<SetOrResetPasswordPage mode="admin-reset" />}
+      />
 
       {/* Org-user ops dashboard */}
       <Route
@@ -60,6 +78,7 @@ export default function App() {
         <Route path="sip" element={<UserSipTrunksPage />} />
         <Route path="tool-profiles" element={<UserToolProfilesPage />} />
         <Route path="integrations" element={<UserIntegrationsPage />} />
+        <Route path="account" element={<UserAccountPage />} />
       </Route>
 
       {/* Platform admin dashboard */}
@@ -86,6 +105,7 @@ export default function App() {
         <Route path="tool-profiles" element={<ToolProfilesPage />} />
         <Route path="calls" element={<CallsListPage />} />
         <Route path="calls/:id" element={<CallDetailPage />} />
+        <Route path="account" element={<AdminAccountPage />} />
       </Route>
 
       <Route path="/" element={<Navigate to="/login" replace />} />

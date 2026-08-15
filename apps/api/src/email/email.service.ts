@@ -1,29 +1,43 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Resend, type CreateEmailOptions } from 'resend';
 import type { SendEmailParams, SendEmailResult } from './email.types';
 
-const DEFAULT_FROM = 'Speeko <onboarding@resend.dev>';
+const DEFAULT_FROM = 'Speeko <hello@speeko.ai>';
+const DEFAULT_API_BASE = 'https://api.useplunk.com';
+const ERROR_BODY_LOG_LIMIT = 400;
+
+type PlunkFrom = string | { name: string; email: string };
+
+type PlunkSendResponse = {
+  success?: boolean;
+  data?: {
+    emails?: Array<{ email?: string }>;
+  };
+  error?: { message?: string; code?: string; requestId?: string };
+};
 
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private readonly client: Resend | null;
+  private readonly apiKey: string;
+  private readonly apiBase: string;
   private readonly defaultFrom: string;
   private readonly notifyTo: string | null;
   private disabledLogged = false;
 
   constructor(private readonly config: ConfigService) {
-    const apiKey = this.config.get<string>('RESEND_API_KEY')?.trim() ?? '';
-    this.client = apiKey ? new Resend(apiKey) : null;
+    this.apiKey = this.config.get<string>('PLUNK_API_KEY')?.trim() ?? '';
+    const base =
+      this.config.get<string>('PLUNK_API_BASE')?.trim() || DEFAULT_API_BASE;
+    this.apiBase = base.replace(/\/$/, '');
     this.defaultFrom =
       this.config.get<string>('EMAIL_FROM')?.trim() || DEFAULT_FROM;
     const notify = this.config.get<string>('EMAIL_NOTIFY_TO')?.trim() ?? '';
     this.notifyTo = notify || null;
 
-    if (!this.client) {
+    if (!this.apiKey) {
       this.logger.warn(
-        'Email disabled: RESEND_API_KEY is not set. EmailService.send() will no-op.',
+        'Email disabled: PLUNK_API_KEY is not set. EmailService.send() will no-op.',
       );
     }
   }
@@ -34,20 +48,17 @@ export class EmailService {
   }
 
   isEnabled(): boolean {
-    return this.client !== null;
+    return Boolean(this.apiKey);
   }
 
   /**
-   * Generic send via Resend. Never throws — failures return `{ ok: false }`
-   * so product flows (signup, contact, etc.) are not blocked by mail.
-   *
-   * Until a custom domain is verified, Resend only delivers to the account
-   * owner address; other recipients may fail — still pass the real `to`.
+   * Generic send via Plunk. Never throws — failures return `{ ok: false }`
+   * so product flows (invite, reset, contact) are not blocked by mail.
    */
   async send(params: SendEmailParams): Promise<SendEmailResult> {
-    if (!this.client) {
+    if (!this.apiKey) {
       if (!this.disabledLogged) {
-        this.logger.warn('EmailService.send skipped: RESEND_API_KEY not set');
+        this.logger.warn('EmailService.send skipped: PLUNK_API_KEY not set');
         this.disabledLogged = true;
       }
       return { ok: false, skipped: true, error: 'email disabled' };
@@ -66,39 +77,48 @@ export class EmailService {
       return { ok: false, error: 'subject is required' };
     }
 
-    const to = params.to;
-    if (
-      !to ||
-      (Array.isArray(to) && to.length === 0) ||
-      (typeof to === 'string' && !to.trim())
-    ) {
+    const to = normalizeTo(params.to);
+    if (!to) {
       this.logger.warn('EmailService.send rejected: to required');
       return { ok: false, error: 'to is required' };
     }
 
-    const from = params.from?.trim() || this.defaultFrom;
+    const from = parseFromHeader(params.from?.trim() || this.defaultFrom);
+    const body = html ?? textToHtml(text ?? '');
+    const reply = firstReplyTo(params.replyTo);
 
-    // Resend CreateEmailOptions requires at least one of text | html | react.
-    const payload = {
-      from,
+    const payload: Record<string, unknown> = {
       to,
       subject,
-      ...(text ? { text } : {}),
-      ...(html ? { html } : {}),
-      ...(params.replyTo ? { replyTo: params.replyTo } : {}),
-      ...(params.tags?.length ? { tags: params.tags } : {}),
-    } as CreateEmailOptions;
+      body,
+      from,
+    };
+    if (reply) payload.reply = reply;
 
     try {
-      const { data, error } = await this.client.emails.send(payload);
+      const res = await fetch(`${this.apiBase}/v1/send`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
 
-      if (error) {
-        const message = error.message || JSON.stringify(error);
-        this.logger.warn(`Email send failed: ${message}`);
+      const rawText = await res.text();
+      const json = parseJson(rawText) as PlunkSendResponse | null;
+
+      if (!res.ok) {
+        const message =
+          json?.error?.message ||
+          `plunk send ${res.status}${rawText ? `: ${truncate(rawText)}` : ''}`;
+        this.logger.warn(
+          `Email send failed: status=${res.status} requestId=${json?.error?.requestId ?? 'n/a'} body=${truncate(rawText)}`,
+        );
         return { ok: false, error: message };
       }
 
-      const id = data?.id ?? 'unknown';
+      const id = json?.data?.emails?.[0]?.email ?? 'unknown';
       this.logger.log(`Email sent id=${id} subject="${subject}"`);
       return { ok: true, id };
     } catch (err) {
@@ -116,4 +136,54 @@ export class EmailService {
   ): Promise<SendEmailResult> {
     return this.send({ to, subject, text });
   }
+}
+
+function normalizeTo(to: string | string[]): string | string[] | null {
+  if (Array.isArray(to)) {
+    const cleaned = to.map((item) => item.trim()).filter(Boolean);
+    return cleaned.length ? cleaned : null;
+  }
+  const single = to?.trim();
+  return single || null;
+}
+
+function parseFromHeader(raw: string): PlunkFrom {
+  const match = raw.match(/^(.*)<([^>]+)>\s*$/);
+  if (!match) {
+    return raw;
+  }
+  const name = match[1].trim().replace(/^["']|["']$/g, '');
+  const email = match[2].trim();
+  return name ? { name, email } : email;
+}
+
+function firstReplyTo(replyTo?: string | string[]): string | undefined {
+  if (!replyTo) return undefined;
+  if (Array.isArray(replyTo)) {
+    const first = replyTo.map((item) => item.trim()).find(Boolean);
+    return first;
+  }
+  return replyTo.trim() || undefined;
+}
+
+function textToHtml(text: string): string {
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return `<p style="white-space:pre-wrap;font-family:sans-serif">${escaped}</p>`;
+}
+
+function parseJson(raw: string): unknown {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function truncate(value: string): string {
+  if (value.length <= ERROR_BODY_LOG_LIMIT) return value;
+  return `${value.slice(0, ERROR_BODY_LOG_LIMIT)}…`;
 }

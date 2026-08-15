@@ -1,16 +1,40 @@
+import { useEffect, useId, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { LiveDot } from "@call-agent/ui";
 import { useUserAuth } from "../lib/auth";
 import "./DashboardLayout.css";
 
-const NAV = [
+type NavLeaf = {
+  to: string;
+  end?: boolean;
+  label: string;
+  desc: string;
+};
+
+type NavBranch = {
+  label: string;
+  desc: string;
+  children: readonly NavLeaf[];
+};
+
+type NavItem = NavLeaf | NavBranch;
+
+const CALLS_CHILDREN = [
+  { to: "/dashboard/calls", label: "All calls", desc: "Status & transcripts" },
+  { to: "/dashboard/enqueue", label: "Enqueue", desc: "Bulk outbound dials" },
+  { to: "/dashboard/dial", label: "Dial now", desc: "Immediate SIP call" },
+] as const satisfies readonly NavLeaf[];
+
+const NAV: { section: string; items: readonly NavItem[] }[] = [
   {
     section: "Operate",
     items: [
       { to: "/dashboard", end: true, label: "Overview", desc: "Live queue & activity" },
-      { to: "/dashboard/enqueue", label: "Enqueue", desc: "Bulk outbound dials" },
-      { to: "/dashboard/dial", label: "Dial now", desc: "Immediate SIP call" },
-      { to: "/dashboard/calls", label: "Calls", desc: "Status & transcripts" },
+      {
+        label: "Calls",
+        desc: "History, enqueue & dial",
+        children: CALLS_CHILDREN,
+      },
       { to: "/dashboard/batches", label: "Batches", desc: "Bulk campaign groups" },
     ],
   },
@@ -30,22 +54,83 @@ const NAV = [
         label: "Integrations",
         desc: "CRM endpoints & API keys",
       },
+      { to: "/dashboard/account", label: "Account", desc: "Password" },
     ],
   },
-] as const;
+];
+
+function isBranch(item: NavItem): item is NavBranch {
+  return "children" in item;
+}
+
+function pathInBranch(pathname: string, children: readonly NavLeaf[]): boolean {
+  return children.some(
+    (child) => pathname === child.to || pathname.startsWith(`${child.to}/`),
+  );
+}
 
 function crumbFromPath(pathname: string): string {
   if (pathname === "/dashboard") return "Overview";
   if (pathname.startsWith("/dashboard/enqueue")) return "Enqueue";
   if (pathname.startsWith("/dashboard/dial")) return "Dial now";
-  if (pathname.startsWith("/dashboard/calls")) return "Calls";
+  if (pathname.startsWith("/dashboard/calls")) return "All calls";
   if (pathname.startsWith("/dashboard/batches")) return "Batches";
   if (pathname.startsWith("/dashboard/agents")) return "Agents";
   if (pathname.startsWith("/dashboard/queue")) return "Queue";
   if (pathname.startsWith("/dashboard/sip")) return "SIP / Telephony";
   if (pathname.startsWith("/dashboard/tool-profiles")) return "Tool profiles";
   if (pathname.startsWith("/dashboard/integrations")) return "Integrations";
+  if (pathname.startsWith("/dashboard/account")) return "Account";
   return "Dashboard";
+}
+
+function NavBranchGroup({ item, pathname }: { item: NavBranch; pathname: string }) {
+  const panelId = useId();
+  const onSection = pathInBranch(pathname, item.children);
+  const [open, setOpen] = useState(onSection);
+
+  useEffect(() => {
+    if (onSection) setOpen(true);
+  }, [onSection]);
+
+  return (
+    <div className="ops-nav-group">
+      <button
+        type="button"
+        className={`ops-nav-link ops-nav-toggle${open ? " is-open" : ""}${
+          onSection ? " is-current" : ""
+        }`}
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="ops-nav-label-row">
+          <span className="ops-nav-label">{item.label}</span>
+          <span className="ops-nav-chevron" aria-hidden />
+        </span>
+        <span className="ops-nav-desc">{item.desc}</span>
+      </button>
+      <div
+        id={panelId}
+        className="ops-nav-sub"
+        hidden={!open}
+        role="group"
+        aria-label={item.label}
+      >
+        {item.children.map((child) => (
+          <NavLink
+            key={child.to}
+            to={child.to}
+            className={({ isActive }) =>
+              `ops-nav-link ops-nav-sublink${isActive ? " is-active" : ""}`
+            }
+          >
+            <span className="ops-nav-label">{child.label}</span>
+          </NavLink>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function UserDashboardLayout() {
@@ -72,19 +157,27 @@ export default function UserDashboardLayout() {
           {NAV.map((group) => (
             <div key={group.section}>
               <div className="ops-nav-section">{group.section}</div>
-              {group.items.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={"end" in item ? item.end : false}
-                  className={({ isActive }) =>
-                    `ops-nav-link${isActive ? " is-active" : ""}`
-                  }
-                >
-                  <span className="ops-nav-label">{item.label}</span>
-                  <span className="ops-nav-desc">{item.desc}</span>
-                </NavLink>
-              ))}
+              {group.items.map((item) =>
+                isBranch(item) ? (
+                  <NavBranchGroup
+                    key={item.label}
+                    item={item}
+                    pathname={location.pathname}
+                  />
+                ) : (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end ?? false}
+                    className={({ isActive }) =>
+                      `ops-nav-link${isActive ? " is-active" : ""}`
+                    }
+                  >
+                    <span className="ops-nav-label">{item.label}</span>
+                    <span className="ops-nav-desc">{item.desc}</span>
+                  </NavLink>
+                ),
+              )}
             </div>
           ))}
         </nav>
