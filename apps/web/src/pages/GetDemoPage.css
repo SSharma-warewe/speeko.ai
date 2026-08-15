@@ -324,7 +324,7 @@
         .gd-mock-typing span:nth-child(2) { animation-delay: 0.15s; }
         .gd-mock-typing span:nth-child(3) { animation-delay: 0.3s; }
 
-        /* Right form column â€” fits viewport, no scroll */
+        /* Right form column — card fits viewport; form scrolls only if needed */
         .gd-right {
           background: #f0eee9;
           display: flex;
@@ -340,7 +340,10 @@
           width: 100%;
           max-width: 480px;
           max-height: 100%;
+          min-height: 0;
           overflow: hidden;
+          display: flex;
+          flex-direction: column;
           background: #fff;
           border-radius: 16px;
           border: 1px solid #e5e5e5;
@@ -358,6 +361,7 @@
           letter-spacing: 0.12em;
           text-transform: uppercase;
           color: #a16207;
+          flex-shrink: 0;
         }
 
         .gd-card-title {
@@ -368,6 +372,7 @@
           letter-spacing: -0.02em;
           line-height: 1.15;
           color: #0a0a0a;
+          flex-shrink: 0;
         }
 
         .gd-card-lead {
@@ -375,12 +380,20 @@
           font-size: 13px;
           line-height: 1.5;
           color: #525252;
+          flex-shrink: 0;
         }
 
         .gd-form {
           display: flex;
           flex-direction: column;
           gap: 11px;
+          flex: 1 1 auto;
+          min-height: 0;
+          overflow-x: hidden;
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          -webkit-overflow-scrolling: touch;
+          padding-right: 2px;
         }
 
         .gd-hp {
@@ -746,6 +759,12 @@
           .gd-card {
             padding: 18px 18px 16px;
             max-height: none;
+            overflow: visible;
+          }
+
+          .gd-form {
+            flex: none;
+            overflow: visible;
           }
 
           .gd-row {
