@@ -17,7 +17,6 @@ import {
 import { useUserAuth } from "../../lib/auth";
 import { ErrorBlock } from "../components/ErrorBlock";
 import { LoadingBlock } from "../components/LoadingBlock";
-import { PageHeader } from "../components/PageHeader";
 import { StatusBadge } from "../components/StatusBadge";
 import { useUserAsync } from "../hooks/useAsync";
 
@@ -179,50 +178,55 @@ export default function UserAgentDetailPage() {
   );
 
   return (
-    <div className="ops-stack">
-      <p style={{ margin: 0 }}>
-        <Link to="/dashboard/agents" className="ops-muted">
-          ← Back to agents
-        </Link>
-      </p>
-
-      <PageHeader
-        eyebrow={agent.slug ?? agent.key}
-        title={agent.name}
-        description="Persona-only system prompt, default task, and tool profile. Clone to keep a second config with different tools or speech."
-        actions={
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
-            <StatusBadge status={agent.direction} />
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              loading={cloning}
-              disabled={cloning || submitting}
-              onClick={handleClone}
-            >
-              Clone
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              loading={testing}
-              disabled={testing || submitting}
-              onClick={handleTest}
-            >
-              Web test
-            </Button>
+    <div className="ops-desk is-studio">
+      <div className="ops-desk-toolbar">
+        <div className="ops-desk-toolbar-main">
+          <Link to="/dashboard/agents" className="ops-desk-back">
+            ← Roster
+          </Link>
+          <div className="ops-desk-title-block">
+            <h1>{agent.name}</h1>
+            <span className="ops-desk-slug ops-mono">
+              {agent.slug ?? agent.key}
+            </span>
           </div>
-        }
-      />
+          <StatusBadge status={agent.direction} />
+          <StatusBadge
+            status={agent.isActive ? "live" : "inactive"}
+            label={agent.isActive ? "Active" : "Inactive"}
+          />
+        </div>
+        <div className="ops-desk-actions">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            loading={cloning}
+            disabled={cloning || submitting}
+            onClick={handleClone}
+          >
+            Clone
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            loading={testing}
+            disabled={testing || submitting}
+            onClick={handleTest}
+          >
+            Web test
+          </Button>
+        </div>
+      </div>
 
-      <div className="ops-two-col">
-        <section className="ops-panel">
+      <form className="ops-desk-board" onSubmit={handleSave}>
+        <section className="ops-panel ops-desk-script">
           <div className="ops-panel-head">
-            <h2>Persona, hooks & task</h2>
+            <span className="ops-desk-kicker">Persona</span>
+            <span className="ops-desk-hint">Script only · tasks live in workflow</span>
           </div>
-          <form className="ops-panel-body ops-form" onSubmit={handleSave}>
+          <div className="ops-panel-body ops-form ops-desk-form">
             {formError ? <Alert tone="error">{formError}</Alert> : null}
             {saved ? <Alert tone="success">Saved.</Alert> : null}
             {meetUrl ? (
@@ -233,221 +237,191 @@ export default function UserAgentDetailPage() {
                 </a>
               </Alert>
             ) : null}
-            <div className="ops-form-grid">
-              <Field label="Display name" htmlFor="ua-name" required>
-                <Input
-                  id="ua-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  disabled={submitting}
-                />
-              </Field>
-              <Field
-                label="Slug"
-                htmlFor="ua-slug"
-                hint="Unique in your org. Lowercase letters, numbers, hyphens."
-              >
-                <Input
-                  id="ua-slug"
-                  value={slug}
-                  onChange={(e) => setSlug(e.target.value)}
-                  disabled={submitting}
-                />
-              </Field>
-            </div>
-            <Field label="System prompt" htmlFor="ua-prompt" required>
+
+            <Field
+              label="System prompt"
+              htmlFor="ua-prompt"
+              required
+              className="ops-desk-prompt"
+            >
               <Textarea
                 id="ua-prompt"
                 value={systemPrompt}
                 onChange={(e) => setSystemPrompt(e.target.value)}
-                rows={10}
+                rows={14}
                 disabled={submitting}
               />
             </Field>
-            <Field
-              label="On-start instructions (LiveKit onEnter)"
-              htmlFor="ua-on-enter"
-              hint="Spoken when the call starts. Leave empty for built-in default. Check silent to skip."
-            >
-              <Textarea
-                id="ua-on-enter"
-                value={onEnterInstructions}
-                onChange={(e) => setOnEnterInstructions(e.target.value)}
-                rows={4}
-                disabled={submitting || silentStart}
-                placeholder="e.g. Greet the caller as Acme support and ask how you can help."
-              />
-            </Field>
-            <label className="ops-check">
-              <input
-                type="checkbox"
-                checked={silentStart}
-                onChange={(e) => setSilentStart(e.target.checked)}
-                disabled={submitting}
-              />
-              Silent start (skip opening speech)
-            </label>
-            <Field
-              label="On-end instructions (LiveKit onExit)"
-              htmlFor="ua-on-exit"
-              hint="Spoken when the call ends. Leave empty for built-in goodbye. Check silent to skip."
-            >
-              <Textarea
-                id="ua-on-exit"
-                value={onExitInstructions}
-                onChange={(e) => setOnExitInstructions(e.target.value)}
-                rows={3}
-                disabled={submitting || silentEnd}
-                placeholder="e.g. Thank them briefly and wish them a good day."
-              />
-            </Field>
-            <label className="ops-check">
-              <input
-                type="checkbox"
-                checked={silentEnd}
-                onChange={(e) => setSilentEnd(e.target.checked)}
-                disabled={submitting}
-              />
-              Silent end (skip closing speech)
-            </label>
-            <div className="ops-form-grid">
-              <Field label="Default task key" htmlFor="ua-task">
-                <Select
-                  id="ua-task"
-                  value={defaultTaskKey}
-                  onChange={(e) => setDefaultTaskKey(e.target.value)}
-                  disabled={submitting}
-                >
-                  {TASK_KEYS.map((k) => (
-                    <option key={k} value={k}>
-                      {k}
-                    </option>
-                  ))}
-                  {defaultTaskKey &&
-                  !(TASK_KEYS as readonly string[]).includes(defaultTaskKey) ? (
-                    <option value={defaultTaskKey}>{defaultTaskKey}</option>
-                  ) : null}
-                </Select>
-              </Field>
-              <Field
-                label="Tool profile"
-                htmlFor="ua-tp"
-                hint="Platform seeds + your custom profiles. Create more under Tool profiles."
-              >
-                <Select
-                  id="ua-tp"
-                  value={toolProfileId}
-                  onChange={(e) => setToolProfileId(e.target.value)}
-                  disabled={submitting}
-                >
-                  <option value="">— keep current —</option>
-                  {profiles.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {formatToolProfileLabel(p)}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field
-                label="Calendar integration (Nylas)"
-                htmlFor="ua-cal"
-                hint="Required for calendar tools (availability / create event). Add connections under Integrations."
-              >
-                <Select
-                  id="ua-cal"
-                  value={calendarIntegrationId}
-                  onChange={(e) => setCalendarIntegrationId(e.target.value)}
-                  disabled={submitting}
-                >
-                  <option value="">— none —</option>
-                  {nylasIntegrations.map((i) => (
-                    <option key={i.id} value={i.id}>
-                      {i.name}
-                      {i.email ? ` (${i.email})` : ""} · {i.calendarId}
-                    </option>
-                  ))}
-                  {calendarIntegrationId &&
-                  !nylasIntegrations.some((i) => i.id === calendarIntegrationId) ? (
-                    <option value={calendarIntegrationId}>
-                      {calendarIntegrationId.slice(0, 8)}… (inactive or missing)
-                    </option>
-                  ) : null}
-                </Select>
-              </Field>
-            </div>
-            <div className="ops-check-row">
-              <label className="ops-check">
-                <input
-                  type="checkbox"
-                  checked={isActive}
-                  onChange={(e) => setIsActive(e.target.checked)}
-                  disabled={submitting}
+
+            <div className="ops-hooks">
+              <div className="ops-hook">
+                <div className="ops-hook-head">
+                  <label className="ops-hook-label" htmlFor="ua-on-enter">
+                    On start
+                  </label>
+                  <label className="ops-check ops-check-inline">
+                    <input
+                      type="checkbox"
+                      checked={silentStart}
+                      onChange={(e) => setSilentStart(e.target.checked)}
+                      disabled={submitting}
+                    />
+                    Silent
+                  </label>
+                </div>
+                <Textarea
+                  id="ua-on-enter"
+                  value={onEnterInstructions}
+                  onChange={(e) => setOnEnterInstructions(e.target.value)}
+                  rows={4}
+                  disabled={submitting || silentStart}
+                  placeholder="Empty = built-in greeting"
                 />
-                Active
-              </label>
+              </div>
+              <div className="ops-hook">
+                <div className="ops-hook-head">
+                  <label className="ops-hook-label" htmlFor="ua-on-exit">
+                    On end
+                  </label>
+                  <label className="ops-check ops-check-inline">
+                    <input
+                      type="checkbox"
+                      checked={silentEnd}
+                      onChange={(e) => setSilentEnd(e.target.checked)}
+                      disabled={submitting}
+                    />
+                    Silent
+                  </label>
+                </div>
+                <Textarea
+                  id="ua-on-exit"
+                  value={onExitInstructions}
+                  onChange={(e) => setOnExitInstructions(e.target.value)}
+                  rows={4}
+                  disabled={submitting || silentEnd}
+                  placeholder="Empty = built-in goodbye"
+                />
+              </div>
             </div>
-            <div className="ops-form-actions">
+          </div>
+        </section>
+
+        <section className="ops-panel ops-desk-card">
+          <div className="ops-panel-head">
+            <span className="ops-desk-kicker">Cast</span>
+            <span className="ops-desk-hint">Identity · routing</span>
+          </div>
+          <div className="ops-panel-body ops-form ops-desk-form">
+            <Field label="Display name" htmlFor="ua-name" required>
+              <Input
+                id="ua-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={submitting}
+              />
+            </Field>
+            <Field label="Slug" htmlFor="ua-slug">
+              <Input
+                id="ua-slug"
+                value={slug}
+                onChange={(e) => setSlug(e.target.value)}
+                disabled={submitting}
+              />
+            </Field>
+            <Field label="Default task" htmlFor="ua-task">
+              <Select
+                id="ua-task"
+                value={defaultTaskKey}
+                onChange={(e) => setDefaultTaskKey(e.target.value)}
+                disabled={submitting}
+              >
+                {TASK_KEYS.map((k) => (
+                  <option key={k} value={k}>
+                    {k}
+                  </option>
+                ))}
+                {defaultTaskKey &&
+                !(TASK_KEYS as readonly string[]).includes(defaultTaskKey) ? (
+                  <option value={defaultTaskKey}>{defaultTaskKey}</option>
+                ) : null}
+              </Select>
+            </Field>
+            <Field label="Tool profile" htmlFor="ua-tp">
+              <Select
+                id="ua-tp"
+                value={toolProfileId}
+                onChange={(e) => setToolProfileId(e.target.value)}
+                disabled={submitting}
+              >
+                <option value="">— keep current —</option>
+                {profiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {formatToolProfileLabel(p)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Calendar" htmlFor="ua-cal">
+              <Select
+                id="ua-cal"
+                value={calendarIntegrationId}
+                onChange={(e) => setCalendarIntegrationId(e.target.value)}
+                disabled={submitting}
+              >
+                <option value="">— none —</option>
+                {nylasIntegrations.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.name}
+                    {i.email ? ` (${i.email})` : ""} · {i.calendarId}
+                  </option>
+                ))}
+                {calendarIntegrationId &&
+                !nylasIntegrations.some((i) => i.id === calendarIntegrationId) ? (
+                  <option value={calendarIntegrationId}>
+                    {calendarIntegrationId.slice(0, 8)}… (inactive)
+                  </option>
+                ) : null}
+              </Select>
+            </Field>
+            <label className="ops-check">
+              <input
+                type="checkbox"
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
+                disabled={submitting}
+              />
+              Active
+            </label>
+
+            <div className="ops-desk-submit">
               <Button type="submit" variant="primary" loading={submitting} disabled={submitting}>
                 Save changes
               </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                loading={testing}
-                disabled={testing || submitting}
-                onClick={handleTest}
-              >
-                Start web test
-              </Button>
             </div>
-          </form>
-        </section>
 
-        <section className="ops-panel">
-          <div className="ops-panel-head">
-            <h2>Capabilities</h2>
-          </div>
-          <div className="ops-panel-body">
-            <dl className="ops-detail-grid">
-              <div className="ops-detail-item">
-                <dt>Template</dt>
-                <dd className="ops-mono">{agent.templateKey ?? agent.key}</dd>
-              </div>
-              <div className="ops-detail-item">
-                <dt>Slug</dt>
-                <dd className="ops-mono">{agent.slug ?? "—"}</dd>
-              </div>
-              <div className="ops-detail-item">
-                <dt>Enabled tools</dt>
-                <dd className="ops-mono">
-                  {agent.enabledTools?.length ? agent.enabledTools.join(", ") : "—"}
-                </dd>
-              </div>
-              <div className="ops-detail-item">
-                <dt>Voice</dt>
-                <dd className="ops-mono">{agent.voice || "default"}</dd>
-              </div>
-              <div className="ops-detail-item">
-                <dt>Model</dt>
-                <dd className="ops-mono">{agent.model || "default"}</dd>
-              </div>
-              <div className="ops-detail-item">
-                <dt>Temperature</dt>
-                <dd>{agent.temperature ?? "—"}</dd>
-              </div>
+            <dl className="ops-spec">
+              <dt>Template</dt>
+              <dd className="ops-mono">{agent.templateKey ?? agent.key}</dd>
+              <dt>Tools</dt>
+              <dd className="ops-mono">
+                {agent.enabledTools?.length ? agent.enabledTools.join(", ") : "—"}
+              </dd>
+              <dt>Voice</dt>
+              <dd className="ops-mono">{agent.voice || "default"}</dd>
+              <dt>Model</dt>
+              <dd className="ops-mono">{agent.model || "default"}</dd>
+              <dt>Temp</dt>
+              <dd>{agent.temperature ?? "—"}</dd>
             </dl>
-            <p className="ops-muted" style={{ marginTop: "1rem", marginBottom: 0 }}>
-              Web test uses this agent’s effective persona, tools, and task over LiveKit Meet.
-              Allow microphone access when the room opens.
-            </p>
-            <p style={{ marginTop: "0.75rem", marginBottom: 0 }}>
+
+            <p className="ops-desk-note">
               <Link to={`/dashboard/calls?compose=dial&agentId=${id}`}>
                 Dial now with this agent →
               </Link>
             </p>
           </div>
         </section>
-      </div>
+      </form>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { Alert, Button, Field, Input } from "@call-agent/ui";
 import {
   ApiError,
@@ -15,12 +15,80 @@ import { useUserAuth } from "../../lib/auth";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorBlock } from "../components/ErrorBlock";
 import { LoadingBlock } from "../components/LoadingBlock";
-import { PageHeader } from "../components/PageHeader";
 import { StatusBadge } from "../components/StatusBadge";
 import { useUserAsync } from "../hooks/useAsync";
 
-function formatTools(p: ToolProfile): string {
-  return p.toolIds?.length ? p.toolIds.join(", ") : "—";
+type ScopeFilter = "all" | "custom" | "platform";
+
+const SHORT_HINTS: Record<string, string> = {
+  endCall: "Required hangup",
+  booking: "Stub book",
+  cancelBooking: "Stub cancel",
+  transferCall: "Transfer",
+  lookupCustomer: "Lookup",
+  confirmAppointment: "Stub confirm",
+  checkCalendarAvailability: "Nylas free/busy",
+  listCalendarEvents: "Nylas list",
+  createCalendarEvent: "Nylas create",
+  cancelCalendarEvent: "Nylas cancel",
+  checkGhlFreeSlots: "GHL open slots",
+  scheduleGhlMeeting: "GHL book",
+};
+
+const TOOL_GROUPS: { label: string; ids: readonly string[] }[] = [
+  { label: "Session", ids: ["endCall", "transferCall", "lookupCustomer"] },
+  { label: "Booking stubs", ids: ["booking", "cancelBooking", "confirmAppointment"] },
+  {
+    label: "Nylas",
+    ids: [
+      "checkCalendarAvailability",
+      "listCalendarEvents",
+      "createCalendarEvent",
+      "cancelCalendarEvent",
+    ],
+  },
+  { label: "GHL", ids: ["checkGhlFreeSlots", "scheduleGhlMeeting"] },
+];
+
+function groupedToolIds(): string[] {
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const group of TOOL_GROUPS) {
+    for (const id of group.ids) {
+      if (!seen.has(id)) {
+        seen.add(id);
+        ordered.push(id);
+      }
+    }
+  }
+  for (const id of KNOWN_TOOL_IDS) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      ordered.push(id);
+    }
+  }
+  return ordered;
+}
+
+function isCustom(p: ToolProfile): boolean {
+  return Boolean(p.organizationId) || p.isPlatform === false;
+}
+
+function ToolPills({ ids }: { ids?: string[] }) {
+  const tools = (ids ?? []).filter(Boolean);
+  if (tools.length === 0) return <span className="ops-faint">—</span>;
+  const shown = tools.slice(0, 3);
+  const extra = tools.length - shown.length;
+  return (
+    <div className="ops-pills">
+      {shown.map((id) => (
+        <span key={id} className="ops-pill">
+          {id}
+        </span>
+      ))}
+      {extra > 0 ? <span className="ops-pill is-more">+{extra}</span> : null}
+    </div>
+  );
 }
 
 export default function UserToolProfilesPage() {
@@ -30,7 +98,7 @@ export default function UserToolProfilesPage() {
     [],
   );
 
-  const [showForm, setShowForm] = useState(false);
+  const [scope, setScope] = useState<ScopeFilter>("all");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [key, setKey] = useState("");
@@ -50,12 +118,6 @@ export default function UserToolProfilesPage() {
     setFormError(null);
   };
 
-  const openCreate = () => {
-    resetForm();
-    setShowForm(true);
-    setActionMsg(null);
-  };
-
   const openEdit = (p: ToolProfile) => {
     setEditingId(p.id);
     setName(p.name);
@@ -64,7 +126,6 @@ export default function UserToolProfilesPage() {
     setSelectedTools(
       p.toolIds?.length ? [...new Set(["endCall", ...p.toolIds])] : ["endCall"],
     );
-    setShowForm(true);
     setFormError(null);
     setActionMsg(null);
   };
@@ -103,10 +164,9 @@ export default function UserToolProfilesPage() {
           description: description.trim() || undefined,
           toolIds,
         });
-        setActionMsg("Profile created. Assign it on an agent under Agents.");
+        setActionMsg("Profile created. Assign it on an agent.");
       }
       resetForm();
-      setShowForm(false);
       reload();
     } catch (err) {
       if (err instanceof UnauthorizedError) {
@@ -133,6 +193,7 @@ export default function UserToolProfilesPage() {
     setActionMsg(null);
     try {
       await deleteUserToolProfile(p.id);
+      if (editingId === p.id) resetForm();
       setActionMsg("Profile deleted.");
       reload();
     } catch (err) {
@@ -148,53 +209,101 @@ export default function UserToolProfilesPage() {
     }
   };
 
-  if (loading) return <LoadingBlock label="Loading tool profiles" />;
+  const profiles = data ?? [];
+  const custom = profiles.filter(isCustom);
+  const platform = profiles.filter((p) => !isCustom(p));
+  const visible = useMemo(() => {
+    if (scope === "custom") return custom;
+    if (scope === "platform") return platform;
+    return [...custom, ...platform];
+  }, [scope, custom, platform]);
+
+  if (loading && !data) return <LoadingBlock label="Loading tool profiles" />;
   if (error) return <ErrorBlock message={error} onRetry={reload} />;
 
-  const profiles = data ?? [];
-  const platform = profiles.filter((p) => p.isPlatform !== false && !p.organizationId);
-  const custom = profiles.filter((p) => p.organizationId || p.isPlatform === false);
+  const groupedIds = groupedToolIds();
+  const leftover = groupedIds.filter(
+    (id) => !TOOL_GROUPS.some((g) => g.ids.includes(id)),
+  );
+  const groups =
+    leftover.length > 0
+      ? [...TOOL_GROUPS, { label: "Other", ids: leftover }]
+      : TOOL_GROUPS;
 
   return (
-    <div>
-      <PageHeader
-        eyebrow="Configure"
-        title="Tool profiles"
-        description="Create custom capability bundles (worker tool ids), then assign a profile on an agent. Platform seeds are read-only."
-        actions={
-          <Button type="button" variant="primary" size="sm" onClick={openCreate}>
-            {showForm && !editingId ? "Close form" : "Create profile"}
-          </Button>
-        }
-      />
-
-      {actionMsg ? <Alert tone="info">{actionMsg}</Alert> : null}
-
-      {showForm ? (
-        <section className="ops-panel ops-form-shell">
-          <div className="ops-panel-head">
-            <h2>{editingId ? "Edit custom profile" : "Create custom profile"}</h2>
+    <div className="ops-desk">
+      <div className="ops-desk-toolbar">
+        <div className="ops-desk-toolbar-main">
+          <h1>Tool profiles</h1>
+          <div className="ops-mode-toggle" role="tablist" aria-label="Profile scope">
+            {(
+              [
+                ["all", "All"],
+                ["custom", "Custom"],
+                ["platform", "Platform"],
+              ] as const
+            ).map(([keyName, label]) => (
+              <button
+                key={keyName}
+                type="button"
+                role="tab"
+                aria-selected={scope === keyName}
+                className={`ops-mode-btn${scope === keyName ? " is-active" : ""}`}
+                onClick={() => setScope(keyName)}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-          <form className="ops-panel-body ops-form" onSubmit={handleSubmit}>
+        </div>
+        <ul className="ops-desk-counts">
+          <li>
+            <span className="ops-desk-stat">
+              <strong>{custom.length}</strong>
+              <span>custom</span>
+            </span>
+          </li>
+          <li>
+            <span className="ops-desk-stat">
+              <strong>{platform.length}</strong>
+              <span>platform</span>
+            </span>
+          </li>
+        </ul>
+      </div>
+
+      <div className="ops-desk-board">
+        <section className="ops-panel ops-desk-compose">
+          <div className="ops-panel-head">
+            <span className="ops-desk-kicker">
+              {editingId ? "Edit profile" : "New profile"}
+            </span>
+            <span className="ops-desk-hint">
+              {selectedTools.length} tools · endCall locked
+            </span>
+          </div>
+          <form
+            className="ops-panel-body ops-form ops-desk-form ops-desk-form-rack"
+            onSubmit={handleSubmit}
+          >
+            <div className="ops-desk-form-top">
             {formError ? <Alert tone="error">{formError}</Alert> : null}
-            <div className="ops-form-grid">
-              <Field label="Name" htmlFor="tp-name" required>
-                <Input
-                  id="tp-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  disabled={submitting}
-                  placeholder="Sales lite"
-                />
-              </Field>
+            {actionMsg ? <Alert tone="info">{actionMsg}</Alert> : null}
+
+            <Field label="Name" htmlFor="tp-name" required>
+              <Input
+                id="tp-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={submitting}
+                placeholder="Sales lite"
+              />
+            </Field>
+            <div className="ops-desk-pair">
               <Field
                 label="Key"
                 htmlFor="tp-key"
-                hint={
-                  editingId
-                    ? "Key cannot be changed after create"
-                    : "Optional slug; auto from name if empty"
-                }
+                hint={editingId ? "Locked" : "Auto if empty"}
               >
                 <Input
                   id="tp-key"
@@ -204,181 +313,153 @@ export default function UserToolProfilesPage() {
                   placeholder="sales-lite"
                 />
               </Field>
+              <Field label="Note" htmlFor="tp-desc">
+                <Input
+                  id="tp-desc"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  disabled={submitting}
+                  placeholder="Booking + hangup"
+                />
+              </Field>
             </div>
-            <Field label="Description" htmlFor="tp-desc">
-              <Input
-                id="tp-desc"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                disabled={submitting}
-                placeholder="Booking + hangup only"
-              />
-            </Field>
-            <Field
-              label="Tools"
-              htmlFor="tp-tools"
-              required
-              hint="endCall is always included. Calendar tools need a Nylas connection linked on the agent."
-            >
-              <div id="tp-tools" className="ops-check-row" role="group">
-                {KNOWN_TOOL_IDS.map((toolId) => {
-                  const locked = toolId === "endCall";
-                  const checked = locked || selectedTools.includes(toolId);
-                  const hint = TOOL_ID_HINTS[toolId];
-                  return (
-                    <label key={toolId} className="ops-check">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={submitting || locked}
-                        onChange={() => toggleTool(toolId)}
-                      />
-                      <span className="ops-mono">{toolId}</span>
-                      {locked ? (
-                        <span className="ops-faint"> (required)</span>
-                      ) : hint ? (
-                        <span className="ops-faint"> — {hint}</span>
-                      ) : null}
-                    </label>
-                  );
-                })}
+            </div>
+
+            <div className="ops-tool-groups ops-desk-form-scroll" role="group" aria-label="Tools">
+              {groups.map((group) => (
+                <div key={group.label}>
+                  <p className="ops-tool-group-label">{group.label}</p>
+                  <div className="ops-tool-grid">
+                    {group.ids.map((toolId) => {
+                      const locked = toolId === "endCall";
+                      const checked = locked || selectedTools.includes(toolId);
+                      return (
+                        <label
+                          key={toolId}
+                          className={`ops-tool-chip${checked ? " is-on" : ""}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={submitting || locked}
+                            onChange={() => toggleTool(toolId)}
+                          />
+                          <span className="ops-tool-chip-copy">
+                            <span className="ops-tool-chip-id">{toolId}</span>
+                            <span className="ops-tool-chip-hint">
+                              {SHORT_HINTS[toolId] ||
+                                TOOL_ID_HINTS[toolId] ||
+                                "Worker tool"}
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="ops-desk-form-foot">
+              <div className="ops-desk-submit">
+                <Button type="submit" variant="primary" loading={submitting} disabled={submitting}>
+                  {editingId ? "Save profile" : "Create profile"}
+                </Button>
               </div>
-            </Field>
-            <div className="ops-form-actions">
-              <Button
-                type="submit"
-                variant="primary"
-                loading={submitting}
-                disabled={submitting}
-              >
-                {editingId ? "Save changes" : "Create profile"}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={submitting}
-                onClick={() => {
-                  resetForm();
-                  setShowForm(false);
-                }}
-              >
-                Cancel
-              </Button>
+              {editingId ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={submitting}
+                  onClick={resetForm}
+                >
+                  New instead
+                </Button>
+              ) : null}
             </div>
           </form>
         </section>
-      ) : null}
 
-      <div className="ops-stack" style={{ marginTop: "1rem" }}>
-        <section className="ops-panel">
-          <div className="ops-panel-head">
-            <h2>Your custom profiles</h2>
+        <section className="ops-panel ops-desk-list">
+          <div className="ops-desk-list-bar">
+            <div className="ops-desk-list-bar-main">
+              <span className="ops-desk-kicker">Catalog</span>
+              <span className="ops-desk-hint">{visible.length} shown</span>
+            </div>
           </div>
-          <div className="ops-panel-body is-flush">
-            {custom.length === 0 ? (
+          <div className="ops-panel-body is-flush ops-desk-list-body">
+            {visible.length === 0 ? (
               <EmptyState
-                title="No custom profiles yet"
-                description="Create a profile with only the tools you need, then select it on an agent."
+                title="No profiles in this filter"
+                description="Create a custom bundle on the left, or switch to Platform."
               />
             ) : (
               <div className="ops-table-wrap">
-                <table className="ops-table">
+                <table className="ops-table ops-desk-table">
                   <thead>
                     <tr>
-                      <th>Name</th>
-                      <th>Key</th>
+                      <th>Profile</th>
                       <th>Tools</th>
+                      <th>Scope</th>
                       <th />
                     </tr>
                   </thead>
                   <tbody>
-                    {custom.map((p) => (
-                      <tr key={p.id}>
-                        <td>
-                          <strong>{p.name}</strong>
-                          {p.description ? (
-                            <div className="ops-faint" style={{ fontSize: "0.8rem" }}>
-                              {p.description}
+                    {visible.map((p) => {
+                      const customRow = isCustom(p);
+                      return (
+                        <tr
+                          key={p.id}
+                          className={editingId === p.id ? "is-live" : undefined}
+                        >
+                          <td>
+                            <div className="ops-desk-entity">
+                              <span className="ops-desk-entity-name">{p.name}</span>
+                              <span className="ops-desk-entity-meta">
+                                <span className="ops-mono">{p.key}</span>
+                                {p.description ? <span>{p.description}</span> : null}
+                              </span>
                             </div>
-                          ) : null}
-                        </td>
-                        <td className="ops-mono">{p.key}</td>
-                        <td className="ops-mono" style={{ maxWidth: 280 }}>
-                          {formatTools(p)}
-                        </td>
-                        <td>
-                          <div className="ops-row-actions">
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="sm"
-                              disabled={busyId === p.id}
-                              onClick={() => openEdit(p)}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              loading={busyId === p.id}
-                              disabled={busyId === p.id}
-                              onClick={() => handleDelete(p)}
-                            >
-                              Delete
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="ops-panel">
-          <div className="ops-panel-head">
-            <h2>Platform catalog</h2>
-          </div>
-          <div className="ops-panel-body is-flush">
-            {platform.length === 0 ? (
-              <EmptyState
-                title="No platform profiles"
-                description="Seeded profiles appear after API boot."
-              />
-            ) : (
-              <div className="ops-table-wrap">
-                <table className="ops-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Key</th>
-                      <th>Tools</th>
-                      <th>Scope</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {platform.map((p) => (
-                      <tr key={p.id}>
-                        <td>
-                          <strong>{p.name}</strong>
-                          {p.description ? (
-                            <div className="ops-faint" style={{ fontSize: "0.8rem" }}>
-                              {p.description}
-                            </div>
-                          ) : null}
-                        </td>
-                        <td className="ops-mono">{p.key}</td>
-                        <td className="ops-mono" style={{ maxWidth: 280 }}>
-                          {formatTools(p)}
-                        </td>
-                        <td>
-                          <StatusBadge status="live" label="Platform" />
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td>
+                            <ToolPills ids={p.toolIds} />
+                          </td>
+                          <td>
+                            <StatusBadge
+                              status={customRow ? "ready" : "live"}
+                              label={customRow ? "Custom" : "Platform"}
+                            />
+                          </td>
+                          <td>
+                            {customRow ? (
+                              <div className="ops-row-actions">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={busyId === p.id}
+                                  onClick={() => openEdit(p)}
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  loading={busyId === p.id}
+                                  disabled={busyId === p.id}
+                                  onClick={() => handleDelete(p)}
+                                >
+                                  Delete
+                                </Button>
+                              </div>
+                            ) : (
+                              <span className="ops-faint">Locked</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -1957,6 +1957,674 @@
   }
 }
 
+/* ── Configure desks: agents / tools / integrations ── */
+.ops-content:has(.ops-desk) {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 1rem 0.85rem;
+  overflow: hidden;
+}
+
+.ops-desk {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.65rem;
+}
+
+.ops-desk-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem 0.85rem;
+}
+
+.ops-desk-toolbar-main {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.ops-desk-toolbar h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+
+.ops-desk-toolbar .ops-mode-btn {
+  padding: 0.26rem 0.68rem;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.ops-desk-back {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ops-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ops-desk-back:hover {
+  color: var(--ops-amber-ink);
+}
+
+.ops-desk-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.ops-desk-title-block h1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ops-desk-slug {
+  font-size: 0.64rem;
+  letter-spacing: 0.02em;
+}
+
+.ops-desk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ops-desk-counts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ops-desk-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  min-width: 4.4rem;
+  min-height: 2.2rem;
+  padding: 0.14rem 0.48rem;
+  border: 1px solid var(--ops-line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ops-muted);
+  font: inherit;
+  font-size: 0.56rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ops-desk-stat strong {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.02rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  text-transform: none;
+  color: var(--ops-ink);
+}
+
+.ops-desk-stat.is-btn {
+  cursor: pointer;
+}
+
+.ops-desk-stat.is-btn:hover,
+.ops-desk-stat.is-on {
+  border-color: var(--ops-amber-hot);
+  background: var(--ops-amber);
+  color: var(--ops-amber-ink);
+}
+
+.ops-desk-board {
+  display: grid;
+  grid-template-columns: minmax(17.5rem, 22.5rem) minmax(0, 1fr);
+  gap: 0.65rem;
+  min-height: 0;
+}
+
+.ops-desk.is-studio .ops-desk-board {
+  grid-template-columns: minmax(0, 1fr) minmax(17.5rem, 22.5rem);
+}
+
+.ops-desk-board > .ops-panel + .ops-panel {
+  margin-top: 0;
+}
+
+.ops-desk-compose,
+.ops-desk-list,
+.ops-desk-script,
+.ops-desk-card {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  animation: ops-calls-rise 0.38s var(--ease-out, ease) both;
+}
+
+.ops-desk-compose.ops-panel,
+.ops-desk-script.ops-panel,
+.ops-desk-card.ops-panel {
+  position: relative;
+  background:
+    linear-gradient(180deg, #fffbeb 0%, #fff 42%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.85) inset,
+    0 14px 36px -22px rgba(133, 77, 14, 0.22);
+}
+
+.ops-desk-compose.ops-panel::before,
+.ops-desk-script.ops-panel::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  background: var(--ops-amber-ink);
+  border-radius: 0 2px 2px 0;
+}
+
+.ops-desk-compose .ops-panel-head,
+.ops-desk-script .ops-panel-head,
+.ops-desk-card .ops-panel-head,
+.ops-desk-list-bar {
+  min-height: 3.15rem;
+  padding: 0.45rem 0.75rem;
+  gap: 0.55rem;
+  flex-wrap: nowrap;
+  background: transparent;
+}
+
+.ops-desk-list-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--ops-line);
+  background: linear-gradient(180deg, #fafafa 0%, #fff 100%);
+  flex-shrink: 0;
+}
+
+.ops-desk-list-bar-main {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.ops-desk-kicker {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ops-faint);
+  white-space: nowrap;
+}
+
+.ops-desk-hint {
+  min-width: 0;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ops-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+.ops-desk-compose .ops-panel-body,
+.ops-desk-script .ops-panel-body,
+.ops-desk-card .ops-panel-body {
+  padding: 0.75rem 0.85rem 0.9rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.ops-desk-compose .ops-panel-body.ops-desk-form-rack,
+.ops-desk-form-rack {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.ops-desk-form-top {
+  display: grid;
+  gap: 0.7rem;
+  flex-shrink: 0;
+}
+
+.ops-desk-form-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 0.15rem;
+}
+
+.ops-desk-form-foot {
+  display: grid;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--ops-line);
+}
+
+.ops-desk-form {
+  gap: 0.7rem;
+  align-content: start;
+  align-items: stretch;
+}
+
+.ops-desk-form .ca-alert {
+  padding: 0.48rem 0.7rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.ops-desk-form .ca-field {
+  gap: 0.28rem;
+  align-content: start;
+}
+
+.ops-desk-form .ca-label {
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ops-faint);
+}
+
+.ops-desk-form .ca-field__hint {
+  font-size: 0.66rem;
+}
+
+.ops-desk-form .ca-textarea {
+  min-height: 0;
+}
+
+.ops-desk-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  align-items: start;
+}
+
+.ops-desk-triple {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem 0.45rem;
+  align-items: start;
+}
+
+.ops-desk-submit {
+  display: flex;
+  align-items: stretch;
+  padding-top: 0.1rem;
+}
+
+.ops-desk-submit .ca-btn {
+  width: 100%;
+  min-height: 2.55rem;
+  font-weight: 650;
+}
+
+.ops-desk-advanced {
+  border-top: 1px dashed var(--ops-line);
+  padding-top: 0.45rem;
+}
+
+.ops-desk-advanced summary {
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--ops-muted);
+  user-select: none;
+}
+
+.ops-desk-advanced summary:hover,
+.ops-desk-advanced[open] summary {
+  color: var(--ops-ink);
+}
+
+.ops-desk-advanced[open] summary {
+  margin-bottom: 0.45rem;
+}
+
+.ops-desk-list {
+  animation-delay: 0.05s;
+}
+
+.ops-desk-list-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.ops-desk-table {
+  font-size: 0.8rem;
+}
+
+.ops-desk-table th,
+.ops-desk-table td {
+  padding: 0.42rem 0.7rem;
+}
+
+.ops-desk-table th {
+  padding-top: 0.36rem;
+  padding-bottom: 0.36rem;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.ops-desk-table tbody tr.is-live {
+  background: linear-gradient(90deg, #fffbeb 0%, #fff 55%);
+}
+
+.ops-desk-entity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.ops-desk-entity:hover .ops-desk-entity-name {
+  color: var(--ops-amber-ink);
+}
+
+.ops-desk-entity-name {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.ops-desk-entity-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  font-size: 0.64rem;
+  color: var(--ops-faint);
+}
+
+.ops-desk-list .ops-state {
+  padding: 1.4rem 1rem;
+}
+
+.ops-desk-list .ops-state-title {
+  font-size: 0.95rem;
+}
+
+.ops-desk-list .ops-state p {
+  font-size: 0.78rem;
+}
+
+.ops-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  max-width: 18rem;
+}
+
+.ops-pill {
+  padding: 0.06rem 0.38rem;
+  border-radius: 999px;
+  border: 1px solid var(--ops-line);
+  background: #fafafa;
+  font-family: var(--font-mono);
+  font-size: 0.61rem;
+  line-height: 1.35;
+  color: var(--ops-muted);
+  white-space: nowrap;
+}
+
+.ops-pill.is-more {
+  background: var(--ops-amber);
+  border-color: var(--ops-amber-hot);
+  color: var(--ops-amber-ink);
+}
+
+.ops-tool-groups {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.ops-tool-group-label {
+  margin: 0 0 0.28rem;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ops-faint);
+}
+
+.ops-tool-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.28rem;
+}
+
+.ops-tool-chip {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.28rem 0.42rem;
+  border: 1px solid var(--ops-line);
+  border-radius: 8px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ops-tool-chip:hover:not(:disabled) {
+  border-color: var(--ops-amber-hot);
+}
+
+.ops-tool-chip.is-on {
+  background: var(--ops-amber);
+  border-color: var(--ops-amber-hot);
+}
+
+.ops-tool-chip:disabled {
+  cursor: default;
+  opacity: 0.78;
+}
+
+.ops-tool-chip input {
+  margin: 0.12rem 0 0;
+  flex-shrink: 0;
+  accent-color: var(--ops-live);
+}
+
+.ops-tool-chip-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.04rem;
+  min-width: 0;
+}
+
+.ops-tool-chip-id {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ops-ink);
+}
+
+.ops-tool-chip-hint {
+  font-size: 0.62rem;
+  line-height: 1.3;
+  color: var(--ops-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ops-spec {
+  display: grid;
+  grid-template-columns: 5.4rem minmax(0, 1fr);
+  gap: 0.32rem 0.6rem;
+  margin: 0;
+}
+
+.ops-spec dt {
+  margin: 0;
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ops-faint);
+  padding-top: 0.12rem;
+}
+
+.ops-spec dd {
+  margin: 0;
+  min-width: 0;
+  font-size: 0.76rem;
+  color: var(--ops-ink);
+}
+
+.ops-hooks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+}
+
+.ops-hook {
+  display: grid;
+  gap: 0.32rem;
+  min-width: 0;
+  padding: 0.5rem 0.55rem 0.55rem;
+  border: 1px solid var(--ops-line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.ops-hook-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.ops-hook-label {
+  margin: 0;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ops-faint);
+  white-space: nowrap;
+}
+
+.ops-check-inline {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ops-muted);
+  gap: 0.32rem;
+}
+
+.ops-desk-script .ops-desk-prompt .ca-textarea {
+  min-height: 18rem;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.ops-desk-secret {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--ops-amber-hot);
+  border-radius: 10px;
+  background: #fffbeb;
+}
+
+.ops-desk-secret-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.4rem;
+  align-items: end;
+}
+
+.ops-desk-note {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--ops-muted);
+}
+
+.ops-desk-note a {
+  color: var(--ops-amber-ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.ops-desk-note a:hover {
+  text-decoration: underline;
+}
+
+.ops-desk-banner {
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+}
+
+@media (max-width: 960px) {
+  .ops-content:has(.ops-desk) {
+    overflow-y: auto;
+    padding: 0.8rem 0.8rem 1.15rem;
+  }
+
+  .ops-desk {
+    display: flex;
+    flex-direction: column;
+    min-height: auto;
+  }
+
+  .ops-desk-board {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ops-desk-list {
+    min-height: 22rem;
+  }
+
+  .ops-desk-list-bar {
+    flex-wrap: wrap;
+  }
+
+  .ops-hooks,
+  .ops-desk-pair,
+  .ops-desk-triple {
+    grid-template-columns: 1fr;
+  }
+
+  .ops-desk-script .ops-desk-prompt .ca-textarea {
+    min-height: 12rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ops-content,
   .ops-nav-link,
@@ -1964,7 +2632,11 @@
   .ops-ov-ticker,
   .ops-ov-chart,
   .ops-calls-compose,
-  .ops-calls-list {
+  .ops-calls-list,
+  .ops-desk-compose,
+  .ops-desk-list,
+  .ops-desk-script,
+  .ops-desk-card {
     animation: none !important;
     transition: none !important;
   }
