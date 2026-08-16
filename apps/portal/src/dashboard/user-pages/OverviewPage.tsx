@@ -134,8 +134,8 @@ export default function UserOverviewPage() {
               <div className="ops-state">
                 <p>
                   No calls yet.{" "}
-                  <Link to="/dashboard/enqueue">Enqueue a batch</Link> or{" "}
-                  <Link to="/dashboard/dial">dial now</Link>.
+                  <Link to="/dashboard/calls">Dial now</Link> or{" "}
+                  <Link to="/dashboard/calls?compose=enqueue">enqueue a batch</Link>.
                 </p>
               </div>
             ) : (

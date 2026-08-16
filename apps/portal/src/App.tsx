@@ -24,8 +24,6 @@ import UserBatchesPage from "./dashboard/user-pages/BatchesPage";
 import UserBatchDetailPage from "./dashboard/user-pages/BatchDetailPage";
 import UserCallsPage from "./dashboard/user-pages/CallsPage";
 import UserCallDetailPage from "./dashboard/user-pages/CallDetailPage";
-import UserEnqueuePage from "./dashboard/user-pages/EnqueuePage";
-import UserDialNowPage from "./dashboard/user-pages/DialNowPage";
 import UserSipTrunksPage from "./dashboard/user-pages/SipTrunksPage";
 import UserToolProfilesPage from "./dashboard/user-pages/ToolProfilesPage";
 import UserIntegrationsPage from "./dashboard/user-pages/IntegrationsPage";
@@ -66,8 +64,11 @@ export default function App() {
         }
       >
         <Route index element={<UserOverviewPage />} />
-        <Route path="enqueue" element={<UserEnqueuePage />} />
-        <Route path="dial" element={<UserDialNowPage />} />
+        <Route
+          path="enqueue"
+          element={<Navigate to="/dashboard/calls?compose=enqueue" replace />}
+        />
+        <Route path="dial" element={<Navigate to="/dashboard/calls" replace />} />
         <Route path="calls" element={<UserCallsPage />} />
         <Route path="calls/:id" element={<UserCallDetailPage />} />
         <Route path="batches" element={<UserBatchesPage />} />

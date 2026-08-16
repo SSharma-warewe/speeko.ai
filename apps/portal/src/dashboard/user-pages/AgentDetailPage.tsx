@@ -441,7 +441,9 @@ export default function UserAgentDetailPage() {
               Allow microphone access when the room opens.
             </p>
             <p style={{ marginTop: "0.75rem", marginBottom: 0 }}>
-              <Link to="/dashboard/dial">Dial now with this agent →</Link>
+              <Link to={`/dashboard/calls?compose=dial&agentId=${id}`}>
+                Dial now with this agent →
+              </Link>
             </p>
           </div>
         </section>

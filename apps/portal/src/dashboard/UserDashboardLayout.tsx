@@ -19,22 +19,12 @@ type NavBranch = {
 
 type NavItem = NavLeaf | NavBranch;
 
-const CALLS_CHILDREN = [
-  { to: "/dashboard/calls", label: "All calls", desc: "Status & transcripts" },
-  { to: "/dashboard/enqueue", label: "Enqueue", desc: "Bulk outbound dials" },
-  { to: "/dashboard/dial", label: "Dial now", desc: "Immediate SIP call" },
-] as const satisfies readonly NavLeaf[];
-
 const NAV: { section: string; items: readonly NavItem[] }[] = [
   {
     section: "Operate",
     items: [
       { to: "/dashboard", end: true, label: "Overview", desc: "Live queue & activity" },
-      {
-        label: "Calls",
-        desc: "History, enqueue & dial",
-        children: CALLS_CHILDREN,
-      },
+      { to: "/dashboard/calls", label: "Calls", desc: "History, enqueue & dial" },
       { to: "/dashboard/batches", label: "Batches", desc: "Bulk campaign groups" },
     ],
   },
@@ -71,9 +61,9 @@ function pathInBranch(pathname: string, children: readonly NavLeaf[]): boolean {
 
 function crumbFromPath(pathname: string): string {
   if (pathname === "/dashboard") return "Overview";
-  if (pathname.startsWith("/dashboard/enqueue")) return "Enqueue";
-  if (pathname.startsWith("/dashboard/dial")) return "Dial now";
-  if (pathname.startsWith("/dashboard/calls")) return "All calls";
+  if (pathname.startsWith("/dashboard/enqueue")) return "Calls";
+  if (pathname.startsWith("/dashboard/dial")) return "Calls";
+  if (pathname.startsWith("/dashboard/calls")) return "Calls";
   if (pathname.startsWith("/dashboard/batches")) return "Batches";
   if (pathname.startsWith("/dashboard/agents")) return "Agents";
   if (pathname.startsWith("/dashboard/queue")) return "Queue";

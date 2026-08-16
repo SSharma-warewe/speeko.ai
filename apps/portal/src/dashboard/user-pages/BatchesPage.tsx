@@ -56,7 +56,7 @@ export default function UserBatchesPage() {
         title="Batches"
         description="Bulk enqueue groups. Pause, resume, or cancel a campaign without touching the whole org queue."
         actions={
-          <Link to="/dashboard/enqueue">
+          <Link to="/dashboard/calls?compose=enqueue">
             <Button type="button" variant="primary" size="sm">
               New batch
             </Button>
