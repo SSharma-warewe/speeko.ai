@@ -20,8 +20,17 @@ export class OrganizationIntegrationResponseDto {
   })
   apiKeyPrefix!: string;
 
-  @ApiProperty()
-  grantId!: string;
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Nylas grant id. Null for GoHighLevel.',
+  })
+  grantId!: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'GoHighLevel location id. Null for Nylas.',
+  })
+  locationId!: string | null;
 
   @ApiProperty()
   calendarId!: string;

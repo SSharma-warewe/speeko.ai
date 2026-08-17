@@ -61,7 +61,7 @@ organizations
 ├── sip_trunks                         (org SIP trunks: outbound + inbound drafts → LiveKit ST_… ids)
 ├── sip_dispatch_rules                 (inbound routing drafts → LiveKit SDR_… ids)
 ├── integration_endpoints              (CRM dial-in: preconfigured agent/task/queue + API key)
-├── organization_integrations          (org BYO third-party keys; v1 Nylas calendar)
+├── organization_integrations          (org BYO third-party keys; Nylas + GoHighLevel calendar)
 └── phone_numbers                      (planned)
 
 tool_profiles                  (capability bundles: platform seeds + org-owned customs)
@@ -84,8 +84,8 @@ tool_profiles                  (capability bundles: platform seeds + org-owned c
 - `sip_dispatch_rules` — org inbound routing configs. Local draft of LiveKit dispatch rule: `rule_type` (`individual` \| `direct` \| `callee`), room fields, `sip_trunk_ids` (local inbound trunk UUIDs), optional `organization_agent_id` (persona packed into agent job metadata on publish), `agent_name`, `livekit_dispatch_rule_id` (`SDR_…`, null until publish), `published_at`. Default for agent telephony: `individual` + `room_prefix=call-`.
 - `calls` — voice call records (queued pending, web test, or SIP outbound). Links optional `organization_id` / `organization_agent_id` / `agent_id` / `sip_trunk_id` / `batch_id` (→ `call_batches`); LiveKit `room_name` (null while pending), dispatch id, optional `livekit_sip_call_id`, numbers, **`context` JSONB** (request payload: CRM/demo fields, phoneNumber, externalId — what was asked of this call), `task_key` / `task_result`, transcript/usage/`session_report` (includes **`toolEvents`**: worker tool invocations with args/result/ok/duration), queue fields (`attempt_count`, `max_attempts`, `next_attempt_at`, `priority`, `last_failure_code`, `last_failure_at`, `dial_started_at`, `queue_locked_at`), timestamps. Status: `pending` \| `creating` \| `dialing` \| `ready` \| `failed` \| `completed` \| `cancelled`. Buckets: **pending** / **in_progress** / **done**. Medium: `web` \| `sip`. Full inbound call-row lifecycle on ring is not wired yet. Call APIs also expose derived top-level `toolEvents` from `session_report.toolEvents` for portal history.
 - `integration_endpoints` — org CRM / external dial-in configs. Baked-in `organization_agent_id`, `task_key`, optional `sip_trunk_id`, queue overrides (`max_attempts`, `priority`, `max_concurrent`), optional `default_context` JSONB. Auth: opaque `public_id` in the URL path + per-endpoint API key (`key_prefix` display + `key_hash` SHA-256; full secret shown only on create/rotate). Soft `is_active`; `last_used_at` on successful public enqueue. Never return `key_hash` or full secret on list/get.
-- `organization_integrations` — org-owned third-party credentials (v1 `provider=nylas`): `name`, `api_key` (secret, never returned), `api_key_prefix`, `grant_id`, `calendar_id` (default `primary`), `api_uri` (US/EU), optional `email` (for free/busy), `is_active`. Used by calendar tools via agent link.
-- `organization_agents.calendar_integration_id` — optional FK → `organization_integrations` (SET NULL). Which calendar powers calendar tools for that agent; tool enablement stays on the tool profile.
+- `organization_integrations` — org-owned third-party credentials (`provider=nylas` \| `ghl`): `name`, `api_key` (secret, never returned), `api_key_prefix`, `grant_id` (Nylas; null for GHL), `location_id` (GHL; null for Nylas), `calendar_id` (Nylas default `primary`, or GHL calendar id), `api_uri` / `email` (Nylas-only), `is_active`. Used by calendar tools via agent link.
+- `organization_agents.calendar_integration_id` — optional FK → `organization_integrations` (SET NULL). Which calendar powers calendar tools for that agent (Nylas **or** GHL); tool enablement stays on the tool profile.
 
 ### Integration endpoints (CRM dial-in)
 
@@ -142,9 +142,9 @@ Parse metadata → PromptBuilder → ToolBuilder (registry) → TaskBuilder → 
 Known task keys: `general`, `confirm_appointment`, `lead_qualification`, `customer_support`, `survey`, `debt_collection`, `demo_booking` (schedule calendar demo then short product discovery).  
 Known tool ids: `endCall`, `booking`, `cancelBooking`, `transferCall`, `lookupCustomer`, `confirmAppointment`, `checkCalendarAvailability`, `listCalendarEvents`, `createCalendarEvent`, `cancelCalendarEvent`, `checkGhlFreeSlots`, `scheduleGhlMeeting`.
 
-**Calendar tools (Nylas):** org stores API key + grant on `organization_integrations`; link via `organization_agents.calendar_integration_id`; enable tool ids on a tool profile. Worker tools call `POST /api/internal/calls/:callId/calendar/*` with `X-Worker-Secret` — API holds secrets (never in LiveKit metadata).
+**Calendar tools (Nylas):** org stores API key + grant on `organization_integrations` (`provider=nylas`); link via `organization_agents.calendar_integration_id`; enable Nylas tool ids on a tool profile. Worker tools call `POST /api/internal/calls/:callId/calendar/*` with `X-Worker-Secret` — API holds secrets (never in LiveKit metadata).
 
-**Calendar tools (platform GHL):** env `GHL_CALENDAR` (PIT) + `GHL_LOCATION_ID` + `GHL_CALENDAR_ID`. Worker tools `checkGhlFreeSlots` / `scheduleGhlMeeting` call `POST /api/internal/calls/:callId/ghl-calendar/*`. Free slots return **open times only** (never existing appointments). Not org-scoped; enable the ids on a tool profile when wanted. `GhlService` is the only GHL HTTP client. Worker/API treat naive or `Z` ISO **plus IANA `timezone`** as local wall-clock (LLMs often tag IST times with `Z`); numeric offsets (`+05:30`) stay absolute. Short free-slot windows (< 4h) expand to the local calendar day(s) before calling GHL.
+**Calendar tools (GHL):** org stores PIT + location id + calendar id on `organization_integrations` (`provider=ghl`); link via the same `calendar_integration_id`; enable `checkGhlFreeSlots` / `scheduleGhlMeeting`. Worker tools call `POST /api/internal/calls/:callId/ghl-calendar/*`. Free slots return **open times only** (never existing appointments). No platform-env fallback — missing/inactive/wrong-provider link fails the tool. `GhlService` is the only GHL HTTP client. Worker/API treat naive or `Z` ISO **plus IANA `timezone`** as local wall-clock (LLMs often tag IST times with `Z`); numeric offsets (`+05:30`) stay absolute. Short free-slot windows (< 4h) expand to the local calendar day(s) before calling GHL.
 
 ### Naming note
 
@@ -246,10 +246,10 @@ Default local DB credentials (see `.env.example`):
 | `PASSWORD_RESET_TTL_MS` | API | Forgot-password reset TTL (default 1 hour) |
 | `ENDPOINT_URL` | API | Full integration enqueue URL for marketing get-demo (`…/api/integrations/:publicId/calls`). Soft-required: demo submit returns 503 if unset |
 | `SPEEKO_API` | API | Integration API key (`ca_live_…`) used only server-side by `POST /api/demo/request`. **Never** put in Vite / browser env |
-| `GHL_API_KEY` | API | GoHighLevel Private Integration Token (`pit-…`) for get-demo + booking contact upsert. Soft-disabled when empty |
-| `GHL_LOCATION_ID` | API | GHL sub-account (location) id required with the key. Soft-disabled when empty |
-| `GHL_CALENDAR` | API | Calendar-scoped PIT (`pit-…`) for free-slots + create appointment. Soft-disabled when empty |
-| `GHL_CALENDAR_ID` | API | GHL calendar id to book onto. Required with `GHL_CALENDAR` |
+| `GHL_API_KEY` | API | GoHighLevel PIT (`pit-…`) for **get-demo CRM** `upsertLead` only. Soft-disabled when empty |
+| `GHL_LOCATION_ID` | API | GHL sub-account id for get-demo CRM. Soft-disabled when empty |
+| `GHL_CALENDAR` | API | Unused by org GHL tools (optional leftover). Tools use portal-linked connections |
+| `GHL_CALENDAR_ID` | API | Unused by org GHL tools (optional leftover) |
 | `AUTH_LOGIN_MAX_ATTEMPTS` | API | Max login attempts per IP+email window (default `10`) |
 | `AUTH_LOGIN_WINDOW_MS` | API | Login rate-limit window in ms (default `60000`) |
 | `DEMO_MAX_PER_IP` | API | Get-demo max submits per client IP (default `5`) |
@@ -267,7 +267,7 @@ Models use **LiveKit Inference** (STT/LLM/TTS + **cloud turn detector v1**) — 
 
 **GoHighLevel (get-demo leads):** inject global `GhlService` and call `upsertLead()`. Never throws — missing `GHL_API_KEY` / `GHL_LOCATION_ID` or API errors return `{ ok: false }` and are logged (token never logged). Upserts a contact (`source=Speeko Get Demo`), then adds tags `speeko-get-demo` + `direction:…` and a note with team/calls/integrations.
 
-**GoHighLevel (platform calendar):** `GhlService.getFreeSlots()` / `createAppointment()` / `upsertContact()`. Calendar HTTP uses `GHL_CALENDAR`; contacts use `GHL_API_KEY`. Free-slots `startDate`/`endDate` are unix **milliseconds**. Response to the worker is open `{ startIso, endIso }` only (cap 12) — never `GET /calendars/events`. Tokens never logged.
+**GoHighLevel (org calendar tools):** `GhlService.getFreeSlots()` / `createAppointment()` / `upsertContact()` / `listCalendars()` with per-request org creds from the linked `organization_integrations` row (single PIT for calendar + contacts). Free-slots `startDate`/`endDate` are unix **milliseconds**. Response to the worker is open `{ startIso, endIso }` only (cap 12) — never `GET /calendars/events`. Tokens never logged. Env `GHL_CALENDAR` is not used by tools.
 
 ### Test inbound / outbound (web)
 
@@ -364,7 +364,7 @@ railway logs -s api --build
 | Only SPA `VITE_*` | variable change + **rebuild** that SPA |
 | `ENDPOINT_URL` / `SPEEKO_API` (get-demo dial) | set on **api** only (runtime); restart/redeploy `api` |
 | `GHL_API_KEY` / `GHL_LOCATION_ID` (get-demo CRM) | set on **api** only (runtime); restart/redeploy `api` |
-| `GHL_CALENDAR` / `GHL_CALENDAR_ID` (platform calendar tools) | set on **api** only (runtime); redeploy `api` + `worker` when adding the tools |
+| `GHL_CALENDAR` / `GHL_CALENDAR_ID` | unused by tools after org GHL connections; leave set or drop later |
 
 Do **not** redeploy every service by default — match the surface you changed.
 
@@ -474,18 +474,18 @@ Worker health is “registered with LiveKit” in service logs, not a public HTM
 | PATCH | `/api/users/integration-endpoints/:id` | user JWT — update agent/task/trunk/queue/defaultContext/isActive |
 | POST | `/api/users/integration-endpoints/:id/rotate-key` | user JWT — new secret once; invalidates old |
 | DELETE | `/api/users/integration-endpoints/:id` | user JWT — delete endpoint (revokes access) |
-| GET | `/api/users/integrations` | user JWT — list org third-party connections (Nylas etc.; no api_key) |
-| POST | `/api/users/integrations` | user JWT — add Nylas connection (`apiKey`, `grantId`, optional `calendarId`/`email`/`apiUri`) |
+| GET | `/api/users/integrations` | user JWT — list org third-party connections (Nylas / GHL; no api_key) |
+| POST | `/api/users/integrations` | user JWT — add Nylas (`apiKey`, `grantId`) or GHL (`apiKey`, `locationId`, `calendarId`) |
 | GET | `/api/users/integrations/:id` | user JWT — get one (no secret) |
 | PATCH | `/api/users/integrations/:id` | user JWT — update fields / optional new apiKey / isActive |
 | DELETE | `/api/users/integrations/:id` | user JWT — delete connection (agent FKs SET NULL) |
-| POST | `/api/users/integrations/:id/test` | user JWT — smoke-test Nylas (list calendars) |
+| POST | `/api/users/integrations/:id/test` | user JWT — smoke-test (Nylas or GHL list calendars) |
 | POST | `/api/internal/calls/:callId/calendar/free-busy` | worker secret — free/busy for call’s agent calendar |
 | POST | `/api/internal/calls/:callId/calendar/events/list` | worker secret — list events |
 | POST | `/api/internal/calls/:callId/calendar/events` | worker secret — create event |
 | POST | `/api/internal/calls/:callId/calendar/events/cancel` | worker secret — cancel/delete event |
-| POST | `/api/internal/calls/:callId/ghl-calendar/free-slots` | worker secret — platform GHL open slots only |
-| POST | `/api/internal/calls/:callId/ghl-calendar/appointments` | worker secret — platform GHL book appointment |
+| POST | `/api/internal/calls/:callId/ghl-calendar/free-slots` | worker secret — org GHL open slots only |
+| POST | `/api/internal/calls/:callId/ghl-calendar/appointments` | worker secret — org GHL book appointment |
 | POST | `/api/integrations/:publicId/calls` | integration API key — thin enqueue (`phoneNumber` + optional `context` / `externalId`) |
 | GET | `/api/admin/tool-profiles` | admin JWT — list platform tool profiles |
 | GET | `/api/admin/tool-profiles/known-tools` | admin JWT — known worker tool ids |
@@ -619,7 +619,7 @@ Test: `POST /api/admin/calls/test` accepts optional `task` + `context`.
 | `queue` | Org queue settings, call batches, claim (`SKIP LOCKED`), retry policy, in-process **QueueDialerService**, live stats, user/admin queue controllers |
 | `tools` | Tool profiles list/seed + org custom CRUD; resolve `enabledTools` ids for metadata |
 | `integration-endpoints` | Org CRM dial-in: preconfigured agent/task/trunk/queue + API key; public thin `POST …/calls` enqueue |
-| `organization-integrations` | Org BYO third-party keys (Nylas calendar); user CRUD + test; worker calendar proxy via `CalendarToolsService` + `NylasService` |
+| `organization-integrations` | Org BYO third-party keys (Nylas + GHL calendar); user CRUD + test; worker Nylas proxy via `CalendarToolsService` |
 | `sip-trunks` | Org SIP trunk CRUD: admin outbound; **user outbound** create/link/update/delete; user inbound draft + publish; combined inbound publish orchestrator |
 | `sip-dispatch-rules` | Org dispatch-rule draft CRUD + publish to LiveKit (`CreateSIPDispatchRule` + agent `roomConfig`) |
 | `livekit` | Thin adapter only: rooms, dispatch, tokens, **SIP** (`createSipOutboundTrunk`, `createSipInboundTrunk`, `createSipDispatchRule`, `createSipParticipant`, `deleteSipTrunk`, `deleteSipDispatchRule`) — **no** controllers or agent business logic |
@@ -664,7 +664,7 @@ controller → service → repository → TypeORM entity → Postgres
 - Examples: `admins.repository.ts`, `organizations.repository.ts`, `users.repository.ts`, `agents.repository.ts`, `organization-agents.repository.ts`, `sip-trunks.repository.ts`, `sip-dispatch-rules.repository.ts`, `calls.repository.ts`, `organization-queue-settings.repository.ts`, `call-batches.repository.ts`, `integration-endpoints.repository.ts`.
 - `livekit` is an infrastructure adapter (service only), not a repository-backed domain module.
 - `email` is an infrastructure adapter (global `EmailService` only), not a repository-backed domain module. Uses Plunk `POST /v1/send`.
-- `ghl` is an infrastructure adapter (`GhlService` + worker-secret calendar controller). Not org-scoped; not a repository-backed domain module.
+- `ghl` is an infrastructure adapter (`GhlService` + worker-secret calendar controller). Calendar tools resolve org GHL connections; get-demo CRM stays env. Not a repository-backed domain module.
 - `demo` is a thin public proxy (no repository): `DemoAbuseGuard` (origin + rate limits) → honeypot → GHL upsert (best-effort) → `ENDPOINT_URL` + `SPEEKO_API` → integration enqueue.
 - `queue` uses raw SQL for atomic claim (`FOR UPDATE SKIP LOCKED`) via TypeORM `DataSource`; settings/batches use repositories.
 
@@ -674,7 +674,7 @@ controller → service → repository → TypeORM entity → Postgres
 2. Put LiveKit agent job work in `apps/worker` (tsx + `@livekit/agents`, not Nest webpack).
 3. Validate all inputs with `class-validator` DTOs; document with `@nestjs/swagger`.
 4. Never commit real secrets; use `.env` (gitignored) + `.env.example`.
-5. Prefer clear module boundaries: `auth`, `admins`, `organizations`, `users`, `agents`, `tools` (profiles), `integration-endpoints`, `organization-integrations` (Nylas calendar keys + worker calendar proxy), `demo` (get-demo proxy), `sip-trunks`, `sip-dispatch-rules`, `calls`, `queue`, `livekit` (adapter), `email` (Plunk adapter), `ghl` (GoHighLevel adapter).
+5. Prefer clear module boundaries: `auth`, `admins`, `organizations`, `users`, `agents`, `tools` (profiles), `integration-endpoints`, `organization-integrations` (Nylas + GHL calendar keys + worker Nylas proxy), `demo` (get-demo proxy), `sip-trunks`, `sip-dispatch-rules`, `calls`, `queue`, `livekit` (adapter), `email` (Plunk adapter), `ghl` (GoHighLevel adapter + worker GHL calendar proxy).
 6. Persistence: one custom repository per entity; services own business logic only.
 7. When adding telephony (numbers, trunks, dispatch rules) or schema for calls/queue, update Erflow + this file in the same change set.
 8. **Update this AGENTS.md** when project conventions, scripts, schema ownership, or Railway deploy layout change.
@@ -770,9 +770,9 @@ Work **top-down by risk**: security → money/dial side effects → multi-tenant
 | P1 | `agents` / org agents | **Done** | Create/clone/slug collision, persona vs template isolation, hook null/empty/whitespace, calendar same-org FK, FK-blocked delete |
 | P1 | `tools` (profiles) | Todo | Platform vs org custom, known tool ids, delete-if-unused, always include `endCall` |
 | P2 | `sip-trunks` / `sip-dispatch-rules` | **Done** | Draft vs publish, password redaction, inbound LiveKit delete (404 ignore), dispatch metadata pack, LiveKit adapter mocked |
-| P2 | `organization-integrations` | **Done** | Secrets never returned (mapper + CRUD), test connection, calendar resolve/freeBusy matrix (Nylas mocked) |
+| P2 | `organization-integrations` | **Done** | Secrets never returned (mapper + CRUD), Nylas + GHL create/test, calendar resolve/freeBusy matrix (Nylas mocked) |
 | P2 | `email` | **Done** | Soft-disable without key, never throws, Plunk `send` / `sendText`, never log API key |
-| P2 | `ghl` | **Done** | Soft-disable without key/location, upsert + tags/note, never throws, never log token, free-slots map + ms query, book upsert+appointment, hide existing events |
+| P2 | `ghl` | **Done** | Soft-disable without key/location, upsert + tags/note, org calendar creds + listCalendars, never throws, never log token, free-slots map + ms query, book upsert+appointment, hide existing events |
 | P2 | `livekit` | **Done** | URL helper; adapter with mocked SDK (rooms, dispatch, token/meet, SIP trunks/rules/participant, hasRemoteCallee) |
 | P3 | Worker (`apps/worker`) | Todo | Metadata parse, prompt/tool/task builders, hangup helpers — no LiveKit cloud in unit tests |
 | P3 | Portal / web | Todo | Separate tooling later (Vitest/Playwright); not part of root `npm test` yet |

@@ -21,8 +21,8 @@ import {
 import { GhlCalendarToolsService } from './ghl-calendar-tools.service';
 
 /**
- * Worker-only platform GHL calendar proxy.
- * Secrets stay on the API (GHL_CALENDAR / GHL_API_KEY).
+ * Worker-only GHL calendar proxy.
+ * Secrets stay on the API (org GHL connection PIT — never in metadata).
  */
 @ApiTags('internal-ghl-calendar')
 @ApiHeader({

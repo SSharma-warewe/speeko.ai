@@ -147,17 +147,21 @@ export const TOOL_ID_HINTS: Record<string, string> = {
   listCalendarEvents: "Nylas list events — requires agent calendar link",
   createCalendarEvent: "Nylas create event — requires agent calendar link",
   cancelCalendarEvent: "Nylas cancel event — requires agent calendar link",
-  checkGhlFreeSlots: "GHL open slots only (platform calendar, hides existing meetings)",
-  scheduleGhlMeeting: "GHL book a meeting (platform calendar)",
+  checkGhlFreeSlots:
+    "GHL open slots only — requires agent GHL calendar link (hides existing meetings)",
+  scheduleGhlMeeting: "GHL book a meeting — requires agent GHL calendar link",
 };
+
+export type IntegrationProvider = "nylas" | "ghl";
 
 export interface OrganizationIntegration {
   id: string;
   organizationId: string;
-  provider: "nylas";
+  provider: IntegrationProvider;
   name: string;
   apiKeyPrefix: string;
-  grantId: string;
+  grantId: string | null;
+  locationId: string | null;
   calendarId: string;
   apiUri: string;
   email: string | null;
@@ -1113,9 +1117,10 @@ export const listUserOrgIntegrations = () =>
 
 export const createUserOrgIntegration = (data: {
   name: string;
-  provider?: "nylas";
+  provider?: IntegrationProvider;
   apiKey: string;
-  grantId: string;
+  grantId?: string;
+  locationId?: string;
   calendarId?: string;
   apiUri?: string;
   email?: string;
@@ -1131,6 +1136,7 @@ export const updateUserOrgIntegration = (
     name?: string;
     apiKey?: string;
     grantId?: string;
+    locationId?: string;
     calendarId?: string;
     apiUri?: string;
     email?: string | null;

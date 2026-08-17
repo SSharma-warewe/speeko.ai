@@ -402,7 +402,7 @@ export class CalendarToolsService {
       integration,
       creds: {
         apiKey: integration.apiKey,
-        grantId: integration.grantId,
+        grantId: integration.grantId ?? '',
         calendarId: integration.calendarId || 'primary',
         apiUri: integration.apiUri,
         email: integration.email,

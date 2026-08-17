@@ -1,12 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type {
+  GhlCalendarCreds,
+  GhlContactCreds,
   GhlContactInput,
   GhlCreateAppointmentInput,
   GhlCreateAppointmentResult,
   GhlGetFreeSlotsResult,
   GhlLeadDirection,
   GhlLeadInput,
+  GhlListCalendarsResult,
   GhlUpsertLeadResult,
 } from './ghl.types';
 import {
@@ -73,13 +76,9 @@ export class GhlService {
         'GHL disabled: set GHL_API_KEY and GHL_LOCATION_ID. upsertLead() will no-op.',
       );
     }
-    if (!this.calendarToken || !this.locationId || !this.calendarId) {
-      this.logger.warn(
-        'GHL calendar disabled: set GHL_CALENDAR, GHL_LOCATION_ID, and GHL_CALENDAR_ID.',
-      );
-    } else {
+    if (this.calendarToken && this.locationId && this.calendarId) {
       this.logger.log(
-        `GHL calendar enabled calendarId=${this.calendarId} slotMinutes=${GHL_SLOT_MINUTES}`,
+        `GHL platform calendar env present calendarId=${this.calendarId} slotMinutes=${GHL_SLOT_MINUTES} (tools use org connections)`,
       );
     }
   }
@@ -195,10 +194,15 @@ export class GhlService {
 
   /**
    * Upsert a contact for calendar booking (no get-demo tags/notes).
-   * Uses GHL_API_KEY (contacts scope).
+   * Uses org creds when provided; otherwise GHL_API_KEY (contacts scope).
    */
-  async upsertContact(input: GhlContactInput): Promise<GhlUpsertLeadResult> {
-    if (!this.isEnabled()) {
+  async upsertContact(
+    input: GhlContactInput,
+    creds?: GhlContactCreds,
+  ): Promise<GhlUpsertLeadResult> {
+    const locationId = creds?.locationId?.trim() || this.locationId;
+    const token = creds?.token?.trim() || this.apiKey;
+    if (!token || !locationId) {
       return {
         ok: false,
         skipped: true,
@@ -218,7 +222,7 @@ export class GhlService {
     }
 
     const body: GhlJson = {
-      locationId: this.locationId,
+      locationId,
       source: 'Speeko Voice Agent',
     };
     if (firstName) body.firstName = firstName;
@@ -227,7 +231,13 @@ export class GhlService {
     if (phone) body.phone = phone;
     if (companyName) body.companyName = companyName;
 
-    const upsert = await this.request('POST', '/contacts/upsert', body);
+    const upsert = await this.request(
+      'POST',
+      '/contacts/upsert',
+      body,
+      'contacts',
+      token,
+    );
     if (upsert.networkError) {
       this.logger.warn(`GHL contact upsert network error: ${upsert.networkError}`);
       return { ok: false, error: upsert.networkError };
@@ -254,17 +264,22 @@ export class GhlService {
 
   /**
    * Open slots only (GHL free-slots). Never lists existing events.
-   * Uses GHL_CALENDAR. startMs/endMs are unix milliseconds.
+   * Uses org creds when provided; otherwise platform env.
+   * startMs/endMs are unix milliseconds.
    */
-  async getFreeSlots(input: {
-    startMs: number;
-    endMs: number;
-    timezone?: string;
-  }): Promise<GhlGetFreeSlotsResult> {
-    if (!this.isCalendarEnabled()) {
+  async getFreeSlots(
+    input: {
+      startMs: number;
+      endMs: number;
+      timezone?: string;
+    },
+    creds?: GhlCalendarCreds,
+  ): Promise<GhlGetFreeSlotsResult> {
+    const calendar = this.resolveCalendarCreds(creds);
+    if (!calendar) {
       if (!this.calendarDisabledLogged) {
         this.logger.warn(
-          'GhlService.getFreeSlots skipped: GHL_CALENDAR, GHL_LOCATION_ID, or GHL_CALENDAR_ID not set',
+          'GhlService.getFreeSlots skipped: no org GHL creds and platform calendar env is unset',
         );
         this.calendarDisabledLogged = true;
       }
@@ -273,7 +288,7 @@ export class GhlService {
         skipped: true,
         error: 'ghl_calendar_disabled',
         message:
-          'GHL calendar is not configured. Set GHL_CALENDAR, GHL_LOCATION_ID, and GHL_CALENDAR_ID.',
+          'GHL calendar is not configured. Link a GoHighLevel calendar on the agent.',
       };
     }
 
@@ -284,8 +299,14 @@ export class GhlService {
     if (input.timezone?.trim()) {
       params.set('timezone', input.timezone.trim());
     }
-    const path = `/calendars/${this.calendarId}/free-slots?${params.toString()}`;
-    const res = await this.request('GET', path, undefined, 'calendar');
+    const path = `/calendars/${calendar.calendarId}/free-slots?${params.toString()}`;
+    const res = await this.request(
+      'GET',
+      path,
+      undefined,
+      'calendar',
+      calendar.token,
+    );
     if (res.networkError) {
       this.logger.warn(`GHL free-slots network error: ${res.networkError}`);
       return { ok: false, error: 'network_error', message: res.networkError };
@@ -303,7 +324,7 @@ export class GhlService {
 
     const slots = mapGhlFreeSlots(res.json);
     this.logger.log(
-      `GHL free-slots calendarId=${this.calendarId} slots=${slots.length} ` +
+      `GHL free-slots calendarId=${calendar.calendarId} slots=${slots.length} ` +
         `startMs=${input.startMs} endMs=${input.endMs}`,
     );
     return {
@@ -315,25 +336,27 @@ export class GhlService {
   }
 
   /**
-   * Book an appointment on GHL_CALENDAR_ID. Uses GHL_CALENDAR (write).
+   * Book an appointment. Uses org creds when provided; otherwise platform env.
    * Does not set ignoreFreeSlotValidation — occupied slots stay rejected.
    */
   async createAppointment(
     input: GhlCreateAppointmentInput,
+    creds?: GhlCalendarCreds,
   ): Promise<GhlCreateAppointmentResult> {
-    if (!this.isCalendarEnabled()) {
+    const calendar = this.resolveCalendarCreds(creds);
+    if (!calendar) {
       return {
         ok: false,
         skipped: true,
         error: 'ghl_calendar_disabled',
         message:
-          'GHL calendar is not configured. Set GHL_CALENDAR, GHL_LOCATION_ID, and GHL_CALENDAR_ID.',
+          'GHL calendar is not configured. Link a GoHighLevel calendar on the agent.',
       };
     }
 
     const body: GhlJson = {
-      calendarId: this.calendarId,
-      locationId: this.locationId,
+      calendarId: calendar.calendarId,
+      locationId: calendar.locationId,
       contactId: input.contactId,
       startTime: input.startTime,
       toNotify: true,
@@ -347,6 +370,7 @@ export class GhlService {
       '/calendars/events/appointments',
       body,
       'calendar',
+      calendar.token,
     );
     if (res.networkError) {
       this.logger.warn(`GHL create appointment network error: ${res.networkError}`);
@@ -382,13 +406,67 @@ export class GhlService {
     return { ok: true, appointmentId, startTime, endTime, title };
   }
 
+  /**
+   * List calendars for a location (connection test). Always uses the given PIT.
+   */
+  async listCalendars(creds: {
+    token: string;
+    locationId: string;
+  }): Promise<GhlListCalendarsResult> {
+    const token = creds.token.trim();
+    const locationId = creds.locationId.trim();
+    if (!token || !locationId) {
+      return {
+        ok: false,
+        error: 'missing_creds',
+        message: 'GoHighLevel token and location id are required.',
+      };
+    }
+
+    const path = `/calendars/?locationId=${encodeURIComponent(locationId)}`;
+    const res = await this.request('GET', path, undefined, 'calendar', token);
+    if (res.networkError) {
+      this.logger.warn(`GHL list calendars network error: ${res.networkError}`);
+      return { ok: false, error: 'network_error', message: res.networkError };
+    }
+    if (!res.ok) {
+      this.logger.warn(
+        `GHL list calendars failed: status=${res.status} body=${truncate(res.text)}`,
+      );
+      return {
+        ok: false,
+        error: `ghl_calendars_${res.status}`,
+        message: 'Could not list calendars. Check the PIT and location id.',
+      };
+    }
+
+    const calendars = readCalendars(res.json);
+    this.logger.log(
+      `GHL list calendars location=${locationId} count=${calendars.length}`,
+    );
+    return { ok: true, calendars };
+  }
+
+  private resolveCalendarCreds(
+    creds?: GhlCalendarCreds,
+  ): GhlCalendarCreds | null {
+    const token = creds?.token?.trim() || this.calendarToken;
+    const locationId = creds?.locationId?.trim() || this.locationId;
+    const calendarId = creds?.calendarId?.trim() || this.calendarId;
+    if (!token || !locationId || !calendarId) return null;
+    return { token, locationId, calendarId };
+  }
+
   private async request(
     method: string,
     path: string,
     body?: GhlJson,
     tokenKind: GhlTokenKind = 'contacts',
+    tokenOverride?: string,
   ): Promise<GhlHttpResult> {
-    const token = tokenKind === 'calendar' ? this.calendarToken : this.apiKey;
+    const token =
+      tokenOverride?.trim() ||
+      (tokenKind === 'calendar' ? this.calendarToken : this.apiKey);
     try {
       const response = await fetch(`${GHL_API_BASE}${path}`, {
         method,
@@ -441,6 +519,30 @@ export function buildLeadNote(input: {
     lines.push(`Integrations: ${input.integrations.join(', ')}`);
   }
   return lines.join('\n');
+}
+
+function readCalendars(
+  json: GhlJson | null,
+): { id: string; name?: string }[] {
+  if (!json) return [];
+  const raw = json.calendars ?? json.data;
+  const list = Array.isArray(raw)
+    ? raw
+    : Array.isArray(json)
+      ? (json as unknown as unknown[])
+      : [];
+  const out: { id: string; name?: string }[] = [];
+  for (const item of list) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const id = (item as { id?: unknown }).id;
+    if (typeof id !== 'string' || !id.trim()) continue;
+    const name = (item as { name?: unknown }).name;
+    out.push({
+      id: id.trim(),
+      name: typeof name === 'string' && name.trim() ? name.trim() : undefined,
+    });
+  }
+  return out;
 }
 
 function readContactId(json: GhlJson | null): string | undefined {

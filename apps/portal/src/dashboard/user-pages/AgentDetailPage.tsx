@@ -173,8 +173,8 @@ export default function UserAgentDetailPage() {
   if (error || !data) return <ErrorBlock message={error ?? "Not found"} onRetry={reload} />;
 
   const { agent, profiles, integrations } = data;
-  const nylasIntegrations = (integrations as OrganizationIntegration[]).filter(
-    (i) => i.provider === "nylas" && i.isActive,
+  const calendarIntegrations = (integrations as OrganizationIntegration[]).filter(
+    (i) => i.isActive,
   );
 
   return (
@@ -369,14 +369,14 @@ export default function UserAgentDetailPage() {
                 disabled={submitting}
               >
                 <option value="">— none —</option>
-                {nylasIntegrations.map((i) => (
+                {calendarIntegrations.map((i) => (
                   <option key={i.id} value={i.id}>
-                    {i.name}
+                    {i.provider === "ghl" ? "GHL" : "Nylas"} · {i.name}
                     {i.email ? ` (${i.email})` : ""} · {i.calendarId}
                   </option>
                 ))}
                 {calendarIntegrationId &&
-                !nylasIntegrations.some((i) => i.id === calendarIntegrationId) ? (
+                !calendarIntegrations.some((i) => i.id === calendarIntegrationId) ? (
                   <option value={calendarIntegrationId}>
                     {calendarIntegrationId.slice(0, 8)}… (inactive)
                   </option>

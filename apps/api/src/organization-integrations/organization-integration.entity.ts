@@ -11,9 +11,10 @@ import {
 import { Organization } from '../organizations/organization.entity';
 import { User } from '../users/user.entity';
 
-/** Supported third-party integration providers (v1: Nylas only). */
+/** Supported third-party integration providers. */
 export enum IntegrationProvider {
   NYLAS = 'nylas',
+  GHL = 'ghl',
 }
 
 /**
@@ -40,7 +41,7 @@ export class OrganizationIntegration {
   @Column({ type: 'varchar', length: 120 })
   name!: string;
 
-  /** Full Nylas API key. Never expose in API responses. */
+  /** Full Nylas API key or GHL PIT. Never expose in API responses. */
   @Column({ name: 'api_key', type: 'text' })
   apiKey!: string;
 
@@ -48,11 +49,15 @@ export class OrganizationIntegration {
   @Column({ name: 'api_key_prefix', type: 'varchar', length: 24 })
   apiKeyPrefix!: string;
 
-  /** Nylas grant id for the connected calendar account. */
-  @Column({ name: 'grant_id', type: 'varchar', length: 120 })
-  grantId!: string;
+  /** Nylas grant id. Null for GoHighLevel. */
+  @Column({ name: 'grant_id', type: 'varchar', length: 120, nullable: true })
+  grantId!: string | null;
 
-  /** Calendar id within the grant (default primary). */
+  /** GHL location (sub-account) id. Null for Nylas. */
+  @Column({ name: 'location_id', type: 'varchar', length: 120, nullable: true })
+  locationId!: string | null;
+
+  /** Calendar id within the grant (Nylas, default primary) or GHL calendar id. */
   @Column({ name: 'calendar_id', type: 'varchar', length: 255, default: 'primary' })
   calendarId!: string;
 

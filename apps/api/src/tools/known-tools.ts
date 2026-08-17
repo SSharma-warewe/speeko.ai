@@ -15,7 +15,7 @@ export const KNOWN_TOOL_IDS = [
   'listCalendarEvents',
   'createCalendarEvent',
   'cancelCalendarEvent',
-  /** Platform GHL calendar — env GHL_CALENDAR + GHL_CALENDAR_ID (not Nylas) */
+  /** Org GHL calendar — requires agent calendarIntegrationId (provider=ghl) */
   'checkGhlFreeSlots',
   'scheduleGhlMeeting',
 ] as const;

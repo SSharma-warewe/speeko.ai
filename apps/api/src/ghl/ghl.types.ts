@@ -56,3 +56,19 @@ export type GhlCreateAppointmentResult =
       title?: string;
     }
   | { ok: false; error: string; message?: string; skipped?: boolean };
+
+/** Per-request org GHL calendar credentials (portal-linked PIT). */
+export type GhlCalendarCreds = {
+  token: string;
+  locationId: string;
+  calendarId: string;
+};
+
+export type GhlContactCreds = {
+  token: string;
+  locationId: string;
+};
+
+export type GhlListCalendarsResult =
+  | { ok: true; calendars: { id: string; name?: string }[] }
+  | { ok: false; error: string; message?: string };

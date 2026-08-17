@@ -12,6 +12,7 @@ import {
 } from '../organization-integration.entity';
 import { OrganizationIntegrationsRepository } from '../organization-integrations.repository';
 import { OrganizationIntegrationsService } from '../organization-integrations.service';
+import { GhlService } from '../../ghl/ghl.service';
 import { NylasService } from '../nylas.service';
 
 describe('OrganizationIntegrationsService', () => {
@@ -27,6 +28,9 @@ describe('OrganizationIntegrationsService', () => {
     findById: jest.Mock;
   };
   let nylas: {
+    listCalendars: jest.Mock;
+  };
+  let ghl: {
     listCalendars: jest.Mock;
   };
 
@@ -52,6 +56,7 @@ describe('OrganizationIntegrationsService', () => {
     apiKey: API_KEY,
     apiKeyPrefix: 'nyk_supe…',
     grantId: 'grant-1',
+    locationId: null,
     calendarId: 'primary',
     apiUri: 'https://api.us.nylas.com',
     email: 'clinic@example.com',
@@ -88,6 +93,9 @@ describe('OrganizationIntegrationsService', () => {
     nylas = {
       listCalendars: jest.fn(),
     };
+    ghl = {
+      listCalendars: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -98,6 +106,7 @@ describe('OrganizationIntegrationsService', () => {
         },
         { provide: OrganizationsService, useValue: organizationsService },
         { provide: NylasService, useValue: nylas },
+        { provide: GhlService, useValue: ghl },
       ],
     }).compile();
 
@@ -191,6 +200,7 @@ describe('OrganizationIntegrationsService', () => {
           organizationId: ORG_ID,
           provider: IntegrationProvider.NYLAS,
           calendarId: 'primary',
+          locationId: null,
           apiUri: 'https://api.us.nylas.com',
           email: null,
           isActive: true,
@@ -257,6 +267,63 @@ describe('OrganizationIntegrationsService', () => {
       expect(result.apiKeyPrefix).toBe('nyk_supe…');
       expect(result.id).toBe(INT_ID);
       expect(result.name).toBe('Clinic Calendar');
+    });
+
+    it('13b. rejects Nylas create without grantId', async () => {
+      await expect(
+        service.createForOrg(ORG_ID, {
+          name: 'Clinic Calendar',
+          apiKey: API_KEY,
+        }),
+      ).rejects.toThrow(/grantId is required for Nylas/);
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+
+    it('13c. creates a GoHighLevel connection with location + calendar', async () => {
+      const result = await service.createForOrg(ORG_ID, {
+        name: '  Clinic GHL  ',
+        provider: IntegrationProvider.GHL,
+        apiKey: '  pit-super-secret-token  ',
+        locationId: '  loc_1  ',
+        calendarId: '  cal_1  ',
+      });
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: IntegrationProvider.GHL,
+          name: 'Clinic GHL',
+          apiKey: 'pit-super-secret-token',
+          grantId: null,
+          locationId: 'loc_1',
+          calendarId: 'cal_1',
+          email: null,
+        }),
+      );
+      expect(result).not.toHaveProperty('apiKey');
+      expect(result.provider).toBe(IntegrationProvider.GHL);
+      expect(result.locationId).toBe('loc_1');
+      expect(result.grantId).toBeNull();
+    });
+
+    it('13d. rejects GHL create without locationId or calendarId', async () => {
+      await expect(
+        service.createForOrg(ORG_ID, {
+          name: 'Clinic GHL',
+          provider: IntegrationProvider.GHL,
+          apiKey: 'pit-super-secret-token',
+          calendarId: 'cal_1',
+        }),
+      ).rejects.toThrow(/locationId is required/);
+
+      await expect(
+        service.createForOrg(ORG_ID, {
+          name: 'Clinic GHL',
+          provider: IntegrationProvider.GHL,
+          apiKey: 'pit-super-secret-token',
+          locationId: 'loc_1',
+        }),
+      ).rejects.toThrow(/calendarId is required/);
+      expect(repository.save).not.toHaveBeenCalled();
     });
   });
 
@@ -382,6 +449,84 @@ describe('OrganizationIntegrationsService', () => {
         message: 'Connected — 2 calendar(s) found',
         calendarIds: ['primary', 'work'],
       });
+    });
+
+    it('23. tests a GHL connection and returns calendar ids', async () => {
+      repository.findByIdAndOrg.mockResolvedValue({
+        ...integration,
+        provider: IntegrationProvider.GHL,
+        grantId: null,
+        locationId: 'loc_1',
+        calendarId: 'cal_1',
+        apiKey: 'pit-org-secret',
+      });
+      ghl.listCalendars.mockResolvedValue({
+        ok: true,
+        calendars: [
+          { id: 'cal_1', name: 'Main' },
+          { id: 'cal_2', name: 'Other' },
+        ],
+      });
+
+      const result = await service.testConnection(ORG_ID, INT_ID);
+
+      expect(nylas.listCalendars).not.toHaveBeenCalled();
+      expect(ghl.listCalendars).toHaveBeenCalledWith({
+        token: 'pit-org-secret',
+        locationId: 'loc_1',
+      });
+      expect(result).toEqual({
+        ok: true,
+        message: 'Connected — 2 calendar(s) found.',
+        calendarIds: ['cal_1', 'cal_2'],
+      });
+    });
+
+    it('24. mentions stored GHL calendar id when it is not in the list', async () => {
+      repository.findByIdAndOrg.mockResolvedValue({
+        ...integration,
+        provider: IntegrationProvider.GHL,
+        grantId: null,
+        locationId: 'loc_1',
+        calendarId: 'missing_cal',
+        apiKey: 'pit-org-secret',
+      });
+      ghl.listCalendars.mockResolvedValue({
+        ok: true,
+        calendars: [{ id: 'cal_1', name: 'Main' }],
+      });
+
+      const result = await service.testConnection(ORG_ID, INT_ID);
+
+      expect(result.ok).toBe(true);
+      expect(result.message).toContain('missing_cal');
+      expect(result.calendarIds).toEqual(['cal_1']);
+    });
+  });
+
+  describe('updateForOrg GHL', () => {
+    it('25. updates GHL location and calendar; ignores grant/email', async () => {
+      repository.findByIdAndOrg.mockResolvedValue({
+        ...integration,
+        provider: IntegrationProvider.GHL,
+        grantId: null,
+        locationId: 'loc_old',
+        calendarId: 'cal_old',
+        email: null,
+      });
+
+      await service.updateForOrg(ORG_ID, INT_ID, {
+        locationId: '  loc_new  ',
+        calendarId: '  cal_new  ',
+        grantId: 'should-ignore',
+        email: 'ignored@example.com',
+      });
+
+      const saved = repository.save.mock.calls[0][0] as OrganizationIntegration;
+      expect(saved.locationId).toBe('loc_new');
+      expect(saved.calendarId).toBe('cal_new');
+      expect(saved.grantId).toBeNull();
+      expect(saved.email).toBeNull();
     });
   });
 });

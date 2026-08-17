@@ -5,7 +5,7 @@ import { callCalendarApi } from './calendar-api-client.js';
 import type { ToolFactory } from './types.js';
 
 const BASE_DESCRIPTION = [
-  'Get OPEN time slots on the business GoHighLevel calendar.',
+  'Get OPEN time slots on the organization GoHighLevel calendar linked to this agent.',
   'Returns only free starts — existing appointments are hidden for privacy.',
   '',
   'WHEN TO USE:',
@@ -30,7 +30,7 @@ const BASE_DESCRIPTION = [
   '- Speak naturally (“Thursday at 2pm”). Never read raw ISO to the caller.',
   '- When booking, pass startIso to scheduleGhlMeeting exactly as returned.',
   '',
-  'REQUIRES: platform GHL calendar env on the API. If ghl_calendar_disabled, say scheduling is not configured.',
+  'REQUIRES: a GoHighLevel calendar linked on this organization agent. If the tool says calendar is not linked or not configured, say scheduling is not set up.',
 ].join('\n');
 
 export const createCheckGhlFreeSlotsTool: ToolFactory = ({

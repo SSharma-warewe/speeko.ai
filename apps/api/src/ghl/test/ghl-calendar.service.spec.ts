@@ -1,5 +1,8 @@
 import { ConfigService } from '@nestjs/config';
+import { OrganizationAgentsService } from '../../agents/organization-agents.service';
 import { CallsRepository } from '../../calls/calls.repository';
+import { IntegrationProvider } from '../../organization-integrations/organization-integration.entity';
+import { OrganizationIntegrationsService } from '../../organization-integrations/organization-integrations.service';
 import { GhlCalendarToolsService } from '../ghl-calendar-tools.service';
 import { GhlService } from '../ghl.service';
 import {
@@ -299,14 +302,79 @@ describe('GhlService calendar', () => {
     expect(joined).not.toContain(apiKey);
     expect(joined).not.toMatch(/Bearer /i);
   });
+
+  it('uses org creds even when platform calendar env is empty', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        '2026-08-14': { slots: ['2026-08-14T10:00:00+05:30'] },
+      }),
+    );
+    const service = makeService({
+      GHL_CALENDAR: '',
+      GHL_CALENDAR_ID: '',
+      GHL_LOCATION_ID: '',
+    });
+    const result = await service.getFreeSlots(
+      { startMs: 1, endMs: 2 },
+      {
+        token: 'pit-org',
+        locationId: 'loc_org',
+        calendarId: 'cal_org',
+      },
+    );
+    expect(result.ok).toBe(true);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('/calendars/cal_org/free-slots');
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer pit-org');
+  });
+
+  it('lists calendars with the given PIT and location', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        calendars: [
+          { id: 'cal_1', name: 'Main' },
+          { id: 'cal_2', name: 'Other' },
+        ],
+      }),
+    );
+    const service = makeService({ GHL_CALENDAR: '' });
+    const result = await service.listCalendars({
+      token: 'pit-org',
+      locationId: 'loc_org',
+    });
+    expect(result).toEqual({
+      ok: true,
+      calendars: [
+        { id: 'cal_1', name: 'Main' },
+        { id: 'cal_2', name: 'Other' },
+      ],
+    });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      'https://services.leadconnectorhq.com/calendars/?locationId=loc_org',
+    );
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer pit-org');
+  });
 });
 
 describe('GhlCalendarToolsService', () => {
   const CALL_ID = '11111111-1111-1111-1111-111111111111';
+  const ORG_ID = 'org-id';
+  const AGENT_ID = 'org-agent-id';
+  const INT_ID = 'int-id';
+  const GHL_CREDS = {
+    token: 'pit-org-secret',
+    locationId: 'loc_1',
+    calendarId: 'cal_1',
+  };
   const futureStart = new Date(Date.now() + 48 * 3600_000).toISOString();
   const futureEnd = new Date(Date.now() + 72 * 3600_000).toISOString();
 
   let callsRepository: { findById: jest.Mock };
+  let organizationAgentsService: { getEntityWithTemplate: jest.Mock };
+  let organizationIntegrationsService: { getEntityForOrg: jest.Mock };
   let ghl: {
     getFreeSlots: jest.Mock;
     upsertContact: jest.Mock;
@@ -314,8 +382,33 @@ describe('GhlCalendarToolsService', () => {
   };
   let service: GhlCalendarToolsService;
 
+  function stubLinkedGhl(context: Record<string, unknown> = {}): void {
+    callsRepository.findById.mockResolvedValue({
+      id: CALL_ID,
+      organizationId: ORG_ID,
+      organizationAgentId: AGENT_ID,
+      context,
+    });
+    organizationAgentsService.getEntityWithTemplate.mockResolvedValue({
+      id: AGENT_ID,
+      organizationId: ORG_ID,
+      calendarIntegrationId: INT_ID,
+    });
+    organizationIntegrationsService.getEntityForOrg.mockResolvedValue({
+      id: INT_ID,
+      organizationId: ORG_ID,
+      provider: IntegrationProvider.GHL,
+      apiKey: GHL_CREDS.token,
+      locationId: GHL_CREDS.locationId,
+      calendarId: GHL_CREDS.calendarId,
+      isActive: true,
+    });
+  }
+
   beforeEach(() => {
     callsRepository = { findById: jest.fn() };
+    organizationAgentsService = { getEntityWithTemplate: jest.fn() };
+    organizationIntegrationsService = { getEntityForOrg: jest.fn() };
     ghl = {
       getFreeSlots: jest.fn(),
       upsertContact: jest.fn(),
@@ -323,6 +416,8 @@ describe('GhlCalendarToolsService', () => {
     };
     service = new GhlCalendarToolsService(
       callsRepository as unknown as CallsRepository,
+      organizationAgentsService as unknown as OrganizationAgentsService,
+      organizationIntegrationsService as unknown as OrganizationIntegrationsService,
       ghl as unknown as GhlService,
     );
   });
@@ -338,8 +433,53 @@ describe('GhlCalendarToolsService', () => {
     expect(ghl.getFreeSlots).not.toHaveBeenCalled();
   });
 
+  it('returns calendar_not_linked when the agent has no calendar', async () => {
+    callsRepository.findById.mockResolvedValue({
+      id: CALL_ID,
+      organizationId: ORG_ID,
+      organizationAgentId: AGENT_ID,
+      context: {},
+    });
+    organizationAgentsService.getEntityWithTemplate.mockResolvedValue({
+      calendarIntegrationId: null,
+    });
+    await expect(
+      service.freeSlots(CALL_ID, {
+        startTime: futureStart,
+        endTime: futureEnd,
+      }),
+    ).resolves.toMatchObject({ ok: false, error: 'calendar_not_linked' });
+    expect(ghl.getFreeSlots).not.toHaveBeenCalled();
+  });
+
+  it('returns unsupported_provider when the agent is linked to Nylas', async () => {
+    callsRepository.findById.mockResolvedValue({
+      id: CALL_ID,
+      organizationId: ORG_ID,
+      organizationAgentId: AGENT_ID,
+      context: {},
+    });
+    organizationAgentsService.getEntityWithTemplate.mockResolvedValue({
+      calendarIntegrationId: INT_ID,
+    });
+    organizationIntegrationsService.getEntityForOrg.mockResolvedValue({
+      provider: IntegrationProvider.NYLAS,
+      isActive: true,
+      locationId: null,
+      calendarId: 'primary',
+      apiKey: 'nyk_secret',
+    });
+    await expect(
+      service.freeSlots(CALL_ID, {
+        startTime: futureStart,
+        endTime: futureEnd,
+      }),
+    ).resolves.toMatchObject({ ok: false, error: 'unsupported_provider' });
+    expect(ghl.getFreeSlots).not.toHaveBeenCalled();
+  });
+
   it('rejects past windows without calling GHL', async () => {
-    callsRepository.findById.mockResolvedValue({ id: CALL_ID, context: {} });
+    stubLinkedGhl();
     await expect(
       service.freeSlots(CALL_ID, {
         startTime: '2020-01-01T00:00:00Z',
@@ -350,7 +490,7 @@ describe('GhlCalendarToolsService', () => {
   });
 
   it('forwards millisecond window to getFreeSlots', async () => {
-    callsRepository.findById.mockResolvedValue({ id: CALL_ID, context: {} });
+    stubLinkedGhl();
     ghl.getFreeSlots.mockResolvedValue({
       ok: true,
       slotMinutes: 30,
@@ -382,11 +522,12 @@ describe('GhlCalendarToolsService', () => {
     expect(arg.startMs).toBe(Date.parse(startTime));
     expect(arg.endMs).toBe(Date.parse(endTime));
     expect(arg.timezone).toBe('Asia/Kolkata');
+    expect(ghl.getFreeSlots.mock.calls[0][1]).toEqual(GHL_CREDS);
     expect(JSON.stringify(res)).not.toMatch(/title|contactId|event/i);
   });
 
   it('reinterprets Z+timezone as local and expands a short window to the day', async () => {
-    callsRepository.findById.mockResolvedValue({ id: CALL_ID, context: {} });
+    stubLinkedGhl();
     ghl.getFreeSlots.mockResolvedValue({
       ok: true,
       slotMinutes: 30,
@@ -408,10 +549,7 @@ describe('GhlCalendarToolsService', () => {
   });
 
   it('books using call context email when tool omits identity', async () => {
-    callsRepository.findById.mockResolvedValue({
-      id: CALL_ID,
-      context: { email: 'ada@example.com', name: 'Ada Lovelace' },
-    });
+    stubLinkedGhl({ email: 'ada@example.com', name: 'Ada Lovelace' });
     ghl.upsertContact.mockResolvedValue({
       ok: true,
       contactId: 'ct_1',
@@ -420,13 +558,13 @@ describe('GhlCalendarToolsService', () => {
     ghl.createAppointment.mockResolvedValue({
       ok: true,
       appointmentId: 'apt_1',
-      startTime: '2026-08-14T10:00:00+05:30',
-      endTime: '2026-08-14T10:30:00+05:30',
+      startTime: '2028-06-15T10:00:00+05:30',
+      endTime: '2028-06-15T10:30:00+05:30',
       title: 'Meeting — Ada Lovelace',
     });
 
     const res = await service.scheduleMeeting(CALL_ID, {
-      startTime: '2026-08-14T10:00:00+05:30',
+      startTime: '2028-06-15T10:00:00+05:30',
     });
     expect(res.ok).toBe(true);
     expect(ghl.upsertContact).toHaveBeenCalledWith(
@@ -434,27 +572,31 @@ describe('GhlCalendarToolsService', () => {
         email: 'ada@example.com',
         name: 'Ada Lovelace',
       }),
+      { token: GHL_CREDS.token, locationId: GHL_CREDS.locationId },
     );
-    expect(ghl.createAppointment).toHaveBeenCalledWith({
-      contactId: 'ct_1',
-      startTime: '2026-08-14T10:00:00+05:30',
-      endTime: '2026-08-14T10:30:00+05:30',
-      title: 'Meeting — Ada Lovelace',
-      description: undefined,
-    });
+    expect(ghl.createAppointment).toHaveBeenCalledWith(
+      {
+        contactId: 'ct_1',
+        startTime: '2028-06-15T10:00:00+05:30',
+        endTime: '2028-06-15T10:30:00+05:30',
+        title: 'Meeting — Ada Lovelace',
+        description: undefined,
+      },
+      GHL_CREDS,
+    );
     expect(res.data).toEqual({
       appointmentId: 'apt_1',
       title: 'Meeting — Ada Lovelace',
-      startIso: '2026-08-14T10:00:00+05:30',
-      endIso: '2026-08-14T10:30:00+05:30',
+      startIso: '2028-06-15T10:00:00+05:30',
+      endIso: '2028-06-15T10:30:00+05:30',
     });
   });
 
   it('fails schedule without email or phone', async () => {
-    callsRepository.findById.mockResolvedValue({ id: CALL_ID, context: {} });
+    stubLinkedGhl();
     await expect(
       service.scheduleMeeting(CALL_ID, {
-        startTime: '2026-08-14T10:00:00+05:30',
+        startTime: '2028-06-15T10:00:00+05:30',
       }),
     ).resolves.toMatchObject({ ok: false, error: 'missing_contact' });
     expect(ghl.upsertContact).not.toHaveBeenCalled();
@@ -462,10 +604,7 @@ describe('GhlCalendarToolsService', () => {
   });
 
   it('books a Z+timezone spoken time as local IST, not UTC', async () => {
-    callsRepository.findById.mockResolvedValue({
-      id: CALL_ID,
-      context: { email: 'ada@example.com' },
-    });
+    stubLinkedGhl({ email: 'ada@example.com' });
     ghl.upsertContact.mockResolvedValue({
       ok: true,
       contactId: 'ct_1',
@@ -489,6 +628,7 @@ describe('GhlCalendarToolsService', () => {
         startTime: '2028-06-15T09:30:00.000Z',
         endTime: '2028-06-15T10:00:00.000Z',
       }),
+      GHL_CREDS,
     );
   });
 });

@@ -19,6 +19,7 @@ import {
   updateUserOrgIntegration,
   type IntegrationEndpoint,
   type IntegrationEndpointSecret,
+  type IntegrationProvider,
   type OrganizationIntegration,
 } from "../../lib/api";
 import { useUserAuth } from "../../lib/auth";
@@ -59,6 +60,11 @@ function parseMode(raw: string | null): IntegMode {
   return raw === "calendar" ? "calendar" : "dial";
 }
 
+function formatAccountId(value: string | null | undefined): string {
+  if (!value) return "—";
+  return value.length > 12 ? `${value.slice(0, 8)}…` : value;
+}
+
 export default function UserIntegrationsPage() {
   const { logout } = useUserAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -93,9 +99,11 @@ export default function UserIntegrationsPage() {
     useState<IntegrationEndpointSecret | null>(null);
 
   const [calEditingId, setCalEditingId] = useState<string | null>(null);
+  const [calProvider, setCalProvider] = useState<IntegrationProvider>("nylas");
   const [calName, setCalName] = useState("");
   const [calApiKey, setCalApiKey] = useState("");
   const [calGrantId, setCalGrantId] = useState("");
+  const [calLocationId, setCalLocationId] = useState("");
   const [calCalendarId, setCalCalendarId] = useState("primary");
   const [calApiUri, setCalApiUri] = useState("https://api.us.nylas.com");
   const [calEmail, setCalEmail] = useState("");
@@ -357,9 +365,11 @@ export default function UserIntegrationsPage() {
 
   const resetCalForm = () => {
     setCalEditingId(null);
+    setCalProvider("nylas");
     setCalName("");
     setCalApiKey("");
     setCalGrantId("");
+    setCalLocationId("");
     setCalCalendarId("primary");
     setCalApiUri("https://api.us.nylas.com");
     setCalEmail("");
@@ -368,10 +378,12 @@ export default function UserIntegrationsPage() {
 
   const openCalEdit = (row: OrganizationIntegration) => {
     setCalEditingId(row.id);
+    setCalProvider(row.provider === "ghl" ? "ghl" : "nylas");
     setCalName(row.name);
     setCalApiKey("");
-    setCalGrantId(row.grantId);
-    setCalCalendarId(row.calendarId || "primary");
+    setCalGrantId(row.grantId || "");
+    setCalLocationId(row.locationId || "");
+    setCalCalendarId(row.calendarId || (row.provider === "ghl" ? "" : "primary"));
     setCalApiUri(row.apiUri || "https://api.us.nylas.com");
     setCalEmail(row.email || "");
     setCalFormError(null);
@@ -386,12 +398,24 @@ export default function UserIntegrationsPage() {
       setCalFormError("Name is required.");
       return;
     }
-    if (!calGrantId.trim()) {
+    if (calProvider === "nylas" && !calGrantId.trim()) {
       setCalFormError("Grant ID is required.");
       return;
     }
+    if (calProvider === "ghl" && !calLocationId.trim()) {
+      setCalFormError("Location ID is required.");
+      return;
+    }
+    if (calProvider === "ghl" && !calCalendarId.trim()) {
+      setCalFormError("Calendar ID is required.");
+      return;
+    }
     if (!calEditingId && !calApiKey.trim()) {
-      setCalFormError("API key is required for a new connection.");
+      setCalFormError(
+        calProvider === "ghl"
+          ? "Private Integration Token is required for a new connection."
+          : "API key is required for a new connection.",
+      );
       return;
     }
     setCalSubmitting(true);
@@ -400,21 +424,35 @@ export default function UserIntegrationsPage() {
         await updateUserOrgIntegration(calEditingId, {
           name: calName.trim(),
           apiKey: calApiKey.trim() || undefined,
-          grantId: calGrantId.trim(),
-          calendarId: calCalendarId.trim() || "primary",
-          apiUri: calApiUri.trim() || undefined,
-          email: calEmail.trim() || null,
+          ...(calProvider === "ghl"
+            ? {
+                locationId: calLocationId.trim(),
+                calendarId: calCalendarId.trim(),
+              }
+            : {
+                grantId: calGrantId.trim(),
+                calendarId: calCalendarId.trim() || "primary",
+                apiUri: calApiUri.trim() || undefined,
+                email: calEmail.trim() || null,
+              }),
         });
         setActionMsg("Calendar connection updated.");
       } else {
         await createUserOrgIntegration({
           name: calName.trim(),
-          provider: "nylas",
+          provider: calProvider,
           apiKey: calApiKey.trim(),
-          grantId: calGrantId.trim(),
-          calendarId: calCalendarId.trim() || "primary",
-          apiUri: calApiUri.trim() || undefined,
-          email: calEmail.trim() || undefined,
+          ...(calProvider === "ghl"
+            ? {
+                locationId: calLocationId.trim(),
+                calendarId: calCalendarId.trim(),
+              }
+            : {
+                grantId: calGrantId.trim(),
+                calendarId: calCalendarId.trim() || "primary",
+                apiUri: calApiUri.trim() || undefined,
+                email: calEmail.trim() || undefined,
+              }),
         });
         setActionMsg(
           "Calendar saved. Link it on an agent and enable calendar tools.",
@@ -789,45 +827,90 @@ export default function UserIntegrationsPage() {
               <span className="ops-desk-kicker">
                 {calEditingId ? "Edit calendar" : "New calendar"}
               </span>
-              <span className="ops-desk-hint">Nylas</span>
+              <span className="ops-desk-hint">
+                {calProvider === "ghl" ? "GoHighLevel" : "Nylas"}
+              </span>
             </div>
             <form className="ops-panel-body ops-form ops-desk-form" onSubmit={handleCalSubmit}>
               {calFormError ? <Alert tone="error">{calFormError}</Alert> : null}
               {actionMsg ? <Alert tone="info">{actionMsg}</Alert> : null}
               <p className="ops-desk-note">
-                Keys from the{" "}
-                <a
-                  href="https://dashboard-v3.nylas.com"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Nylas dashboard
-                </a>
-                . Link on an <Link to="/dashboard/agents">agent</Link> and enable
-                calendar ids on a{" "}
-                <Link to="/dashboard/tool-profiles">tool profile</Link>.
+                {calProvider === "ghl" ? (
+                  <>
+                    Private Integration Token from GoHighLevel (calendar read/write
+                    + contacts write). Link on an{" "}
+                    <Link to="/dashboard/agents">agent</Link> and enable GHL ids
+                    on a{" "}
+                    <Link to="/dashboard/tool-profiles">tool profile</Link>.
+                  </>
+                ) : (
+                  <>
+                    Keys from the{" "}
+                    <a
+                      href="https://dashboard-v3.nylas.com"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Nylas dashboard
+                    </a>
+                    . Link on an <Link to="/dashboard/agents">agent</Link> and enable
+                    calendar ids on a{" "}
+                    <Link to="/dashboard/tool-profiles">tool profile</Link>.
+                  </>
+                )}
               </p>
+              <Field label="Provider" htmlFor="cal-provider">
+                <Select
+                  id="cal-provider"
+                  value={calProvider}
+                  onChange={(e) => {
+                    const next = e.target.value as IntegrationProvider;
+                    setCalProvider(next);
+                    if (!calEditingId) {
+                      setCalCalendarId(next === "ghl" ? "" : "primary");
+                    }
+                  }}
+                  disabled={calSubmitting || Boolean(calEditingId)}
+                >
+                  <option value="nylas">Nylas</option>
+                  <option value="ghl">GoHighLevel</option>
+                </Select>
+              </Field>
               <Field label="Name" htmlFor="cal-name" required>
                 <Input
                   id="cal-name"
                   value={calName}
                   onChange={(e) => setCalName(e.target.value)}
                   disabled={calSubmitting}
-                  placeholder="Clinic Google Calendar"
+                  placeholder={
+                    calProvider === "ghl"
+                      ? "Clinic GHL calendar"
+                      : "Clinic Google Calendar"
+                  }
                 />
               </Field>
-              <Field label="Grant email" htmlFor="cal-email" hint="For free/busy">
-                <Input
-                  id="cal-email"
-                  type="email"
-                  value={calEmail}
-                  onChange={(e) => setCalEmail(e.target.value)}
-                  disabled={calSubmitting}
-                  placeholder="clinic@example.com"
-                />
-              </Field>
+              {calProvider === "nylas" ? (
+                <Field label="Grant email" htmlFor="cal-email" hint="For free/busy">
+                  <Input
+                    id="cal-email"
+                    type="email"
+                    value={calEmail}
+                    onChange={(e) => setCalEmail(e.target.value)}
+                    disabled={calSubmitting}
+                    placeholder="clinic@example.com"
+                  />
+                </Field>
+              ) : null}
               <Field
-                label={calEditingId ? "API key (blank = keep)" : "API key"}
+                label={
+                  calEditingId
+                    ? calProvider === "ghl"
+                      ? "PIT (blank = keep)"
+                      : "API key (blank = keep)"
+                    : calProvider === "ghl"
+                      ? "Private Integration Token"
+                      : "API key"
+                }
                 htmlFor="cal-key"
                 required={!calEditingId}
               >
@@ -838,41 +921,68 @@ export default function UserIntegrationsPage() {
                   value={calApiKey}
                   onChange={(e) => setCalApiKey(e.target.value)}
                   disabled={calSubmitting}
-                  placeholder="nyk_…"
+                  placeholder={calProvider === "ghl" ? "pit-…" : "nyk_…"}
                   className="ops-mono"
                 />
               </Field>
-              <Field label="Grant ID" htmlFor="cal-grant" required>
-                <Input
-                  id="cal-grant"
-                  value={calGrantId}
-                  onChange={(e) => setCalGrantId(e.target.value)}
-                  disabled={calSubmitting}
-                  className="ops-mono"
-                />
-              </Field>
-              <div className="ops-desk-pair">
-                <Field label="Calendar ID" htmlFor="cal-cal">
-                  <Input
-                    id="cal-cal"
-                    value={calCalendarId}
-                    onChange={(e) => setCalCalendarId(e.target.value)}
-                    disabled={calSubmitting}
-                    placeholder="primary"
-                  />
-                </Field>
-                <Field label="Region" htmlFor="cal-uri">
-                  <Select
-                    id="cal-uri"
-                    value={calApiUri}
-                    onChange={(e) => setCalApiUri(e.target.value)}
-                    disabled={calSubmitting}
-                  >
-                    <option value="https://api.us.nylas.com">US</option>
-                    <option value="https://api.eu.nylas.com">EU</option>
-                  </Select>
-                </Field>
-              </div>
+              {calProvider === "ghl" ? (
+                <>
+                  <Field label="Location ID" htmlFor="cal-loc" required>
+                    <Input
+                      id="cal-loc"
+                      value={calLocationId}
+                      onChange={(e) => setCalLocationId(e.target.value)}
+                      disabled={calSubmitting}
+                      className="ops-mono"
+                      placeholder="GHL sub-account id"
+                    />
+                  </Field>
+                  <Field label="Calendar ID" htmlFor="cal-cal" required>
+                    <Input
+                      id="cal-cal"
+                      value={calCalendarId}
+                      onChange={(e) => setCalCalendarId(e.target.value)}
+                      disabled={calSubmitting}
+                      className="ops-mono"
+                      placeholder="GHL calendar id"
+                    />
+                  </Field>
+                </>
+              ) : (
+                <>
+                  <Field label="Grant ID" htmlFor="cal-grant" required>
+                    <Input
+                      id="cal-grant"
+                      value={calGrantId}
+                      onChange={(e) => setCalGrantId(e.target.value)}
+                      disabled={calSubmitting}
+                      className="ops-mono"
+                    />
+                  </Field>
+                  <div className="ops-desk-pair">
+                    <Field label="Calendar ID" htmlFor="cal-cal">
+                      <Input
+                        id="cal-cal"
+                        value={calCalendarId}
+                        onChange={(e) => setCalCalendarId(e.target.value)}
+                        disabled={calSubmitting}
+                        placeholder="primary"
+                      />
+                    </Field>
+                    <Field label="Region" htmlFor="cal-uri">
+                      <Select
+                        id="cal-uri"
+                        value={calApiUri}
+                        onChange={(e) => setCalApiUri(e.target.value)}
+                        disabled={calSubmitting}
+                      >
+                        <option value="https://api.us.nylas.com">US</option>
+                        <option value="https://api.eu.nylas.com">EU</option>
+                      </Select>
+                    </Field>
+                  </div>
+                </>
+              )}
               <div className="ops-desk-submit">
                 <Button type="submit" variant="primary" loading={calSubmitting}>
                   {calEditingId ? "Save calendar" : "Add calendar"}
@@ -1013,7 +1123,7 @@ export default function UserIntegrationsPage() {
             ) : calendars.length === 0 ? (
               <EmptyState
                 title="No calendars"
-                description="Add a Nylas key and grant on the left to power scheduling tools."
+                description="Add a Nylas or GoHighLevel connection on the left to power scheduling tools."
               />
             ) : (
               <div className="ops-table-wrap">
@@ -1021,7 +1131,7 @@ export default function UserIntegrationsPage() {
                   <thead>
                     <tr>
                       <th>Calendar</th>
-                      <th>Grant</th>
+                      <th>Account</th>
                       <th>Status</th>
                       <th />
                     </tr>
@@ -1037,14 +1147,26 @@ export default function UserIntegrationsPage() {
                             <span className="ops-desk-entity-name">{row.name}</span>
                             <span className="ops-desk-entity-meta">
                               <span className="ops-mono">{row.apiKeyPrefix}</span>
-                              <span>{row.email || row.calendarId}</span>
+                              <span>
+                                {row.provider === "ghl" ? "GoHighLevel" : "Nylas"}
+                                {row.email ? ` · ${row.email}` : ""}
+                              </span>
                             </span>
                           </div>
                         </td>
-                        <td className="ops-mono" title={row.grantId}>
-                          {row.grantId.length > 12
-                            ? `${row.grantId.slice(0, 8)}…`
-                            : row.grantId}
+                        <td
+                          className="ops-mono"
+                          title={
+                            row.provider === "ghl"
+                              ? row.locationId || ""
+                              : row.grantId || ""
+                          }
+                        >
+                          {formatAccountId(
+                            row.provider === "ghl"
+                              ? row.locationId
+                              : row.grantId,
+                          )}
                         </td>
                         <td>
                           <StatusBadge status={row.isActive ? "active" : "inactive"} />

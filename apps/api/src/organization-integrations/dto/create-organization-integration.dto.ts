@@ -20,14 +20,15 @@ export class CreateOrganizationIntegrationDto {
   @ApiPropertyOptional({
     enum: IntegrationProvider,
     default: IntegrationProvider.NYLAS,
-    description: 'Provider type. Only nylas is supported in v1.',
+    description: 'Provider type: nylas or ghl.',
   })
   @IsOptional()
   @IsEnum(IntegrationProvider)
   provider?: IntegrationProvider;
 
   @ApiProperty({
-    description: 'Nylas API key from the Nylas dashboard. Stored server-side; never returned on GET.',
+    description:
+      'Nylas API key or GoHighLevel Private Integration Token. Stored server-side; never returned on GET.',
     example: 'nyk_…',
   })
   @IsString()
@@ -35,18 +36,30 @@ export class CreateOrganizationIntegrationDto {
   @MaxLength(500)
   apiKey!: string;
 
-  @ApiProperty({
-    description: 'Nylas grant id for the connected Google/Microsoft account',
+  @ApiPropertyOptional({
+    description: 'Nylas grant id. Required when provider=nylas; ignored for ghl.',
     example: '1e3288f6-124e-405d-a13a-635a2ee54eb2',
   })
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(120)
-  grantId!: string;
+  grantId?: string;
+
+  @ApiPropertyOptional({
+    description: 'GoHighLevel location (sub-account) id. Required when provider=ghl.',
+    example: 'abc123LocationId',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  locationId?: string;
 
   @ApiPropertyOptional({
     default: 'primary',
-    description: 'Calendar id within the grant (usually "primary")',
+    description:
+      'Nylas calendar id (usually "primary") or GHL calendar id (required for ghl).',
   })
   @IsOptional()
   @IsString()

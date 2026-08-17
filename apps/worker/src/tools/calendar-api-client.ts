@@ -34,7 +34,7 @@ export async function callCalendarApi(
   opts?: {
     userData?: SessionUserData;
     toolId?: string;
-    /** Default `calendar` (Nylas). Use `ghl-calendar` for platform GHL tools. */
+    /** Default `calendar` (Nylas). Use `ghl-calendar` for org GHL tools. */
     namespace?: 'calendar' | 'ghl-calendar';
   },
 ): Promise<CalendarToolResult> {

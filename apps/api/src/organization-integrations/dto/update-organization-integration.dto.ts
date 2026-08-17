@@ -18,7 +18,7 @@ export class UpdateOrganizationIntegrationDto {
   name?: string;
 
   @ApiPropertyOptional({
-    description: 'Replace the stored Nylas API key. Omitted = keep existing.',
+    description: 'Replace the stored API key / PIT. Omitted = keep existing.',
   })
   @IsOptional()
   @IsString()
@@ -26,12 +26,23 @@ export class UpdateOrganizationIntegrationDto {
   @MaxLength(500)
   apiKey?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description: 'Nylas grant id. Ignored for GoHighLevel.',
+  })
   @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(120)
   grantId?: string;
+
+  @ApiPropertyOptional({
+    description: 'GoHighLevel location id. Ignored for Nylas.',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  locationId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

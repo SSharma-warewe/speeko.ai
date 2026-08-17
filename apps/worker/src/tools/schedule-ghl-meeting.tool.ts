@@ -5,7 +5,7 @@ import { callCalendarApi } from './calendar-api-client.js';
 import type { ToolFactory } from './types.js';
 
 const BASE_DESCRIPTION = [
-  'Book a meeting on the business GoHighLevel calendar (creates a real appointment).',
+  'Book a meeting on the organization GoHighLevel calendar linked to this agent (creates a real appointment).',
   '',
   'WHEN TO USE:',
   '- The caller agreed to a specific time you already saw in checkGhlFreeSlots.',

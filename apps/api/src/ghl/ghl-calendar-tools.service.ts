@@ -1,11 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
+import { OrganizationAgentsService } from '../agents/organization-agents.service';
 import { CallsRepository } from '../calls/calls.repository';
+import { IntegrationProvider } from '../organization-integrations/organization-integration.entity';
+import { OrganizationIntegrationsService } from '../organization-integrations/organization-integrations.service';
 import {
   GhlCalendarToolResponseDto,
   GhlFreeSlotsDto,
   GhlScheduleMeetingDto,
 } from './dto/ghl-calendar-tool.dto';
 import { GhlService } from './ghl.service';
+import type { GhlCalendarCreds } from './ghl.types';
 import {
   GHL_SLOT_MINUTES,
   addMinutesKeepingOffset,
@@ -17,8 +21,8 @@ import {
 } from './ghl-time';
 
 /**
- * Worker-facing GHL calendar ops: load call context, then GhlService.
- * Platform env calendar — not org Nylas.
+ * Worker-facing GHL calendar ops: resolve call → org agent → GHL integration,
+ * then GhlService. Secrets stay on the API (never in LiveKit metadata).
  */
 @Injectable()
 export class GhlCalendarToolsService {
@@ -26,6 +30,9 @@ export class GhlCalendarToolsService {
 
   constructor(
     private readonly callsRepository: CallsRepository,
+    @Inject(forwardRef(() => OrganizationAgentsService))
+    private readonly organizationAgentsService: OrganizationAgentsService,
+    private readonly organizationIntegrationsService: OrganizationIntegrationsService,
     private readonly ghl: GhlService,
   ) {}
 
@@ -33,14 +40,11 @@ export class GhlCalendarToolsService {
     callId: string,
     dto: GhlFreeSlotsDto,
   ): Promise<GhlCalendarToolResponseDto> {
-    const call = await this.callsRepository.findById(callId);
-    if (!call) {
-      return {
-        ok: false,
-        error: 'call_not_found',
-        message: 'Call not found for GHL calendar tool request.',
-      };
+    const resolved = await this.resolveGhl(callId);
+    if (!resolved.ok) {
+      return resolved;
     }
+    const { creds } = resolved;
 
     const tz = dto.timezone?.trim() || undefined;
     const start = parseTimeToUnix(dto.startTime, tz);
@@ -70,11 +74,14 @@ export class GhlCalendarToolsService {
       );
     }
 
-    const result = await this.ghl.getFreeSlots({
-      startMs: window.startSec * 1000,
-      endMs: window.endSec * 1000,
-      timezone: tz,
-    });
+    const result = await this.ghl.getFreeSlots(
+      {
+        startMs: window.startSec * 1000,
+        endMs: window.endSec * 1000,
+        timezone: tz,
+      },
+      creds,
+    );
     if (!result.ok) {
       this.logger.warn(
         `ghl free-slots callId=${callId} error=${result.error}`,
@@ -108,14 +115,11 @@ export class GhlCalendarToolsService {
     callId: string,
     dto: GhlScheduleMeetingDto,
   ): Promise<GhlCalendarToolResponseDto> {
-    const call = await this.callsRepository.findById(callId);
-    if (!call) {
-      return {
-        ok: false,
-        error: 'call_not_found',
-        message: 'Call not found for GHL calendar tool request.',
-      };
+    const resolved = await this.resolveGhl(callId);
+    if (!resolved.ok) {
+      return resolved;
     }
+    const { call, creds } = resolved;
 
     const tz = dto.timezone?.trim() || undefined;
     const start = parseTimeToUnix(dto.startTime, tz);
@@ -156,7 +160,10 @@ export class GhlCalendarToolsService {
       };
     }
 
-    const upsert = await this.ghl.upsertContact(identity);
+    const upsert = await this.ghl.upsertContact(identity, {
+      token: creds.token,
+      locationId: creds.locationId,
+    });
     if (!upsert.ok) {
       this.logger.warn(
         `ghl schedule upsert callId=${callId} error=${upsert.error}`,
@@ -166,7 +173,7 @@ export class GhlCalendarToolsService {
         error: upsert.error,
         message:
           upsert.error === 'contact_upsert_unavailable'
-            ? 'Contact save is not configured (GHL_API_KEY). Cannot book.'
+            ? 'Contact save is not configured on this GoHighLevel connection. Cannot book.'
             : 'Could not save the caller as a contact. Do not claim the meeting is booked.',
       };
     }
@@ -184,13 +191,16 @@ export class GhlCalendarToolsService {
       dto.title?.trim() ||
       (identity.name ? `Meeting — ${identity.name}` : 'Meeting');
 
-    const booked = await this.ghl.createAppointment({
-      contactId: upsert.contactId,
-      startTime,
-      endTime,
-      title,
-      description: dto.description,
-    });
+    const booked = await this.ghl.createAppointment(
+      {
+        contactId: upsert.contactId,
+        startTime,
+        endTime,
+        title,
+        description: dto.description,
+      },
+      creds,
+    );
     if (!booked.ok) {
       this.logger.warn(
         `ghl schedule book callId=${callId} error=${booked.error}`,
@@ -216,7 +226,118 @@ export class GhlCalendarToolsService {
       },
     };
   }
+
+  private async resolveGhl(
+    callId: string,
+  ): Promise<GhlResolveResult> {
+    const call = await this.callsRepository.findById(callId);
+    if (!call) {
+      return {
+        ok: false,
+        error: 'call_not_found',
+        message: 'Call not found for GHL calendar tool request.',
+      };
+    }
+
+    if (!call.organizationId || !call.organizationAgentId) {
+      return {
+        ok: false,
+        error: 'no_org_agent',
+        message:
+          'This call has no organization agent. GHL calendar tools require an org agent with a linked GoHighLevel calendar. Platform template web tests cannot use org calendars.',
+      };
+    }
+
+    let orgAgent;
+    try {
+      orgAgent = await this.organizationAgentsService.getEntityWithTemplate(
+        call.organizationId,
+        call.organizationAgentId,
+      );
+    } catch {
+      return {
+        ok: false,
+        error: 'agent_not_found',
+        message: 'Organization agent for this call was not found.',
+      };
+    }
+
+    if (!orgAgent.calendarIntegrationId) {
+      return {
+        ok: false,
+        error: 'calendar_not_linked',
+        message:
+          'No calendar integration is linked to this agent. In the portal, open the agent and select a GoHighLevel calendar connection.',
+      };
+    }
+
+    let integration;
+    try {
+      integration =
+        await this.organizationIntegrationsService.getEntityForOrg(
+          call.organizationId,
+          orgAgent.calendarIntegrationId,
+        );
+    } catch {
+      return {
+        ok: false,
+        error: 'integration_not_found',
+        message:
+          'The linked calendar integration was not found. Re-link a valid GoHighLevel connection on the agent.',
+      };
+    }
+
+    if (!integration.isActive) {
+      return {
+        ok: false,
+        error: 'integration_inactive',
+        message: 'The linked calendar integration is inactive.',
+      };
+    }
+
+    if (integration.provider !== IntegrationProvider.GHL) {
+      return {
+        ok: false,
+        error: 'unsupported_provider',
+        message:
+          'This agent is linked to a Nylas calendar. Enable Nylas calendar tools, or link a GoHighLevel connection instead.',
+      };
+    }
+
+    const locationId = integration.locationId?.trim() ?? '';
+    const calendarId = integration.calendarId?.trim() ?? '';
+    if (!locationId || !calendarId) {
+      return {
+        ok: false,
+        error: 'ghl_incomplete',
+        message:
+          'The GoHighLevel connection is missing location id or calendar id. Edit it in Integrations.',
+      };
+    }
+
+    this.logger.log(
+      `ghl resolve callId=${callId} integration=${integration.id} location=${locationId} calendarId=${calendarId}`,
+    );
+
+    return {
+      ok: true,
+      call,
+      creds: {
+        token: integration.apiKey,
+        locationId,
+        calendarId,
+      },
+    };
+  }
 }
+
+type GhlResolveResult =
+  | {
+      ok: true;
+      call: { context?: Record<string, unknown> | null };
+      creds: GhlCalendarCreds;
+    }
+  | { ok: false; error: string; message: string };
 
 function contextField(
   context: Record<string, unknown> | null | undefined,

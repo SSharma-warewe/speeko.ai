@@ -31,8 +31,8 @@ const SHORT_HINTS: Record<string, string> = {
   listCalendarEvents: "Nylas list",
   createCalendarEvent: "Nylas create",
   cancelCalendarEvent: "Nylas cancel",
-  checkGhlFreeSlots: "GHL open slots",
-  scheduleGhlMeeting: "GHL book",
+  checkGhlFreeSlots: "GHL open slots (org link)",
+  scheduleGhlMeeting: "GHL book (org link)",
 };
 
 const TOOL_GROUPS: { label: string; ids: readonly string[] }[] = [

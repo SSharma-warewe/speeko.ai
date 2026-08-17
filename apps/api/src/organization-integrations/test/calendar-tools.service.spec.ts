@@ -48,6 +48,7 @@ describe('CalendarToolsService', () => {
     apiKey: 'nyk_secret',
     apiKeyPrefix: 'nyk_secr…',
     grantId: 'grant-1',
+    locationId: null,
     calendarId: 'primary',
     apiUri: 'https://api.us.nylas.com',
     email: 'clinic@example.com',
@@ -204,6 +205,30 @@ describe('CalendarToolsService', () => {
           error: 'integration_not_found',
         }),
       );
+    });
+
+    it('5b. unsupported_provider when the agent is linked to GHL', async () => {
+      mockResolvedHappyPath({
+        integration: {
+          ...integration,
+          provider: IntegrationProvider.GHL,
+          grantId: null,
+          locationId: 'loc_1',
+        },
+      });
+
+      const result = await service.freeBusy(CALL_ID, {
+        startTime: String(futureStart),
+        endTime: String(futureEnd),
+      });
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          ok: false,
+          error: 'unsupported_provider',
+        }),
+      );
+      expect(nylas.freeBusy).not.toHaveBeenCalled();
     });
 
     it('6. integration_inactive when calendar connection is off', async () => {
