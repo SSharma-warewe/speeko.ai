@@ -17,6 +17,88 @@ const COUNTRIES = [
   "Other",
 ] as const;
 
+/** ITU calling codes for the allowlisted countries. `Other` has no fixed code. */
+const COUNTRY_DIAL_CODES: Record<(typeof COUNTRIES)[number], string | null> = {
+  "United States": "+1",
+  "United Kingdom": "+44",
+  "Canada": "+1",
+  "Australia": "+61",
+  "Germany": "+49",
+  "France": "+33",
+  "India": "+91",
+  "Singapore": "+65",
+  "United Arab Emirates": "+971",
+  "Netherlands": "+31",
+  Other: null,
+};
+
+const DIAL_CODES_LONGEST_FIRST = [
+  ...new Set(
+    Object.values(COUNTRY_DIAL_CODES).filter((code): code is string => Boolean(code)),
+  ),
+].sort((a, b) => b.length - a.length);
+
+const PHONE_PLACEHOLDERS: Record<(typeof COUNTRIES)[number], string> = {
+  "United States": "+1 555 010 2000",
+  "United Kingdom": "+44 7700 900123",
+  "Canada": "+1 416 555 0199",
+  "Australia": "+61 412 345 678",
+  "Germany": "+49 151 23456789",
+  "France": "+33 6 12 34 56 78",
+  "India": "+91 98765 43210",
+  "Singapore": "+65 8123 4567",
+  "United Arab Emirates": "+971 50 123 4567",
+  "Netherlands": "+31 6 12345678",
+  Other: "+1 555 010 2000",
+};
+
+function dialCodeForCountry(country: string): string | null {
+  if (!(COUNTRIES as readonly string[]).includes(country)) return null;
+  return COUNTRY_DIAL_CODES[country as (typeof COUNTRIES)[number]];
+}
+
+/** Compact the start of the number and find a known +dial prefix (longest first). */
+function leadingDialCode(phone: string): string | null {
+  const compact = phone.trim().replace(/[\s\-().]/g, "");
+  if (!compact.startsWith("+")) return null;
+  return DIAL_CODES_LONGEST_FIRST.find((code) => compact.startsWith(code)) ?? null;
+}
+
+/** Drop an existing +dial prefix (known list, or a generic +NNN) so we can swap countries. */
+function stripLeadingDialCode(phone: string, nextCode: string | null): string {
+  const trimmed = phone.trim();
+  if (!trimmed) return "";
+
+  const compact = trimmed.replace(/[\s\-().]/g, "");
+  const known = leadingDialCode(trimmed);
+  if (known) {
+    return compact.slice(known.length);
+  }
+
+  // "91 98765…" when India is selected — do not strip a bare "1" (US/CA).
+  if (nextCode && nextCode.length > 2) {
+    const digits = nextCode.slice(1);
+    const asToken = new RegExp(`^${digits}(?:\\s+|[-().]+)`);
+    if (asToken.test(trimmed)) {
+      return trimmed.replace(asToken, "").trim();
+    }
+  }
+
+  if (trimmed.startsWith("+")) {
+    return trimmed.replace(/^\+\d{1,4}[\s\-().]*/, "").trim();
+  }
+
+  return trimmed;
+}
+
+/** Prefix (or replace) the country calling code on the phone field. */
+function applyCountryDialCode(phone: string, country: string): string {
+  const code = dialCodeForCountry(country);
+  if (!code) return phone;
+  const rest = stripLeadingDialCode(phone, code);
+  return rest ? `${code} ${rest}` : `${code} `;
+}
+
 const TEAM_SIZES = ["1–10", "11–50", "51–200", "201–1000", "1000+"] as const;
 
 const CALLS_PER_DAY = ["Under 50", "50–200", "200–1000", "1000+"] as const;
@@ -197,12 +279,13 @@ export default function GetDemoPage() {
       setError("Enter a valid email address.");
       return;
     }
-    if (!form.phone.trim() || form.phone.replace(/\D/g, "").length < 7) {
-      setError("Enter a valid phone number.");
-      return;
-    }
     if (!form.country) {
       setError("Select a country.");
+      return;
+    }
+    const phone = applyCountryDialCode(form.phone, form.country).trim();
+    if (!phone || phone.replace(/\D/g, "").length < 7) {
+      setError("Enter a valid phone number.");
       return;
     }
     if (!form.teamSize) {
@@ -234,7 +317,7 @@ export default function GetDemoPage() {
           lastName: form.lastName.trim(),
           company: form.company.trim(),
           email: form.email.trim(),
-          phone: form.phone.trim(),
+          phone,
           country: form.country,
           teamSize: form.teamSize,
           callsPerDay: form.callsPerDay,
@@ -405,21 +488,36 @@ export default function GetDemoPage() {
                       autoComplete="tel"
                       value={form.phone}
                       onChange={(e) => setField("phone", e.target.value)}
-                      placeholder="+1 555 010 2000"
+                      placeholder={
+                        PHONE_PLACEHOLDERS[
+                          form.country as (typeof COUNTRIES)[number]
+                        ] ?? "+1 555 010 2000"
+                      }
                     />
                   </label>
                   <label className="gd-field">
                     <span>Country</span>
                     <select
                       value={form.country}
-                      onChange={(e) => setField("country", e.target.value)}
+                      onChange={(e) => {
+                        const country = e.target.value;
+                        setForm((prev) => ({
+                          ...prev,
+                          country,
+                          phone: applyCountryDialCode(prev.phone, country),
+                        }));
+                        if (error) setError(null);
+                      }}
                     >
                       <option value="">Select…</option>
-                      {COUNTRIES.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
+                      {COUNTRIES.map((c) => {
+                        const code = COUNTRY_DIAL_CODES[c];
+                        return (
+                          <option key={c} value={c}>
+                            {code ? `${c} (${code})` : c}
+                          </option>
+                        );
+                      })}
                     </select>
                   </label>
                 </div>
