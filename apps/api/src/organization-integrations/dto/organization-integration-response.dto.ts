@@ -51,6 +51,14 @@ export class OrganizationIntegrationResponseDto {
   updatedAt!: Date;
 }
 
+export class GhlCalendarPreviewItemDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiPropertyOptional()
+  name?: string;
+}
+
 export class OrganizationIntegrationTestResponseDto {
   @ApiProperty()
   ok!: boolean;
@@ -60,4 +68,18 @@ export class OrganizationIntegrationTestResponseDto {
 
   @ApiPropertyOptional({ type: [String] })
   calendarIds?: string[];
+
+  @ApiPropertyOptional({ type: [GhlCalendarPreviewItemDto] })
+  calendars?: GhlCalendarPreviewItemDto[];
+}
+
+export class PreviewGhlCalendarsResponseDto {
+  @ApiProperty()
+  ok!: boolean;
+
+  @ApiPropertyOptional()
+  message?: string;
+
+  @ApiPropertyOptional({ type: [GhlCalendarPreviewItemDto] })
+  calendars?: GhlCalendarPreviewItemDto[];
 }

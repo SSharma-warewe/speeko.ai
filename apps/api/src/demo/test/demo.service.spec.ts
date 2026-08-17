@@ -47,7 +47,7 @@ describe('DemoService', () => {
       ENDPOINT_URL: endpointUrl,
       SPEEKO_API: apiKey,
     },
-    ghlResult: { ok: boolean } = { ok: true },
+    ghlResult: { ok: boolean; contactId?: string } = { ok: true },
   ): DemoService {
     configGet = jest.fn((key: string) => {
       if (key === 'ENDPOINT_URL') return env.ENDPOINT_URL;
@@ -234,6 +234,22 @@ describe('DemoService', () => {
         direction: 'outbound',
         integrations: ['HubSpot', 'Google Calendar'],
       });
+    });
+
+    it('7b. puts ghlContactId in context when CRM upsert returns a contact id', async () => {
+      service = makeService(undefined, {
+        ok: true,
+        contactId: 'ct_demo_1',
+      });
+      fetchMock.mockResolvedValue(jsonResponse({ callId: 'call-1' }));
+
+      await service.requestDemo(baseDto);
+
+      const init = fetchMock.mock.calls[0][1] as RequestInit;
+      const body = JSON.parse(String(init.body)) as {
+        context: Record<string, unknown>;
+      };
+      expect(body.context.ghlContactId).toBe('ct_demo_1');
     });
   });
 

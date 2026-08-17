@@ -144,7 +144,7 @@ Known tool ids: `endCall`, `booking`, `cancelBooking`, `transferCall`, `lookupCu
 
 **Calendar tools (Nylas):** org stores API key + grant on `organization_integrations` (`provider=nylas`); link via `organization_agents.calendar_integration_id`; enable Nylas tool ids on a tool profile. Worker tools call `POST /api/internal/calls/:callId/calendar/*` with `X-Worker-Secret` — API holds secrets (never in LiveKit metadata).
 
-**Calendar tools (GHL):** org stores PIT + location id + calendar id on `organization_integrations` (`provider=ghl`); link via the same `calendar_integration_id`; enable `checkGhlFreeSlots` / `scheduleGhlMeeting`. Worker tools call `POST /api/internal/calls/:callId/ghl-calendar/*`. Free slots return **open times only** (never existing appointments). No platform-env fallback — missing/inactive/wrong-provider link fails the tool. `GhlService` is the only GHL HTTP client. Worker/API treat naive or `Z` ISO **plus IANA `timezone`** as local wall-clock (LLMs often tag IST times with `Z`); numeric offsets (`+05:30`) stay absolute. Short free-slot windows (< 4h) expand to the local calendar day(s) before calling GHL.
+**Calendar tools (GHL):** org stores a **v3 Private Integration Token** + location (sub-account) id + calendar id on `organization_integrations` (`provider=ghl`); link via the same `calendar_integration_id`; enable `checkGhlFreeSlots` / `scheduleGhlMeeting`. Token scopes only: `calendars.readonly` (View Calendars), `calendars/events.readonly` (View Calendar Events), `calendars/events.write` (Edit Calendar Events). **No** `contacts.write` — booking uses an existing GHL `contactId` / `ghlContactId` on the call (get-demo CRM upsert writes this into context). Portal can preview calendars via `POST /api/users/integrations/ghl/calendars` (`GET /calendars/?locationId=`). Worker tools call `POST /api/internal/calls/:callId/ghl-calendar/*`. Free slots return **open times only** (never existing appointments). No platform-env fallback — missing/inactive/wrong-provider link fails the tool. `GhlService` is the only GHL HTTP client. Worker/API treat naive or `Z` ISO **plus IANA `timezone`** as local wall-clock (LLMs often tag IST times with `Z`); numeric offsets (`+05:30`) stay absolute. Short free-slot windows (< 4h) expand to the local calendar day(s) before calling GHL.
 
 ### Naming note
 
@@ -267,7 +267,7 @@ Models use **LiveKit Inference** (STT/LLM/TTS + **cloud turn detector v1**) — 
 
 **GoHighLevel (get-demo leads):** inject global `GhlService` and call `upsertLead()`. Never throws — missing `GHL_API_KEY` / `GHL_LOCATION_ID` or API errors return `{ ok: false }` and are logged (token never logged). Upserts a contact (`source=Speeko Get Demo`), then adds tags `speeko-get-demo` + `direction:…` and a note with team/calls/integrations.
 
-**GoHighLevel (org calendar tools):** `GhlService.getFreeSlots()` / `createAppointment()` / `upsertContact()` / `listCalendars()` with per-request org creds from the linked `organization_integrations` row (single PIT for calendar + contacts). Free-slots `startDate`/`endDate` are unix **milliseconds**. Response to the worker is open `{ startIso, endIso }` only (cap 12) — never `GET /calendars/events`. Tokens never logged. Env `GHL_CALENDAR` is not used by tools.
+**GoHighLevel (org calendar tools):** `GhlService.getFreeSlots()` / `createAppointment()` / `listCalendars()` with per-request org creds from the linked `organization_integrations` row (calendar-only PIT). `createAppointment` needs an existing GHL `contactId` on the call. Free-slots `startDate`/`endDate` are unix **milliseconds**. Response to the worker is open `{ startIso, endIso }` only (cap 12) — never `GET /calendars/events`. Tokens never logged. Env `GHL_CALENDAR` is not used by tools.
 
 ### Test inbound / outbound (web)
 
@@ -378,7 +378,7 @@ Web form → POST /api/demo/request → DemoAbuseGuard (origin + rate limits)
   → integration enqueue → queue dialer → agent SIP call
 ```
 
-Form fields go in integration `context` (`source: get_demo`, name, company, email, etc.) and, when GHL env is set, onto a GHL contact. Agent/task/trunk are fixed on the integration endpoint in the portal — not on the form. CRM failure does not fail the HTTP request. Abuse 403/429 never enqueue.
+Form fields go in integration `context` (`source: get_demo`, name, company, email, etc.) and, when GHL env is set, onto a GHL contact. Successful CRM upsert also sets `ghlContactId` so the calendar tool can book without `contacts.write` on the calendar PIT. Agent/task/trunk are fixed on the integration endpoint in the portal — not on the form. CRM failure does not fail the HTTP request. Abuse 403/429 never enqueue.
 
 ### Schema / DB after deploys
 
@@ -475,7 +475,8 @@ Worker health is “registered with LiveKit” in service logs, not a public HTM
 | POST | `/api/users/integration-endpoints/:id/rotate-key` | user JWT — new secret once; invalidates old |
 | DELETE | `/api/users/integration-endpoints/:id` | user JWT — delete endpoint (revokes access) |
 | GET | `/api/users/integrations` | user JWT — list org third-party connections (Nylas / GHL; no api_key) |
-| POST | `/api/users/integrations` | user JWT — add Nylas (`apiKey`, `grantId`) or GHL (`apiKey`, `locationId`, `calendarId`) |
+| POST | `/api/users/integrations` | user JWT — add Nylas (`apiKey`, `grantId`) or GHL (`apiKey` v3 PIT, `locationId`, `calendarId`) |
+| POST | `/api/users/integrations/ghl/calendars` | user JWT — unsaved GHL v3 list calendars (`apiKey` + `locationId`; does not persist) |
 | GET | `/api/users/integrations/:id` | user JWT — get one (no secret) |
 | PATCH | `/api/users/integrations/:id` | user JWT — update fields / optional new apiKey / isActive |
 | DELETE | `/api/users/integrations/:id` | user JWT — delete connection (agent FKs SET NULL) |

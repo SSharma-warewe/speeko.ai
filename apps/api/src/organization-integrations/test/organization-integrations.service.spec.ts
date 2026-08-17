@@ -479,6 +479,10 @@ describe('OrganizationIntegrationsService', () => {
         ok: true,
         message: 'Connected — 2 calendar(s) found.',
         calendarIds: ['cal_1', 'cal_2'],
+        calendars: [
+          { id: 'cal_1', name: 'Main' },
+          { id: 'cal_2', name: 'Other' },
+        ],
       });
     });
 
@@ -527,6 +531,55 @@ describe('OrganizationIntegrationsService', () => {
       expect(saved.calendarId).toBe('cal_new');
       expect(saved.grantId).toBeNull();
       expect(saved.email).toBeNull();
+    });
+  });
+
+  describe('previewGhlCalendars', () => {
+    it('26. lists calendars from a v3 PIT + location without saving', async () => {
+      ghl.listCalendars.mockResolvedValue({
+        ok: true,
+        calendars: [
+          { id: 'cal_1', name: 'Main' },
+          { id: 'cal_2', name: 'Other' },
+        ],
+      });
+
+      const result = await service.previewGhlCalendars(ORG_ID, {
+        apiKey: '  pit-preview-token  ',
+        locationId: '  loc_1  ',
+      });
+
+      expect(organizationsService.findById).toHaveBeenCalledWith(ORG_ID);
+      expect(ghl.listCalendars).toHaveBeenCalledWith({
+        token: 'pit-preview-token',
+        locationId: 'loc_1',
+      });
+      expect(repository.save).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        ok: true,
+        message: 'Found 2 calendar(s) in this location.',
+        calendars: [
+          { id: 'cal_1', name: 'Main' },
+          { id: 'cal_2', name: 'Other' },
+        ],
+      });
+    });
+
+    it('27. returns ok:false when GHL list calendars fails', async () => {
+      ghl.listCalendars.mockResolvedValue({
+        ok: false,
+        error: 'ghl_calendars_401',
+        message:
+          'Unauthorized. Check the v3 Private Integration Token and that it includes calendars.readonly.',
+      });
+
+      const result = await service.previewGhlCalendars(ORG_ID, {
+        apiKey: 'pit-bad',
+        locationId: 'loc_1',
+      });
+
+      expect(result.ok).toBe(false);
+      expect(result.message).toMatch(/calendars.readonly/);
     });
   });
 });

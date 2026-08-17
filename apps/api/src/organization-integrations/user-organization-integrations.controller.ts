@@ -28,7 +28,9 @@ import { CreateOrganizationIntegrationDto } from './dto/create-organization-inte
 import {
   OrganizationIntegrationResponseDto,
   OrganizationIntegrationTestResponseDto,
+  PreviewGhlCalendarsResponseDto,
 } from './dto/organization-integration-response.dto';
+import { PreviewGhlCalendarsDto } from './dto/preview-ghl-calendars.dto';
 import { UpdateOrganizationIntegrationDto } from './dto/update-organization-integration.dto';
 import { OrganizationIntegrationsService } from './organization-integrations.service';
 
@@ -72,6 +74,25 @@ export class UserOrganizationIntegrationsController {
       this.orgIdFrom(principal),
       dto,
       userId,
+    );
+  }
+
+  @Post('ghl/calendars')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'List GoHighLevel calendars for a v3 PIT + location',
+    description:
+      'Does not save. Calls GET /calendars/?locationId= with Version 2021-07-28. ' +
+      'Token needs calendars.readonly. Use the ids to fill calendarId on create.',
+  })
+  @ApiOkResponse({ type: PreviewGhlCalendarsResponseDto })
+  previewGhlCalendars(
+    @CurrentUser() principal: AuthPrincipal,
+    @Body() dto: PreviewGhlCalendarsDto,
+  ): Promise<PreviewGhlCalendarsResponseDto> {
+    return this.organizationIntegrationsService.previewGhlCalendars(
+      this.orgIdFrom(principal),
+      dto,
     );
   }
 
@@ -123,7 +144,7 @@ export class UserOrganizationIntegrationsController {
 
   @Post(':id/test')
   @ApiOperation({
-    summary: 'Smoke-test Nylas credentials (list calendars)',
+    summary: 'Smoke-test Nylas or GoHighLevel credentials (list calendars)',
   })
   @ApiOkResponse({ type: OrganizationIntegrationTestResponseDto })
   test(

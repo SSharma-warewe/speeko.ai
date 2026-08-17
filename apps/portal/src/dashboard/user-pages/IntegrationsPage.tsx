@@ -11,12 +11,14 @@ import {
   listUserIntegrationEndpoints,
   listUserOrgIntegrations,
   listUserOutboundTrunks,
+  previewGhlCalendars,
   rotateUserIntegrationEndpointKey,
   TASK_KEYS,
   testUserOrgIntegration,
   UnauthorizedError,
   updateUserIntegrationEndpoint,
   updateUserOrgIntegration,
+  type GhlCalendarOption,
   type IntegrationEndpoint,
   type IntegrationEndpointSecret,
   type IntegrationProvider,
@@ -65,6 +67,16 @@ function formatAccountId(value: string | null | undefined): string {
   return value.length > 12 ? `${value.slice(0, 8)}…` : value;
 }
 
+const GHL_V3_SCOPES = [
+  { label: "View Calendars", scope: "calendars.readonly" },
+  { label: "View Calendar Events", scope: "calendars/events.readonly" },
+  { label: "Edit Calendar Events", scope: "calendars/events.write" },
+] as const;
+
+function calendarLabel(cal: GhlCalendarOption): string {
+  return cal.name ? `${cal.name} · ${cal.id}` : cal.id;
+}
+
 export default function UserIntegrationsPage() {
   const { logout } = useUserAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -109,6 +121,8 @@ export default function UserIntegrationsPage() {
   const [calEmail, setCalEmail] = useState("");
   const [calSubmitting, setCalSubmitting] = useState(false);
   const [calFormError, setCalFormError] = useState<string | null>(null);
+  const [ghlCalendars, setGhlCalendars] = useState<GhlCalendarOption[]>([]);
+  const [ghlCalendarsLoading, setGhlCalendarsLoading] = useState(false);
 
   useEffect(() => {
     setMode(parseMode(searchParams.get("tab")));
@@ -374,6 +388,7 @@ export default function UserIntegrationsPage() {
     setCalApiUri("https://api.us.nylas.com");
     setCalEmail("");
     setCalFormError(null);
+    setGhlCalendars([]);
   };
 
   const openCalEdit = (row: OrganizationIntegration) => {
@@ -387,8 +402,73 @@ export default function UserIntegrationsPage() {
     setCalApiUri(row.apiUri || "https://api.us.nylas.com");
     setCalEmail(row.email || "");
     setCalFormError(null);
+    setGhlCalendars([]);
     setActionMsg(null);
     setModeTab("calendar");
+  };
+
+  const applyGhlCalendarList = (list: GhlCalendarOption[]) => {
+    setGhlCalendars(list);
+    if (list.length === 0) return;
+    const current = calCalendarId.trim();
+    if (!current || !list.some((c) => c.id === current)) {
+      setCalCalendarId(list[0].id);
+    }
+  };
+
+  const handleLoadGhlCalendars = async () => {
+    setCalFormError(null);
+    setActionMsg(null);
+    if (!calLocationId.trim()) {
+      setCalFormError("Location ID (sub-account) is required to list calendars.");
+      return;
+    }
+    if (!calApiKey.trim() && !calEditingId) {
+      setCalFormError("Paste the Private Integration Token first.");
+      return;
+    }
+    setGhlCalendarsLoading(true);
+    try {
+      if (calApiKey.trim()) {
+        const result = await previewGhlCalendars({
+          apiKey: calApiKey.trim(),
+          locationId: calLocationId.trim(),
+        });
+        if (!result.ok) {
+          setCalFormError(result.message || "Could not list calendars.");
+          setGhlCalendars([]);
+          return;
+        }
+        applyGhlCalendarList(result.calendars ?? []);
+        setActionMsg(
+          result.message ||
+            `Found ${result.calendars?.length ?? 0} calendar(s).`,
+        );
+        return;
+      }
+      const result = await testUserOrgIntegration(calEditingId as string);
+      if (!result.ok) {
+        setCalFormError(result.message || "Could not list calendars.");
+        setGhlCalendars([]);
+        return;
+      }
+      const fromTest =
+        result.calendars && result.calendars.length > 0
+          ? result.calendars
+          : (result.calendarIds ?? []).map((id) => ({ id }));
+      applyGhlCalendarList(fromTest);
+      setActionMsg(result.message || `Found ${fromTest.length} calendar(s).`);
+    } catch (err) {
+      if (err instanceof UnauthorizedError) {
+        logout();
+        return;
+      }
+      setCalFormError(
+        err instanceof ApiError ? err.message : "Could not list calendars.",
+      );
+    } finally {
+      setGhlCalendarsLoading(false);
+    }
   };
 
   const handleCalSubmit = async (e: FormEvent) => {
@@ -837,10 +917,28 @@ export default function UserIntegrationsPage() {
               <p className="ops-desk-note">
                 {calProvider === "ghl" ? (
                   <>
-                    Private Integration Token from GoHighLevel (calendar read/write
-                    + contacts write). Link on an{" "}
-                    <Link to="/dashboard/agents">agent</Link> and enable GHL ids
-                    on a{" "}
+                    GoHighLevel{" "}
+                    <a
+                      href="https://marketplace.gohighlevel.com/docs/Authorization/PrivateIntegrationsToken"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      API v3 Private Integration
+                    </a>
+                    {" "}on the <strong>sub-account</strong> (not a v1 API key). Create
+                    it under Settings → Private Integrations with only{" "}
+                    {GHL_V3_SCOPES.map((s, i) => (
+                      <span key={s.scope}>
+                        {i > 0 ? "; " : ""}
+                        {s.label} (
+                        <span className="ops-mono">{s.scope}</span>)
+                      </span>
+                    ))}
+                    . Calendar tools do not create contacts — no{" "}
+                    <span className="ops-mono">contacts.write</span>. Then link
+                    this connection on an{" "}
+                    <Link to="/dashboard/agents">agent</Link> and enable GHL
+                    tools on a{" "}
                     <Link to="/dashboard/tool-profiles">tool profile</Link>.
                   </>
                 ) : (
@@ -866,6 +964,7 @@ export default function UserIntegrationsPage() {
                   onChange={(e) => {
                     const next = e.target.value as IntegrationProvider;
                     setCalProvider(next);
+                    setGhlCalendars([]);
                     if (!calEditingId) {
                       setCalCalendarId(next === "ghl" ? "" : "primary");
                     }
@@ -905,7 +1004,7 @@ export default function UserIntegrationsPage() {
                 label={
                   calEditingId
                     ? calProvider === "ghl"
-                      ? "PIT (blank = keep)"
+                      ? "Private Integration Token (blank = keep)"
                       : "API key (blank = keep)"
                     : calProvider === "ghl"
                       ? "Private Integration Token"
@@ -913,6 +1012,11 @@ export default function UserIntegrationsPage() {
                 }
                 htmlFor="cal-key"
                 required={!calEditingId}
+                hint={
+                  calProvider === "ghl"
+                    ? "Bearer token from Settings → Private Integrations. Shown once — usually starts with pit-."
+                    : undefined
+                }
               >
                 <Input
                   id="cal-key"
@@ -927,26 +1031,78 @@ export default function UserIntegrationsPage() {
               </Field>
               {calProvider === "ghl" ? (
                 <>
-                  <Field label="Location ID" htmlFor="cal-loc" required>
+                  <Field
+                    label="Location ID"
+                    htmlFor="cal-loc"
+                    required
+                    hint="Sub-account id. In the GHL URL /v2/location/<id>/ or Settings → Business Profile."
+                  >
                     <Input
                       id="cal-loc"
                       value={calLocationId}
-                      onChange={(e) => setCalLocationId(e.target.value)}
+                      onChange={(e) => {
+                        setCalLocationId(e.target.value);
+                        setGhlCalendars([]);
+                      }}
                       disabled={calSubmitting}
                       className="ops-mono"
-                      placeholder="GHL sub-account id"
+                      placeholder="sub-account location id"
                     />
                   </Field>
-                  <Field label="Calendar ID" htmlFor="cal-cal" required>
-                    <Input
-                      id="cal-cal"
-                      value={calCalendarId}
-                      onChange={(e) => setCalCalendarId(e.target.value)}
-                      disabled={calSubmitting}
-                      className="ops-mono"
-                      placeholder="GHL calendar id"
-                    />
-                  </Field>
+                  <div className="ops-desk-submit">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      loading={ghlCalendarsLoading}
+                      disabled={calSubmitting || ghlCalendarsLoading}
+                      onClick={() => void handleLoadGhlCalendars()}
+                    >
+                      Load calendars
+                    </Button>
+                  </div>
+                  {ghlCalendars.length > 0 ? (
+                    <Field
+                      label="Calendar"
+                      htmlFor="cal-cal"
+                      required
+                      hint="From GET /calendars/?locationId= (v3). Pick the bookable calendar."
+                    >
+                      <Select
+                        id="cal-cal"
+                        value={calCalendarId}
+                        onChange={(e) => setCalCalendarId(e.target.value)}
+                        disabled={calSubmitting}
+                      >
+                        {calCalendarId &&
+                        !ghlCalendars.some((c) => c.id === calCalendarId) ? (
+                          <option value={calCalendarId}>
+                            {calCalendarId} (saved)
+                          </option>
+                        ) : null}
+                        {ghlCalendars.map((cal) => (
+                          <option key={cal.id} value={cal.id}>
+                            {calendarLabel(cal)}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                  ) : (
+                    <Field
+                      label="Calendar ID"
+                      htmlFor="cal-cal"
+                      required
+                      hint="Load calendars above, or paste the calendar id from GHL calendar settings."
+                    >
+                      <Input
+                        id="cal-cal"
+                        value={calCalendarId}
+                        onChange={(e) => setCalCalendarId(e.target.value)}
+                        disabled={calSubmitting}
+                        className="ops-mono"
+                        placeholder="calendar id"
+                      />
+                    </Field>
+                  )}
                 </>
               ) : (
                 <>

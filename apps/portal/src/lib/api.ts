@@ -149,7 +149,8 @@ export const TOOL_ID_HINTS: Record<string, string> = {
   cancelCalendarEvent: "Nylas cancel event — requires agent calendar link",
   checkGhlFreeSlots:
     "GHL open slots only — requires agent GHL calendar link (hides existing meetings)",
-  scheduleGhlMeeting: "GHL book a meeting — requires agent GHL calendar link",
+  scheduleGhlMeeting:
+    "GHL book a meeting — requires agent GHL calendar link and an existing GHL contact id on the call",
 };
 
 export type IntegrationProvider = "nylas" | "ghl";
@@ -1151,11 +1152,29 @@ export const updateUserOrgIntegration = (
 export const deleteUserOrgIntegration = (id: string) =>
   userFetch<void>(`/users/integrations/${id}`, { method: "DELETE" });
 
+export type GhlCalendarOption = { id: string; name?: string };
+
 export const testUserOrgIntegration = (id: string) =>
-  userFetch<{ ok: boolean; message?: string; calendarIds?: string[] }>(
-    `/users/integrations/${id}/test`,
-    { method: "POST" },
-  );
+  userFetch<{
+    ok: boolean;
+    message?: string;
+    calendarIds?: string[];
+    calendars?: GhlCalendarOption[];
+  }>(`/users/integrations/${id}/test`, { method: "POST" });
+
+/** Unsaved GHL v3 PIT + location → GET /calendars/?locationId= */
+export const previewGhlCalendars = (data: {
+  apiKey: string;
+  locationId: string;
+}) =>
+  userFetch<{
+    ok: boolean;
+    message?: string;
+    calendars?: GhlCalendarOption[];
+  }>("/users/integrations/ghl/calendars", {
+    method: "POST",
+    body: data,
+  });
 
 /* ── User tool profiles ── */
 export const listUserToolProfiles = () =>

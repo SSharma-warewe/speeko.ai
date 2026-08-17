@@ -357,6 +357,19 @@ describe('GhlService calendar', () => {
     const headers = init.headers as Record<string, string>;
     expect(headers.Authorization).toBe('Bearer pit-org');
   });
+
+  it('explains v3 token/scope errors when listing calendars fails', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ message: 'Unauthorized' }, 401));
+    const service = makeService({ GHL_CALENDAR: '' });
+    const result = await service.listCalendars({
+      token: 'pit-bad',
+      locationId: 'loc_org',
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toMatch(/calendars.readonly/);
+    expect(result.error).toBe('ghl_calendars_401');
+  });
 });
 
 describe('GhlCalendarToolsService', () => {
@@ -548,12 +561,11 @@ describe('GhlCalendarToolsService', () => {
     expect(arg.endMs).toBe(Date.parse('2028-06-15T18:30:00.000Z'));
   });
 
-  it('books using call context email when tool omits identity', async () => {
-    stubLinkedGhl({ email: 'ada@example.com', name: 'Ada Lovelace' });
-    ghl.upsertContact.mockResolvedValue({
-      ok: true,
-      contactId: 'ct_1',
-      created: false,
+  it('books using ghlContactId from call context (no contact upsert)', async () => {
+    stubLinkedGhl({
+      email: 'ada@example.com',
+      name: 'Ada Lovelace',
+      ghlContactId: 'ct_1',
     });
     ghl.createAppointment.mockResolvedValue({
       ok: true,
@@ -567,13 +579,7 @@ describe('GhlCalendarToolsService', () => {
       startTime: '2028-06-15T10:00:00+05:30',
     });
     expect(res.ok).toBe(true);
-    expect(ghl.upsertContact).toHaveBeenCalledWith(
-      expect.objectContaining({
-        email: 'ada@example.com',
-        name: 'Ada Lovelace',
-      }),
-      { token: GHL_CREDS.token, locationId: GHL_CREDS.locationId },
-    );
+    expect(ghl.upsertContact).not.toHaveBeenCalled();
     expect(ghl.createAppointment).toHaveBeenCalledWith(
       {
         contactId: 'ct_1',
@@ -592,8 +598,8 @@ describe('GhlCalendarToolsService', () => {
     });
   });
 
-  it('fails schedule without email or phone', async () => {
-    stubLinkedGhl();
+  it('fails schedule without a GHL contact id', async () => {
+    stubLinkedGhl({ email: 'ada@example.com' });
     await expect(
       service.scheduleMeeting(CALL_ID, {
         startTime: '2028-06-15T10:00:00+05:30',
@@ -604,12 +610,7 @@ describe('GhlCalendarToolsService', () => {
   });
 
   it('books a Z+timezone spoken time as local IST, not UTC', async () => {
-    stubLinkedGhl({ email: 'ada@example.com' });
-    ghl.upsertContact.mockResolvedValue({
-      ok: true,
-      contactId: 'ct_1',
-      created: false,
-    });
+    stubLinkedGhl({ email: 'ada@example.com', ghlContactId: 'ct_1' });
     ghl.createAppointment.mockResolvedValue({
       ok: true,
       appointmentId: 'apt_1',

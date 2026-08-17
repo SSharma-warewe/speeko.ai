@@ -436,7 +436,7 @@ export class GhlService {
       return {
         ok: false,
         error: `ghl_calendars_${res.status}`,
-        message: 'Could not list calendars. Check the PIT and location id.',
+        message: listCalendarsErrorMessage(res.status),
       };
     }
 
@@ -519,6 +519,19 @@ export function buildLeadNote(input: {
     lines.push(`Integrations: ${input.integrations.join(', ')}`);
   }
   return lines.join('\n');
+}
+
+function listCalendarsErrorMessage(status: number): string {
+  if (status === 401) {
+    return 'Unauthorized. Check the v3 Private Integration Token and that it includes calendars.readonly.';
+  }
+  if (status === 403) {
+    return 'Forbidden. Use a sub-account token with calendars.readonly for this location.';
+  }
+  if (status === 400) {
+    return 'Bad request. Check the location (sub-account) id.';
+  }
+  return 'Could not list calendars. Check the Private Integration Token and location id.';
 }
 
 function readCalendars(

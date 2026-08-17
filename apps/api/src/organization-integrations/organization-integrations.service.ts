@@ -7,9 +7,11 @@ import {
 } from '@nestjs/common';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { CreateOrganizationIntegrationDto } from './dto/create-organization-integration.dto';
+import { PreviewGhlCalendarsDto } from './dto/preview-ghl-calendars.dto';
 import {
   OrganizationIntegrationResponseDto,
   OrganizationIntegrationTestResponseDto,
+  PreviewGhlCalendarsResponseDto,
 } from './dto/organization-integration-response.dto';
 import { UpdateOrganizationIntegrationDto } from './dto/update-organization-integration.dto';
 import {
@@ -275,6 +277,41 @@ export class OrganizationIntegrationsService {
       ok: true,
       message: `Connected — ${calendarIds.length} calendar(s) found.${missingStored}`,
       calendarIds,
+      calendars: result.calendars,
+    };
+  }
+
+  /**
+   * List GHL calendars for a v3 PIT + location without saving.
+   * Used by the portal form before create (GET /calendars/?locationId=).
+   */
+  async previewGhlCalendars(
+    organizationId: string,
+    dto: PreviewGhlCalendarsDto,
+  ): Promise<PreviewGhlCalendarsResponseDto> {
+    await this.organizationsService.findById(organizationId);
+    const token = dto.apiKey.trim();
+    const locationId = dto.locationId.trim();
+    if (!token || !locationId) {
+      throw new BadRequestException(
+        'apiKey (Private Integration Token) and locationId are required.',
+      );
+    }
+
+    const result = await this.ghl.listCalendars({ token, locationId });
+    if (!result.ok) {
+      return {
+        ok: false,
+        message: result.message || 'Could not list GoHighLevel calendars.',
+      };
+    }
+
+    return {
+      ok: true,
+      message: result.calendars.length
+        ? `Found ${result.calendars.length} calendar(s) in this location.`
+        : 'Connected, but this location has no calendars.',
+      calendars: result.calendars,
     };
   }
 

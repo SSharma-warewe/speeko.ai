@@ -151,30 +151,13 @@ export class GhlCalendarToolsService {
     if (past) return past;
 
     const identity = resolveIdentity(dto, call.context);
-    if (!identity.email && !identity.phone) {
+    const contactId = resolveGhlContactId(dto, call.context);
+    if (!contactId) {
       return {
         ok: false,
         error: 'missing_contact',
         message:
-          'Need the caller email or phone to book. Ask once, then call this tool again.',
-      };
-    }
-
-    const upsert = await this.ghl.upsertContact(identity, {
-      token: creds.token,
-      locationId: creds.locationId,
-    });
-    if (!upsert.ok) {
-      this.logger.warn(
-        `ghl schedule upsert callId=${callId} error=${upsert.error}`,
-      );
-      return {
-        ok: false,
-        error: upsert.error,
-        message:
-          upsert.error === 'contact_upsert_unavailable'
-            ? 'Contact save is not configured on this GoHighLevel connection. Cannot book.'
-            : 'Could not save the caller as a contact. Do not claim the meeting is booked.',
+          'Need an existing GoHighLevel contact id on this call (ghlContactId). Calendar tools do not create contacts.',
       };
     }
 
@@ -193,7 +176,7 @@ export class GhlCalendarToolsService {
 
     const booked = await this.ghl.createAppointment(
       {
-        contactId: upsert.contactId,
+        contactId,
         startTime,
         endTime,
         title,
@@ -349,6 +332,16 @@ function contextField(
     if (typeof value === 'string' && value.trim()) return value.trim();
   }
   return undefined;
+}
+
+export function resolveGhlContactId(
+  dto: GhlScheduleMeetingDto,
+  context: Record<string, unknown> | null | undefined,
+): string | undefined {
+  return (
+    dto.contactId?.trim() ||
+    contextField(context, 'ghlContactId', 'contactId', 'ghl_contact_id')
+  );
 }
 
 export function resolveIdentity(

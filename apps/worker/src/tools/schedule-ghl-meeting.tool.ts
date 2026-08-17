@@ -21,7 +21,8 @@ const BASE_DESCRIPTION = [
   '- If you must convert a spoken local time, use naive ISO (no Z) plus timezone. Never append Z to a local wall-clock.',
   '- endTime: optional; defaults to 30 minutes after start.',
   '- title: short, include their name when known (e.g. “Meeting — Ada”).',
-  '- participantEmail / phone / participantName: from conversation or call context.',
+  '- participantEmail / phone / participantName: for the title only.',
+  '- contactId: only if the caller gave a GHL contact id; otherwise the API uses ghlContactId from call context.',
   '',
   'AFTER SUCCESS:',
   '- Read back the confirmed time in natural language once.',
@@ -29,7 +30,7 @@ const BASE_DESCRIPTION = [
   '',
   'ON FAILURE:',
   '- If slot_unavailable, check free slots again. Do not claim it is booked.',
-  '- If missing_contact, ask for email or phone once and retry.',
+  '- If missing_contact, the call has no GHL contact id. Do not invent one. Do not claim it is booked.',
 ].join('\n');
 
 export const createScheduleGhlMeetingTool: ToolFactory = ({
@@ -73,7 +74,13 @@ export const createScheduleGhlMeetingTool: ToolFactory = ({
       phone: z
         .string()
         .optional()
-        .describe('Caller phone if email is missing.'),
+        .describe('Caller phone for the title if needed.'),
+      contactId: z
+        .string()
+        .optional()
+        .describe(
+          'Existing GHL contact id. Prefer call context ghlContactId; this tool does not create contacts.',
+        ),
     }),
     execute: async (args) => {
       console.log(
@@ -87,6 +94,7 @@ export const createScheduleGhlMeetingTool: ToolFactory = ({
       if (args.participantEmail) body.participantEmail = args.participantEmail;
       if (args.participantName) body.participantName = args.participantName;
       if (args.phone) body.phone = args.phone;
+      if (args.contactId) body.contactId = args.contactId;
       return callCalendarApi(userData.callId, 'appointments', body, {
         userData,
         toolId: 'scheduleGhlMeeting',

@@ -28,7 +28,7 @@ export class CreateOrganizationIntegrationDto {
 
   @ApiProperty({
     description:
-      'Nylas API key or GoHighLevel Private Integration Token. Stored server-side; never returned on GET.',
+      'Nylas API key or GoHighLevel v3 Private Integration Token (Bearer, Version 2021-07-28). Stored server-side; never returned on GET.',
     example: 'nyk_…',
   })
   @IsString()
@@ -47,8 +47,9 @@ export class CreateOrganizationIntegrationDto {
   grantId?: string;
 
   @ApiPropertyOptional({
-    description: 'GoHighLevel location (sub-account) id. Required when provider=ghl.',
-    example: 'abc123LocationId',
+    description:
+      'GoHighLevel location (sub-account) id. Required when provider=ghl. Used as locationId on v3 calendar and contact calls.',
+    example: 've9EPM428h8vShlRW1KT',
   })
   @IsOptional()
   @IsString()

@@ -43,7 +43,7 @@ export class DemoService {
     const callsPerDay = dto.callsPerDay.trim();
     const integrations = dto.integrations.map((i) => i.trim()).filter(Boolean);
 
-    await this.ghl.upsertLead({
+    const lead = await this.ghl.upsertLead({
       firstName,
       lastName,
       email,
@@ -82,6 +82,9 @@ export class DemoService {
         callsPerDay,
         direction: dto.direction,
         integrations,
+        ...(lead.ok && lead.contactId
+          ? { ghlContactId: lead.contactId }
+          : {}),
       },
     };
 

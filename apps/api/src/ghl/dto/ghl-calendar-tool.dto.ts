@@ -81,6 +81,16 @@ export class GhlScheduleMeetingDto {
   @IsString()
   @MaxLength(32)
   phone?: string;
+
+  @ApiPropertyOptional({
+    example: 'ct_1',
+    description:
+      'Existing GHL contact id. Calendar PIT has no contacts.write — will not create one.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  contactId?: string;
 }
 
 export class GhlCalendarToolResponseDto {
