@@ -1,11 +1,9 @@
 import { Link } from "react-router-dom";
 import { Button } from "@call-agent/ui";
 import { getAdminQueueStats, listCalls, listOrganizations } from "../../lib/api";
-import { formatDateTime, formatRelative, shortId } from "../../lib/format";
+import { formatRelative, shortId } from "../../lib/format";
 import { ErrorBlock } from "../components/ErrorBlock";
-import { KpiCard } from "../components/KpiCard";
 import { LoadingBlock } from "../components/LoadingBlock";
-import { PageHeader } from "../components/PageHeader";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAsync } from "../hooks/useAsync";
 
@@ -26,144 +24,173 @@ export default function OverviewPage() {
   const totals = stats.totals;
 
   return (
-    <div>
-      <PageHeader
-        eyebrow="Platform"
-        title="Ops overview"
-        description="Live queue health across tenants, dialer status, and the latest call activity."
-        actions={
+    <div className="ops-ov">
+      <div className="ops-ov-strip">
+        <div className="ops-ov-strip-live">
+          <StatusBadge
+            status={stats.dialer.globalEnabled ? "live" : "inactive"}
+            label={stats.dialer.globalEnabled ? "Dialer on" : "Dialer off"}
+          />
+          <span className="ops-ov-strip-meta">
+            <span>tick {formatRelative(stats.dialer.lastTickAt)}</span>
+            <span className="ops-ov-dot" aria-hidden>
+              ·
+            </span>
+            <span>claimed {stats.dialer.lastClaimCount}</span>
+            <span className="ops-ov-dot" aria-hidden>
+              ·
+            </span>
+            <span>{totals.orgsPaused} orgs paused</span>
+            <span className="ops-ov-dot" aria-hidden>
+              ·
+            </span>
+            <span>as of {formatRelative(stats.asOf)}</span>
+          </span>
+          {stats.dialer.lastError ? (
+            <span className="ops-ov-strip-error" title={stats.dialer.lastError}>
+              {stats.dialer.lastError}
+            </span>
+          ) : null}
+        </div>
+        <div className="ops-ov-strip-actions">
           <Button type="button" variant="secondary" size="sm" onClick={reload}>
             Refresh
           </Button>
-        }
-      />
-
-      <div className="ops-kpis">
-        <KpiCard value={orgs.length} label="Organizations" hint={`${totals.orgsEnabled} queue enabled`} />
-        <KpiCard value={totals.pending} label="Pending" hint="Waiting to dial" />
-        <KpiCard
-          value={totals.inProgress}
-          label="In progress"
-          hint="Creating / dialing / ready"
-          highlight={totals.inProgress > 0}
-        />
-        <KpiCard value={totals.completed} label="Completed" hint={`${totals.failed} failed`} />
+        </div>
       </div>
 
-      <div className="ops-two-col">
-        <section className="ops-panel">
+      <div className="ops-ov-kpis ops-ov-kpis--admin" role="list">
+        <Link to="/admin-dashboard/organizations" className="ops-ov-kpi" role="listitem">
+          <span className="ops-ov-kpi-label">Orgs</span>
+          <span className="ops-ov-kpi-value">{orgs.length}</span>
+          <span className="ops-ov-kpi-hint">{totals.orgsEnabled} queue on</span>
+        </Link>
+        <Link to="/admin-dashboard/calls" className="ops-ov-kpi" role="listitem">
+          <span className="ops-ov-kpi-label">Pending</span>
+          <span className="ops-ov-kpi-value">{totals.pending}</span>
+          <span className="ops-ov-kpi-hint">waiting to dial</span>
+        </Link>
+        <Link
+          to="/admin-dashboard/calls"
+          className={`ops-ov-kpi${totals.inProgress > 0 ? " is-live" : ""}`}
+          role="listitem"
+        >
+          <span className="ops-ov-kpi-label">In progress</span>
+          <span className="ops-ov-kpi-value">{totals.inProgress}</span>
+          <span className="ops-ov-kpi-hint">creating / dialing / live</span>
+        </Link>
+        <Link to="/admin-dashboard/calls" className="ops-ov-kpi" role="listitem">
+          <span className="ops-ov-kpi-label">Completed</span>
+          <span className="ops-ov-kpi-value">{totals.completed}</span>
+          <span className="ops-ov-kpi-hint">finished ok</span>
+        </Link>
+        <Link
+          to="/admin-dashboard/calls"
+          className={`ops-ov-kpi${totals.failed > 0 ? " is-bad" : ""}`}
+          role="listitem"
+        >
+          <span className="ops-ov-kpi-label">Failed</span>
+          <span className="ops-ov-kpi-value">{totals.failed}</span>
+          <span className="ops-ov-kpi-hint">{totals.cancelled} cancelled</span>
+        </Link>
+        <Link
+          to="/admin-dashboard/organizations"
+          className={`ops-ov-kpi${totals.orgsPaused > 0 ? " is-warn" : ""}`}
+          role="listitem"
+        >
+          <span className="ops-ov-kpi-label">Paused</span>
+          <span className="ops-ov-kpi-value">{totals.orgsPaused}</span>
+          <span className="ops-ov-kpi-hint">orgs on hold</span>
+        </Link>
+      </div>
+
+      <div className="ops-ov-floor">
+        <section className="ops-panel ops-ov-cell">
           <div className="ops-panel-head">
             <h2>Recent calls</h2>
             <Link to="/admin-dashboard/calls" className="ops-mono">
               View all →
             </Link>
           </div>
-          <div className="ops-panel-body is-flush">
+          <div className="ops-ov-ticker-body">
             {calls.length === 0 ? (
-              <div className="ops-state">
+              <div className="ops-ov-empty">
                 <p>No calls yet. Start a web test or outbound dial from the API.</p>
               </div>
             ) : (
-              <div className="ops-table-wrap">
-                <table className="ops-table">
-                  <thead>
-                    <tr>
-                      <th>Status</th>
-                      <th>Direction</th>
-                      <th>To</th>
-                      <th>When</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {calls.map((c) => (
-                      <tr key={c.id}>
-                        <td>
-                          <Link to={`/admin-dashboard/calls/${c.id}`}>
-                            <StatusBadge status={c.status} />
-                          </Link>
-                        </td>
-                        <td>
-                          <StatusBadge status={c.direction} />
-                        </td>
-                        <td className="ops-mono">{c.toNumber || c.participantIdentity || "—"}</td>
-                        <td className="ops-faint">{formatRelative(c.createdAt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ol className="ops-ov-tape">
+                {calls.map((c) => {
+                  const live =
+                    c.status === "dialing" || c.status === "ready" || c.status === "creating";
+                  return (
+                    <li key={c.id}>
+                      <Link
+                        to={`/admin-dashboard/calls/${c.id}`}
+                        className={`ops-ov-tape-row${live ? " is-live" : ""}`}
+                      >
+                        <StatusBadge status={c.status} />
+                        <span className="ops-ov-tape-to">
+                          {c.toNumber || c.participantIdentity || "—"}
+                        </span>
+                        <span className="ops-ov-tape-task">{c.taskKey || "—"}</span>
+                        <span className="ops-ov-tape-meta">
+                          {c.direction}
+                          <span aria-hidden> · </span>
+                          {c.medium}
+                        </span>
+                        <span className="ops-ov-tape-try">{shortId(c.id, 8)}</span>
+                        <time className="ops-ov-tape-when" dateTime={c.createdAt}>
+                          {formatRelative(c.createdAt)}
+                        </time>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ol>
             )}
           </div>
         </section>
 
-        <section className="ops-panel">
-          <div className="ops-panel-head">
-            <h2>Dialer health</h2>
-            <StatusBadge
-              status={stats.dialer.globalEnabled ? "live" : "inactive"}
-              label={stats.dialer.globalEnabled ? "Enabled" : "Disabled"}
-            />
-          </div>
-          <div className="ops-panel-body">
-            <dl className="ops-detail-grid">
-              <div className="ops-detail-item">
-                <dt>Last tick</dt>
-                <dd>{formatDateTime(stats.dialer.lastTickAt)}</dd>
-              </div>
-              <div className="ops-detail-item">
-                <dt>Last claim count</dt>
-                <dd>{stats.dialer.lastClaimCount}</dd>
-              </div>
-              <div className="ops-detail-item">
-                <dt>Orgs paused</dt>
-                <dd>{totals.orgsPaused}</dd>
-              </div>
-              <div className="ops-detail-item">
-                <dt>As of</dt>
-                <dd>{formatDateTime(stats.asOf)}</dd>
-              </div>
-            </dl>
-            {stats.dialer.lastError ? (
-              <p className="ops-muted" style={{ marginTop: "1rem", marginBottom: 0 }}>
-                Last error: {stats.dialer.lastError}
-              </p>
-            ) : null}
-
-            <div style={{ marginTop: "1.25rem" }}>
-              <h3 style={{ margin: "0 0 0.65rem", fontSize: "0.85rem" }}>Organizations</h3>
+        <aside className="ops-ov-side">
+          <section className="ops-panel">
+            <div className="ops-panel-head">
+              <h2>Organizations</h2>
+              <Link to="/admin-dashboard/organizations" className="ops-mono">
+                All →
+              </Link>
+            </div>
+            <div className="ops-panel-body is-flush">
               {orgs.length === 0 ? (
-                <p className="ops-muted" style={{ margin: 0 }}>
-                  No tenants yet.{" "}
-                  <Link to="/admin-dashboard/organizations">Create one →</Link>
-                </p>
+                <div className="ops-ov-empty">
+                  <p>
+                    No tenants yet.{" "}
+                    <Link to="/admin-dashboard/organizations">Create one</Link>.
+                  </p>
+                </div>
               ) : (
-                <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: "0.45rem" }}>
-                  {orgs.slice(0, 6).map((o) => (
+                <ul className="ops-ov-side-list">
+                  {orgs.slice(0, 8).map((o) => (
                     <li key={o.id}>
                       <Link
                         to={`/admin-dashboard/organizations/${o.id}`}
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          gap: "0.75rem",
-                          textDecoration: "none",
-                          color: "inherit",
-                          padding: "0.45rem 0.55rem",
-                          borderRadius: 8,
-                          border: "1px solid var(--ops-line)",
-                          background: "#fafafa",
-                        }}
+                        className="ops-ov-side-row"
                       >
-                        <strong style={{ fontSize: "0.85rem" }}>{o.name}</strong>
-                        <span className="ops-mono">{shortId(o.slug, 16)}</span>
+                        <StatusBadge
+                          status={o.isActive ? "active" : "inactive"}
+                          label={o.isActive ? "on" : "off"}
+                        />
+                        <span className="ops-ov-side-copy">
+                          <strong>{o.name}</strong>
+                          <span className="ops-mono">{o.slug}</span>
+                        </span>
                       </Link>
                     </li>
                   ))}
                 </ul>
               )}
             </div>
-          </div>
-        </section>
+          </section>
+        </aside>
       </div>
     </div>
   );

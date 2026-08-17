@@ -12,11 +12,20 @@ type Props = {
   days: DailyVolume[];
 };
 
+const COLORS = {
+  completed: "#166534",
+  failed: "#991b1b",
+  cancelled: "#737373",
+} as const;
+
 export function CallsVolumeChart({ days }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const series = days.length > 0 ? days : emptyWindow();
-  const max = Math.max(1, ...series.map((d) => d.total));
+  const max = Math.max(1, ...series.map((d) => stackTotal(d)));
   const active = hover != null ? series[hover] : null;
+  const windowTotal = series.reduce((n, d) => n + stackTotal(d), 0);
+  const windowDone = series.reduce((n, d) => n + d.completed, 0);
+  const windowFail = series.reduce((n, d) => n + d.failed, 0);
 
   return (
     <div className="ops-ov-volume">
@@ -25,68 +34,95 @@ export function CallsVolumeChart({ days }: Props) {
           <p>
             <strong>{formatDay(active.date, true)}</strong>
             <span>
-              {active.total} made · {active.completed} done · {active.failed} failed
+              {stackTotal(active)} made · {active.completed} done · {active.failed} failed
+              {active.cancelled > 0 ? ` · ${active.cancelled} cancelled` : ""}
             </span>
           </p>
         ) : (
           <p>
             <strong>Last 14 days</strong>
-            <span>{series.reduce((n, d) => n + d.total, 0)} calls created</span>
+            <span>
+              {windowTotal} made · {windowDone} done · {windowFail} failed
+            </span>
           </p>
         )}
+        <ul className="ops-ov-volume-key" aria-hidden>
+          <li>
+            <span className="ops-ov-swatch" style={{ background: COLORS.completed }} />
+            done
+          </li>
+          <li>
+            <span className="ops-ov-swatch" style={{ background: COLORS.failed }} />
+            failed
+          </li>
+          <li>
+            <span className="ops-ov-swatch" style={{ background: COLORS.cancelled }} />
+            cancelled
+          </li>
+        </ul>
       </div>
-      <div
-        className="ops-ov-volume-plot"
-        onMouseLeave={() => setHover(null)}
-      >
+      <div className="ops-ov-volume-plot" onMouseLeave={() => setHover(null)}>
         <svg
-          viewBox="0 0 560 168"
+          viewBox="0 0 560 148"
           width="100%"
-          height="168"
+          height="148"
           role="img"
-          aria-label="Calls created per day for the last 14 days"
+          aria-label="Calls completed, failed, and cancelled per day for the last 14 days"
         >
           {[0.25, 0.5, 0.75, 1].map((t) => (
             <line
               key={t}
               x1="8"
               x2="552"
-              y1={12 + (1 - t) * 120}
-              y2={12 + (1 - t) * 120}
+              y1={8 + (1 - t) * 108}
+              y2={8 + (1 - t) * 108}
               stroke="#eceae4"
               strokeWidth="1"
             />
           ))}
           {series.map((d, i) => {
             const slot = 544 / series.length;
-            const w = Math.max(8, slot * 0.55);
+            const w = Math.max(8, slot * 0.58);
             const x = 8 + i * slot + (slot - w) / 2;
-            const h = (d.total / max) * 120;
-            const y = 132 - h;
             const on = hover === i;
+            const layers = stackLayers(d, max, 108, 8);
             return (
               <g key={d.date}>
                 <rect
                   x={x}
-                  y={12}
+                  y={8}
                   width={w}
-                  height={120}
+                  height={108}
                   fill="transparent"
                   onMouseEnter={() => setHover(i)}
                 />
-                <rect
-                  x={x}
-                  y={y}
-                  width={w}
-                  height={Math.max(d.total > 0 ? 3 : 0, h)}
-                  rx="3"
-                  fill={on ? "#854d0e" : d.total > 0 ? "#ca8a04" : "#e7e5e0"}
-                  onMouseEnter={() => setHover(i)}
-                />
+                {layers.length === 0 ? (
+                  <rect
+                    x={x}
+                    y={114}
+                    width={w}
+                    height={2}
+                    rx="1"
+                    fill={on ? "#d6d3d1" : "#e7e5e0"}
+                    onMouseEnter={() => setHover(i)}
+                  />
+                ) : (
+                  layers.map((layer) => (
+                    <rect
+                      key={layer.key}
+                      x={x}
+                      y={layer.y}
+                      width={w}
+                      height={layer.h}
+                      fill={on ? layer.hot : layer.color}
+                      onMouseEnter={() => setHover(i)}
+                    />
+                  ))
+                )}
                 {(i === 0 || i === series.length - 1 || i % 3 === 0) && (
                   <text
                     x={x + w / 2}
-                    y="156"
+                    y="140"
                     textAnchor="middle"
                     fill="#a3a3a3"
                     fontSize="10"
@@ -102,6 +138,41 @@ export function CallsVolumeChart({ days }: Props) {
       </div>
     </div>
   );
+}
+
+function stackTotal(d: DailyVolume): number {
+  return d.completed + d.failed + d.cancelled;
+}
+
+function stackLayers(
+  d: DailyVolume,
+  max: number,
+  plotH: number,
+  top: number,
+): Array<{ key: string; y: number; h: number; color: string; hot: string }> {
+  const parts: Array<{ key: keyof typeof COLORS; value: number }> = [
+    { key: "completed", value: d.completed },
+    { key: "failed", value: d.failed },
+    { key: "cancelled", value: d.cancelled },
+  ];
+  const total = parts.reduce((n, p) => n + p.value, 0);
+  if (total <= 0) return [];
+  const barH = Math.max(3, (total / max) * plotH);
+  const baseline = top + plotH;
+  let cursor = baseline;
+  return parts
+    .filter((p) => p.value > 0)
+    .map((p) => {
+      const h = Math.max(2, (p.value / total) * barH);
+      cursor -= h;
+      return {
+        key: p.key,
+        y: cursor,
+        h,
+        color: COLORS[p.key],
+        hot: p.key === "completed" ? "#14532d" : p.key === "failed" ? "#7f1d1d" : "#525252",
+      };
+    });
 }
 
 function formatDay(isoDate: string, long: boolean): string {
