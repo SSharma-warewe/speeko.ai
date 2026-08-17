@@ -1,5 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  applyCallEvent,
+  CallLifecycleEvent,
+} from '../calls/call-state-machine';
+import {
   Call,
   CallFailureCode,
   CallStatus,
@@ -220,7 +224,9 @@ export class QueueRetryService {
     call: Call,
     decision: Extract<RetryDecision, { action: 'requeue' }>,
   ): void {
-    call.status = CallStatus.PENDING;
+    if (call.status !== CallStatus.PENDING) {
+      applyCallEvent(call, CallLifecycleEvent.REQUEUE, CallStatus.PENDING);
+    }
     call.nextAttemptAt = decision.nextAttemptAt;
     call.lastFailureCode = decision.failureCode;
     call.lastFailureAt = new Date();
@@ -236,7 +242,9 @@ export class QueueRetryService {
   }
 
   markTerminalFailed(call: Call, failureCode: CallFailureCode): void {
-    call.status = CallStatus.FAILED;
+    if (call.status !== CallStatus.FAILED) {
+      applyCallEvent(call, CallLifecycleEvent.DIAL_FAILED, CallStatus.FAILED);
+    }
     call.lastFailureCode = failureCode;
     call.lastFailureAt = new Date();
     call.endedAt = call.endedAt ?? new Date();

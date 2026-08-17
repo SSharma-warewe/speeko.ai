@@ -17,6 +17,12 @@ export class CallBatchStatsDto {
   @ApiProperty({ example: 5 })
   completed!: number;
 
+  @ApiProperty({
+    example: 1,
+    description: 'Conversation ended without the LiveKit task completing',
+  })
+  incomplete!: number;
+
   @ApiProperty({ example: 1 })
   failed!: number;
 

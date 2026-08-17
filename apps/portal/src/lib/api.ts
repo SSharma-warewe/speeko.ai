@@ -260,6 +260,8 @@ export interface CallRecord {
   context?: Record<string, unknown> | null;
   taskKey: string | null;
   taskResult: Record<string, unknown> | null;
+  /** pending until the session ends; completed only if complete_* ran */
+  taskStatus?: "pending" | "completed" | "incomplete";
   transcript: Array<{
     role: string;
     content: string;
@@ -355,6 +357,7 @@ export interface CallBatch {
     dialing: number;
     ready: number;
     completed: number;
+    incomplete?: number;
     failed: number;
     cancelled: number;
   };
@@ -398,6 +401,7 @@ export interface OrgQueueStats {
     dialing: number;
     ready: number;
     completed: number;
+    incomplete?: number;
     failed: number;
     cancelled: number;
   };
@@ -413,6 +417,7 @@ export interface OrgQueueStats {
     date: string;
     total: number;
     completed: number;
+    incomplete?: number;
     failed: number;
     cancelled: number;
   }>;
@@ -424,6 +429,7 @@ export interface AdminQueueStats {
     pending: number;
     inProgress: number;
     completed: number;
+    incomplete?: number;
     failed: number;
     cancelled: number;
     orgsEnabled: number;

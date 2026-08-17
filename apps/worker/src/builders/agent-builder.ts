@@ -33,6 +33,7 @@ export async function buildAgentRuntime(
     taskKey: meta.task,
     context: meta.context ?? {},
     taskResult: null,
+    taskCompleted: false,
     toolEvents: [],
   };
 
@@ -83,6 +84,7 @@ export async function buildAgentRuntime(
           ctx.agent.chatCtx.copy({ excludeInstructions: true }),
         );
         const result = await task.run();
+        userData.taskCompleted = true;
         if (result && typeof result === 'object') {
           userData.taskResult = {
             task: meta.task,

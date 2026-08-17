@@ -19,6 +19,7 @@ type DailyQueryRow = {
   day: Date | string;
   total: number | string;
   completed: number | string;
+  incomplete: number | string;
   failed: number | string;
   cancelled: number | string;
 };
@@ -76,6 +77,7 @@ export class QueueStatsService {
         dialing: counts[CallStatus.DIALING] ?? 0,
         ready: counts[CallStatus.READY] ?? 0,
         completed: counts[CallStatus.COMPLETED] ?? 0,
+        incomplete: counts[CallStatus.INCOMPLETE] ?? 0,
         failed: counts[CallStatus.FAILED] ?? 0,
         cancelled: counts[CallStatus.CANCELLED] ?? 0,
       },
@@ -109,6 +111,7 @@ export class QueueStatsService {
       pending: 0,
       inProgress: 0,
       completed: 0,
+      incomplete: 0,
       failed: 0,
       cancelled: 0,
       orgsEnabled: 0,
@@ -118,6 +121,7 @@ export class QueueStatsService {
       totals.pending += o.counts.pending;
       totals.inProgress += o.queue.inProgress;
       totals.completed += o.counts.completed;
+      totals.incomplete += o.counts.incomplete;
       totals.failed += o.counts.failed;
       totals.cancelled += o.counts.cancelled;
       if (o.queue.enabled) totals.orgsEnabled += 1;
@@ -211,17 +215,19 @@ export class QueueStatsService {
       SELECT to_char((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day,
              COUNT(*)::int AS total,
              COUNT(*) FILTER (WHERE status = $2)::int AS completed,
-             COUNT(*) FILTER (WHERE status = $3)::int AS failed,
-             COUNT(*) FILTER (WHERE status = $4)::int AS cancelled
+             COUNT(*) FILTER (WHERE status = $3)::int AS incomplete,
+             COUNT(*) FILTER (WHERE status = $4)::int AS failed,
+             COUNT(*) FILTER (WHERE status = $5)::int AS cancelled
       FROM calls
       WHERE organization_id = $1
-        AND created_at >= ((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date - ($5::int - 1))
+        AND created_at >= ((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date - ($6::int - 1))
       GROUP BY 1
       ORDER BY 1
       `,
       [
         organizationId,
         CallStatus.COMPLETED,
+        CallStatus.INCOMPLETE,
         CallStatus.FAILED,
         CallStatus.CANCELLED,
         DAILY_HISTORY_DAYS,
@@ -242,6 +248,7 @@ export class QueueStatsService {
         date,
         total: Number(row.total) || 0,
         completed: Number(row.completed) || 0,
+        incomplete: Number(row.incomplete) || 0,
         failed: Number(row.failed) || 0,
         cancelled: Number(row.cancelled) || 0,
       });
@@ -256,6 +263,7 @@ export class QueueStatsService {
           date,
           total: 0,
           completed: 0,
+          incomplete: 0,
           failed: 0,
           cancelled: 0,
         },

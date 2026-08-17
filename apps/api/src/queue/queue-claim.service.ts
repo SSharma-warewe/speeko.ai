@@ -51,7 +51,7 @@ export class QueueClaimService {
   }
 
   /**
-   * Put a claimed CREATING call back to pending without burning an attempt.
+   * Event RELEASE_CLAIM: creating → pending without burning an attempt.
    * Used when a SIP channel slot opened at claim time but is full before dial
    * (e.g. previous dial in the same tick already answered and is still live).
    */
@@ -134,6 +134,7 @@ export class QueueClaimService {
         return [];
       }
 
+      // Event CLAIM: pending → creating (SQL, same pair as call-state-machine).
       await qr.query(
         `
         UPDATE calls

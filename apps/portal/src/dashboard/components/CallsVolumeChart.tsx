@@ -4,6 +4,7 @@ export type DailyVolume = {
   date: string;
   total: number;
   completed: number;
+  incomplete?: number;
   failed: number;
   cancelled: number;
 };
@@ -14,6 +15,7 @@ type Props = {
 
 const COLORS = {
   completed: "#166534",
+  incomplete: "#ca8a04",
   failed: "#991b1b",
   cancelled: "#737373",
 } as const;
@@ -34,7 +36,10 @@ export function CallsVolumeChart({ days }: Props) {
           <p>
             <strong>{formatDay(active.date, true)}</strong>
             <span>
-              {stackTotal(active)} made · {active.completed} done · {active.failed} failed
+              {stackTotal(active)} made · {active.completed} done
+              {(active.incomplete ?? 0) > 0 ? ` · ${active.incomplete} incomplete` : ""}
+              {" · "}
+              {active.failed} failed
               {active.cancelled > 0 ? ` · ${active.cancelled} cancelled` : ""}
             </span>
           </p>
@@ -50,6 +55,10 @@ export function CallsVolumeChart({ days }: Props) {
           <li>
             <span className="ops-ov-swatch" style={{ background: COLORS.completed }} />
             done
+          </li>
+          <li>
+            <span className="ops-ov-swatch" style={{ background: COLORS.incomplete }} />
+            incomplete
           </li>
           <li>
             <span className="ops-ov-swatch" style={{ background: COLORS.failed }} />
@@ -141,7 +150,7 @@ export function CallsVolumeChart({ days }: Props) {
 }
 
 function stackTotal(d: DailyVolume): number {
-  return d.completed + d.failed + d.cancelled;
+  return d.completed + (d.incomplete ?? 0) + d.failed + d.cancelled;
 }
 
 function stackLayers(
@@ -152,6 +161,7 @@ function stackLayers(
 ): Array<{ key: string; y: number; h: number; color: string; hot: string }> {
   const parts: Array<{ key: keyof typeof COLORS; value: number }> = [
     { key: "completed", value: d.completed },
+    { key: "incomplete", value: d.incomplete ?? 0 },
     { key: "failed", value: d.failed },
     { key: "cancelled", value: d.cancelled },
   ];
@@ -170,7 +180,14 @@ function stackLayers(
         y: cursor,
         h,
         color: COLORS[p.key],
-        hot: p.key === "completed" ? "#14532d" : p.key === "failed" ? "#7f1d1d" : "#525252",
+        hot:
+          p.key === "completed"
+            ? "#14532d"
+            : p.key === "incomplete"
+              ? "#a16207"
+              : p.key === "failed"
+                ? "#7f1d1d"
+                : "#525252",
       };
     });
 }
@@ -198,6 +215,7 @@ function emptyWindow(): DailyVolume[] {
       date: d.toISOString().slice(0, 10),
       total: 0,
       completed: 0,
+      incomplete: 0,
       failed: 0,
       cancelled: 0,
     };

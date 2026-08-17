@@ -21,6 +21,7 @@ import {
   CallFailureCode,
   CallMedium,
   CallStatus,
+  CallTaskStatus,
 } from '../call.entity';
 import { CallsRepository } from '../calls.repository';
 import { CallsService } from '../calls.service';
@@ -156,6 +157,7 @@ describe('CallsService', () => {
       context: { phoneNumber: '+15551234567' },
       taskKey: 'confirm_appointment',
       taskResult: null,
+      taskStatus: CallTaskStatus.PENDING,
       transcript: null,
       usage: null,
       sessionReport: null,
@@ -698,6 +700,7 @@ describe('CallsService', () => {
 
       const result = await service.completeFromWorker(CALL_ID, {
         status: 'completed',
+        taskCompleted: true,
         transcript: [{ role: 'assistant', content: 'Hello' }],
         usage: { models: [{ name: 'llm' }] },
         taskResult: { outcome: 'ok' },
@@ -707,6 +710,7 @@ describe('CallsService', () => {
       });
 
       expect(result.status).toBe(CallStatus.COMPLETED);
+      expect(result.taskStatus).toBe(CallTaskStatus.COMPLETED);
       expect(result.transcript).toEqual([
         { role: 'assistant', content: 'Hello' },
       ]);
@@ -801,7 +805,7 @@ describe('CallsService', () => {
       });
     });
 
-    it('24. completed without answeredAt does not invent one', async () => {
+    it('24. session ended without taskCompleted → incomplete, no invented answeredAt', async () => {
       const call = makeCall({
         id: CALL_ID,
         status: CallStatus.DIALING,
@@ -815,8 +819,46 @@ describe('CallsService', () => {
         endedAt: '2024-06-01T10:01:00.000Z',
       });
 
-      expect(result.status).toBe(CallStatus.COMPLETED);
+      expect(result.status).toBe(CallStatus.INCOMPLETE);
+      expect(result.taskStatus).toBe(CallTaskStatus.INCOMPLETE);
       expect(result.answeredAt).toBeNull();
+    });
+
+    it('24c. taskCompleted false → incomplete even with taskResult leftover', async () => {
+      const call = makeCall({
+        id: CALL_ID,
+        status: CallStatus.READY,
+      });
+      callsRepository.findById.mockResolvedValue(call);
+
+      const result = await service.completeFromWorker(CALL_ID, {
+        status: 'completed',
+        taskCompleted: false,
+        taskResult: { outcome: 'NO_ANSWER' },
+      });
+
+      expect(result.status).toBe(CallStatus.INCOMPLETE);
+      expect(result.taskStatus).toBe(CallTaskStatus.INCOMPLETE);
+    });
+
+    it('24d. late complete on incomplete stays incomplete', async () => {
+      const call = makeCall({
+        id: CALL_ID,
+        status: CallStatus.INCOMPLETE,
+        taskStatus: CallTaskStatus.INCOMPLETE,
+        transcript: null,
+      });
+      callsRepository.findById.mockResolvedValue(call);
+
+      const result = await service.completeFromWorker(CALL_ID, {
+        status: 'completed',
+        taskCompleted: true,
+        transcript: [{ role: 'user', content: 'late' }],
+      });
+
+      expect(result.status).toBe(CallStatus.INCOMPLETE);
+      expect(result.taskStatus).toBe(CallTaskStatus.INCOMPLETE);
+      expect(result.transcript).toEqual([{ role: 'user', content: 'late' }]);
     });
 
     it('24b. 404 when call missing', async () => {

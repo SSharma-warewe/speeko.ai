@@ -1,4 +1,4 @@
-import { Call } from '../call.entity';
+import { Call, CallTaskStatus } from '../call.entity';
 import { CallResponseDto, TestCallResponseDto } from '../dto/call-response.dto';
 
 export function toCallResponse(call: Call): CallResponseDto {
@@ -21,6 +21,7 @@ export function toCallResponse(call: Call): CallResponseDto {
     context: call.context,
     taskKey: call.taskKey,
     taskResult: call.taskResult,
+    taskStatus: call.taskStatus ?? CallTaskStatus.PENDING,
     transcript: call.transcript,
     usage: call.usage,
     sessionReport: call.sessionReport,

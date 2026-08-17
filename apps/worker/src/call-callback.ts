@@ -20,6 +20,11 @@ export type CompleteCallPayload = {
   usage?: Record<string, unknown> | null;
   sessionReport?: Record<string, unknown> | null;
   taskResult?: Record<string, unknown> | null;
+  /**
+   * True only when the LiveKit task called complete_* (task.run() resolved).
+   * API maps completed+true → completed, completed+false → incomplete.
+   */
+  taskCompleted?: boolean;
   /** Tool invocations during the call (merged into sessionReport on API). */
   toolEvents?: ToolEvent[] | null;
 };

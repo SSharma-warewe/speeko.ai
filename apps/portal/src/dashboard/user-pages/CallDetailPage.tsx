@@ -133,6 +133,21 @@ export default function UserCallDetailPage() {
                 <dd className="ops-mono">{data.taskKey || "—"}</dd>
               </div>
               <div className="ops-detail-item">
+                <dt>Task status</dt>
+                <dd>
+                  <StatusBadge
+                    status={data.taskStatus ?? "pending"}
+                    label={
+                      data.taskStatus === "completed"
+                        ? "Task completed"
+                        : data.taskStatus === "incomplete"
+                          ? "Task not completed"
+                          : "Task pending"
+                    }
+                  />
+                </dd>
+              </div>
+              <div className="ops-detail-item">
                 <dt>Attempts</dt>
                 <dd>
                   {data.attemptCount} / {data.maxAttempts}
@@ -269,7 +284,9 @@ export default function UserCallDetailPage() {
           <div className="ops-panel-body">
             {toolEvents.length === 0 ? (
               <p className="ops-muted" style={{ margin: 0 }}>
-                {data.status === "completed" || data.status === "failed"
+                {data.status === "completed" ||
+                data.status === "incomplete" ||
+                data.status === "failed"
                   ? "No tool invocations were recorded for this call."
                   : "No tool invocations yet. They appear after the worker completes the call."}
               </p>

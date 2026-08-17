@@ -24,12 +24,19 @@ import {
 } from '../tools/known-tools';
 import { ToolProfilesService } from '../tools/tool-profiles.service';
 import {
+  applyCallEvent,
+  CallLifecycleEvent,
+  initializeCallStatus,
+  isTerminalCallStatus,
+} from './call-state-machine';
+import {
   CALL_BUCKET_STATUSES,
   Call,
   CallBucket,
   CallFailureCode,
   CallMedium,
   CallStatus,
+  CallTaskStatus,
   CallTranscriptItem,
   CallUsageSnapshot,
 } from './call.entity';
@@ -119,6 +126,7 @@ export class CallsService {
       sipTrunkId: null,
       direction: agent.direction,
       status: CallStatus.CREATING,
+      taskStatus: CallTaskStatus.PENDING,
       medium: CallMedium.WEB,
       roomName,
       livekitDispatchId: null,
@@ -147,6 +155,7 @@ export class CallsService {
       answeredAt: null,
       endedAt: null,
     });
+    initializeCallStatus(call, CallLifecycleEvent.START_IMMEDIATE);
     call = await this.callsRepository.save(call);
 
     try {
@@ -192,7 +201,7 @@ export class CallsService {
       });
 
       call.livekitDispatchId = dispatch.id;
-      call.status = CallStatus.READY;
+      applyCallEvent(call, CallLifecycleEvent.DISPATCH, CallStatus.READY);
       call.startedAt = new Date();
       call = await this.callsRepository.save(call);
 
@@ -208,7 +217,7 @@ export class CallsService {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      call.status = CallStatus.FAILED;
+      applyCallEvent(call, CallLifecycleEvent.DIAL_FAILED, CallStatus.FAILED);
       call.errorMessage = message;
       await this.callsRepository.save(call);
       this.logger.error(`Test call failed id=${call.id}: ${message}`);
@@ -312,6 +321,7 @@ export class CallsService {
           sipTrunkId: trunk.id,
           direction: AgentDirection.OUTBOUND,
           status: CallStatus.PENDING,
+          taskStatus: CallTaskStatus.PENDING,
           medium: CallMedium.SIP,
           roomName: null,
           livekitDispatchId: null,
@@ -341,6 +351,7 @@ export class CallsService {
           endedAt: null,
         }),
       );
+      initializeCallStatus(entities[entities.length - 1], CallLifecycleEvent.ENQUEUE);
     }
 
     const saved = await this.callsRepository.saveMany(entities);
@@ -402,6 +413,7 @@ export class CallsService {
       sipTrunkId: null,
       direction: template.direction,
       status: CallStatus.CREATING,
+      taskStatus: CallTaskStatus.PENDING,
       medium: CallMedium.WEB,
       roomName,
       livekitDispatchId: null,
@@ -430,6 +442,7 @@ export class CallsService {
       answeredAt: null,
       endedAt: null,
     });
+    initializeCallStatus(call, CallLifecycleEvent.START_IMMEDIATE);
     call = await this.callsRepository.save(call);
 
     try {
@@ -477,7 +490,7 @@ export class CallsService {
       });
 
       call.livekitDispatchId = dispatch.id;
-      call.status = CallStatus.READY;
+      applyCallEvent(call, CallLifecycleEvent.DISPATCH, CallStatus.READY);
       call.startedAt = new Date();
       call = await this.callsRepository.save(call);
 
@@ -494,7 +507,7 @@ export class CallsService {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      call.status = CallStatus.FAILED;
+      applyCallEvent(call, CallLifecycleEvent.DIAL_FAILED, CallStatus.FAILED);
       call.errorMessage = message;
       await this.callsRepository.save(call);
       this.logger.error(`Org test call failed id=${call.id}: ${message}`);
@@ -563,6 +576,7 @@ export class CallsService {
       sipTrunkId: trunk.id,
       direction: AgentDirection.OUTBOUND,
       status: CallStatus.CREATING,
+      taskStatus: CallTaskStatus.PENDING,
       medium: CallMedium.SIP,
       roomName,
       livekitDispatchId: null,
@@ -591,6 +605,7 @@ export class CallsService {
       answeredAt: null,
       endedAt: null,
     });
+    initializeCallStatus(call, CallLifecycleEvent.START_IMMEDIATE);
     call = await this.callsRepository.save(call);
 
     try {
@@ -611,7 +626,7 @@ export class CallsService {
       return toCallResponse(call);
     } catch (err) {
       const message = this.formatSipError(err);
-      call.status = CallStatus.FAILED;
+      applyCallEvent(call, CallLifecycleEvent.DIAL_FAILED, CallStatus.FAILED);
       call.errorMessage = message;
       call.lastFailureCode = CallFailureCode.SIP_ERROR;
       call.lastFailureAt = new Date();
@@ -628,7 +643,7 @@ export class CallsService {
    */
   async dialClaimedCall(call: Call): Promise<Call> {
     if (!call.organizationId || !call.organizationAgentId) {
-      call.status = CallStatus.FAILED;
+      applyCallEvent(call, CallLifecycleEvent.DIAL_FAILED, CallStatus.FAILED);
       call.errorMessage = 'Queued call missing organization or agent';
       call.lastFailureCode = CallFailureCode.UNKNOWN;
       call.lastFailureAt = new Date();
@@ -775,7 +790,7 @@ export class CallsService {
       metadata: JSON.stringify(metadata),
     });
     call.livekitDispatchId = dispatch.id;
-    call.status = CallStatus.DIALING;
+    applyCallEvent(call, CallLifecycleEvent.DISPATCH, CallStatus.DIALING);
     call.startedAt = call.startedAt ?? new Date();
     call.queueLockedAt = null;
     call = await this.callsRepository.save(call);
@@ -803,10 +818,8 @@ export class CallsService {
         sipParticipant.participantIdentity || participantIdentity;
 
       if (shouldWait) {
-        call.status = CallStatus.READY;
+        applyCallEvent(call, CallLifecycleEvent.ANSWERED, CallStatus.READY);
         call.answeredAt = new Date();
-      } else {
-        call.status = CallStatus.DIALING;
       }
       call = await this.callsRepository.save(call);
 
@@ -827,7 +840,7 @@ export class CallsService {
           `SIP create reported error but callee is still in room; keeping call live ` +
             `id=${call.id} room=${roomName}: ${message}`,
         );
-        call.status = CallStatus.READY;
+        applyCallEvent(call, CallLifecycleEvent.ANSWERED, CallStatus.READY);
         call.answeredAt = call.answeredAt ?? new Date();
         call.errorMessage = `SIP wait reported: ${message} (call kept live)`;
         call.queueLockedAt = null;
@@ -1027,11 +1040,7 @@ export class CallsService {
       throw new NotFoundException(`Call not found: ${id}`);
     }
 
-    if (
-      call.status === CallStatus.COMPLETED ||
-      call.status === CallStatus.FAILED ||
-      call.status === CallStatus.CANCELLED
-    ) {
+    if (isTerminalCallStatus(call.status)) {
       if (dto.transcript && !call.transcript) {
         call.transcript = dto.transcript as CallTranscriptItem[];
       }
@@ -1076,7 +1085,15 @@ export class CallsService {
     }
 
     if (dto.status === 'completed') {
-      call.status = CallStatus.COMPLETED;
+      const taskDone = dto.taskCompleted === true;
+      applyCallEvent(
+        call,
+        taskDone
+          ? CallLifecycleEvent.TASK_COMPLETE
+          : CallLifecycleEvent.SESSION_ENDED_NO_TASK,
+        taskDone ? CallStatus.COMPLETED : CallStatus.INCOMPLETE,
+        { mode: 'lenient', logger: this.logger },
+      );
       call.endedAt = dto.endedAt ? this.parseDate(dto.endedAt) : new Date();
       call.queueLockedAt = null;
       call.nextAttemptAt = null;
@@ -1086,7 +1103,8 @@ export class CallsService {
       }
       this.logger.log(
         `Call complete id=${saved.id} status=${saved.status} ` +
-          `task=${saved.taskKey ?? 'n/a'} transcriptItems=${saved.transcript?.length ?? 0} ` +
+          `task=${saved.taskKey ?? 'n/a'} taskStatus=${saved.taskStatus} ` +
+          `transcriptItems=${saved.transcript?.length ?? 0} ` +
           `tools=${this.formatToolEventsSummary(saved.sessionReport)}`,
       );
       return toCallResponse(saved);
@@ -1183,7 +1201,7 @@ export class CallsService {
         `Only pending calls can be cancelled (status=${call.status})`,
       );
     }
-    call.status = CallStatus.CANCELLED;
+    applyCallEvent(call, CallLifecycleEvent.CANCEL, CallStatus.CANCELLED);
     call.endedAt = new Date();
     call.nextAttemptAt = null;
     call.queueLockedAt = null;
@@ -1221,7 +1239,7 @@ export class CallsService {
         // Allow one more cycle: bump max by keeping status pending if user force-retries
         call.maxAttempts = call.attemptCount + 1;
       }
-      call.status = CallStatus.PENDING;
+      applyCallEvent(call, CallLifecycleEvent.RETRY_NOW, CallStatus.PENDING);
       call.nextAttemptAt = new Date();
       call.endedAt = null;
       call.queueLockedAt = null;

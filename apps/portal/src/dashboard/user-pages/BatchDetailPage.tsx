@@ -119,6 +119,7 @@ export default function UserBatchDetailPage() {
             highlight={stats.dialing > 0}
           />
           <KpiCard value={stats.completed} label="Completed" />
+          <KpiCard value={stats.incomplete ?? 0} label="Incomplete" />
           <KpiCard value={stats.failed} label="Failed" hint={`${stats.cancelled} cancelled`} />
         </div>
       ) : null}

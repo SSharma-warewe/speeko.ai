@@ -6,6 +6,7 @@ const STATUS_TONE: Record<string, BadgeTone> = {
   dialing: "info",
   ready: "success",
   completed: "success",
+  incomplete: "warn",
   failed: "danger",
   cancelled: "neutral",
   live: "success",

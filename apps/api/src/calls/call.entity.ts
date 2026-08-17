@@ -17,7 +17,11 @@ import { SipTrunk } from '../sip-trunks/sip-trunk.entity';
  * Detailed call lifecycle. Buckets for listing:
  * - pending: PENDING
  * - in_progress: CREATING | DIALING | READY
- * - done: COMPLETED | FAILED | CANCELLED
+ * - done: COMPLETED | INCOMPLETE | FAILED | CANCELLED
+ *
+ * `completed` = session ended AND the LiveKit task called complete_*.
+ * `incomplete` = live conversation ended without task.complete().
+ * `failed` = never had a successful conversation (no answer / SIP / timeout).
  */
 export enum CallStatus {
   PENDING = 'pending',
@@ -26,7 +30,15 @@ export enum CallStatus {
   READY = 'ready',
   FAILED = 'failed',
   COMPLETED = 'completed',
+  INCOMPLETE = 'incomplete',
   CANCELLED = 'cancelled',
+}
+
+/** Workflow flag — do not infer from task_result JSON. */
+export enum CallTaskStatus {
+  PENDING = 'pending',
+  COMPLETED = 'completed',
+  INCOMPLETE = 'incomplete',
 }
 
 export enum CallBucket {
@@ -44,6 +56,7 @@ export const CALL_BUCKET_STATUSES: Record<CallBucket, CallStatus[]> = {
   ],
   [CallBucket.DONE]: [
     CallStatus.COMPLETED,
+    CallStatus.INCOMPLETE,
     CallStatus.FAILED,
     CallStatus.CANCELLED,
   ],
@@ -166,6 +179,18 @@ export class Call {
   /** Structured result returned by the LiveKit task on completion. */
   @Column({ name: 'task_result', type: 'jsonb', nullable: true })
   taskResult!: Record<string, unknown> | null;
+
+  /**
+   * Explicit workflow flag (pending | completed | incomplete).
+   * Set from worker `taskCompleted`, not inferred from task_result.
+   */
+  @Column({
+    name: 'task_status',
+    type: 'varchar',
+    length: 20,
+    default: CallTaskStatus.PENDING,
+  })
+  taskStatus!: CallTaskStatus;
 
   /** Conversation transcript from the worker session. */
   @Column({ type: 'jsonb', nullable: true })

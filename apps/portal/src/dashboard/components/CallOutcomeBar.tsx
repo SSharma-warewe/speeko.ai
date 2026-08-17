@@ -7,13 +7,20 @@ type Slice = {
 
 type Props = {
   completed: number;
+  incomplete?: number;
   failed: number;
   cancelled: number;
 };
 
-export function CallOutcomeBar({ completed, failed, cancelled }: Props) {
+export function CallOutcomeBar({
+  completed,
+  incomplete = 0,
+  failed,
+  cancelled,
+}: Props) {
   const slices: Slice[] = [
     { key: "completed", label: "Completed", value: completed, color: "#166534" },
+    { key: "incomplete", label: "Incomplete", value: incomplete, color: "#ca8a04" },
     { key: "failed", label: "Failed", value: failed, color: "#991b1b" },
     { key: "cancelled", label: "Cancelled", value: cancelled, color: "#737373" },
   ];

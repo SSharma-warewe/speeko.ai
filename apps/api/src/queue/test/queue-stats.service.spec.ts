@@ -69,6 +69,7 @@ describe('QueueStatsService', () => {
       day: string;
       total: number;
       completed: number;
+      incomplete?: number;
       failed: number;
       cancelled: number;
     }> = [],
@@ -118,6 +119,7 @@ describe('QueueStatsService', () => {
       dialing: 1,
       ready: 1,
       completed: 20,
+      incomplete: 0,
       failed: 2,
       cancelled: 1,
     });
@@ -197,6 +199,7 @@ describe('QueueStatsService', () => {
       pending: 8,
       inProgress: 3, // 2 dialing + 1 ready
       completed: 14,
+      incomplete: 0,
       failed: 1,
       cancelled: 2,
       orgsEnabled: 2,
@@ -256,6 +259,7 @@ describe('QueueStatsService', () => {
       date: '2026-08-15',
       total: 4,
       completed: 2,
+      incomplete: 0,
       failed: 1,
       cancelled: 1,
     });
@@ -263,6 +267,7 @@ describe('QueueStatsService', () => {
       date: '2026-08-10',
       total: 3,
       completed: 3,
+      incomplete: 0,
       failed: 0,
       cancelled: 0,
     });
@@ -270,6 +275,7 @@ describe('QueueStatsService', () => {
       date: '2026-08-03',
       total: 0,
       completed: 0,
+      incomplete: 0,
       failed: 0,
       cancelled: 0,
     });

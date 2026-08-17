@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AgentDirection } from '../../agents/agent.entity';
-import { CallMedium, CallStatus } from '../call.entity';
+import { CallMedium, CallStatus, CallTaskStatus } from '../call.entity';
 
 export class CallResponseDto {
   @ApiProperty({ format: 'uuid' })
@@ -69,6 +69,14 @@ export class CallResponseDto {
     description: 'Structured task result from the worker',
   })
   taskResult!: Record<string, unknown> | null;
+
+  @ApiProperty({
+    enum: CallTaskStatus,
+    example: CallTaskStatus.PENDING,
+    description:
+      'Workflow flag: pending until the session ends; completed only if complete_* ran',
+  })
+  taskStatus!: CallTaskStatus;
 
   @ApiPropertyOptional({ type: 'array', nullable: true })
   transcript!: Array<{

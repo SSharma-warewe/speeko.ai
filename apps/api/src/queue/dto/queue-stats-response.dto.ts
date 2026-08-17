@@ -33,6 +33,11 @@ export class QueueStatsDailyDto {
   @ApiProperty()
   completed!: number;
 
+  @ApiProperty({
+    description: 'Conversation ended without the LiveKit task completing',
+  })
+  incomplete!: number;
+
   @ApiProperty()
   failed!: number;
 
@@ -58,6 +63,11 @@ export class QueueStatsCountsDto {
 
   @ApiProperty()
   completed!: number;
+
+  @ApiProperty({
+    description: 'Conversation ended without the LiveKit task completing',
+  })
+  incomplete!: number;
 
   @ApiProperty()
   failed!: number;
@@ -134,6 +144,9 @@ export class AdminQueueTotalsDto {
 
   @ApiProperty()
   completed!: number;
+
+  @ApiProperty()
+  incomplete!: number;
 
   @ApiProperty()
   failed!: number;

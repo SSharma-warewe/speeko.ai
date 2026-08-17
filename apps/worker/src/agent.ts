@@ -53,6 +53,7 @@ export default defineAgent({
             answeredAt,
             taskKey: meta.task,
             taskResult: userData.taskResult,
+            taskCompleted: userData.taskCompleted === true,
           });
           await postCallComplete(callId, {
             status: shutdown.status,
@@ -64,6 +65,7 @@ export default defineAgent({
             usage,
             sessionReport,
             taskResult: shutdown.taskResult ?? userData.taskResult ?? null,
+            taskCompleted: shutdown.taskCompleted,
             toolEvents: userData.toolEvents ?? [],
           });
           console.log(
@@ -125,6 +127,7 @@ export default defineAgent({
           failureCode: stage === 'join/wait' ? 'no_answer' : 'agent_error',
           errorMessage: `Agent failed (${stage}): ${message}`,
           endedAt: new Date().toISOString(),
+          taskCompleted: false,
           taskResult: {
             task: meta.task,
             outcome: stage === 'join/wait' ? 'NO_ANSWER' : 'AGENT_ERROR',

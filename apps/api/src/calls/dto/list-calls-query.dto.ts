@@ -24,7 +24,7 @@ export class ListCallsQueryDto {
     enum: CallBucket,
     description:
       'High-level lifecycle bucket. Ignored when status is set. ' +
-      'pending = queued; in_progress = creating/dialing/ready; done = completed/failed/cancelled.',
+      'pending = queued; in_progress = creating/dialing/ready; done = completed/incomplete/failed/cancelled.',
   })
   @IsOptional()
   @IsEnum(CallBucket)

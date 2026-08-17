@@ -118,6 +118,7 @@ describe('CallBatchesService', () => {
       dialing: 0,
       ready: 0,
       completed: 5,
+      incomplete: 0,
       failed: 1,
       cancelled: 0,
     });

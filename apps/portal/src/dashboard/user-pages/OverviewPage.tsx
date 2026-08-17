@@ -179,8 +179,14 @@ export default function UserOverviewPage() {
         />
         <KpiCell
           to="/dashboard/calls?bucket=done"
-          label="Done"
+          label="Completed"
           value={stats.counts.completed}
+        />
+        <KpiCell
+          to="/dashboard/calls?bucket=done"
+          label="Incomplete"
+          value={stats.counts.incomplete ?? 0}
+          tone={(stats.counts.incomplete ?? 0) > 0 ? "warn" : undefined}
         />
         <KpiCell
           to="/dashboard/calls?bucket=done"
@@ -223,7 +229,7 @@ export default function UserOverviewPage() {
         <section className="ops-panel ops-ov-cell">
           <div className="ops-panel-head">
             <h2>Calls made</h2>
-            <span className="ops-faint">Completed / failed / cancelled · UTC day</span>
+            <span className="ops-faint">Completed / incomplete / failed · UTC day</span>
           </div>
           <div className="ops-panel-body ops-ov-chart-body">
             <CallsVolumeChart days={stats.daily ?? []} />
@@ -271,6 +277,7 @@ export default function UserOverviewPage() {
             <h3 className="ops-ov-subhead">Outcomes</h3>
             <CallOutcomeBar
               completed={stats.counts.completed}
+              incomplete={stats.counts.incomplete ?? 0}
               failed={stats.counts.failed}
               cancelled={stats.counts.cancelled}
             />
@@ -459,7 +466,10 @@ function TapeRow({ call }: { call: CallRecord }) {
 
 function BatchRow({ batch }: { batch: CallBatch }) {
   const done = batch.stats
-    ? batch.stats.completed + batch.stats.failed + batch.stats.cancelled
+    ? batch.stats.completed +
+      (batch.stats.incomplete ?? 0) +
+      batch.stats.failed +
+      batch.stats.cancelled
     : 0;
   return (
     <Link to={`/dashboard/batches/${batch.id}`} className="ops-ov-side-row">
@@ -492,7 +502,7 @@ function successRate14(stats: OrgQueueStats): number | null {
   let finished = 0;
   let completed = 0;
   for (const d of daily) {
-    finished += d.completed + d.failed + d.cancelled;
+    finished += d.completed + (d.incomplete ?? 0) + d.failed + d.cancelled;
     completed += d.completed;
   }
   if (finished <= 0) return null;

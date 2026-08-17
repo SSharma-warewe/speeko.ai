@@ -116,6 +116,7 @@ export default function OrgQueuePage() {
           highlight={stats.queue.inProgress > 0}
         />
         <KpiCard value={stats.counts.completed} label="Completed" />
+        <KpiCard value={stats.counts.incomplete ?? 0} label="Incomplete" />
         <KpiCard value={stats.counts.failed} label="Failed" />
       </div>
 

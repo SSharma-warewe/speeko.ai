@@ -21,6 +21,11 @@ export type SessionUserData = {
   context: Record<string, unknown>;
   /** Structured result from the active LiveKit task. */
   taskResult?: Record<string, unknown> | null;
+  /**
+   * True only after task.run() resolves (complete_* was called).
+   * Non-null taskResult is not enough — unanswered/crash paths also write one.
+   */
+  taskCompleted?: boolean;
   /** Tool calls during the session (calendar, hangup, stubs, task complete). */
   toolEvents?: ToolEvent[];
 };

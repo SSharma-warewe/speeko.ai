@@ -207,6 +207,7 @@ export class CallBatchesService {
       dialing: byStatus[CallStatus.DIALING] ?? 0,
       ready: byStatus[CallStatus.READY] ?? 0,
       completed: byStatus[CallStatus.COMPLETED] ?? 0,
+      incomplete: byStatus[CallStatus.INCOMPLETE] ?? 0,
       failed: byStatus[CallStatus.FAILED] ?? 0,
       cancelled: byStatus[CallStatus.CANCELLED] ?? 0,
     };

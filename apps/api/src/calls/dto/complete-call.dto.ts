@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
+  IsBoolean,
   IsIn,
   IsObject,
   IsOptional,
@@ -69,6 +70,16 @@ export class CompleteCallDto {
   @IsOptional()
   @IsObject()
   taskResult?: Record<string, unknown> | null;
+
+  @ApiPropertyOptional({
+    description:
+      'True only when the LiveKit task called complete_* (task.run() resolved). ' +
+      'Omitted/false on a session-ended callback becomes status=incomplete. ' +
+      'Do not infer from taskResult (NO_ANSWER / AGENT_ERROR also set that JSON).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  taskCompleted?: boolean;
 
   @ApiPropertyOptional({
     type: 'array',

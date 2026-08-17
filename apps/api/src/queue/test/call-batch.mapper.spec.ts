@@ -47,6 +47,7 @@ describe('toCallBatchResponse', () => {
       dialing: 0,
       ready: 0,
       completed: 2,
+      incomplete: 0,
       failed: 0,
       cancelled: 0,
     };

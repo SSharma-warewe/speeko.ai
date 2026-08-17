@@ -3,6 +3,7 @@ import {
   Call,
   CallMedium,
   CallStatus,
+  CallTaskStatus,
 } from '../call.entity';
 import {
   toCallResponse,
@@ -29,6 +30,7 @@ describe('call-response.mapper', () => {
     context: { bookingId: 'bk_1' },
     taskKey: 'confirm_appointment',
     taskResult: { status: 'CONFIRMED' },
+    taskStatus: CallTaskStatus.PENDING,
     transcript: [{ role: 'user', content: 'hi' }],
     usage: { models: [] },
     sessionReport: null as Record<string, unknown> | null,
@@ -64,6 +66,7 @@ describe('call-response.mapper', () => {
       expect(dto.roomName).toBe('out-abc');
       expect(dto.taskKey).toBe('confirm_appointment');
       expect(dto.taskResult).toEqual({ status: 'CONFIRMED' });
+      expect(dto.taskStatus).toBe(CallTaskStatus.PENDING);
       expect(dto.context).toEqual({ bookingId: 'bk_1' });
       expect(dto.attemptCount).toBe(1);
       expect(dto.maxAttempts).toBe(3);
@@ -71,7 +74,12 @@ describe('call-response.mapper', () => {
       expect(dto.priority).toBe(5);
     });
 
-    it('2. defaults priority to 0 when undefined', () => {
+    it('2. defaults taskStatus to pending when undefined', () => {
+      const call = { ...baseCall, taskStatus: undefined } as unknown as Call;
+      expect(toCallResponse(call).taskStatus).toBe(CallTaskStatus.PENDING);
+    });
+
+    it('2b. defaults priority to 0 when undefined', () => {
       const call = { ...baseCall, priority: undefined } as unknown as Call;
       expect(toCallResponse(call).priority).toBe(0);
     });

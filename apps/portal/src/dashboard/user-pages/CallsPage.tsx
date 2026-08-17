@@ -265,8 +265,12 @@ export default function UserCallsPage() {
                   className={`ops-calls-stat${bucket === "done" ? " is-on" : ""}`}
                   onClick={() => setBucketTab(bucket === "done" ? "all" : "done")}
                 >
-                  <strong>{counts.completed}</strong>
-                  <span>done · {counts.failed} fail</span>
+                  <strong>
+                    {counts.completed + (counts.incomplete ?? 0) + counts.failed + counts.cancelled}
+                  </strong>
+                  <span>
+                    done · {counts.completed} ok · {counts.incomplete ?? 0} incomplete
+                  </span>
                 </button>
               </li>
             </ul>
