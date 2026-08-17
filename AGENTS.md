@@ -128,7 +128,7 @@ Aligned with LiveKit’s separation of **Instructions**, **Tasks**, **Tools**, a
 | Concern | Where it lives | What it is |
 |---------|----------------|------------|
 | **Persona** | `agents.system_prompt` / `organization_agents.system_prompt` → metadata `prompt.systemPrompt` | Who the agent is, company, tone, policies, safety. **No** call-specific workflow steps. Portal edits this only. Worker `buildPersonaPrompt` **appends** a platform runtime layer (voice rules, direction, **current date/time/day** from the worker clock, safety) that is **not** in the portal. |
-| **Call open / close** | `on_enter_instructions` / `on_exit_instructions` → metadata `prompt.onEnterInstructions` / `onExitInstructions` | LiveKit parent **Agent** hooks: `onEnter` / `onExit` → `session.generateReply({ instructions })`. `null` = built-in default; `""` = skip speech. Tasks do **not** own opening speech. |
+| **Call open / close** | `on_enter_instructions` / `on_exit_instructions` → metadata `prompt.onEnterInstructions` / `onExitInstructions` | LiveKit parent **Agent** hooks: `onEnter` → `session.generateReply({ instructions })`; `onExit` → `session.say(text)` (verbatim, no second LLM turn). `null` = built-in default; `""` = skip speech. Tasks do **not** own opening speech. |
 | **Workflow** | Worker `TaskRegistry` (LiveKit `AgentTask`) selected by metadata `task` | Objective, completion conditions, structured result (e.g. appointment CONFIRMED). |
 | **Capabilities** | Worker `ToolRegistry` hard-coded implementations; enabled by `tool_profiles` → metadata `enabledTools` | Executable actions (`endCall`, `booking`, …). Orgs create/select profiles of tool **ids** (not implementations). |
 | **Runtime context** | Call request `context` + ids in metadata | CRM fields, bookingId, phoneNumber, etc. Never executable code. |
@@ -583,7 +583,7 @@ Agent APIs return persona + capability profile (not JSON tool schemas):
 
 - Platform templates: `key` is the template key; no `slug` / `organizationId` / `calendarIntegrationId`.
 - Org-owned rows: `name` + `slug` are org-owned; `key` / `templateKey` are the platform template key; also `organizationId` + `agentId` (template id) + optional `calendarIntegrationId` (Nylas). Multiple org rows may share the same template.
-- Hook fields: `null` = worker default opening/closing; `""` = silent for that hook; non-empty = custom `generateReply` instructions.
+- Hook fields: `null` = worker default opening/closing; `""` = silent for that hook; non-empty onEnter = custom `generateReply` instructions; non-empty onExit = verbatim `session.say` line.
 
 ### Job metadata shape (API → worker)
 
@@ -630,13 +630,13 @@ Test: `POST /api/admin/calls/test` accepts optional `task` + `context`.
 
 - Entry: `apps/worker/src/main.ts` → `cli.runApp` with `agentName` = `LIVEKIT_AGENT_NAME` (default `call-agent`) and `numIdleProcesses` from `LIVEKIT_NUM_IDLE_PROCESSES` (default `1`) to limit idle RAM on small hosts.
 - Job entry: `apps/worker/src/agent.ts` parses metadata → `buildAgentRuntime` (builders) → voice-only `AgentSession`.
-- **Builders:** `prompt-builder` (persona + onEnter/onExit instructions), `model-builder`, `voice-builder` (session), `tool-builder` → `ToolRegistry`, `task-builder` → `TaskRegistry`, orchestrated by `agent-builder`.
+- **Builders:** `prompt-builder` (persona + onEnter instructions + onExit spoken line), `model-builder`, `voice-builder` (session), `tool-builder` → `ToolRegistry`, `task-builder` → `TaskRegistry`, orchestrated by `agent-builder`.
 - **Turn detection / memory:** `model-builder` uses `inference.TurnDetector({ version: 'v1' })` (cloud). Main skips registering local EOT (`lk_eot_audio`) so the shared InferenceProcExecutor (~138 MB) is not started. Bundled Silero VAD still auto-provisions in job processes.
 - **Tasks:** LiveKit `voice.AgentTask` under `apps/worker/src/tasks/*`. Parent agent **onEnter** speaks opening (configurable), then runs `task.run()`; task owns workflow instructions + completion tools only (no opening `generateReply`); structured result in `userData.taskResult`.
 - **Tools:** hard-coded in `apps/worker/src/tools/*`; metadata only lists ids. Always includes hangup (`endCall` / `createEndCallTool`).
 - **Hangup:** successful task completion auto-ends the session and deletes the LiveKit room (SIP drops). Mid-call hangup uses the `end_call` tool. Shared helper: `apps/worker/src/hangup.ts`.
 - **Does not dial SIP** — API owns `CreateSIPParticipant`. For `medium=sip`, worker connects, `waitForParticipant` (SIP participant joins while still ringing), then **`waitForSipAnswer`** until `sip.callStatus` is `active`/`automation` (or published audio). Opening speech runs only after answer. Hangup / disconnect / 60s timeout before answer POSTs `failed` + `no_answer` (retryable). Job shutdown never reports `completed` unless the callee answered.
-- **Opening / goodbye:** parent agent LiveKit hooks — `onEnter` / `onExit` via `buildOpeningInstructions` / `buildClosingInstructions` (metadata overrides or direction/task defaults). `createEndCallTool` uses `endInstructions: null` so hangup does not double-speak.
+- **Opening / goodbye:** parent agent LiveKit hooks — `onEnter` via `buildOpeningInstructions` + `generateReply`; `onExit` via `buildClosingSpeech` + `session.say` (verbatim canned or custom line; not a second LLM turn). `createEndCallTool` uses `endInstructions: null` so hangup does not double-speak.
 - On shutdown, POSTs transcript + usage + **taskResult** to `POST /api/internal/calls/:id/complete` when `API_BASE_URL` + `WORKER_CALLBACK_SECRET` are set. Unanswered SIP → `status=failed` `failureCode=no_answer`. Do **not** invent `answeredAt` on the API when the worker omitted it.
 - **Run:**
   - **Dev:** `npm run start:worker:dev` → `tsx apps/worker/src/main.ts dev` (real TS entry for LiveKit job forks).
@@ -775,7 +775,7 @@ Work **top-down by risk**: security → money/dial side effects → multi-tenant
 | P2 | `email` | **Done** | Soft-disable without key, never throws, Plunk `send` / `sendText`, never log API key |
 | P2 | `ghl` | **Done** | Soft-disable without key/location, upsert + tags/note, org calendar creds + listCalendars, never throws, never log token, free-slots map + ms query, book upsert+appointment, hide existing events |
 | P2 | `livekit` | **Done** | URL helper; adapter with mocked SDK (rooms, dispatch, token/meet, SIP trunks/rules/participant, hasRemoteCallee) |
-| P3 | Worker (`apps/worker`) | Partial | SIP answer wait + unanswered shutdown (`sip-answer`, `shutdown-status`). Remaining: metadata parse, prompt/tool/task builders, hangup helpers — no LiveKit cloud in unit tests |
+| P3 | Worker (`apps/worker`) | Partial | SIP answer wait + unanswered shutdown (`sip-answer`, `shutdown-status`); `buildClosingSpeech` (silent/custom/default). Remaining: metadata parse, other prompt/tool/task builders, hangup helpers — no LiveKit cloud in unit tests |
 | P3 | Portal / web | Todo | Separate tooling later (Vitest/Playwright); not part of root `npm test` yet |
 
 Update the **Status** column when a module suite lands or expands.

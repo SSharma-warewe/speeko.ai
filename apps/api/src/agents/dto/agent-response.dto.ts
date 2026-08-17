@@ -18,7 +18,7 @@ export class AgentPromptDto {
   @ApiPropertyOptional({
     nullable: true,
     description:
-      'LiveKit Agent onExit generateReply instructions. null = built-in default; empty string = skip closing speech.',
+      'Spoken closing line for onExit (session.say). null = built-in default; empty string = skip closing speech.',
   })
   onExitInstructions!: string | null;
 }

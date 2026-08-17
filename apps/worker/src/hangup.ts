@@ -20,7 +20,7 @@ export type HangupOptions = {
 /**
  * End the voice session and drop the room (SIP hangup).
  * Idempotent — safe if end_call already started shutdown.
- * Parent agent onExit speaks goodbye; do not generate a second farewell here.
+ * Parent agent onExit speaks goodbye via session.say; do not generate a second farewell here.
  */
 export function hangUpCall(
   session: voice.AgentSession,

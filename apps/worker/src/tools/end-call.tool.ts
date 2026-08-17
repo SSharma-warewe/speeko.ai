@@ -9,7 +9,7 @@ import type { ToolFactory } from './types.js';
 export const createEndCallTool: ToolFactory = ({ userData }) =>
   beta.createEndCallTool({
     deleteRoom: true,
-    // Goodbye is spoken in onExit; avoid a second farewell from tool output.
+    // Goodbye is spoken in onExit via session.say; avoid a second farewell from tool output.
     endInstructions: null,
     ignoreOnEnter: true,
     extraDescription: [

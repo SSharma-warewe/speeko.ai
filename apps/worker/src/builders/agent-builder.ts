@@ -4,7 +4,7 @@ import type { AgentJobMetadata } from '../job-metadata.js';
 import type { SessionUserData } from '../tools/types.js';
 import { buildModels } from './model-builder.js';
 import {
-  buildClosingInstructions,
+  buildClosingSpeech,
   buildOpeningInstructions,
   buildPersonaPrompt,
   hookMode,
@@ -22,7 +22,7 @@ export type BuiltAgentRuntime = {
 
 /**
  * Construction path:
- * parse metadata (caller) → build prompt → resolve tools → parent onEnter opens + runs task → onExit closes.
+ * parse metadata (caller) → build prompt → resolve tools → parent onEnter opens + runs task → onExit says goodbye.
  */
 export async function buildAgentRuntime(
   meta: AgentJobMetadata,
@@ -92,7 +92,7 @@ export async function buildAgentRuntime(
         console.log(
           `[agent] task complete key=${meta.task} result=${JSON.stringify(userData.taskResult)}`,
         );
-        // Workflow done → hang up (goodbye via onExit; room delete drops SIP).
+        // Workflow done → hang up (goodbye via onExit say(); room delete drops SIP).
         hangUpCall(ctx.session, { reason: 'task_complete', userData });
       } catch (err) {
         // Task may be interrupted by end_call / shutdown — keep partial result.
@@ -101,18 +101,21 @@ export async function buildAgentRuntime(
       }
     },
     async onExit(ctx) {
-      // LiveKit parent onExit: configurable closing speech.
+      // LiveKit parent onExit: speak the hook text verbatim (no second LLM turn).
       try {
-        const closing = buildClosingInstructions(meta);
+        const closing = buildClosingSpeech(meta);
         if (!closing) {
+          console.log('[agent] onExit silent (no closing speech)');
           return;
         }
-        const handle = ctx.session.generateReply({
-          instructions: closing,
-        });
+        const prefix = closing.replace(/\s+/g, ' ').slice(0, 80);
+        console.log(
+          `[agent] onExit say mode=${hookMode(meta.prompt.onExitInstructions)} prefix="${prefix}"`,
+        );
+        const handle = ctx.session.say(closing, { allowInterruptions: false });
         await handle.waitForPlayout();
       } catch {
-        // Session may already be closing.
+        // Session may already be closing (callee hangup).
       }
     },
   });

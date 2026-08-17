@@ -33,7 +33,7 @@ export class UpdateAgentDto {
   @ApiPropertyOptional({
     nullable: true,
     description:
-      'LiveKit onExit instructions. null = default; empty string = silent end.',
+      'Spoken closing line for onExit (session.say). null = default; empty string = silent end.',
   })
   @IsOptional()
   @IsString()

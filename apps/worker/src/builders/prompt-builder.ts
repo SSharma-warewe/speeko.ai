@@ -277,10 +277,11 @@ export function buildOpeningInstructions(meta: AgentJobMetadata): string | null 
 }
 
 /**
- * LiveKit parent Agent onExit generateReply instructions.
+ * Verbatim closing line for LiveKit parent Agent onExit (`session.say`).
  * null = skip speech for this hook.
+ * Custom text is spoken as-is (not LLM instructions).
  */
-export function buildClosingInstructions(meta: AgentJobMetadata): string | null {
+export function buildClosingSpeech(meta: AgentJobMetadata): string | null {
   const custom = meta.prompt.onExitInstructions;
   if (custom === '') {
     return null;
@@ -289,9 +290,9 @@ export function buildClosingInstructions(meta: AgentJobMetadata): string | null 
     return custom.trim();
   }
   if (meta.direction === 'outbound') {
-    return 'Say a brief polite goodbye and thank them for their time.';
+    return 'Thanks for your time. Goodbye.';
   }
-  return 'Say a brief polite goodbye and thank them for calling.';
+  return 'Thanks for calling. Goodbye.';
 }
 
 function appendRuntimeContext(instructions: string, meta: AgentJobMetadata): string {

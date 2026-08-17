@@ -68,7 +68,7 @@ export class OrganizationAgent {
   onEnterInstructions!: string | null;
 
   /**
-   * LiveKit parent Agent onExit generateReply instructions.
+   * Spoken closing line for LiveKit parent Agent onExit (session.say).
    * null = built-in default; empty string = skip closing speech.
    */
   @Column({ name: 'on_exit_instructions', type: 'text', nullable: true })

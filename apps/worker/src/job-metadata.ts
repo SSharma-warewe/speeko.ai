@@ -6,7 +6,7 @@ export type AgentJobPrompt = {
    */
   onEnterInstructions?: string | null;
   /**
-   * LiveKit onExit generateReply instructions.
+   * Spoken closing line for LiveKit onExit (`session.say`).
    * undefined/null = built-in default; empty string = skip closing speech.
    */
   onExitInstructions?: string | null;
