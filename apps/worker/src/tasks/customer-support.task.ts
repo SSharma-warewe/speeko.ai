@@ -2,6 +2,7 @@ import { llm, voice } from '@livekit/agents';
 import { z } from 'zod';
 import { withToolRecording } from '../tools/tool-events.js';
 import { formatContextForInstructions } from './context-format.js';
+import { markTaskFinished, nullishString } from './task-complete.js';
 import type { TaskFactory } from './types.js';
 
 export type CustomerSupportResult = {
@@ -33,13 +34,17 @@ export const createCustomerSupportTask: TaskFactory = ({
         description: 'Mark the support workflow complete.',
         parameters: z.object({
           outcome: z.enum(['RESOLVED', 'ESCALATED', 'FOLLOW_UP', 'UNRESOLVED']),
-          issueSummary: z.string().optional(),
-          notes: z.string().optional(),
+          issueSummary: nullishString,
+          notes: nullishString,
         }),
         execute: async (args) =>
           withToolRecording(userData, 'complete_support_task', args, async () => {
-            const result: CustomerSupportResult = { ...args };
-            userData.taskResult = { task: 'customer_support', ...result };
+            const result: CustomerSupportResult = {
+              outcome: args.outcome,
+              issueSummary: args.issueSummary ?? undefined,
+              notes: args.notes ?? undefined,
+            };
+            markTaskFinished(userData, 'customer_support', result);
             task.complete(result);
             return {
               ok: true,

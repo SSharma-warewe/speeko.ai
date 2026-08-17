@@ -2,6 +2,7 @@ import { llm, voice } from '@livekit/agents';
 import { z } from 'zod';
 import { withToolRecording } from '../tools/tool-events.js';
 import { formatContextForInstructions } from './context-format.js';
+import { markTaskFinished, nullishString } from './task-complete.js';
 import type { TaskFactory } from './types.js';
 
 export type GeneralConversationResult = {
@@ -36,12 +37,15 @@ export const createGeneralConversationTask: TaskFactory = ({
         description: 'Mark the general conversation workflow complete.',
         parameters: z.object({
           outcome: z.enum(['COMPLETED', 'TRANSFERRED', 'ABANDONED']),
-          summary: z.string().optional(),
+          summary: nullishString,
         }),
         execute: async (args) =>
           withToolRecording(userData, 'complete_general_task', args, async () => {
-            const result: GeneralConversationResult = { ...args };
-            userData.taskResult = { task: 'general', ...result };
+            const result: GeneralConversationResult = {
+              outcome: args.outcome,
+              summary: args.summary ?? undefined,
+            };
+            markTaskFinished(userData, 'general', result);
             task.complete(result);
             return {
               ok: true,

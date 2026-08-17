@@ -2,6 +2,7 @@ import { llm, voice } from '@livekit/agents';
 import { z } from 'zod';
 import { withToolRecording } from '../tools/tool-events.js';
 import { formatContextForInstructions } from './context-format.js';
+import { markTaskFinished, nullishString } from './task-complete.js';
 import type { TaskFactory } from './types.js';
 
 export type LeadQualificationResult = {
@@ -35,14 +36,19 @@ export const createLeadQualificationTask: TaskFactory = ({
         description: 'Mark lead qualification complete with a structured outcome.',
         parameters: z.object({
           outcome: z.enum(['QUALIFIED', 'NOT_QUALIFIED', 'CALLBACK', 'DECLINED']),
-          interestLevel: z.enum(['high', 'medium', 'low', 'none']).optional(),
-          notes: z.string().optional(),
-          nextStep: z.string().optional(),
+          interestLevel: z.enum(['high', 'medium', 'low', 'none']).nullish(),
+          notes: nullishString,
+          nextStep: nullishString,
         }),
         execute: async (args) =>
           withToolRecording(userData, 'complete_lead_task', args, async () => {
-            const result: LeadQualificationResult = { ...args };
-            userData.taskResult = { task: 'lead_qualification', ...result };
+            const result: LeadQualificationResult = {
+              outcome: args.outcome,
+              interestLevel: args.interestLevel ?? undefined,
+              notes: args.notes ?? undefined,
+              nextStep: args.nextStep ?? undefined,
+            };
+            markTaskFinished(userData, 'lead_qualification', result);
             task.complete(result);
             return {
               ok: true,

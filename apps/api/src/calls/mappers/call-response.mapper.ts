@@ -1,4 +1,4 @@
-import { Call, CallTaskStatus } from '../call.entity';
+import { Call, CallStatus, CallTaskStatus } from '../call.entity';
 import { CallResponseDto, TestCallResponseDto } from '../dto/call-response.dto';
 
 export function toCallResponse(call: Call): CallResponseDto {
@@ -21,7 +21,7 @@ export function toCallResponse(call: Call): CallResponseDto {
     context: call.context,
     taskKey: call.taskKey,
     taskResult: call.taskResult,
-    taskStatus: call.taskStatus ?? CallTaskStatus.PENDING,
+    taskStatus: resolveTaskStatus(call),
     transcript: call.transcript,
     usage: call.usage,
     sessionReport: call.sessionReport,
@@ -42,6 +42,25 @@ export function toCallResponse(call: Call): CallResponseDto {
     createdAt: call.createdAt,
     updatedAt: call.updatedAt,
   };
+}
+
+/**
+ * Legacy rows created before task_status existed default to pending.
+ * A call already stored as completed is a finished workflow for display.
+ */
+export function resolveTaskStatus(
+  call: Pick<Call, 'status' | 'taskStatus'>,
+): CallTaskStatus {
+  if (
+    call.taskStatus === CallTaskStatus.COMPLETED ||
+    call.taskStatus === CallTaskStatus.INCOMPLETE
+  ) {
+    return call.taskStatus;
+  }
+  if (call.status === CallStatus.COMPLETED) {
+    return CallTaskStatus.COMPLETED;
+  }
+  return call.taskStatus ?? CallTaskStatus.PENDING;
 }
 
 /** Pull toolEvents from sessionReport JSONB (worker complete merges them here). */

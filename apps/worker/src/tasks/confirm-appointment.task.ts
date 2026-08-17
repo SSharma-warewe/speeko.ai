@@ -2,6 +2,7 @@ import { llm, voice } from '@livekit/agents';
 import { z } from 'zod';
 import { withToolRecording } from '../tools/tool-events.js';
 import { contextField, formatContextForInstructions } from './context-format.js';
+import { markTaskFinished, nullishString } from './task-complete.js';
 import type { TaskFactory } from './types.js';
 
 export type ConfirmAppointmentResult = {
@@ -69,22 +70,19 @@ export const createConfirmAppointmentTask: TaskFactory = ({
             'NO_ANSWER',
             'DECLINED',
           ]),
-          bookingId: z.string().optional(),
-          newTime: z.string().optional(),
-          notes: z.string().optional(),
+          bookingId: nullishString,
+          newTime: nullishString,
+          notes: nullishString,
         }),
         execute: async (args) =>
           withToolRecording(userData, 'complete_appointment_task', args, async () => {
             const result: ConfirmAppointmentResult = {
               outcome: args.outcome,
               bookingId: args.bookingId ?? bookingId,
-              newTime: args.newTime,
-              notes: args.notes,
+              newTime: args.newTime ?? undefined,
+              notes: args.notes ?? undefined,
             };
-            userData.taskResult = {
-              task: 'confirm_appointment',
-              ...result,
-            };
+            markTaskFinished(userData, 'confirm_appointment', result);
             task.complete(result);
             return {
               ok: true,

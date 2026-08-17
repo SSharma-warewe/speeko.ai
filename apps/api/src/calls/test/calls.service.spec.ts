@@ -824,6 +824,23 @@ describe('CallsService', () => {
       expect(result.answeredAt).toBeNull();
     });
 
+    it('24e. omitted taskCompleted but complete_* tool ok → completed', async () => {
+      const call = makeCall({
+        id: CALL_ID,
+        status: CallStatus.READY,
+      });
+      callsRepository.findById.mockResolvedValue(call);
+
+      const result = await service.completeFromWorker(CALL_ID, {
+        status: 'completed',
+        toolEvents: [{ toolId: 'complete_demo_booking_task', ok: true }],
+        taskResult: { outcome: 'CALLBACK' },
+      });
+
+      expect(result.status).toBe(CallStatus.COMPLETED);
+      expect(result.taskStatus).toBe(CallTaskStatus.COMPLETED);
+    });
+
     it('24c. taskCompleted false → incomplete even with taskResult leftover', async () => {
       const call = makeCall({
         id: CALL_ID,

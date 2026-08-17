@@ -2,6 +2,7 @@ import { llm, voice } from '@livekit/agents';
 import { z } from 'zod';
 import { withToolRecording } from '../tools/tool-events.js';
 import { contextField, formatContextForInstructions } from './context-format.js';
+import { markTaskFinished, nullishString } from './task-complete.js';
 import type { TaskFactory } from './types.js';
 
 export type DemoBookingResult = {
@@ -122,32 +123,25 @@ export const createDemoBookingTask: TaskFactory = ({
             'CALLBACK',
             'DECLINED',
           ]),
-          eventId: z
-            .string()
-            .optional()
-            .describe(
-              'Calendar event / appointment id from schedule_ghl_meeting or create_calendar_event when booked',
-            ),
-          scheduledStart: z
-            .string()
-            .optional()
-            .describe('Booked start time ISO or natural time string'),
-          scheduledEnd: z.string().optional(),
-          participantEmail: z.string().optional(),
-          goals: z
-            .string()
-            .optional()
-            .describe('What they want out of the product / automation'),
-          useCase: z
-            .string()
-            .optional()
-            .describe('e.g. outbound, inbound, both, support, other'),
-          successCriteria: z
-            .string()
-            .optional()
-            .describe('What success looks like in 30–60 days'),
-          interestLevel: z.enum(['high', 'medium', 'low', 'none']).optional(),
-          notes: z.string().optional(),
+          eventId: nullishString.describe(
+            'Calendar event / appointment id from schedule_ghl_meeting or create_calendar_event when booked',
+          ),
+          scheduledStart: nullishString.describe(
+            'Booked start time ISO or natural time string',
+          ),
+          scheduledEnd: nullishString,
+          participantEmail: nullishString,
+          goals: nullishString.describe(
+            'What they want out of the product / automation',
+          ),
+          useCase: nullishString.describe(
+            'e.g. outbound, inbound, both, support, other',
+          ),
+          successCriteria: nullishString.describe(
+            'What success looks like in 30–60 days',
+          ),
+          interestLevel: z.enum(['high', 'medium', 'low', 'none']).nullish(),
+          notes: nullishString,
         }),
         execute: async (args) =>
           withToolRecording(
@@ -157,17 +151,17 @@ export const createDemoBookingTask: TaskFactory = ({
             async () => {
               const result: DemoBookingResult = {
                 outcome: args.outcome,
-                eventId: args.eventId,
-                scheduledStart: args.scheduledStart,
-                scheduledEnd: args.scheduledEnd,
+                eventId: args.eventId ?? undefined,
+                scheduledStart: args.scheduledStart ?? undefined,
+                scheduledEnd: args.scheduledEnd ?? undefined,
                 participantEmail: args.participantEmail ?? email,
-                goals: args.goals,
-                useCase: args.useCase,
-                successCriteria: args.successCriteria,
-                interestLevel: args.interestLevel,
-                notes: args.notes,
+                goals: args.goals ?? undefined,
+                useCase: args.useCase ?? undefined,
+                successCriteria: args.successCriteria ?? undefined,
+                interestLevel: args.interestLevel ?? undefined,
+                notes: args.notes ?? undefined,
               };
-              userData.taskResult = { task: 'demo_booking', ...result };
+              markTaskFinished(userData, 'demo_booking', result);
               task.complete(result);
               return {
                 ok: true,

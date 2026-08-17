@@ -2,6 +2,7 @@ import { llm, voice } from '@livekit/agents';
 import { z } from 'zod';
 import { withToolRecording } from '../tools/tool-events.js';
 import { contextField, formatContextForInstructions } from './context-format.js';
+import { markTaskFinished, nullishString } from './task-complete.js';
 import type { TaskFactory } from './types.js';
 
 export type DebtCollectionResult = {
@@ -55,14 +56,19 @@ export const createDebtCollectionTask: TaskFactory = ({
             'REFUSED',
             'NO_ANSWER',
           ]),
-          amountDiscussed: z.string().optional(),
-          promisedDate: z.string().optional(),
-          notes: z.string().optional(),
+          amountDiscussed: nullishString,
+          promisedDate: nullishString,
+          notes: nullishString,
         }),
         execute: async (args) =>
           withToolRecording(userData, 'complete_collection_task', args, async () => {
-            const result: DebtCollectionResult = { ...args };
-            userData.taskResult = { task: 'debt_collection', ...result };
+            const result: DebtCollectionResult = {
+              outcome: args.outcome,
+              amountDiscussed: args.amountDiscussed ?? undefined,
+              promisedDate: args.promisedDate ?? undefined,
+              notes: args.notes ?? undefined,
+            };
+            markTaskFinished(userData, 'debt_collection', result);
             task.complete(result);
             return {
               ok: true,

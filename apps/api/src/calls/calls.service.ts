@@ -29,6 +29,7 @@ import {
   initializeCallStatus,
   isTerminalCallStatus,
 } from './call-state-machine';
+import { workerReportedTaskCompleted } from './worker-task-completed';
 import {
   CALL_BUCKET_STATUSES,
   Call,
@@ -1085,7 +1086,7 @@ export class CallsService {
     }
 
     if (dto.status === 'completed') {
-      const taskDone = dto.taskCompleted === true;
+      const taskDone = workerReportedTaskCompleted(dto);
       applyCallEvent(
         call,
         taskDone

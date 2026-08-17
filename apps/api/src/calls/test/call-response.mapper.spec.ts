@@ -74,9 +74,18 @@ describe('call-response.mapper', () => {
       expect(dto.priority).toBe(5);
     });
 
-    it('2. defaults taskStatus to pending when undefined', () => {
+    it('2. defaults taskStatus to pending when undefined on a live call', () => {
       const call = { ...baseCall, taskStatus: undefined } as unknown as Call;
       expect(toCallResponse(call).taskStatus).toBe(CallTaskStatus.PENDING);
+    });
+
+    it('2c. legacy completed rows with pending taskStatus display as completed', () => {
+      const call = {
+        ...baseCall,
+        status: CallStatus.COMPLETED,
+        taskStatus: CallTaskStatus.PENDING,
+      } as Call;
+      expect(toCallResponse(call).taskStatus).toBe(CallTaskStatus.COMPLETED);
     });
 
     it('2b. defaults priority to 0 when undefined', () => {

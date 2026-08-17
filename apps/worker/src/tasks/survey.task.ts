@@ -2,6 +2,7 @@ import { llm, voice } from '@livekit/agents';
 import { z } from 'zod';
 import { withToolRecording } from '../tools/tool-events.js';
 import { formatContextForInstructions } from './context-format.js';
+import { markTaskFinished, nullishString } from './task-complete.js';
 import type { TaskFactory } from './types.js';
 
 export type SurveyResult = {
@@ -30,18 +31,18 @@ export const createSurveyTask: TaskFactory = ({ meta, userData, tools, chatCtx }
           outcome: z.enum(['COMPLETED', 'PARTIAL', 'DECLINED', 'NO_ANSWER']),
           answers: z
             .record(z.string())
-            .optional()
+            .nullish()
             .describe('Map of question id/label to answer text'),
-          notes: z.string().optional(),
+          notes: nullishString,
         }),
         execute: async (args) =>
           withToolRecording(userData, 'complete_survey_task', args, async () => {
             const result: SurveyResult = {
               outcome: args.outcome,
-              answers: args.answers,
-              notes: args.notes,
+              answers: args.answers ?? undefined,
+              notes: args.notes ?? undefined,
             };
-            userData.taskResult = { task: 'survey', ...result };
+            markTaskFinished(userData, 'survey', result);
             task.complete(result);
             return {
               ok: true,

@@ -68,9 +68,13 @@ export default function CallDetailPage() {
                 <dt>Task status</dt>
                 <dd>
                   <StatusBadge
-                    status={data.taskStatus ?? "pending"}
+                    status={
+                      data.taskStatus === "completed" || data.status === "completed"
+                        ? "completed"
+                        : (data.taskStatus ?? "pending")
+                    }
                     label={
-                      data.taskStatus === "completed"
+                      data.taskStatus === "completed" || data.status === "completed"
                         ? "Task completed"
                         : data.taskStatus === "incomplete"
                           ? "Task not completed"
