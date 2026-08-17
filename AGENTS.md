@@ -635,9 +635,9 @@ Test: `POST /api/admin/calls/test` accepts optional `task` + `context`.
 - **Tasks:** LiveKit `voice.AgentTask` under `apps/worker/src/tasks/*`. Parent agent **onEnter** speaks opening (configurable), then runs `task.run()`; task owns workflow instructions + completion tools only (no opening `generateReply`); structured result in `userData.taskResult`.
 - **Tools:** hard-coded in `apps/worker/src/tools/*`; metadata only lists ids. Always includes hangup (`endCall` / `createEndCallTool`).
 - **Hangup:** successful task completion auto-ends the session and deletes the LiveKit room (SIP drops). Mid-call hangup uses the `end_call` tool. Shared helper: `apps/worker/src/hangup.ts`.
-- **Does not dial SIP** — API owns `CreateSIPParticipant`. For `medium=sip`, worker connects, `waitForParticipant`, then `session.start` so opening speech runs only after answer.
+- **Does not dial SIP** — API owns `CreateSIPParticipant`. For `medium=sip`, worker connects, `waitForParticipant` (SIP participant joins while still ringing), then **`waitForSipAnswer`** until `sip.callStatus` is `active`/`automation` (or published audio). Opening speech runs only after answer. Hangup / disconnect / 60s timeout before answer POSTs `failed` + `no_answer` (retryable). Job shutdown never reports `completed` unless the callee answered.
 - **Opening / goodbye:** parent agent LiveKit hooks — `onEnter` / `onExit` via `buildOpeningInstructions` / `buildClosingInstructions` (metadata overrides or direction/task defaults). `createEndCallTool` uses `endInstructions: null` so hangup does not double-speak.
-- On shutdown, POSTs transcript + usage + **taskResult** to `POST /api/internal/calls/:id/complete` when `API_BASE_URL` + `WORKER_CALLBACK_SECRET` are set.
+- On shutdown, POSTs transcript + usage + **taskResult** to `POST /api/internal/calls/:id/complete` when `API_BASE_URL` + `WORKER_CALLBACK_SECRET` are set. Unanswered SIP → `status=failed` `failureCode=no_answer`. Do **not** invent `answeredAt` on the API when the worker omitted it.
 - **Run:**
   - **Dev:** `npm run start:worker:dev` → `tsx apps/worker/src/main.ts dev` (real TS entry for LiveKit job forks).
   - **Prod:** `npm run build:worker` (`tsc` ESM emit + `dist/apps/worker/package.json` type module) then `npm run start:worker:prod` → `node dist/apps/worker/main.js start`. Docker/Railway use the same (`Dockerfile.worker` multi-stage).
@@ -775,7 +775,7 @@ Work **top-down by risk**: security → money/dial side effects → multi-tenant
 | P2 | `email` | **Done** | Soft-disable without key, never throws, Plunk `send` / `sendText`, never log API key |
 | P2 | `ghl` | **Done** | Soft-disable without key/location, upsert + tags/note, org calendar creds + listCalendars, never throws, never log token, free-slots map + ms query, book upsert+appointment, hide existing events |
 | P2 | `livekit` | **Done** | URL helper; adapter with mocked SDK (rooms, dispatch, token/meet, SIP trunks/rules/participant, hasRemoteCallee) |
-| P3 | Worker (`apps/worker`) | Todo | Metadata parse, prompt/tool/task builders, hangup helpers — no LiveKit cloud in unit tests |
+| P3 | Worker (`apps/worker`) | Partial | SIP answer wait + unanswered shutdown (`sip-answer`, `shutdown-status`). Remaining: metadata parse, prompt/tool/task builders, hangup helpers — no LiveKit cloud in unit tests |
 | P3 | Portal / web | Todo | Separate tooling later (Vitest/Playwright); not part of root `npm test` yet |
 
 Update the **Status** column when a module suite lands or expands.

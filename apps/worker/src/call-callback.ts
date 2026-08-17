@@ -8,6 +8,7 @@ import type { ToolEvent } from './tools/types.js';
 export type CompleteCallPayload = {
   status: 'completed' | 'failed';
   errorMessage?: string | null;
+  failureCode?: string | null;
   answeredAt?: string | null;
   endedAt?: string | null;
   transcript?: Array<{

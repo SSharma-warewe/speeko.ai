@@ -801,7 +801,25 @@ describe('CallsService', () => {
       });
     });
 
-    it('24. 404 when call missing', async () => {
+    it('24. completed without answeredAt does not invent one', async () => {
+      const call = makeCall({
+        id: CALL_ID,
+        status: CallStatus.DIALING,
+        startedAt: new Date('2024-06-01T10:00:00.000Z'),
+        answeredAt: null,
+      });
+      callsRepository.findById.mockResolvedValue(call);
+
+      const result = await service.completeFromWorker(CALL_ID, {
+        status: 'completed',
+        endedAt: '2024-06-01T10:01:00.000Z',
+      });
+
+      expect(result.status).toBe(CallStatus.COMPLETED);
+      expect(result.answeredAt).toBeNull();
+    });
+
+    it('24b. 404 when call missing', async () => {
       callsRepository.findById.mockResolvedValue(null);
 
       await expect(

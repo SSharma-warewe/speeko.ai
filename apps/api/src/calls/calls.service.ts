@@ -1080,9 +1080,6 @@ export class CallsService {
       call.endedAt = dto.endedAt ? this.parseDate(dto.endedAt) : new Date();
       call.queueLockedAt = null;
       call.nextAttemptAt = null;
-      if (!call.answeredAt) {
-        call.answeredAt = call.startedAt ?? call.endedAt;
-      }
       const saved = await this.callsRepository.save(call);
       if (saved.batchId) {
         await this.callBatchesService.maybeMarkCompleted(saved.batchId);

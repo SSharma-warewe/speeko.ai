@@ -6,6 +6,12 @@ import {
   serializeUsage,
 } from './call-callback.js';
 import { parseJobMetadata } from './job-metadata.js';
+import { classifyShutdownComplete } from './shutdown-status.js';
+import {
+  type SipAnswerRoom,
+  sipCallStatus,
+  waitForSipAnswer,
+} from './sip-answer.js';
 
 export default defineAgent({
   entry: async (ctx: JobContext) => {
@@ -42,18 +48,27 @@ export default defineAgent({
           } catch {
             // optional
           }
+          const shutdown = classifyShutdownComplete({
+            requireAnswer: waitForCallee,
+            answeredAt,
+            taskKey: meta.task,
+            taskResult: userData.taskResult,
+          });
           await postCallComplete(callId, {
-            status: 'completed',
+            status: shutdown.status,
+            failureCode: shutdown.failureCode,
+            errorMessage: shutdown.errorMessage,
             answeredAt,
             endedAt: new Date().toISOString(),
             transcript,
             usage,
             sessionReport,
-            taskResult: userData.taskResult ?? null,
+            taskResult: shutdown.taskResult ?? userData.taskResult ?? null,
             toolEvents: userData.toolEvents ?? [],
           });
           console.log(
-            `[agent] tools used callId=${callId} count=${userData.toolEvents?.length ?? 0} ` +
+            `[agent] tools used callId=${callId} completeStatus=${shutdown.status} ` +
+              `count=${userData.toolEvents?.length ?? 0} ` +
               `${(userData.toolEvents ?? [])
                 .map((e) => `${e.toolId}:${e.ok === false ? 'fail' : 'ok'}`)
                 .join(',') || 'none'}`,
@@ -77,9 +92,18 @@ export default defineAgent({
         console.log(
           `[agent] waiting for SIP participant identity=${identity ?? '(any)'}`,
         );
-        await ctx.waitForParticipant(identity);
+        const participant = await ctx.waitForParticipant(identity);
+        console.log(
+          `[agent] SIP participant present room=${roomName} ` +
+            `sipStatus=${sipCallStatus(participant) || 'n/a'}`,
+        );
+        // Participant join is ringing, not answer. Wait for sip.callStatus=active.
+        await waitForSipAnswer({
+          room: ctx.room as unknown as SipAnswerRoom,
+          participant,
+        });
         answeredAt = new Date().toISOString();
-        console.log(`[agent] callee joined room=${roomName}`);
+        console.log(`[agent] callee answered room=${roomName}`);
       }
 
       await session.start({
@@ -98,6 +122,7 @@ export default defineAgent({
       if (meta.callId) {
         await postCallComplete(meta.callId, {
           status: 'failed',
+          failureCode: stage === 'join/wait' ? 'no_answer' : 'agent_error',
           errorMessage: `Agent failed (${stage}): ${message}`,
           endedAt: new Date().toISOString(),
           taskResult: {
