@@ -303,17 +303,24 @@ body:has(.lp-root)::-webkit-scrollbar {
   padding: 0;
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
+  align-items: stretch;
 }
 .lp-demo-pills li {
   margin: 0;
   padding: 0;
+  display: flex;
+  min-width: 0;
 }
 .lp-demo-pill-btn {
   display: grid;
+  align-content: start;
   gap: 4px;
   width: 100%;
+  height: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 14px 14px 12px;
   border-radius: 10px;
   border: 1px solid #e5e5e5;
@@ -337,6 +344,7 @@ body:has(.lp-root)::-webkit-scrollbar {
   font-weight: 600;
   color: #0a0a0a;
   letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 .lp-demo-pill-btn span {
   font-size: 12px;
@@ -1363,7 +1371,7 @@ body:has(.lp-root)::-webkit-scrollbar {
     gap: 20px;
   }
   .lp-demo-pills {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .lp-faq-layout {
     grid-template-columns: 1fr;
@@ -1400,8 +1408,8 @@ body:has(.lp-root)::-webkit-scrollbar {
     gap: 0.35rem;
   }
   .lp-demo-side-link {
-    flex: 1 1 auto;
-    min-width: 120px;
+    flex: 1 1 0;
+    min-width: 0;
   }
   .lp-demo-side-link-desc {
     display: none;
