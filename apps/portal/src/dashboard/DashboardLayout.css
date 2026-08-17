@@ -1747,7 +1747,8 @@
   animation: ops-calls-rise 0.38s var(--ease-out, ease) both;
 }
 
-.ops-calls-compose.is-dial {
+.ops-calls-compose.ops-panel {
+  position: relative;
   background:
     linear-gradient(180deg, #fffbeb 0%, #fff 42%);
   box-shadow:
@@ -1755,7 +1756,7 @@
     0 14px 36px -22px rgba(133, 77, 14, 0.28);
 }
 
-.ops-calls-compose.is-dial::before {
+.ops-calls-compose.ops-panel::before {
   content: "";
   position: absolute;
   left: 0;
@@ -1764,10 +1765,6 @@
   width: 3px;
   background: var(--ops-amber-ink);
   border-radius: 0 2px 2px 0;
-}
-
-.ops-calls-compose.ops-panel {
-  position: relative;
 }
 
 .ops-calls-compose .ops-panel-head {
@@ -1844,18 +1841,6 @@
 
 .ops-calls-hotline .ca-input {
   font-family: var(--font-mono);
-  font-size: 1.22rem;
-  font-weight: 550;
-  letter-spacing: -0.02em;
-  min-height: 2.9rem;
-  padding: 0.65rem 0.8rem;
-  background: #fff;
-  border-color: var(--ops-amber-hot);
-  box-shadow: 0 0 0 3px rgba(253, 230, 138, 0.35);
-}
-
-.ops-calls-hotline .ca-input:focus {
-  box-shadow: 0 0 0 3px rgba(202, 138, 4, 0.22);
 }
 
 .ops-calls-routing {
@@ -2176,10 +2161,6 @@
 
   .ops-calls-list {
     min-height: 22rem;
-  }
-
-  .ops-calls-hotline .ca-input {
-    font-size: 1.1rem;
   }
 
   .ops-calls-list-bar {

@@ -316,7 +316,6 @@ export function CallComposer({
                 placeholder="+91 98765 43210"
                 autoComplete="tel"
                 inputMode="tel"
-                inputSize="lg"
               />
             </Field>
           ) : (
