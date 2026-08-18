@@ -135,7 +135,7 @@ export function CallsVolumeChart({ days }: Props) {
                     textAnchor="middle"
                     fill="#a3a3a3"
                     fontSize="10"
-                    fontFamily="IBM Plex Sans, sans-serif"
+                    fontFamily="var(--font-body)"
                   >
                     {formatDay(d.date, false)}
                   </text>

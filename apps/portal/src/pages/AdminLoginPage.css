@@ -7,7 +7,7 @@
   /* Fallback while waves init / reduced-motion */
   background: #0a0a0a;
   color: var(--ca-fg, #0a0a0a);
-  font-family: var(--ca-font-body, system-ui, sans-serif);
+  font-family: var(--font-body);
   overflow: hidden;
 }
 
@@ -30,8 +30,8 @@
 
 .admin-login__brand {
   display: inline-block;
-  font-family: var(--ca-font-display, system-ui, sans-serif);
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-weight: 600;
   font-size: 18px;
   letter-spacing: -0.02em;
   color: inherit;
@@ -41,9 +41,9 @@
 
 .admin-login__title {
   margin: 0 0 8px;
-  font-family: var(--ca-font-display, system-ui, sans-serif);
+  font-family: var(--font-display);
   font-size: 28px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1.15;
 }

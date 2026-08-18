@@ -1,3 +1,12 @@
+/* Portal type: one sans for UI + titles. Marketing keeps Newsreader. */
+:root {
+  --font-display: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --ca-font-display: var(--font-display);
+  --ca-font-body: var(--font-body);
+}
+
 /* App shell reset — full-bleed layout (no browser default margin/border gap) */
 html,
 body,
@@ -15,6 +24,20 @@ html {
 body {
   background: #f0eee9;
   overflow-x: hidden;
+  font-family: var(--font-body);
+  color: var(--text, #0a0a0a);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.025em;
 }
 
 /* Dashboard locks document scroll; main column scrolls inside .ops-content */
