@@ -45,7 +45,7 @@ describe('interview_booking task', () => {
     expect(text).toMatch(/Do not congratulate before identity is confirmed/);
     expect(text).toMatch(/If it is the wrong person, do not congratulate/);
     expect(text).toMatch(/calendar availability and booking tools/i);
-    expect(text).toMatch(/contact-create tool/i);
+    expect(text).toMatch(/contact lookup or create tool/i);
     expect(text).toMatch(/complete_interview_booking_task/);
     expect(text).toMatch(/Default interview length is 30 minutes/);
     expect(text).toMatch(/ada@example.com/);
@@ -58,6 +58,8 @@ describe('interview_booking task', () => {
     expect(text).not.toMatch(/createCalendarEvent/);
     expect(text).not.toMatch(/upsertGhlContact/);
     expect(text).not.toMatch(/upsert_ghl_contact/);
+    expect(text).not.toMatch(/lookupGhlContact/);
+    expect(text).not.toMatch(/lookup_ghl_contact/);
   });
 
   it('asks for a name when context has none', () => {

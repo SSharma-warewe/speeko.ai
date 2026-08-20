@@ -9,6 +9,7 @@ import { createCreateCalendarEventTool } from './create-calendar-event.tool.js';
 import { createEndCallTool } from './end-call.tool.js';
 import { createListCalendarEventsTool } from './list-calendar-events.tool.js';
 import { createLookupCustomerTool } from './lookup-customer.tool.js';
+import { createLookupGhlContactTool } from './lookup-ghl-contact.tool.js';
 import { createScheduleGhlMeetingTool } from './schedule-ghl-meeting.tool.js';
 import { TOOL_IDS } from './tool-ids.js';
 import { createTransferCallTool } from './transfer-call.tool.js';
@@ -27,6 +28,7 @@ const factories = new Map<string, ToolFactory>([
   [TOOL_IDS.createCalendarEvent, createCreateCalendarEventTool],
   [TOOL_IDS.cancelCalendarEvent, createCancelCalendarEventTool],
   [TOOL_IDS.checkGhlFreeSlots, createCheckGhlFreeSlotsTool],
+  [TOOL_IDS.lookupGhlContact, createLookupGhlContactTool],
   [TOOL_IDS.upsertGhlContact, createUpsertGhlContactTool],
   [TOOL_IDS.scheduleGhlMeeting, createScheduleGhlMeetingTool],
 ]);

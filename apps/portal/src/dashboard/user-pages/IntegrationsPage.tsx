@@ -937,9 +937,11 @@ export default function UserIntegrationsPage() {
                       </span>
                     ))}
                     . Calendar tools still do not create contacts — enable{" "}
-                    <span className="ops-mono">upsertGhlContact</span> on the
-                    tool profile and include{" "}
-                    <span className="ops-mono">contacts.write</span> on this PIT.
+                    <span className="ops-mono">lookupGhlContact</span> (
+                    <span className="ops-mono">contacts.readonly</span>) and{" "}
+                    <span className="ops-mono">upsertGhlContact</span> (
+                    <span className="ops-mono">contacts.write</span>) on the
+                    tool profile.
                     Then link this connection on an{" "}
                     <Link to="/dashboard/agents">agent</Link> and enable GHL
                     tools on a{" "}

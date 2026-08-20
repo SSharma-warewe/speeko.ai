@@ -16,6 +16,7 @@ import { WorkerSecretGuard } from '../auth/guards/worker-secret.guard';
 import {
   GhlCalendarToolResponseDto,
   GhlFreeSlotsDto,
+  GhlLookupContactDto,
   GhlScheduleMeetingDto,
   GhlUpsertContactDto,
 } from './dto/ghl-calendar-tool.dto';
@@ -56,6 +57,19 @@ export class InternalGhlCalendarController {
     @Body() dto: GhlScheduleMeetingDto,
   ): Promise<GhlCalendarToolResponseDto> {
     return this.ghlCalendar.scheduleMeeting(callId, dto);
+  }
+
+  @Post(':callId/ghl-calendar/contacts/lookup')
+  @ApiOperation({
+    summary:
+      'Worker tool: look up a GHL contact by email/phone (persists ghlContactId when found)',
+  })
+  @ApiOkResponse({ type: GhlCalendarToolResponseDto })
+  lookupContact(
+    @Param('callId', ParseUUIDPipe) callId: string,
+    @Body() dto: GhlLookupContactDto,
+  ): Promise<GhlCalendarToolResponseDto> {
+    return this.ghlCalendar.lookupContact(callId, dto);
   }
 
   @Post(':callId/ghl-calendar/contacts')

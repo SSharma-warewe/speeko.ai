@@ -10,6 +10,8 @@ import type {
   GhlLeadDirection,
   GhlLeadInput,
   GhlListCalendarsResult,
+  GhlLookupContactInput,
+  GhlLookupContactResult,
   GhlUpsertLeadResult,
 } from './ghl.types';
 import {
@@ -293,6 +295,75 @@ export class GhlService {
   }
 
   /**
+   * Look up an existing GHL contact by exact email and/or phone.
+   * Uses PIT-friendly GET /contacts/search/duplicate (not OAuth-only /contacts/lookup).
+   * A miss is ok:true found:false — not an HTTP error to the agent.
+   */
+  async lookupContact(
+    input: GhlLookupContactInput,
+    creds?: GhlContactCreds,
+  ): Promise<GhlLookupContactResult> {
+    const locationId = creds?.locationId?.trim() || this.locationId;
+    const token = creds?.token?.trim() || this.apiKey;
+    if (!token || !locationId) {
+      return {
+        ok: false,
+        skipped: true,
+        error: 'contact_lookup_unavailable',
+        message:
+          'GoHighLevel contact credentials are missing on this connection.',
+      };
+    }
+
+    const email = input.email?.trim().toLowerCase() ?? '';
+    const phone = input.phone?.trim() ?? '';
+    if (!email && !phone) {
+      this.logger.warn('GhlService.lookupContact rejected: email or phone required');
+      return {
+        ok: false,
+        error: 'email or phone is required',
+        message: 'Need an email or phone to look up a GoHighLevel contact.',
+      };
+    }
+
+    const params = new URLSearchParams({ locationId });
+    if (email) params.set('email', email);
+    if (phone) params.set('number', phone);
+    const path = `/contacts/search/duplicate?${params.toString()}`;
+    const res = await this.request('GET', path, undefined, 'contacts', token);
+    if (res.networkError) {
+      this.logger.warn(`GHL contact lookup network error: ${res.networkError}`);
+      return {
+        ok: false,
+        error: res.networkError,
+        message: res.networkError,
+      };
+    }
+    if (!res.ok) {
+      if (isContactNotFoundStatus(res.status, res.json, res.text)) {
+        return { ok: true, found: false };
+      }
+      this.logger.warn(
+        `GHL contact lookup failed: status=${res.status} body=${truncate(res.text)}`,
+      );
+      return {
+        ok: false,
+        error: `ghl lookup ${res.status}`,
+        message: lookupContactErrorMessage(res.status),
+      };
+    }
+
+    const found = readLookupContact(res.json);
+    if (!found) {
+      return { ok: true, found: false };
+    }
+    this.logger.log(
+      `GHL contact lookup hit contact=${found.contactId} email=${email || 'n/a'}`,
+    );
+    return { ok: true, found: true, ...found };
+  }
+
+  /**
    * Open slots only (GHL free-slots). Never lists existing events.
    * Uses org creds when provided; otherwise platform env.
    * startMs/endMs are unix milliseconds.
@@ -407,17 +478,10 @@ export class GhlService {
       return { ok: false, error: 'network_error', message: res.networkError };
     }
     if (!res.ok) {
-      const slotBusy = res.status === 400;
       this.logger.warn(
         `GHL create appointment failed: status=${res.status} body=${truncate(res.text)}`,
       );
-      return {
-        ok: false,
-        error: slotBusy ? 'slot_unavailable' : `ghl_appointment_${res.status}`,
-        message: slotBusy
-          ? 'That time is no longer open. Check free slots again and pick another time.'
-          : 'Could not book the meeting on the calendar.',
-      };
+      return { ok: false, ...appointmentErrorFromHttp(res) };
     }
 
     const appointmentId = readAppointmentId(res.json);
@@ -562,6 +626,106 @@ function upsertContactErrorMessage(status: number): string {
     return 'Bad request. Check the location (sub-account) id and contact fields.';
   }
   return 'Could not create or update the GoHighLevel contact. Check that the Private Integration Token includes contacts.write.';
+}
+
+function lookupContactErrorMessage(status: number): string {
+  if (status === 401) {
+    return 'Unauthorized. Check the v3 Private Integration Token and that it includes contacts.readonly.';
+  }
+  if (status === 403) {
+    return 'Forbidden. Use a sub-account token with contacts.readonly for this location.';
+  }
+  if (status === 400) {
+    return 'Bad request. Check the location (sub-account) id and the email or phone.';
+  }
+  return 'Could not look up the GoHighLevel contact. Check that the Private Integration Token includes contacts.readonly.';
+}
+
+function ghlErrorBlob(json: GhlJson | null, text: string): string {
+  const message =
+    json && typeof json.message === 'string' ? json.message : '';
+  return `${message} ${text}`.trim();
+}
+
+function isContactNotFoundMessage(raw: string): boolean {
+  return /contact.*not found/i.test(raw) || /error in contact service/i.test(raw);
+}
+
+function isContactNotFoundStatus(
+  status: number,
+  json: GhlJson | null,
+  text: string,
+): boolean {
+  if (status === 404) return true;
+  if (status !== 400) return false;
+  return isContactNotFoundMessage(ghlErrorBlob(json, text));
+}
+
+function appointmentErrorFromHttp(res: GhlHttpResult): {
+  error: string;
+  message: string;
+} {
+  const raw = ghlErrorBlob(res.json, res.text);
+  if (isContactNotFoundMessage(raw)) {
+    return {
+      error: 'missing_contact',
+      message:
+        'GoHighLevel has no contact with that id. Call lookupGhlContact with email or phone, or upsertGhlContact if none exists. Do not invent a contact id. Do not claim the meeting is booked.',
+    };
+  }
+  if (res.status === 400) {
+    return {
+      error: 'slot_unavailable',
+      message:
+        'That time is no longer open. Check free slots again and pick another time.',
+    };
+  }
+  return {
+    error: `ghl_appointment_${res.status}`,
+    message: 'Could not book the meeting on the calendar.',
+  };
+}
+
+function readLookupContact(json: GhlJson | null): {
+  contactId: string;
+  email?: string;
+  phone?: string;
+  name?: string;
+} | undefined {
+  if (!json) return undefined;
+  let contact: GhlJson | null = null;
+  const nested = json.contact;
+  if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+    contact = nested as GhlJson;
+  } else if (Array.isArray(json.contacts) && json.contacts[0]) {
+    const first = json.contacts[0];
+    if (first && typeof first === 'object' && !Array.isArray(first)) {
+      contact = first as GhlJson;
+    }
+  } else if (typeof json.id === 'string' && json.id.trim()) {
+    contact = json;
+  }
+  if (!contact) return undefined;
+  const contactId =
+    typeof contact.id === 'string' ? contact.id.trim() : '';
+  if (!contactId) return undefined;
+  const email =
+    typeof contact.email === 'string' && contact.email.trim()
+      ? contact.email.trim()
+      : undefined;
+  const phone =
+    typeof contact.phone === 'string' && contact.phone.trim()
+      ? contact.phone.trim()
+      : undefined;
+  const first =
+    typeof contact.firstName === 'string' ? contact.firstName.trim() : '';
+  const last =
+    typeof contact.lastName === 'string' ? contact.lastName.trim() : '';
+  const full =
+    typeof contact.name === 'string' && contact.name.trim()
+      ? contact.name.trim()
+      : [first, last].filter(Boolean).join(' ') || undefined;
+  return { contactId, email, phone, name: full };
 }
 
 function listCalendarsErrorMessage(status: number): string {

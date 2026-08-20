@@ -22,8 +22,8 @@ const BASE_DESCRIPTION = [
   '- endTime: optional; defaults to 30 minutes after start.',
   '- title: short, include their name when known (e.g. “Meeting — Ada”).',
   '- participantEmail / phone / participantName: for the title only.',
-  '- contactId: only if the caller gave a GHL contact id; otherwise the API uses ghlContactId from call context.',
-  '- If missing_contact, call upsert_ghl_contact first with email or phone, then retry this tool.',
+  '- contactId: only a real GHL contact UUID. NEVER pass a phone number or email as contactId. Omit it unless you already have the UUID from lookup/upsert or call context.',
+  '- If missing_contact, call lookup_ghl_contact with email or phone; if found=false, call upsert_ghl_contact, then retry this tool.',
   '',
   'AFTER SUCCESS:',
   '- Read back the confirmed time in natural language once.',
@@ -31,8 +31,13 @@ const BASE_DESCRIPTION = [
   '',
   'ON FAILURE:',
   '- If slot_unavailable, check free slots again. Do not claim it is booked.',
-  '- If missing_contact, call upsert_ghl_contact (email or phone required). Do not invent a contact id. Do not claim it is booked.',
+  '- If missing_contact, call lookup_ghl_contact then upsert_ghl_contact if none. Never pass a phone as contactId. Do not claim it is booked.',
 ].join('\n');
+
+function looksLikePhoneContactId(value: string): boolean {
+  const compact = value.trim().replace(/[\s().-]/g, '');
+  return /^\+?\d{8,}$/.test(compact);
+}
 
 export const createScheduleGhlMeetingTool: ToolFactory = ({
   meta,
@@ -80,7 +85,7 @@ export const createScheduleGhlMeetingTool: ToolFactory = ({
         .string()
         .optional()
         .describe(
-          'Existing GHL contact id. Prefer call context ghlContactId; this tool does not create contacts — use upsert_ghl_contact first.',
+          'Existing GHL contact UUID only — never a phone or email. Prefer omitting this and using ghlContactId from lookup/upsert. This tool does not create contacts.',
         ),
     }),
     execute: async (args) => {
@@ -95,7 +100,9 @@ export const createScheduleGhlMeetingTool: ToolFactory = ({
       if (args.participantEmail) body.participantEmail = args.participantEmail;
       if (args.participantName) body.participantName = args.participantName;
       if (args.phone) body.phone = args.phone;
-      if (args.contactId) body.contactId = args.contactId;
+      if (args.contactId && !looksLikePhoneContactId(args.contactId)) {
+        body.contactId = args.contactId;
+      }
       return callCalendarApi(userData.callId, 'appointments', body, {
         userData,
         toolId: 'scheduleGhlMeeting',

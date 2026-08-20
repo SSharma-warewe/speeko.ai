@@ -32,6 +32,7 @@ const SHORT_HINTS: Record<string, string> = {
   createCalendarEvent: "Nylas create",
   cancelCalendarEvent: "Nylas cancel",
   checkGhlFreeSlots: "GHL open slots (org link)",
+  lookupGhlContact: "GHL lookup contact (org link)",
   upsertGhlContact: "GHL create contact (org link)",
   scheduleGhlMeeting: "GHL book (org link)",
 };
@@ -50,7 +51,12 @@ const TOOL_GROUPS: { label: string; ids: readonly string[] }[] = [
   },
   {
     label: "GHL",
-    ids: ["checkGhlFreeSlots", "upsertGhlContact", "scheduleGhlMeeting"],
+    ids: [
+      "checkGhlFreeSlots",
+      "lookupGhlContact",
+      "upsertGhlContact",
+      "scheduleGhlMeeting",
+    ],
   },
 ];
 

@@ -12,6 +12,7 @@ export const TOOL_IDS = {
   cancelCalendarEvent: 'cancelCalendarEvent',
   /** Org GHL calendar (linked organization_integrations provider=ghl) */
   checkGhlFreeSlots: 'checkGhlFreeSlots',
+  lookupGhlContact: 'lookupGhlContact',
   upsertGhlContact: 'upsertGhlContact',
   scheduleGhlMeeting: 'scheduleGhlMeeting',
 } as const;

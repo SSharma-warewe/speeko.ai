@@ -351,6 +351,100 @@ describe('GhlService calendar', () => {
     ).resolves.toMatchObject({ ok: false, error: 'slot_unavailable' });
   });
 
+  it('maps contact-not-found 400 to missing_contact not slot_unavailable', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        {
+          message:
+            'Error in contact service: Contact with id +918852863728 not found',
+        },
+        400,
+      ),
+    );
+    const service = makeService();
+    await expect(
+      service.createAppointment({
+        contactId: '+918852863728',
+        startTime: '2026-08-14T10:00:00+05:30',
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: 'missing_contact',
+      message: expect.stringMatching(/lookupGhlContact/),
+    });
+  });
+
+  it('looks up a contact via GET duplicate-search with org creds', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        contact: {
+          id: 'ct_hit',
+          email: 'ada@example.com',
+          phone: '+15550102000',
+          firstName: 'Ada',
+          lastName: 'Lovelace',
+        },
+      }),
+    );
+    const service = makeService();
+    await expect(
+      service.lookupContact(
+        { email: 'Ada@Example.com', phone: '+15550102000' },
+        { token: 'pit-org', locationId: 'loc_org' },
+      ),
+    ).resolves.toEqual({
+      ok: true,
+      found: true,
+      contactId: 'ct_hit',
+      email: 'ada@example.com',
+      phone: '+15550102000',
+      name: 'Ada Lovelace',
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('/contacts/search/duplicate?');
+    expect(url).toContain('locationId=loc_org');
+    expect(url).toContain('email=ada%40example.com');
+    expect(url).toContain('number=%2B15550102000');
+    expect(init.method).toBe('GET');
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer pit-org');
+  });
+
+  it('treats duplicate-search 404 as not found', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ message: 'not found' }, 404));
+    const service = makeService();
+    await expect(
+      service.lookupContact({ email: 'none@example.com' }),
+    ).resolves.toEqual({ ok: true, found: false });
+  });
+
+  it('maps lookup 401 to contacts.readonly and never logs the token', async () => {
+    const orgToken = 'pit-lookup-secret';
+    const service = makeService();
+    const logger = (
+      service as unknown as {
+        logger: { warn: (m: string) => void };
+      }
+    ).logger;
+    const warn = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    fetchMock.mockResolvedValue(jsonResponse({ message: 'Unauthorized' }, 401));
+
+    await expect(
+      service.lookupContact(
+        { phone: '+15550102000' },
+        { token: orgToken, locationId: 'loc_org' },
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      message: expect.stringMatching(/contacts.readonly/),
+    });
+
+    const joined = warn.mock.calls.map((c) => String(c[0])).join('\n');
+    expect(joined).not.toContain(orgToken);
+    expect(joined).not.toMatch(/Bearer /i);
+  });
+
   it('does not log calendar or contacts tokens', async () => {
     const service = makeService();
     const logger = (
@@ -456,6 +550,7 @@ describe('GhlCalendarToolsService', () => {
   let organizationIntegrationsService: { getEntityForOrg: jest.Mock };
   let ghl: {
     getFreeSlots: jest.Mock;
+    lookupContact: jest.Mock;
     upsertContact: jest.Mock;
     createAppointment: jest.Mock;
   };
@@ -493,6 +588,7 @@ describe('GhlCalendarToolsService', () => {
     organizationIntegrationsService = { getEntityForOrg: jest.fn() };
     ghl = {
       getFreeSlots: jest.fn(),
+      lookupContact: jest.fn(),
       upsertContact: jest.fn(),
       createAppointment: jest.fn(),
     };
@@ -676,11 +772,123 @@ describe('GhlCalendarToolsService', () => {
     ).resolves.toMatchObject({
       ok: false,
       error: 'missing_contact',
-      message: expect.stringMatching(/upsertGhlContact/),
+      message: expect.stringMatching(/lookupGhlContact/),
     });
     expect(ghl.upsertContact).not.toHaveBeenCalled();
     expect(ghl.createAppointment).not.toHaveBeenCalled();
     expect(callsRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects a phone number used as contactId', async () => {
+    stubLinkedGhl({ phoneNumber: '+918852863728' });
+    await expect(
+      service.scheduleMeeting(CALL_ID, {
+        startTime: '2028-06-15T10:00:00+05:30',
+        contactId: '+918852863728',
+        phone: '+918852863728',
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: 'missing_contact',
+    });
+    expect(ghl.createAppointment).not.toHaveBeenCalled();
+  });
+
+  it('rejects contactId when it matches context phoneNumber', async () => {
+    stubLinkedGhl({ phoneNumber: '+918852863728' });
+    await expect(
+      service.scheduleMeeting(CALL_ID, {
+        startTime: '2028-06-15T10:00:00+05:30',
+        contactId: '+91 88528 63728',
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: 'missing_contact',
+    });
+    expect(ghl.createAppointment).not.toHaveBeenCalled();
+  });
+
+  it('looks up a GHL contact with org creds and persists ghlContactId', async () => {
+    stubLinkedGhl({ source: 'queue', phoneNumber: '+15550102000' });
+    ghl.lookupContact.mockResolvedValue({
+      ok: true,
+      found: true,
+      contactId: 'ct_hit',
+      email: 'ada@example.com',
+      phone: '+15550102000',
+      name: 'Ada Lovelace',
+    });
+
+    const res = await service.lookupContact(CALL_ID, {
+      participantEmail: 'ada@example.com',
+    });
+    expect(res).toMatchObject({
+      ok: true,
+      data: { found: true, contactId: 'ct_hit' },
+    });
+    expect(ghl.lookupContact).toHaveBeenCalledWith(
+      { email: 'ada@example.com', phone: '+15550102000' },
+      { token: GHL_CREDS.token, locationId: GHL_CREDS.locationId },
+    );
+    expect(callsRepository.save).toHaveBeenCalledTimes(1);
+    const saved = callsRepository.save.mock.calls[0][0] as {
+      context: Record<string, unknown>;
+    };
+    expect(saved.context).toMatchObject({
+      source: 'queue',
+      ghlContactId: 'ct_hit',
+      email: 'ada@example.com',
+      phone: '+15550102000',
+    });
+  });
+
+  it('returns found=false without saving when GHL has no contact', async () => {
+    stubLinkedGhl({ email: 'ada@example.com' });
+    ghl.lookupContact.mockResolvedValue({ ok: true, found: false });
+
+    const res = await service.lookupContact(CALL_ID, {});
+    expect(res).toMatchObject({
+      ok: true,
+      data: { found: false },
+      message: expect.stringMatching(/upsertGhlContact/),
+    });
+    expect(callsRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects contact lookup without email or phone', async () => {
+    stubLinkedGhl({});
+    await expect(service.lookupContact(CALL_ID, {})).resolves.toMatchObject({
+      ok: false,
+      error: 'missing_identity',
+    });
+    expect(ghl.lookupContact).not.toHaveBeenCalled();
+  });
+
+  it('maps lookup 401 without saving and never logs the token', async () => {
+    stubLinkedGhl({ email: 'ada@example.com' });
+    ghl.lookupContact.mockResolvedValue({
+      ok: false,
+      error: 'ghl lookup 401',
+      message:
+        'Unauthorized. Check the v3 Private Integration Token and that it includes contacts.readonly.',
+    });
+    const logger = (
+      service as unknown as {
+        logger: { warn: (m: string) => void };
+      }
+    ).logger;
+    const warn = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+
+    const res = await service.lookupContact(CALL_ID, {});
+    expect(res).toMatchObject({
+      ok: false,
+      error: 'ghl lookup 401',
+    });
+    expect(res.message).toMatch(/contacts.readonly/);
+    expect(callsRepository.save).not.toHaveBeenCalled();
+    const joined = warn.mock.calls.map((c) => String(c[0])).join('\n');
+    expect(joined).not.toContain(GHL_CREDS.token);
+    expect(joined).not.toMatch(/Bearer /i);
   });
 
   it('upserts a GHL contact with org creds and persists ghlContactId', async () => {

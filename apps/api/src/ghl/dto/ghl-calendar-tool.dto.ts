@@ -85,7 +85,7 @@ export class GhlScheduleMeetingDto {
   @ApiPropertyOptional({
     example: 'ct_1',
     description:
-      'Existing GHL contact id. Calendar book does not create contacts — use upsertGhlContact first.',
+      'Existing GHL contact UUID. Never a phone number. Calendar book does not create contacts — use lookupGhlContact or upsertGhlContact first.',
   })
   @IsOptional()
   @IsString()
@@ -137,6 +137,20 @@ export class GhlUpsertContactDto {
   @IsString()
   @MaxLength(4000)
   notes?: string;
+}
+
+export class GhlLookupContactDto {
+  @ApiPropertyOptional({ example: 'ada@example.com' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  participantEmail?: string;
+
+  @ApiPropertyOptional({ example: '+15550102000' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  phone?: string;
 }
 
 export class GhlCalendarToolResponseDto {

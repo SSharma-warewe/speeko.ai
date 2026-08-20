@@ -7,6 +7,7 @@ import { OrganizationIntegrationsService } from '../organization-integrations/or
 import {
   GhlCalendarToolResponseDto,
   GhlFreeSlotsDto,
+  GhlLookupContactDto,
   GhlScheduleMeetingDto,
   GhlUpsertContactDto,
 } from './dto/ghl-calendar-tool.dto';
@@ -159,7 +160,7 @@ export class GhlCalendarToolsService {
         ok: false,
         error: 'missing_contact',
         message:
-          'Need a GoHighLevel contact id on this call. Call upsertGhlContact first with the caller’s email or phone (ghlContactId is then stored on the call). Calendar tools do not create contacts.',
+          'Need a GoHighLevel contact id on this call. Call lookupGhlContact with the caller’s email or phone; if none exists, call upsertGhlContact. ghlContactId is then stored on the call. Do not pass a phone number as contactId. Calendar tools do not create contacts.',
       };
     }
 
@@ -287,6 +288,78 @@ export class GhlCalendarToolsService {
     };
   }
 
+  /**
+   * Read-only GHL contact lookup by email/phone. Persists ghlContactId when found.
+   * A miss is ok with found:false — the agent should then call upsertContact.
+   */
+  async lookupContact(
+    callId: string,
+    dto: GhlLookupContactDto,
+  ): Promise<GhlCalendarToolResponseDto> {
+    const resolved = await this.resolveGhl(callId);
+    if (!resolved.ok) {
+      return resolved;
+    }
+    const { call, creds } = resolved;
+
+    const identity = resolveIdentity(dto, call.context);
+    if (!identity.email && !identity.phone) {
+      return {
+        ok: false,
+        error: 'missing_identity',
+        message:
+          'Need an email or phone to look up a GoHighLevel contact. Ask the caller, or use the number on this call.',
+      };
+    }
+
+    const result = await this.ghl.lookupContact(
+      { email: identity.email, phone: identity.phone },
+      { token: creds.token, locationId: creds.locationId },
+    );
+    if (!result.ok) {
+      this.logger.warn(
+        `ghl lookup contact callId=${callId} error=${result.error}`,
+      );
+      return {
+        ok: false,
+        error: result.error,
+        message:
+          result.message ??
+          'Could not look up the GoHighLevel contact. Check that the Private Integration Token includes contacts.readonly.',
+      };
+    }
+    if (!result.found) {
+      this.logger.log(`ghl lookup contact callId=${callId} ok=true found=false`);
+      return {
+        ok: true,
+        message:
+          'No GoHighLevel contact for that email or phone. Call upsertGhlContact to create one, then book.',
+        data: { found: false },
+      };
+    }
+
+    call.context = mergeGhlContactContext(call.context, {
+      contactId: result.contactId,
+      email: result.email ?? identity.email,
+      phone: result.phone ?? identity.phone,
+      name: result.name ?? identity.name,
+      firstName: identity.firstName,
+      lastName: identity.lastName,
+      company: identity.company,
+    });
+    await this.callsRepository.save(call);
+
+    this.logger.log(
+      `ghl lookup contact callId=${callId} ok=true found=true contact=${result.contactId}`,
+    );
+    return {
+      ok: true,
+      message:
+        'GoHighLevel contact found. You can now book with scheduleGhlMeeting.',
+      data: { found: true, contactId: result.contactId },
+    };
+  }
+
   private async resolveGhl(
     callId: string,
   ): Promise<GhlResolveResult> {
@@ -411,14 +484,38 @@ function contextField(
   return undefined;
 }
 
+export function looksLikePhoneContactId(value: string): boolean {
+  const compact = value.trim().replace(/[\s().-]/g, '');
+  return /^\+?\d{8,}$/.test(compact);
+}
+
+function digitPhone(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const digits = value.replace(/\D/g, '');
+  return digits.length >= 8 ? digits : undefined;
+}
+
 export function resolveGhlContactId(
   dto: GhlScheduleMeetingDto,
   context: Record<string, unknown> | null | undefined,
 ): string | undefined {
-  return (
-    dto.contactId?.trim() ||
-    contextField(context, 'ghlContactId', 'contactId', 'ghl_contact_id')
-  );
+  const phones = [
+    digitPhone(dto.phone),
+    digitPhone(contextField(context, 'phone', 'phoneNumber', 'toNumber')),
+  ].filter((v): v is string => Boolean(v));
+
+  const candidates = [
+    dto.contactId?.trim(),
+    contextField(context, 'ghlContactId', 'contactId', 'ghl_contact_id'),
+  ];
+  for (const id of candidates) {
+    if (!id) continue;
+    if (looksLikePhoneContactId(id)) continue;
+    const asDigits = digitPhone(id);
+    if (asDigits && phones.includes(asDigits)) continue;
+    return id;
+  }
+  return undefined;
 }
 
 type GhlIdentityFields = {

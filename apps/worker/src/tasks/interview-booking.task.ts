@@ -73,7 +73,7 @@ export function buildInterviewBookingInstructions(
     '- Ask for a preferred date and time.',
     '- Resolve relative times using the authoritative call clock in system instructions. Never append Z to a local wall-clock time.',
     '- Use the calendar availability and booking tools you have been given. Check that the proposed window is free before booking.',
-    '- If you have a contact-create tool, call it with name, email, and phone before booking so the calendar can attach the attendee. Do not invent an email; phone from this call is enough if they have no email.',
+    '- If you have a contact lookup or create tool, look them up first by email or phone; if none exists, create with name, email, and phone before booking so the calendar can attach the attendee. Do not invent an email; phone from this call is enough if they have no email. Never pass a phone number as a contact id.',
     `- If a slot is free, book it with the booking tool (title like “Interview — {name}”, include email when known). Pass the exact start time the availability tool returned when it provides one.`,
     '- NEVER claim the interview is booked unless a booking tool returned ok/success. If tools fail, say so and offer another time or a human callback.',
     '- After a successful book, read back the confirmed time in natural language once.',

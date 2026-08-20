@@ -134,6 +134,7 @@ export const KNOWN_TOOL_IDS = [
   "createCalendarEvent",
   "cancelCalendarEvent",
   "checkGhlFreeSlots",
+  "lookupGhlContact",
   "upsertGhlContact",
   "scheduleGhlMeeting",
 ] as const;
@@ -153,10 +154,12 @@ export const TOOL_ID_HINTS: Record<string, string> = {
   cancelCalendarEvent: "Nylas cancel event — requires agent calendar link",
   checkGhlFreeSlots:
     "GHL open slots only — requires agent GHL calendar link (hides existing meetings)",
+  lookupGhlContact:
+    "GHL look up contact by email/phone — requires agent GHL calendar link and contacts.readonly; stores ghlContactId when found",
   upsertGhlContact:
     "GHL create/update contact — requires agent GHL calendar link and contacts.write on the PIT; stores ghlContactId for booking",
   scheduleGhlMeeting:
-    "GHL book a meeting — requires agent GHL calendar link and a GHL contact id (from upsertGhlContact or call context)",
+    "GHL book a meeting — requires agent GHL calendar link and a GHL contact id (from lookupGhlContact, upsertGhlContact, or call context). Never pass a phone as contactId.",
 };
 
 export type IntegrationProvider = "nylas" | "ghl";

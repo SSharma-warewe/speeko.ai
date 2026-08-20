@@ -17,6 +17,7 @@ export const KNOWN_TOOL_IDS = [
   'cancelCalendarEvent',
   /** Org GHL calendar — requires agent calendarIntegrationId (provider=ghl) */
   'checkGhlFreeSlots',
+  'lookupGhlContact',
   'upsertGhlContact',
   'scheduleGhlMeeting',
 ] as const;

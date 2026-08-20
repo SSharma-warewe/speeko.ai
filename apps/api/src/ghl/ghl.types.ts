@@ -59,6 +59,23 @@ export type GhlCreateAppointmentResult =
     }
   | { ok: false; error: string; message?: string; skipped?: boolean };
 
+export type GhlLookupContactInput = {
+  email?: string;
+  phone?: string;
+};
+
+export type GhlLookupContactResult =
+  | {
+      ok: true;
+      found: true;
+      contactId: string;
+      email?: string;
+      phone?: string;
+      name?: string;
+    }
+  | { ok: true; found: false }
+  | { ok: false; error: string; message?: string; skipped?: boolean };
+
 /** Per-request org GHL calendar credentials (portal-linked PIT). */
 export type GhlCalendarCreds = {
   token: string;
