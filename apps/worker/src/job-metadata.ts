@@ -34,6 +34,10 @@ export type AgentJobMetadata = {
   voice?: string | null;
   model?: string | null;
   temperature?: number | null;
+  /** Inworld TTS speaking_rate (0.5–1.5). */
+  speakingRate?: number | null;
+  /** Inworld TTS-2 delivery_mode. */
+  deliveryMode?: 'STABLE' | 'BALANCED' | 'CREATIVE' | null;
 };
 
 const FALLBACK_SYSTEM = [
@@ -41,6 +45,15 @@ const FALLBACK_SYSTEM = [
   'Keep replies short and clear for speech.',
   'Follow company policies and never invent facts.',
 ].join(' ');
+
+function parseDeliveryMode(
+  value: unknown,
+): AgentJobMetadata['deliveryMode'] {
+  if (value === 'STABLE' || value === 'BALANCED' || value === 'CREATIVE') {
+    return value;
+  }
+  return null;
+}
 
 function parseHookField(
   value: unknown,
@@ -71,6 +84,8 @@ export function parseJobMetadata(raw: string | undefined | null): AgentJobMetada
       voice: null,
       model: null,
       temperature: null,
+      speakingRate: null,
+      deliveryMode: null,
     };
   }
 
@@ -127,6 +142,12 @@ export function parseJobMetadata(raw: string | undefined | null): AgentJobMetada
       model: typeof parsed.model === 'string' ? parsed.model : null,
       temperature:
         typeof parsed.temperature === 'number' ? parsed.temperature : null,
+      speakingRate:
+        typeof parsed.speakingRate === 'number' &&
+        !Number.isNaN(parsed.speakingRate)
+          ? parsed.speakingRate
+          : null,
+      deliveryMode: parseDeliveryMode(parsed.deliveryMode),
     };
   } catch {
     return {
@@ -147,6 +168,8 @@ export function parseJobMetadata(raw: string | undefined | null): AgentJobMetada
       voice: null,
       model: null,
       temperature: null,
+      speakingRate: null,
+      deliveryMode: null,
     };
   }
 }

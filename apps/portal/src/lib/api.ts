@@ -111,6 +111,8 @@ export interface Agent {
   voice: string | null;
   model: string | null;
   temperature: number | null;
+  speakingRate?: number | null;
+  deliveryMode?: string | null;
   organizationId?: string;
   agentId?: string;
   /** Platform template key on org agents (same as `key`). */
@@ -729,6 +731,8 @@ export const updateAgentTemplate = (
     voice?: string | null;
     model?: string | null;
     temperature?: number | null;
+    speakingRate?: number | null;
+    deliveryMode?: string | null;
     isActive?: boolean;
   },
 ) =>
@@ -783,6 +787,8 @@ export const updateOrgAgent = (
     voice?: string | null;
     model?: string | null;
     temperature?: number | null;
+    speakingRate?: number | null;
+    deliveryMode?: string | null;
     isActive?: boolean;
   },
 ) =>
@@ -1111,6 +1117,8 @@ export const updateUserAgent = (
     voice?: string | null;
     model?: string | null;
     temperature?: number | null;
+    speakingRate?: number | null;
+    deliveryMode?: string | null;
     isActive?: boolean;
   },
 ) =>

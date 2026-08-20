@@ -1,6 +1,7 @@
 import { Agent } from '../agent.entity';
 import { AgentResponseDto } from '../dto/agent-response.dto';
 import { OrganizationAgent } from '../organization-agent.entity';
+import { resolveVoiceRuntime } from '../voice-settings';
 
 export function toAgentTemplateResponse(
   agent: Agent,
@@ -24,6 +25,8 @@ export function toAgentTemplateResponse(
     voice: agent.voice,
     model: agent.model,
     temperature: agent.temperature,
+    speakingRate: agent.speakingRate,
+    deliveryMode: agent.deliveryMode,
     createdAt: agent.createdAt,
     updatedAt: agent.updatedAt,
   };
@@ -56,9 +59,7 @@ export function toOrganizationAgentResponse(
     toolProfileId: row.toolProfileId,
     calendarIntegrationId: row.calendarIntegrationId ?? null,
     enabledTools,
-    voice: row.voice ?? template.voice,
-    model: row.model ?? template.model,
-    temperature: row.temperature ?? template.temperature,
+    ...resolveVoiceRuntime(row, template),
     organizationId: row.organizationId,
     agentId: row.agentId,
     templateKey: template.key,

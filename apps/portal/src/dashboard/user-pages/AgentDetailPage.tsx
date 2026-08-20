@@ -1,6 +1,14 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Alert, Button, Field, Input, Select, Textarea } from "@call-agent/ui";
+import { AgentVoiceRack } from "../components/AgentVoiceRack";
+import {
+  DEFAULT_DELIVERY_MODE,
+  DEFAULT_SPEAKING_RATE,
+  DEFAULT_TEMPERATURE,
+  parseDeliveryMode,
+  type DeliveryMode,
+} from "../../lib/voices";
 import {
   ApiError,
   cloneUserAgent,
@@ -56,6 +64,12 @@ export default function UserAgentDetailPage() {
   const [toolProfileId, setToolProfileId] = useState("");
   const [calendarIntegrationId, setCalendarIntegrationId] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [voice, setVoice] = useState<string | null>(null);
+  const [speakingRate, setSpeakingRate] = useState(DEFAULT_SPEAKING_RATE);
+  const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>(
+    DEFAULT_DELIVERY_MODE,
+  );
+  const [temperature, setTemperature] = useState(DEFAULT_TEMPERATURE);
   const [submitting, setSubmitting] = useState(false);
   const [cloning, setCloning] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -78,6 +92,10 @@ export default function UserAgentDetailPage() {
     setToolProfileId(data.agent.toolProfileId || "");
     setCalendarIntegrationId(data.agent.calendarIntegrationId || "");
     setIsActive(data.agent.isActive);
+    setVoice(data.agent.voice ?? null);
+    setSpeakingRate(data.agent.speakingRate ?? DEFAULT_SPEAKING_RATE);
+    setDeliveryMode(parseDeliveryMode(data.agent.deliveryMode));
+    setTemperature(data.agent.temperature ?? DEFAULT_TEMPERATURE);
   }, [data]);
 
   const handleSave = async (e: FormEvent) => {
@@ -108,6 +126,10 @@ export default function UserAgentDetailPage() {
         toolProfileId: toolProfileId || undefined,
         calendarIntegrationId: calendarIntegrationId || null,
         isActive,
+        voice,
+        speakingRate,
+        deliveryMode,
+        temperature,
       });
       setSaved(true);
       reload();
@@ -406,12 +428,8 @@ export default function UserAgentDetailPage() {
               <dd className="ops-mono">
                 {agent.enabledTools?.length ? agent.enabledTools.join(", ") : "—"}
               </dd>
-              <dt>Voice</dt>
-              <dd className="ops-mono">{agent.voice || "default"}</dd>
               <dt>Model</dt>
               <dd className="ops-mono">{agent.model || "default"}</dd>
-              <dt>Temp</dt>
-              <dd>{agent.temperature ?? "—"}</dd>
             </dl>
 
             <p className="ops-desk-note">
@@ -419,6 +437,28 @@ export default function UserAgentDetailPage() {
                 Dial now with this agent →
               </Link>
             </p>
+          </div>
+        </section>
+
+        <section className="ops-panel ops-desk-voice">
+          <div className="ops-panel-head">
+            <span className="ops-desk-kicker">Voice</span>
+            <span className="ops-desk-hint">Speed · delivery · reply temp</span>
+          </div>
+          <div className="ops-panel-body">
+            <AgentVoiceRack
+              voice={voice}
+              speakingRate={speakingRate}
+              deliveryMode={deliveryMode}
+              temperature={temperature}
+              disabled={submitting}
+              onChange={(next) => {
+                if (next.voice !== undefined) setVoice(next.voice);
+                if (next.speakingRate !== undefined) setSpeakingRate(next.speakingRate);
+                if (next.deliveryMode !== undefined) setDeliveryMode(next.deliveryMode);
+                if (next.temperature !== undefined) setTemperature(next.temperature);
+              }}
+            />
           </div>
         </section>
       </form>

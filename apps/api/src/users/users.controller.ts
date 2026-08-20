@@ -156,7 +156,7 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, UserGuard)
   @ApiOperation({
     summary:
-      'Update organization agent config (name/slug, persona, tools, task). Org id comes from the JWT.',
+      'Update organization agent config (name/slug, persona, tools, task, voice/speed/delivery). Org id comes from the JWT.',
   })
   @ApiOkResponse({ type: AgentResponseDto })
   updateAgent(

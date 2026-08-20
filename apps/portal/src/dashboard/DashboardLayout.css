@@ -2316,6 +2316,38 @@
 
 .ops-desk.is-studio .ops-desk-board {
   grid-template-columns: minmax(0, 1fr) minmax(17.5rem, 22.5rem);
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.ops-desk-voice {
+  grid-column: 1 / -1;
+}
+
+.ops-desk-voice.ops-panel {
+  position: relative;
+  background:
+    linear-gradient(180deg, #fffbeb 0%, #fff 48%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.85) inset,
+    0 14px 36px -22px rgba(133, 77, 14, 0.22);
+}
+
+.ops-desk.is-studio .ops-desk-script .ops-panel-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.ops-desk.is-studio .ops-desk-prompt {
+  flex: 1 1 auto;
+  min-height: 10rem;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.ops-desk.is-studio .ops-desk-prompt .ca-textarea {
+  min-height: 10rem;
+  height: 100%;
+  resize: none;
 }
 
 .ops-desk-board > .ops-panel + .ops-panel {
@@ -2325,7 +2357,8 @@
 .ops-desk-compose,
 .ops-desk-list,
 .ops-desk-script,
-.ops-desk-card {
+.ops-desk-card,
+.ops-desk-voice {
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -2358,6 +2391,7 @@
 .ops-desk-compose .ops-panel-head,
 .ops-desk-script .ops-panel-head,
 .ops-desk-card .ops-panel-head,
+.ops-desk-voice .ops-panel-head,
 .ops-desk-list-bar {
   min-height: 3.15rem;
   padding: 0.45rem 0.75rem;
@@ -2406,7 +2440,8 @@
 
 .ops-desk-compose .ops-panel-body,
 .ops-desk-script .ops-panel-body,
-.ops-desk-card .ops-panel-body {
+.ops-desk-card .ops-panel-body,
+.ops-desk-voice .ops-panel-body {
   padding: 0.75rem 0.85rem 0.9rem;
   flex: 1 1 auto;
   min-height: 0;
@@ -2768,6 +2803,176 @@
   line-height: 1.5;
 }
 
+/* ── Voice rack (studio mixing plates) ── */
+.ops-voice-rack {
+  display: grid;
+  grid-template-columns:
+    minmax(16rem, 1.45fr)
+    minmax(12.5rem, 1fr)
+    minmax(11.5rem, 0.85fr)
+    minmax(12.5rem, 1fr);
+  gap: 0.7rem;
+  align-items: stretch;
+}
+
+.ops-voice-cast {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.7rem 0.75rem 0.75rem;
+  border: 1px solid var(--ops-line);
+  border-radius: 12px;
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(254, 243, 199, 0.5), transparent 55%),
+    linear-gradient(165deg, #fffefb 0%, #f7f5f0 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 8px 24px -18px rgba(10, 10, 10, 0.16);
+}
+
+.ops-voice-cast-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.ops-voice-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.6rem, 1fr));
+  gap: 0.4rem;
+}
+
+.ops-voice-tile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.45rem;
+  align-items: center;
+  margin: 0;
+  padding: 0.42rem 0.5rem;
+  text-align: left;
+  font: inherit;
+  color: var(--ops-ink);
+  background: #fff;
+  border: 1px solid var(--ops-line);
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ops-voice-tile:hover:not(:disabled) {
+  border-color: var(--ops-amber-hot);
+  transform: translateY(-1px);
+}
+
+.ops-voice-tile.is-on {
+  border-color: var(--ops-amber-ink);
+  background: var(--ops-amber);
+  box-shadow: 0 0 0 1px rgba(133, 77, 14, 0.12);
+}
+
+.ops-voice-tile:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ops-voice-tile-mark {
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 6px;
+  background: #0a0a0a;
+  color: #fde68a;
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.ops-voice-tile.is-on .ops-voice-tile-mark {
+  background: var(--ops-amber-ink);
+  color: #fffbeb;
+}
+
+.ops-voice-tile-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.05rem;
+}
+
+.ops-voice-tile-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.ops-voice-tile-line {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ops-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ops-voice-delivery {
+  display: grid;
+  align-content: start;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.95rem 1rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid var(--ops-line);
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(254, 243, 199, 0.45), transparent 55%),
+    linear-gradient(165deg, #fffefb 0%, #f7f5f0 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 8px 24px -18px rgba(10, 10, 10, 0.18);
+}
+
+.ops-voice-delivery.is-disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.ops-voice-delivery-label {
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  color: var(--ops-ink);
+}
+
+.ops-voice-delivery-hint {
+  margin: 0;
+  font-size: 0.66rem;
+  line-height: 1.4;
+  color: var(--ops-muted);
+}
+
+.ops-voice-compact {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.ops-voice-compact-label {
+  margin: 0;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ops-faint);
+}
+
 .ops-desk-secret {
   display: grid;
   gap: 0.55rem;
@@ -2806,6 +3011,12 @@
   border-radius: 8px;
 }
 
+@media (max-width: 1200px) {
+  .ops-voice-rack {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 @media (max-width: 960px) {
   .ops-content:has(.ops-desk) {
     overflow-y: auto;
@@ -2833,8 +3044,13 @@
 
   .ops-hooks,
   .ops-desk-pair,
-  .ops-desk-triple {
+  .ops-desk-triple,
+  .ops-voice-rack {
     grid-template-columns: 1fr;
+  }
+
+  .ops-desk-voice {
+    grid-column: auto;
   }
 
   .ops-desk-script .ops-desk-prompt .ca-textarea {
@@ -2852,7 +3068,8 @@
   .ops-desk-compose,
   .ops-desk-list,
   .ops-desk-script,
-  .ops-desk-card {
+  .ops-desk-card,
+  .ops-desk-voice {
     animation: none !important;
     transition: none !important;
   }

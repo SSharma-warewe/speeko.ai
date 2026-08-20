@@ -8,6 +8,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { OrganizationAgentsService } from '../agents/organization-agents.service';
+import { resolveVoiceRuntime } from '../agents/voice-settings';
 import { LivekitService } from '../livekit/livekit.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PublishResourceResultDto } from '../sip-trunks/dto/inbound-publish-result.dto';
@@ -415,9 +416,7 @@ export class SipDispatchRulesService {
         onExitInstructions: orgAgent.onExitInstructions ?? null,
       },
       enabledTools,
-      voice: orgAgent.voice,
-      model: orgAgent.model,
-      temperature: orgAgent.temperature,
+      ...resolveVoiceRuntime(orgAgent, template),
     });
   }
 

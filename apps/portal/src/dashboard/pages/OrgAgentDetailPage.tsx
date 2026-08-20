@@ -1,6 +1,14 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Alert, Button, Field, Input, Textarea } from "@call-agent/ui";
+import { AgentVoiceRack } from "../components/AgentVoiceRack";
+import {
+  DEFAULT_DELIVERY_MODE,
+  DEFAULT_SPEAKING_RATE,
+  DEFAULT_TEMPERATURE,
+  parseDeliveryMode,
+  type DeliveryMode,
+} from "../../lib/voices";
 import {
   ApiError,
   cloneOrgAgent,
@@ -33,6 +41,12 @@ export default function OrgAgentDetailPage() {
   const [silentStart, setSilentStart] = useState(false);
   const [silentEnd, setSilentEnd] = useState(false);
   const [isActive, setIsActive] = useState(true);
+  const [voice, setVoice] = useState<string | null>(null);
+  const [speakingRate, setSpeakingRate] = useState(DEFAULT_SPEAKING_RATE);
+  const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>(
+    DEFAULT_DELIVERY_MODE,
+  );
+  const [temperature, setTemperature] = useState(DEFAULT_TEMPERATURE);
   const [submitting, setSubmitting] = useState(false);
   const [cloning, setCloning] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -51,6 +65,10 @@ export default function OrgAgentDetailPage() {
       setOnEnterInstructions(enter && enter !== "" ? enter : "");
       setOnExitInstructions(exit && exit !== "" ? exit : "");
       setIsActive(data.isActive);
+      setVoice(data.voice ?? null);
+      setSpeakingRate(data.speakingRate ?? DEFAULT_SPEAKING_RATE);
+      setDeliveryMode(parseDeliveryMode(data.deliveryMode));
+      setTemperature(data.temperature ?? DEFAULT_TEMPERATURE);
     }
   }, [data]);
 
@@ -79,6 +97,10 @@ export default function OrgAgentDetailPage() {
             ? onExitInstructions.trim()
             : null,
         isActive,
+        voice,
+        speakingRate,
+        deliveryMode,
+        temperature,
       });
       setSaved(true);
       reload();
@@ -257,6 +279,20 @@ export default function OrgAgentDetailPage() {
               />
               Active
             </label>
+            <AgentVoiceRack
+              compact
+              voice={voice}
+              speakingRate={speakingRate}
+              deliveryMode={deliveryMode}
+              temperature={temperature}
+              disabled={submitting}
+              onChange={(next) => {
+                if (next.voice !== undefined) setVoice(next.voice);
+                if (next.speakingRate !== undefined) setSpeakingRate(next.speakingRate);
+                if (next.deliveryMode !== undefined) setDeliveryMode(next.deliveryMode);
+                if (next.temperature !== undefined) setTemperature(next.temperature);
+              }}
+            />
             <div className="ops-form-actions">
               <Button type="submit" variant="primary" loading={submitting} disabled={submitting}>
                 Save changes

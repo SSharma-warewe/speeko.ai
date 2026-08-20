@@ -80,6 +80,14 @@ export class Agent {
   @Column({ type: 'real', nullable: true })
   temperature!: number | null;
 
+  /** Inworld TTS speaking_rate multiplier (0.5–1.5). null = provider default. */
+  @Column({ name: 'speaking_rate', type: 'real', nullable: true })
+  speakingRate!: number | null;
+
+  /** Inworld TTS-2 delivery_mode: STABLE | BALANCED | CREATIVE. null = BALANCED. */
+  @Column({ name: 'delivery_mode', type: 'varchar', length: 32, nullable: true })
+  deliveryMode!: string | null;
+
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive!: boolean;
 

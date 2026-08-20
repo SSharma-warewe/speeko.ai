@@ -50,6 +50,8 @@ describe('CallsService', () => {
     voice: 'template-voice',
     model: 'template-model',
     temperature: 0.4,
+    speakingRate: 1.2,
+    deliveryMode: 'STABLE',
     isActive: true,
     createdAt: new Date('2024-01-01T00:00:00.000Z'),
     updatedAt: new Date('2024-01-01T00:00:00.000Z'),
@@ -69,6 +71,8 @@ describe('CallsService', () => {
     voice: 'org-voice',
     model: null,
     temperature: null,
+    speakingRate: null,
+    deliveryMode: null,
     calendarIntegrationId: null,
     isActive: true,
     agent: template,
@@ -419,6 +423,8 @@ describe('CallsService', () => {
       expect(dispatchMeta.task).toBe('confirm_appointment'); // org default
       expect(dispatchMeta.voice).toBe('org-voice');
       expect(dispatchMeta.model).toBe('template-model'); // fallback
+      expect(dispatchMeta.speakingRate).toBe(1.2);
+      expect(dispatchMeta.deliveryMode).toBe('STABLE');
       expect(result.agentKey).toBe('outbound');
       expect(result.organizationId).toBe(ORG_ID);
       expect(result.organizationAgentId).toBe(ORG_AGENT_ID);

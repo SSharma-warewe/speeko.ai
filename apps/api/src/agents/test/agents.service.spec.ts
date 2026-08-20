@@ -362,5 +362,23 @@ describe('AgentsService', () => {
         'organizationAgentsRepository',
       );
     });
+
+    it('19. speakingRate / deliveryMode / blank voice', async () => {
+      const row = { ...template };
+      repository.findById.mockResolvedValue(row);
+      repository.save.mockImplementation(async (r: Agent) => r);
+
+      await service.update(TEMPLATE_ID, {
+        voice: '',
+        speakingRate: 1.35,
+        deliveryMode: 'CREATIVE',
+        temperature: 0.9,
+      } as UpdateAgentDto);
+
+      expect(row.voice).toBeNull();
+      expect(row.speakingRate).toBe(1.35);
+      expect(row.deliveryMode).toBe('CREATIVE');
+      expect(row.temperature).toBe(0.9);
+    });
   });
 });

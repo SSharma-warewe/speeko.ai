@@ -13,6 +13,7 @@ import { AssignAgentDto } from './dto/assign-agent.dto';
 import { CloneOrganizationAgentDto } from './dto/clone-organization-agent.dto';
 import { UpdateOrganizationAgentDto } from './dto/update-organization-agent.dto';
 import { toOrganizationAgentResponse } from './mappers/agent-response.mapper';
+import { normalizeDeliveryMode, normalizeVoice } from './voice-settings';
 import { OrganizationAgent } from './organization-agent.entity';
 import { OrganizationAgentsRepository } from './organization-agents.repository';
 import { nextAvailableSlug, slugify } from './slug.util';
@@ -167,6 +168,8 @@ export class OrganizationAgentsService {
       voice: template.voice,
       model: template.model,
       temperature: template.temperature,
+      speakingRate: template.speakingRate,
+      deliveryMode: template.deliveryMode,
       isActive: true,
     });
     const saved = await this.organizationAgentsRepository.save(row);
@@ -208,6 +211,8 @@ export class OrganizationAgentsService {
       voice: source.voice,
       model: source.model,
       temperature: source.temperature,
+      speakingRate: source.speakingRate,
+      deliveryMode: source.deliveryMode,
       isActive: source.isActive,
     });
     const saved = await this.organizationAgentsRepository.save(row);
@@ -263,13 +268,19 @@ export class OrganizationAgentsService {
       row.defaultTaskKey = dto.defaultTaskKey;
     }
     if (dto.voice !== undefined) {
-      row.voice = dto.voice;
+      row.voice = normalizeVoice(dto.voice);
     }
     if (dto.model !== undefined) {
       row.model = dto.model;
     }
     if (dto.temperature !== undefined) {
       row.temperature = dto.temperature;
+    }
+    if (dto.speakingRate !== undefined) {
+      row.speakingRate = dto.speakingRate;
+    }
+    if (dto.deliveryMode !== undefined) {
+      row.deliveryMode = normalizeDeliveryMode(dto.deliveryMode);
     }
     if (dto.isActive !== undefined) {
       row.isActive = dto.isActive;

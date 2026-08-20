@@ -20,6 +20,8 @@ describe('agent-response.mapper', () => {
     voice: 'template-voice',
     model: 'template-model',
     temperature: 0.5,
+    speakingRate: 1.1,
+    deliveryMode: 'STABLE',
     isActive: true,
     createdAt: new Date('2024-01-01T00:00:00.000Z'),
     updatedAt: new Date('2024-01-02T00:00:00.000Z'),
@@ -99,6 +101,8 @@ describe('agent-response.mapper', () => {
       voice: 'org-voice',
       model: null,
       temperature: null,
+      speakingRate: null,
+      deliveryMode: null,
       isActive: false,
       createdAt: new Date('2024-01-03T00:00:00.000Z'),
       updatedAt: new Date('2024-01-04T00:00:00.000Z'),
@@ -176,24 +180,34 @@ describe('agent-response.mapper', () => {
       ).toBe('confirm_appointment');
     });
 
-    it('11. voice/model/temperature fall back to template when org null', () => {
+    it('11. voice/model/temperature/speakingRate/deliveryMode fall back to template when org null', () => {
       const dto = toOrganizationAgentResponse({
         ...orgAgent,
         voice: null,
         model: null,
         temperature: null,
+        speakingRate: null,
+        deliveryMode: null,
       } as OrganizationAgent);
 
       expect(dto.voice).toBe('template-voice');
       expect(dto.model).toBe('template-model');
       expect(dto.temperature).toBe(0.5);
+      expect(dto.speakingRate).toBe(1.1);
+      expect(dto.deliveryMode).toBe('STABLE');
     });
 
     it('12. org voice wins over template voice', () => {
-      const dto = toOrganizationAgentResponse(orgAgent);
+      const dto = toOrganizationAgentResponse({
+        ...orgAgent,
+        speakingRate: 0.8,
+        deliveryMode: 'CREATIVE',
+      } as OrganizationAgent);
 
       expect(dto.voice).toBe('org-voice');
       expect(dto.model).toBe('template-model');
+      expect(dto.speakingRate).toBe(0.8);
+      expect(dto.deliveryMode).toBe('CREATIVE');
     });
 
     it('13. calendarIntegrationId null-coalesced; includes org + agent ids', () => {

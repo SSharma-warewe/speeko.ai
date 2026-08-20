@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -8,7 +9,9 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
+import { DELIVERY_MODES } from '../voice-settings';
 
 export class UpdateAgentDto {
   @ApiPropertyOptional({
@@ -69,6 +72,26 @@ export class UpdateAgentDto {
   @Min(0)
   @Max(2)
   temperature?: number | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Inworld TTS speaking_rate. 0.5–1.5. null = provider default.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0.5)
+  @Max(1.5)
+  speakingRate?: number | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    enum: DELIVERY_MODES,
+    description: 'Inworld TTS-2 delivery_mode. null = BALANCED.',
+  })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsIn(DELIVERY_MODES)
+  deliveryMode?: (typeof DELIVERY_MODES)[number] | null;
 
   @ApiPropertyOptional()
   @IsOptional()

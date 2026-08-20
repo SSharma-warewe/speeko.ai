@@ -132,10 +132,17 @@ describe('SipDispatchRulesService', () => {
     voice: 'alloy',
     model: null,
     temperature: 0.4,
+    speakingRate: null,
+    deliveryMode: null,
     agent: {
       id: 'template-id',
       key: 'inbound',
       defaultTaskKey: 'general',
+      voice: null,
+      model: 'template-model',
+      temperature: 0.2,
+      speakingRate: 0.9,
+      deliveryMode: 'CREATIVE',
     },
   };
 
@@ -549,6 +556,9 @@ describe('SipDispatchRulesService', () => {
         enabledTools: ['endCall', 'confirmAppointment'],
         voice: 'alloy',
         temperature: 0.4,
+        model: 'template-model',
+        speakingRate: 0.9,
+        deliveryMode: 'CREATIVE',
       });
     });
 

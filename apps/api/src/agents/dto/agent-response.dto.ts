@@ -97,6 +97,21 @@ export class AgentResponseDto {
   temperature!: number | null;
 
   @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Inworld TTS speaking rate (0.5–1.5). null = worker / template default (1.0).',
+  })
+  speakingRate!: number | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    enum: ['STABLE', 'BALANCED', 'CREATIVE'],
+    description:
+      'Inworld TTS-2 delivery mode. null = worker / template default (BALANCED). LLM temperature stays in `temperature`.',
+  })
+  deliveryMode!: string | null;
+
+  @ApiPropertyOptional({
     format: 'uuid',
     description: 'Present on org-owned agents: parent organization id',
   })

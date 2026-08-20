@@ -76,8 +76,8 @@ tool_profiles                  (capability bundles: platform seeds + org-owned c
 - `password_reset_tokens` — hashed invite / reset tokens (`kind` `user` \| `admin`, `purpose` `invite` \| `reset`). Raw token is emailed once; only SHA-256 is stored. Unused siblings are invalidated on re-issue, set, change, or reset.
 - `tool_profiles` — named capability bundles (`key`, `name`, optional `organization_id`). Platform seeds (`organization_id` null): `default`, `outbound`. Org users may create **custom** profiles (pick known worker tool ids; `endCall` always included) and select them on agents.
 - `tool_profile_tools` — rows of `tool_id` strings (worker registry ids, e.g. `endCall`, `booking`). **Not** JSON tool schemas.
-- `agents` — **platform AI agent templates** (seeded: `inbound`, `outbound`). **Persona** via `system_prompt` (identity, tone, policies). Optional LiveKit hook instructions: `on_enter_instructions` / `on_exit_instructions` (`null` = worker default, empty string = silent). Also: `default_task_key`, `default_tool_profile_id`, optional `voice` / `model` / `temperature`. Not the same as user role `agent`.
-- `organization_agents` — org-owned **named** agent configs: FK to org + platform template (`agent_id`); display `name` + unique-per-org `slug`; effective persona `system_prompt`, optional `on_enter_instructions` / `on_exit_instructions`, `tool_profile_id`, optional `default_task_key` / `voice` / `model` / `temperature`. Unique `(organization_id, slug)` — **not** unique on template, so an org may have many inbound/outbound configs (different prompts/hooks/tools). Create/clone copies template or source config.
+- `agents` — **platform AI agent templates** (seeded: `inbound`, `outbound`). **Persona** via `system_prompt` (identity, tone, policies). Optional LiveKit hook instructions: `on_enter_instructions` / `on_exit_instructions` (`null` = worker default, empty string = silent). Also: `default_task_key`, `default_tool_profile_id`, optional `voice` / `model` / `temperature` (LLM), `speaking_rate` (Inworld TTS 0.5–1.5), `delivery_mode` (`STABLE` \| `BALANCED` \| `CREATIVE`). Not the same as user role `agent`.
+- `organization_agents` — org-owned **named** agent configs: FK to org + platform template (`agent_id`); display `name` + unique-per-org `slug`; effective persona `system_prompt`, optional `on_enter_instructions` / `on_exit_instructions`, `tool_profile_id`, optional `default_task_key` / `voice` / `model` / `temperature` / `speaking_rate` / `delivery_mode`. Unique `(organization_id, slug)` — **not** unique on template, so an org may have many inbound/outbound configs (different prompts/hooks/tools). Create/clone copies template or source config. Org null voice fields fall back to the template at response/metadata time.
 - `organization_queue_settings` — 1:1 with org. Outbound dial queue: `enabled`, `paused`, `max_concurrent`, `max_dials_per_minute`, `default_max_attempts`, backoff (`fixed` \| `exponential`, base/max seconds), `retry_on` JSONB failure codes, optional quiet hours + timezone, `claim_batch_size`. Lazy-created on first access / seeded on org create.
 - `call_batches` — bulk enqueue groups: `status` `running` \| `paused` \| `cancelled` \| `completed`, optional overrides (`max_attempts`, `max_concurrent`, `priority`), `total_count`, agent/trunk/task snapshot.
 - `sip_trunks` — org SIP trunks (`direction` `outbound` \| `inbound`). Outbound: provider fields + `livekit_trunk_id` (`ST_…`) set on create (link or provision) via admin **or** org user; always `live` after create. Inbound: draft-first (`livekit_trunk_id` null until publish); also `allowed_numbers`, `allowed_addresses`, `krisp_enabled`, `published_at`. Never return `auth_password` in responses. Response `status`: `draft` \| `live` (derived from whether LiveKit id is set).
@@ -577,7 +577,9 @@ Agent APIs return persona + capability profile (not JSON tool schemas):
   "enabledTools": ["endCall"],
   "voice": null,
   "model": null,
-  "temperature": null
+  "temperature": null,
+  "speakingRate": null,
+  "deliveryMode": null
 }
 ```
 
@@ -605,9 +607,13 @@ Agent APIs return persona + capability profile (not JSON tool schemas):
   "participantIdentity": "+91...",
   "voice": null,
   "model": null,
-  "temperature": null
+  "temperature": null,
+  "speakingRate": null,
+  "deliveryMode": null
 }
 ```
+
+`temperature` is **LLM** reply randomness. `speakingRate` / `deliveryMode` are Inworld TTS-2 `modelOptions` (`speaking_rate`, `delivery_mode`). TTS temperature is not stored — tts-2 ignores it.
 
 Outbound: `POST /api/admin/calls/outbound` accepts optional `task` (defaults to org agent / template `default_task_key`).  
 Test: `POST /api/admin/calls/test` accepts optional `task` + `context`.
@@ -630,7 +636,7 @@ Test: `POST /api/admin/calls/test` accepts optional `task` + `context`.
 
 - Entry: `apps/worker/src/main.ts` → `cli.runApp` with `agentName` = `LIVEKIT_AGENT_NAME` (default `call-agent`) and `numIdleProcesses` from `LIVEKIT_NUM_IDLE_PROCESSES` (default `1`) to limit idle RAM on small hosts.
 - Job entry: `apps/worker/src/agent.ts` parses metadata → `buildAgentRuntime` (builders) → voice-only `AgentSession`.
-- **Builders:** `prompt-builder` (persona + onEnter instructions + onExit spoken line), `model-builder`, `voice-builder` (session), `tool-builder` → `ToolRegistry`, `task-builder` → `TaskRegistry`, orchestrated by `agent-builder`.
+- **Builders:** `prompt-builder` (persona + onEnter instructions + onExit spoken line), `model-builder` (LLM `temperature` + TTS `voice` / `speaking_rate` / `delivery_mode` from metadata), `voice-builder` (session), `tool-builder` → `ToolRegistry`, `task-builder` → `TaskRegistry`, orchestrated by `agent-builder`.
 - **Turn detection / memory:** `model-builder` uses `inference.TurnDetector({ version: 'v1' })` (cloud). Main skips registering local EOT (`lk_eot_audio`) so the shared InferenceProcExecutor (~138 MB) is not started. Bundled Silero VAD still auto-provisions in job processes.
 - **Tasks:** LiveKit `voice.AgentTask` under `apps/worker/src/tasks/*`. Parent agent **onEnter** speaks opening (configurable), then runs `task.run()`; task owns workflow instructions + completion tools only (no opening `generateReply`); structured result in `userData.taskResult`. `userData.taskCompleted = true` only after `task.run()` **resolves** (not because `taskResult` is set).
 - **Tools:** hard-coded in `apps/worker/src/tools/*`; metadata only lists ids. Always includes hangup (`endCall` / `createEndCallTool`).
@@ -769,14 +775,14 @@ Work **top-down by risk**: security → money/dial side effects → multi-tenant
 | P1 | `integration-endpoints` | Todo | API key hash/prefix, rotate, public enqueue merge context, inactive key reject, never leak secrets |
 | P1 | `queue` | **Done** | Claim/retry classification, backoff, quiet hours, batch pause/cancel, stale dialing/ready sweeper (mock `DataSource` / time) |
 | P1 | `calls` | **Done** | Enqueue vs immediate outbound, metadata pack, complete + requeue, org scoping on list/get, **state machine** (`taskCompleted` → completed vs incomplete) |
-| P1 | `agents` / org agents | **Done** | Create/clone/slug collision, persona vs template isolation, hook null/empty/whitespace, calendar same-org FK, FK-blocked delete |
+| P1 | `agents` / org agents | **Done** | Create/clone/slug collision, persona vs template isolation, hook null/empty/whitespace, calendar same-org FK, FK-blocked delete, voice/speakingRate/deliveryMode copy + template fallback |
 | P1 | `tools` (profiles) | Todo | Platform vs org custom, known tool ids, delete-if-unused, always include `endCall` |
 | P2 | `sip-trunks` / `sip-dispatch-rules` | **Done** | Draft vs publish, password redaction, inbound LiveKit delete (404 ignore), dispatch metadata pack, LiveKit adapter mocked |
 | P2 | `organization-integrations` | **Done** | Secrets never returned (mapper + CRUD), Nylas + GHL create/test, calendar resolve/freeBusy matrix (Nylas mocked) |
 | P2 | `email` | **Done** | Soft-disable without key, never throws, Plunk `send` / `sendText`, never log API key |
 | P2 | `ghl` | **Done** | Soft-disable without key/location, upsert + tags/note, org calendar creds + listCalendars, never throws, never log token, free-slots map + ms query, book upsert+appointment, hide existing events |
 | P2 | `livekit` | **Done** | URL helper; adapter with mocked SDK (rooms, dispatch, token/meet, SIP trunks/rules/participant, hasRemoteCallee) |
-| P3 | Worker (`apps/worker`) | Partial | SIP answer wait + unanswered shutdown (`sip-answer`, `shutdown-status` including `taskCompleted`); `buildClosingSpeech` (silent/custom/default); `interview_booking` identity-then-congratulate-then-book instructions (tool-agnostic). Remaining: metadata parse, other prompt/tool/task builders, hangup helpers — no LiveKit cloud in unit tests |
+| P3 | Worker (`apps/worker`) | Partial | SIP answer wait + unanswered shutdown (`sip-answer`, `shutdown-status` including `taskCompleted`); `buildClosingSpeech` (silent/custom/default); `interview_booking` identity-then-congratulate-then-book instructions (tool-agnostic); job metadata `speakingRate`/`deliveryMode`; TTS/LLM option helpers. Remaining: other prompt/tool/task builders, hangup helpers — no LiveKit cloud in unit tests |
 | P3 | Portal / web | Todo | Separate tooling later (Vitest/Playwright); not part of root `npm test` yet |
 
 Update the **Status** column when a module suite lands or expands.

@@ -67,6 +67,8 @@ describe('OrganizationAgentsService', () => {
     voice: 'template-voice',
     model: 'template-model',
     temperature: 0.5,
+    speakingRate: 1.15,
+    deliveryMode: 'STABLE',
     isActive: true,
     createdAt: new Date('2024-01-01T00:00:00.000Z'),
     updatedAt: new Date('2024-01-01T00:00:00.000Z'),
@@ -90,6 +92,8 @@ describe('OrganizationAgentsService', () => {
       voice: 'org-voice',
       model: 'org-model',
       temperature: 0.2,
+      speakingRate: 0.9,
+      deliveryMode: 'CREATIVE',
       isActive: true,
       createdAt: new Date('2024-01-03T00:00:00.000Z'),
       updatedAt: new Date('2024-01-04T00:00:00.000Z'),
@@ -358,6 +362,8 @@ describe('OrganizationAgentsService', () => {
           voice: 'template-voice',
           model: 'template-model',
           temperature: 0.5,
+          speakingRate: 1.15,
+          deliveryMode: 'STABLE',
           isActive: true,
           toolProfileId: PROFILE_ID,
           calendarIntegrationId: null,
@@ -499,6 +505,8 @@ describe('OrganizationAgentsService', () => {
         voice: 'source-voice',
         model: 'source-model',
         temperature: 0.9,
+        speakingRate: 1.4,
+        deliveryMode: 'BALANCED',
       });
       // template differs — clone must ignore these for persona
       expect(source.systemPrompt).not.toBe(template.systemPrompt);
@@ -535,6 +543,8 @@ describe('OrganizationAgentsService', () => {
           voice: 'source-voice',
           model: 'source-model',
           temperature: 0.9,
+          speakingRate: 1.4,
+          deliveryMode: 'BALANCED',
           isActive: true,
         }),
       );
@@ -771,6 +781,26 @@ describe('OrganizationAgentsService', () => {
       } as UpdateOrganizationAgentDto);
 
       expect(row.name).toHaveLength(255);
+    });
+
+    it('30. voice extras: empty voice → null; deliveryMode stored; speakingRate set', async () => {
+      const row = makeOrgAgent();
+      repository.findByIdAndOrgWithAgent
+        .mockResolvedValueOnce(row)
+        .mockResolvedValueOnce(row);
+      repository.save.mockImplementation(async (r: OrganizationAgent) => r);
+
+      await service.update(ORG_ID, ORG_AGENT_ID, {
+        voice: '  ',
+        speakingRate: 0.75,
+        deliveryMode: 'STABLE',
+        temperature: 0.4,
+      } as UpdateOrganizationAgentDto);
+
+      expect(row.voice).toBeNull();
+      expect(row.speakingRate).toBe(0.75);
+      expect(row.deliveryMode).toBe('STABLE');
+      expect(row.temperature).toBe(0.4);
     });
   });
 

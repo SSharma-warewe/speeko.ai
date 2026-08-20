@@ -12,6 +12,7 @@ import { Agent, AgentDirection } from '../agents/agent.entity';
 import { OrganizationAgent } from '../agents/organization-agent.entity';
 import { AgentsService } from '../agents/agents.service';
 import { OrganizationAgentsService } from '../agents/organization-agents.service';
+import { resolveVoiceRuntime } from '../agents/voice-settings';
 import { LivekitService } from '../livekit/livekit.service';
 import { CallBatchesService } from '../queue/call-batches.service';
 import { OrganizationQueueSettingsService } from '../queue/organization-queue-settings.service';
@@ -81,6 +82,8 @@ export type AgentJobMetadata = {
   voice?: string | null;
   model?: string | null;
   temperature?: number | null;
+  speakingRate?: number | null;
+  deliveryMode?: string | null;
 };
 
 @Injectable()
@@ -174,9 +177,7 @@ export class CallsService {
         enabledTools,
         context: dto.context,
         participantIdentity,
-        voice: agent.voice,
-        model: agent.model,
-        temperature: agent.temperature,
+        ...resolveVoiceRuntime(agent),
       };
 
       await this.livekit.createRoom({
@@ -462,9 +463,7 @@ export class CallsService {
         enabledTools,
         context: dto.context,
         participantIdentity,
-        voice: orgAgent.voice ?? template.voice,
-        model: orgAgent.model ?? template.model,
-        temperature: orgAgent.temperature ?? template.temperature,
+        ...resolveVoiceRuntime(orgAgent, template),
       };
 
       await this.livekit.createRoom({
@@ -983,9 +982,7 @@ export class CallsService {
       enabledTools,
       context,
       participantIdentity,
-      voice: orgAgent.voice ?? template.voice,
-      model: orgAgent.model ?? template.model,
-      temperature: orgAgent.temperature ?? template.temperature,
+      ...resolveVoiceRuntime(orgAgent, template),
     };
   }
 
