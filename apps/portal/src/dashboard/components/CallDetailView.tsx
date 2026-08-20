@@ -199,34 +199,34 @@ export function CallDetailView({
               </div>
             </section>
           ) : null}
-
-          <section className="ops-panel ops-call-tools">
-            <div className="ops-panel-head">
-              <h2>Tools</h2>
-              <span className="ops-faint">
-                {toolEvents.length} call{toolEvents.length === 1 ? "" : "s"}
-              </span>
-            </div>
-            <div className="ops-panel-body">
-              {toolEvents.length === 0 ? (
-                <p className="ops-muted ops-call-empty">
-                  {call.status === "completed" ||
-                  call.status === "incomplete" ||
-                  call.status === "failed"
-                    ? "No tool invocations were recorded for this call."
-                    : "No tool invocations yet. They appear after the worker completes the call."}
-                </p>
-              ) : (
-                <ol className="ops-call-tool-list">
-                  {toolEvents.map((ev, i) => (
-                    <ToolEventCard key={`${ev.toolId}-${ev.at ?? i}`} ev={ev} />
-                  ))}
-                </ol>
-              )}
-            </div>
-          </section>
         </aside>
       </div>
+
+      <section className="ops-panel ops-call-tools">
+        <div className="ops-panel-head">
+          <h2>Tools</h2>
+          <span className="ops-faint">
+            {toolEvents.length} call{toolEvents.length === 1 ? "" : "s"}
+          </span>
+        </div>
+        <div className="ops-panel-body">
+          {toolEvents.length === 0 ? (
+            <p className="ops-muted ops-call-empty">
+              {call.status === "completed" ||
+              call.status === "incomplete" ||
+              call.status === "failed"
+                ? "No tool invocations were recorded for this call."
+                : "No tool invocations yet. They appear after the worker completes the call."}
+            </p>
+          ) : (
+            <ol className="ops-call-tool-list">
+              {toolEvents.map((ev, i) => (
+                <ToolEventCard key={`${ev.toolId}-${ev.at ?? i}`} ev={ev} />
+              ))}
+            </ol>
+          )}
+        </div>
+      </section>
 
       <section className="ops-panel ops-call-plumb">
         <div className="ops-panel-head">
