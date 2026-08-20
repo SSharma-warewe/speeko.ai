@@ -50,6 +50,16 @@ function defaultProfileId(
   );
 }
 
+function templateForDirection(
+  templates: Agent[],
+  direction: "inbound" | "outbound",
+): Agent | undefined {
+  return (
+    templates.find((t) => t.direction === direction && t.key === direction) ??
+    templates.find((t) => t.direction === direction)
+  );
+}
+
 function ToolPills({ ids }: { ids?: string[] }) {
   const tools = (ids ?? []).filter(Boolean);
   if (tools.length === 0) return <span className="ops-faint">—</span>;
@@ -94,8 +104,18 @@ export default function UserAgentsPage() {
     const profiles = data?.profiles ?? [];
     setToolProfileId(defaultProfileId(template, profiles));
     if (template) {
+      setDir(template.direction);
       setName((prev) => (prev.trim() ? prev : template.name));
       setDefaultTaskKey(template.defaultTaskKey || "general");
+    }
+  };
+
+  const handleDirChange = (next: DirFilter) => {
+    setDir(next);
+    if (next === "all") return;
+    const match = templateForDirection(data?.templates ?? [], next);
+    if (match && match.id !== agentId) {
+      handleTemplateChange(match.id);
     }
   };
 
@@ -123,12 +143,20 @@ export default function UserAgentsPage() {
           ? { defaultTaskKey }
           : {}),
       });
-      setAgentId("");
       setName("");
       setSlug("");
-      setToolProfileId("");
-      setDefaultTaskKey("general");
       setCreatedName(created.name);
+      const keepDir = dir === "inbound" || dir === "outbound" ? dir : null;
+      const match = keepDir
+        ? templateForDirection(data?.templates ?? [], keepDir)
+        : undefined;
+      if (match) {
+        handleTemplateChange(match.id);
+      } else {
+        setAgentId("");
+        setToolProfileId("");
+        setDefaultTaskKey("general");
+      }
       reload();
     } catch (err) {
       if (err instanceof UnauthorizedError) {
@@ -178,7 +206,7 @@ export default function UserAgentsPage() {
                 role="tab"
                 aria-selected={dir === key}
                 className={`ops-mode-btn${dir === key ? " is-active" : ""}`}
-                onClick={() => setDir(key)}
+                onClick={() => handleDirChange(key)}
               >
                 {label}
               </button>
