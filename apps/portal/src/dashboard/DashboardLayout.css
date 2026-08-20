@@ -2372,17 +2372,44 @@
   max-height: 240px;
 }
 
+.ops-call-tools-scroller {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.9rem 1.1rem 1.05rem;
+  scrollbar-color: var(--ops-line-strong) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ops-call-tools-scroller:focus-visible {
+  outline: 2px solid var(--ops-amber-hot);
+  outline-offset: -2px;
+}
+
+.ops-call-tools-scroller::-webkit-scrollbar {
+  height: 8px;
+}
+
+.ops-call-tools-scroller::-webkit-scrollbar-thumb {
+  background: var(--ops-line-strong);
+  border-radius: 99px;
+}
+
 .ops-call-tool-list {
   list-style: none;
   margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.75rem 1rem;
+  padding: 0 0 0.25rem;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.85rem;
+  width: max-content;
+  min-width: 100%;
 }
 
 .ops-call-tool {
-  padding: 0.7rem 0.8rem 0.75rem;
+  flex: 0 0 42rem;
+  width: 42rem;
+  box-sizing: border-box;
+  padding: 0.85rem 0.95rem 0.9rem;
   border-radius: 10px;
   border: 1px solid var(--ops-line);
   background: #fff;
@@ -2430,9 +2457,53 @@
   color: #991b1b;
 }
 
-.ops-call-tool .ops-call-json {
-  margin-top: 0.5rem;
-  padding-top: 0.45rem;
+.ops-call-tool-io {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem 0.85rem;
+  margin-top: 0.7rem;
+  min-width: 0;
+}
+
+.ops-call-tool-io:has(> :only-child) {
+  grid-template-columns: 1fr;
+}
+
+.ops-call-tool-pane {
+  min-width: 0;
+  display: grid;
+  gap: 0.4rem;
+  align-content: start;
+}
+
+.ops-call-tool-pane h3 {
+  margin: 0;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ops-faint);
+}
+
+.ops-call-tool-facts {
+  grid-template-columns: 1fr;
+  gap: 0.45rem 0.75rem;
+  margin: 0;
+}
+
+.ops-call-tool-facts .ops-detail-item dd {
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.ops-call-tool-pre {
+  max-height: 18rem;
+  overflow: auto;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 2;
 }
 
 .ops-call-id {
@@ -2484,10 +2555,6 @@
 
   .ops-call-talk {
     order: 3;
-  }
-
-  .ops-call-tool-list {
-    grid-template-columns: 1fr;
   }
 }
 

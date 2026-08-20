@@ -209,7 +209,10 @@ export function CallDetailView({
             {toolEvents.length} call{toolEvents.length === 1 ? "" : "s"}
           </span>
         </div>
-        <div className="ops-panel-body">
+        <div
+          className={`ops-panel-body${toolEvents.length > 0 ? " ops-call-tools-scroller" : ""}`}
+          tabIndex={toolEvents.length > 0 ? 0 : undefined}
+        >
           {toolEvents.length === 0 ? (
             <p className="ops-muted ops-call-empty">
               {call.status === "completed" ||
@@ -328,6 +331,7 @@ export function CallDetailView({
 
 function ToolEventCard({ ev }: { ev: ToolEventView }) {
   const failed = ev.ok === false;
+  const hasIo = ev.args != null || ev.result != null;
   return (
     <li className={`ops-call-tool${failed ? " is-fail" : ev.ok ? " is-ok" : ""}`}>
       <div className="ops-call-tool-head">
@@ -347,20 +351,46 @@ function ToolEventCard({ ev }: { ev: ToolEventView }) {
       </div>
       {ev.summary ? <p className="ops-call-tool-summary">{ev.summary}</p> : null}
       {ev.error ? <p className="ops-call-tool-error">{ev.error}</p> : null}
-      {ev.args != null ? (
-        <details className="ops-call-json">
-          <summary>Args</summary>
-          <pre className="ops-prompt">{JSON.stringify(ev.args, null, 2)}</pre>
-        </details>
-      ) : null}
-      {ev.result != null ? (
-        <details className="ops-call-json">
-          <summary>Result</summary>
-          <pre className="ops-prompt">{JSON.stringify(ev.result, null, 2)}</pre>
-        </details>
+      {hasIo ? (
+        <div className="ops-call-tool-io">
+          {ev.args != null ? <JsonPane label="Args" value={ev.args} /> : null}
+          {ev.result != null ? <JsonPane label="Result" value={ev.result} /> : null}
+        </div>
       ) : null}
     </li>
   );
+}
+
+function JsonPane({ label, value }: { label: string; value: unknown }) {
+  const record = asRecord(value);
+  const facts = record ? resultFacts(record) : [];
+  const useFacts = Boolean(record && facts.length > 0 && !hasNested(record));
+  return (
+    <div className="ops-call-tool-pane">
+      <h3>{label}</h3>
+      {useFacts ? (
+        <dl className="ops-detail-grid ops-call-tool-facts">
+          {facts.map((f) => (
+            <div key={f.label} className="ops-detail-item">
+              <dt>{f.label}</dt>
+              <dd className="ops-mono">{f.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <pre className="ops-prompt ops-call-tool-pre">{prettyJson(value)}</pre>
+      )}
+    </div>
+  );
+}
+
+function prettyJson(value: unknown): string {
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
 }
 
 function partyTitle(call: CallRecord): string {
