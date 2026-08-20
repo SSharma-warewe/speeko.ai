@@ -2646,9 +2646,44 @@
 
 .ops-desk-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 0.4rem;
+  flex: 0 0 auto;
+}
+
+.ops-desk-test {
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 22rem;
+}
+
+.ops-desk-test .ca-select {
+  display: inline-block;
+  box-sizing: border-box;
+  width: auto;
+  min-width: 9.5rem;
+  max-width: 12.5rem;
+  min-height: 0;
+  height: auto;
+  padding: 0.38rem 1.7rem 0.38rem 0.55rem;
+  font-size: 0.76rem;
+  line-height: 1.2;
+  border-color: var(--ops-line);
+  border-radius: 8px 0 0 8px;
+  background-color: #fff;
+  background-position: right 0.42rem center;
+  background-size: 0.82rem;
+}
+
+.ops-desk-test .ca-select:focus {
+  position: relative;
+  z-index: 1;
+}
+
+.ops-desk-test .ca-btn {
+  border-radius: 0 8px 8px 0;
+  flex: 0 0 auto;
 }
 
 .ops-desk-counts {

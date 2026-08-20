@@ -209,10 +209,7 @@ export default function UserAgentDetailPage() {
     try {
       const result = await createUserTestCall({
         organizationAgentId: id,
-        task:
-          data?.agent.direction === "inbound"
-            ? defaultTaskKey || undefined
-            : testTaskKey || undefined,
+        task: testTaskKey || undefined,
       });
       setMeetUrl(result.meetUrl);
       if (result.meetUrl) {
@@ -267,9 +264,9 @@ export default function UserAgentDetailPage() {
           >
             Clone
           </Button>
-          {agent.direction === "outbound" ? (
+          <div className="ops-desk-test">
             <Select
-              aria-label="Test task"
+              aria-label="Web test task"
               value={testTaskKey}
               onChange={(e) => setTestTaskKey(e.target.value)}
               disabled={testing || submitting}
@@ -279,18 +276,22 @@ export default function UserAgentDetailPage() {
                   {k}
                 </option>
               ))}
+              {testTaskKey &&
+              !(TASK_KEYS as readonly string[]).includes(testTaskKey) ? (
+                <option value={testTaskKey}>{testTaskKey}</option>
+              ) : null}
             </Select>
-          ) : null}
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            loading={testing}
-            disabled={testing || submitting || deleting}
-            onClick={handleTest}
-          >
-            Web test
-          </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              loading={testing}
+              disabled={testing || submitting || deleting}
+              onClick={handleTest}
+            >
+              Web test
+            </Button>
+          </div>
         </div>
       </div>
 
