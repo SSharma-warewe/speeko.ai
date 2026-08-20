@@ -30,6 +30,40 @@ export type NylasResult<T> =
   | { ok: true; data: T }
   | { ok: false; status: number; message: string };
 
+function asNonEmptyString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+/** Nylas v3 errors are `{ error: { type, message } }`, not a string `error`. */
+export function nylasErrorMessage(
+  json: unknown,
+  text: string,
+  status: number,
+): string {
+  if (json && typeof json === 'object') {
+    const record = json as Record<string, unknown>;
+    const nested = record.error;
+    if (nested && typeof nested === 'object') {
+      const err = nested as Record<string, unknown>;
+      const nestedMessage = asNonEmptyString(err.message);
+      if (nestedMessage) return nestedMessage;
+      const nestedType = asNonEmptyString(err.type);
+      if (nestedType) return nestedType;
+    }
+    const topMessage = asNonEmptyString(record.message);
+    if (topMessage) return topMessage;
+    const topError = asNonEmptyString(nested);
+    if (topError) return topError;
+    const topType = asNonEmptyString(record.type);
+    if (topType) return topType;
+  }
+  const snippet = text.trim().slice(0, 300);
+  if (snippet) return snippet;
+  return `Nylas HTTP ${status}`;
+}
+
 /**
  * Thin Nylas Calendar v3 HTTP adapter.
  * Credentials come from organization_integrations — never log apiKey.
@@ -237,17 +271,14 @@ export class NylasService {
         }
       }
       if (!res.ok) {
-        const message =
-          (json && (json.message || json.error || json.type)) ||
-          text.slice(0, 300) ||
-          `Nylas HTTP ${res.status}`;
+        const message = nylasErrorMessage(json, text, res.status);
         this.logger.warn(
-          `Nylas ${opts.method} failed status=${res.status} msg=${String(message).slice(0, 200)}`,
+          `Nylas ${opts.method} failed status=${res.status} msg=${message.slice(0, 200)}`,
         );
         return {
           ok: false,
           status: res.status,
-          message: String(message),
+          message,
         };
       }
       // DELETE may return empty body
