@@ -105,6 +105,7 @@ describe('Auth protected routes (JwtAuthGuard + AdminGuard)', () => {
             findByEmail: jest.fn(),
             findById: adminsFindById,
             updatePasswordHash: jest.fn(),
+            updateName: jest.fn().mockResolvedValue(undefined),
           },
         },
         {
@@ -113,6 +114,7 @@ describe('Auth protected routes (JwtAuthGuard + AdminGuard)', () => {
             findByOrgAndEmail: jest.fn(),
             findById: usersFindById,
             updatePasswordHash: jest.fn(),
+            updateName: jest.fn().mockResolvedValue(undefined),
           },
         },
         {
@@ -293,6 +295,57 @@ describe('Auth protected routes (JwtAuthGuard + AdminGuard)', () => {
         role: UserRole.ORG_ADMIN,
       });
       expect(res.body).not.toHaveProperty('passwordHash');
+    });
+
+    it('PATCH /auth/me with valid user JWT → 200', async () => {
+      const token = signUser();
+
+      const res = await request(app.getHttpServer())
+        .patch('/auth/me')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ name: 'Ada Lovelace' })
+        .expect(200);
+
+      expect(res.body).toMatchObject({
+        id: activeUser.id,
+        email: activeUser.email,
+        typ: 'user',
+      });
+      expect(res.body).not.toHaveProperty('passwordHash');
+    });
+
+    it('PATCH /auth/admin/me with valid admin JWT → 200', async () => {
+      const token = signAdmin();
+
+      const res = await request(app.getHttpServer())
+        .patch('/auth/admin/me')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ name: 'Ops Lead' })
+        .expect(200);
+
+      expect(res.body).toMatchObject({
+        id: activeAdmin.id,
+        email: activeAdmin.email,
+        typ: 'admin',
+      });
+      expect(res.body).not.toHaveProperty('passwordHash');
+    });
+
+    it('PATCH /auth/admin/me with valid user JWT → 403', async () => {
+      const token = signUser();
+
+      await request(app.getHttpServer())
+        .patch('/auth/admin/me')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ name: 'Ops Lead' })
+        .expect(403);
+    });
+
+    it('PATCH /auth/me without Authorization → 401', async () => {
+      await request(app.getHttpServer())
+        .patch('/auth/me')
+        .send({ name: 'Ada Lovelace' })
+        .expect(401);
     });
   });
 });

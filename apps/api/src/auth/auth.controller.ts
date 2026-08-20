@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -15,6 +15,7 @@ import { OkResponseDto } from './dto/ok-response.dto';
 import { AdminResetPasswordDto, ResetPasswordDto } from './dto/reset-password.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
 import { TokenResponseDto } from './dto/token-response.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UserLoginDto } from './dto/user-login.dto';
 import type { AuthPrincipal } from './auth.types';
 import { AdminGuard } from './guards/admin.guard';
@@ -68,6 +69,28 @@ export class AuthController {
   @ApiOperation({ summary: 'Current organization user profile' })
   userMe(@CurrentUser() principal: AuthPrincipal) {
     return this.authService.getUserProfile(principal.id);
+  }
+
+  @Patch('me')
+  @ApiBearerAuth('bearer')
+  @UseGuards(JwtAuthGuard, UserGuard)
+  @ApiOperation({ summary: 'Update the current org user display name' })
+  updateUserProfile(
+    @CurrentUser() principal: AuthPrincipal,
+    @Body() dto: UpdateProfileDto,
+  ) {
+    return this.authService.updateUserProfile(principal.id, dto);
+  }
+
+  @Patch('admin/me')
+  @ApiBearerAuth('bearer')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiOperation({ summary: 'Update the current platform admin display name' })
+  updateAdminProfile(
+    @CurrentUser() principal: AuthPrincipal,
+    @Body() dto: UpdateProfileDto,
+  ) {
+    return this.authService.updateAdminProfile(principal.id, dto);
   }
 
   @Post('password')

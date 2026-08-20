@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { LiveDot } from "@call-agent/ui";
 import { useUserAuth } from "../lib/auth";
+import { initialsFromName } from "../lib/format";
 import "./DashboardLayout.css";
 
 type NavLeaf = {
@@ -44,7 +45,6 @@ const NAV: { section: string; items: readonly NavItem[] }[] = [
         label: "Integrations",
         desc: "CRM endpoints & API keys",
       },
-      { to: "/dashboard/account", label: "Account", desc: "Password" },
     ],
   },
 ];
@@ -177,10 +177,22 @@ export default function UserDashboardLayout() {
             <LiveDot />
             Live
           </span>
-          <div className="ops-admin-meta">
-            <span className="ops-admin-name">{user?.name || user?.email || "User"}</span>
-            <span className="ops-admin-email">{orgName}</span>
-          </div>
+          <NavLink
+            to="/dashboard/account"
+            aria-label="Account"
+            className={({ isActive }) =>
+              `ops-side-account${isActive ? " is-active" : ""}`
+            }
+          >
+            <span className="ops-side-avatar" aria-hidden>
+              {initialsFromName(user?.name, user?.email)}
+            </span>
+            <span className="ops-admin-meta">
+              <span className="ops-admin-name">{user?.name || user?.email || "User"}</span>
+              <span className="ops-admin-email">{orgName}</span>
+              <span className="ops-side-account-hint">Account</span>
+            </span>
+          </NavLink>
           <button type="button" className="ops-logout" onClick={handleLogout}>
             Log out
           </button>

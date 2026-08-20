@@ -191,4 +191,25 @@ describe('AdminsService', () => {
       expect(result).toEqual(savedEntity);
     });
   });
+
+  describe('updateName', () => {
+    it('saves the new display name', async () => {
+      repository.findById.mockResolvedValue(activeAdmin);
+      repository.save.mockImplementation(async (admin: Admin) => admin);
+
+      await service.updateName(activeAdmin.id, 'Ops Lead');
+
+      expect(repository.findById).toHaveBeenCalledWith(activeAdmin.id);
+      expect(repository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ id: activeAdmin.id, name: 'Ops Lead' }),
+      );
+    });
+
+    it('no-ops when the admin is missing', async () => {
+      repository.findById.mockResolvedValue(null);
+
+      await expect(service.updateName('missing', 'Ops Lead')).resolves.toBeUndefined();
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+  });
 });

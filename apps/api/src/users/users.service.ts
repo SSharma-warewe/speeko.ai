@@ -75,6 +75,12 @@ export class UsersService {
     await this.usersRepository.save(user);
   }
 
+  async updateName(id: string, name: string): Promise<void> {
+    const user = await this.getOrThrow(id);
+    user.name = name;
+    await this.usersRepository.save(user);
+  }
+
   async listByOrganization(organizationId: string): Promise<User[]> {
     await this.organizationsService.findById(organizationId);
     return this.usersRepository.findByOrganizationOrdered(organizationId);

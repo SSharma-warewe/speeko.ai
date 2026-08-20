@@ -27,6 +27,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto, AdminResetPasswordDto } from './dto/reset-password.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
 import { TokenResponseDto } from './dto/token-response.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UserLoginDto } from './dto/user-login.dto';
 import { LoginRateLimitService } from './login-rate-limit.service';
 import {
@@ -158,8 +159,30 @@ export class AuthService {
         name: user.organization.name,
         slug: user.organization.slug,
       },
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
       typ: 'user' as const,
     };
+  }
+
+  async updateUserProfile(userId: string, dto: UpdateProfileDto) {
+    const name = dto.name.trim();
+    if (!name) {
+      throw new BadRequestException('Display name is required');
+    }
+    await this.getUserProfile(userId);
+    await this.usersService.updateName(userId, name);
+    return this.getUserProfile(userId);
+  }
+
+  async updateAdminProfile(adminId: string, dto: UpdateProfileDto) {
+    const name = dto.name.trim();
+    if (!name) {
+      throw new BadRequestException('Display name is required');
+    }
+    await this.getAdminProfile(adminId);
+    await this.adminsService.updateName(adminId, name);
+    return this.getAdminProfile(adminId);
   }
 
   async sendUserInvite(

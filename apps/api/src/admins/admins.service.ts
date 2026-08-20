@@ -37,4 +37,13 @@ export class AdminsService {
     admin.passwordHash = passwordHash;
     await this.adminsRepository.save(admin);
   }
+
+  async updateName(id: string, name: string): Promise<void> {
+    const admin = await this.findById(id);
+    if (!admin) {
+      return;
+    }
+    admin.name = name;
+    await this.adminsRepository.save(admin);
+  }
 }

@@ -429,8 +429,10 @@ Worker health is “registered with LiveKit” in service logs, not a public HTM
 |--------|------|------|
 | POST | `/api/auth/admin/login` | public |
 | GET | `/api/auth/admin/me` | admin JWT |
+| PATCH | `/api/auth/admin/me` | admin JWT — update display name |
 | POST | `/api/auth/login` | public (org user) |
-| GET | `/api/auth/me` | user JWT |
+| GET | `/api/auth/me` | user JWT — profile includes `createdAt` / `updatedAt` |
+| PATCH | `/api/auth/me` | user JWT — update display name |
 | POST | `/api/auth/password` | user JWT — change password (current + new); confirmation email |
 | POST | `/api/auth/admin/password` | admin JWT — change password |
 | POST | `/api/auth/set-password` | public — complete invite (`email` + `organizationSlug` + token + newPassword) |
@@ -770,7 +772,7 @@ Work **top-down by risk**: security → money/dial side effects → multi-tenant
 
 | Priority | Module | Status | Primary cases |
 |----------|--------|--------|----------------|
-| P0 | `auth` | **Done** | Login isolation, inactive admin/user/org, JWT live revalidation, Admin/User/WorkerSecret guards, login rate limit, protected routes |
+| P0 | `auth` | **Done** | Login isolation, inactive admin/user/org, JWT live revalidation, Admin/User/WorkerSecret guards, login rate limit, protected routes, self-service display-name PATCH |
 | P0 | `admins` | **Done** | Email normalize, findById/email, create defaults (`isActive`, name) |
 | P0 | `demo` | **Done** | Config gate (503), body shaping, `fetch` proxy, 401/403 vs generic 502, GHL upsert before enqueue (CRM fail does not block dial), honeypot short-circuit, origin + IP/phone/email/global rate limits |
 | P0 | `users` | **Done** | Create user, org scope, password hash, unique email per org, toSafeUser redaction |

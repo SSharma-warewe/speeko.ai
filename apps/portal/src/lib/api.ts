@@ -59,6 +59,8 @@ export interface UserProfile {
     name?: string;
     slug?: string;
   };
+  createdAt?: string;
+  updatedAt?: string;
   typ?: "user";
 }
 
@@ -646,6 +648,18 @@ export const changeUserPassword = (data: {
 }) =>
   userFetch<{ ok: true }>("/auth/password", {
     method: "POST",
+    body: data,
+  });
+
+export const updateUserProfile = (data: { name: string }) =>
+  userFetch<UserProfile>("/auth/me", {
+    method: "PATCH",
+    body: data,
+  });
+
+export const updateAdminProfile = (data: { name: string }) =>
+  adminFetch<AdminProfile>("/auth/admin/me", {
+    method: "PATCH",
     body: data,
   });
 

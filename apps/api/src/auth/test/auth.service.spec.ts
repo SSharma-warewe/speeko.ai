@@ -37,11 +37,13 @@ describe('AuthService', () => {
     findByEmail: jest.Mock;
     findById: jest.Mock;
     updatePasswordHash: jest.Mock;
+    updateName: jest.Mock;
   };
   let usersService: {
     findByOrgAndEmail: jest.Mock;
     findById: jest.Mock;
     updatePasswordHash: jest.Mock;
+    updateName: jest.Mock;
   };
   let emailService: { send: jest.Mock };
   let passwordTokens: {
@@ -101,11 +103,13 @@ describe('AuthService', () => {
       findByEmail: jest.fn(),
       findById: jest.fn(),
       updatePasswordHash: jest.fn().mockResolvedValue(undefined),
+      updateName: jest.fn().mockResolvedValue(undefined),
     };
     usersService = {
       findByOrgAndEmail: jest.fn(),
       findById: jest.fn(),
       updatePasswordHash: jest.fn().mockResolvedValue(undefined),
+      updateName: jest.fn().mockResolvedValue(undefined),
     };
     organizationsService = {
       findById: jest.fn(),
@@ -499,6 +503,8 @@ describe('AuthService', () => {
           name: orgA.name,
           slug: orgA.slug,
         },
+        createdAt: activeUserInOrgA.createdAt,
+        updatedAt: activeUserInOrgA.updatedAt,
         typ: 'user',
       });
       expect(profile).not.toHaveProperty('passwordHash');
@@ -506,6 +512,89 @@ describe('AuthService', () => {
       expect(JSON.stringify(profile)).not.toContain(
         activeUserInOrgA.passwordHash,
       );
+    });
+  });
+
+  describe('updateUserProfile / updateAdminProfile', () => {
+    it('updates user display name and returns the profile without hashes', async () => {
+      let current = { ...activeUserInOrgA };
+      usersService.findById.mockImplementation(async () => current);
+      usersService.updateName.mockImplementation(async (_id: string, name: string) => {
+        current = { ...current, name };
+      });
+
+      const profile = await service.updateUserProfile(activeUserInOrgA.id, {
+        name: '  Ada Lovelace  ',
+      });
+
+      expect(usersService.updateName).toHaveBeenCalledWith(
+        activeUserInOrgA.id,
+        'Ada Lovelace',
+      );
+      expect(profile.name).toBe('Ada Lovelace');
+      expect(profile.email).toBe(activeUserInOrgA.email);
+      expect(profile).not.toHaveProperty('passwordHash');
+      expect(JSON.stringify(profile)).not.toContain(
+        activeUserInOrgA.passwordHash,
+      );
+    });
+
+    it('rejects empty user display name', async () => {
+      await expect(
+        service.updateUserProfile(activeUserInOrgA.id, { name: '   ' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(usersService.updateName).not.toHaveBeenCalled();
+    });
+
+    it('rejects profile update for inactive user', async () => {
+      usersService.findById.mockResolvedValue({
+        ...activeUserInOrgA,
+        isActive: false,
+      });
+
+      await expect(
+        service.updateUserProfile(activeUserInOrgA.id, { name: 'Ada' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(usersService.updateName).not.toHaveBeenCalled();
+    });
+
+    it('updates admin display name and returns the profile without hashes', async () => {
+      let current = { ...activeAdmin };
+      adminsService.findById.mockImplementation(async () => current);
+      adminsService.updateName.mockImplementation(async (_id: string, name: string) => {
+        current = { ...current, name };
+      });
+
+      const profile = await service.updateAdminProfile(activeAdmin.id, {
+        name: '  Ops Lead  ',
+      });
+
+      expect(adminsService.updateName).toHaveBeenCalledWith(
+        activeAdmin.id,
+        'Ops Lead',
+      );
+      expect(profile.name).toBe('Ops Lead');
+      expect(profile).not.toHaveProperty('passwordHash');
+      expect(JSON.stringify(profile)).not.toContain(activeAdmin.passwordHash);
+    });
+
+    it('rejects empty admin display name', async () => {
+      await expect(
+        service.updateAdminProfile(activeAdmin.id, { name: '' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(adminsService.updateName).not.toHaveBeenCalled();
+    });
+
+    it('rejects profile update for inactive admin', async () => {
+      adminsService.findById.mockResolvedValue({
+        ...activeAdmin,
+        isActive: false,
+      });
+
+      await expect(
+        service.updateAdminProfile(activeAdmin.id, { name: 'Ops Lead' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(adminsService.updateName).not.toHaveBeenCalled();
     });
   });
 

@@ -302,6 +302,31 @@ describe('UsersService', () => {
     });
   });
 
+  describe('updateName', () => {
+    it('saves trimmed display name on the user row', async () => {
+      usersRepository.findByIdWithOrganization.mockResolvedValue(existingUser);
+      usersRepository.save.mockImplementation(async (user: User) => user);
+
+      await service.updateName(USER_ID, 'Ada Lovelace');
+
+      expect(usersRepository.findByIdWithOrganization).toHaveBeenCalledWith(
+        USER_ID,
+      );
+      expect(usersRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ id: USER_ID, name: 'Ada Lovelace' }),
+      );
+    });
+
+    it('throws NotFoundException when the user is missing', async () => {
+      usersRepository.findByIdWithOrganization.mockResolvedValue(null);
+
+      await expect(service.updateName('missing', 'Ada')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(usersRepository.save).not.toHaveBeenCalled();
+    });
+  });
+
   describe('toSafeUser', () => {
     it('17. omits passwordHash from the response shape', () => {
       const safe = service.toSafeUser(existingUser);

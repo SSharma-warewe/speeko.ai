@@ -28,6 +28,21 @@ export function shortId(id: string, n = 8): string {
   return id.length > n ? `${id.slice(0, n)}…` : id;
 }
 
+export function initialsFromName(
+  name?: string | null,
+  email?: string | null,
+): string {
+  const source = (name?.trim() || email?.trim() || "?").replace(/\s+/g, " ");
+  const parts = source.split(" ").filter(Boolean);
+  if (parts.length >= 2) {
+    const first = parts[0]?.[0] ?? "";
+    const last = parts[parts.length - 1]?.[0] ?? "";
+    return `${first}${last}`.toUpperCase();
+  }
+  const token = parts[0] ?? "?";
+  return token.slice(0, 2).toUpperCase();
+}
+
 export function slugify(value: string): string {
   return value
     .toLowerCase()

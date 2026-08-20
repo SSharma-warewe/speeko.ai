@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { LiveDot } from "@call-agent/ui";
 import { useAdminAuth } from "../lib/auth";
+import { initialsFromName } from "../lib/format";
 import "./DashboardLayout.css";
 
 const NAV = [
@@ -24,7 +25,6 @@ const NAV = [
         desc: "Capability bundles",
       },
       { to: "/admin-dashboard/calls", label: "All calls", desc: "Transcripts & status" },
-      { to: "/admin-dashboard/account", label: "Account", desc: "Password" },
     ],
   },
 ] as const;
@@ -84,10 +84,22 @@ export default function DashboardLayout() {
             <LiveDot />
             Live
           </span>
-          <div className="ops-admin-meta">
-            <span className="ops-admin-name">{admin?.name || "Platform admin"}</span>
-            <span className="ops-admin-email">{admin?.email}</span>
-          </div>
+          <NavLink
+            to="/admin-dashboard/account"
+            aria-label="Account"
+            className={({ isActive }) =>
+              `ops-side-account${isActive ? " is-active" : ""}`
+            }
+          >
+            <span className="ops-side-avatar" aria-hidden>
+              {initialsFromName(admin?.name, admin?.email)}
+            </span>
+            <span className="ops-admin-meta">
+              <span className="ops-admin-name">{admin?.name || "Platform admin"}</span>
+              <span className="ops-admin-email">{admin?.email}</span>
+              <span className="ops-side-account-hint">Account</span>
+            </span>
+          </NavLink>
           <button type="button" className="ops-logout" onClick={handleLogout}>
             Log out
           </button>
