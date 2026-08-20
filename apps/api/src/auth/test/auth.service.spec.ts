@@ -650,6 +650,31 @@ describe('AuthService', () => {
       expect(emailService.send).not.toHaveBeenCalled();
     });
 
+    it('invite still succeeds when Plunk is disabled', async () => {
+      emailService.send.mockResolvedValue({
+        ok: false,
+        skipped: true,
+        error: 'email disabled',
+      });
+      const warn = jest.spyOn(
+        (service as unknown as { logger: { warn: (m: string) => void } })
+          .logger,
+        'warn',
+      );
+
+      await service.sendUserInvite(activeUserInOrgA, {
+        name: orgA.name,
+        slug: orgA.slug,
+      });
+
+      expect(passwordTokens.issueUserToken).toHaveBeenCalled();
+      expect(emailService.send).toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('Invite email not sent'),
+      );
+      warn.mockRestore();
+    });
+
     it('reset updates the hash for a valid token', async () => {
       organizationsService.findBySlug.mockResolvedValue(orgA);
       usersService.findByOrgAndEmail.mockResolvedValue(activeUserInOrgA);

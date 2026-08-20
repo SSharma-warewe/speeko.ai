@@ -237,8 +237,8 @@ Default local DB credentials (see `.env.example`):
 | `QUEUE_DEFAULT_MAX_CONCURRENT` | API | Default org max concurrent in-flight SIP legs (default `1`; set to trunk channel limit) |
 | `QUEUE_DEFAULT_MAX_DIALS_PER_MINUTE` | API | Default org dial rate (default `30`) |
 | `QUEUE_DEFAULT_MAX_ATTEMPTS` | API | Default max attempts when enqueue omits it (default `3`) |
-| `PLUNK_API_KEY` | API | Plunk API key; empty/unset soft-disables email (send no-ops) |
-| `PLUNK_API_BASE` | API | Optional Plunk API origin (default `https://api.useplunk.com`) |
+| `PLUNK_API_KEY` | API | Plunk secret key (`sk_…`); empty/unset soft-disables email (invite/reset send no-ops). Required on the **api** service in production for mail to leave the box |
+| `PLUNK_API_BASE` | API | Optional Plunk API origin (default `https://next-api.useplunk.com`). Origin only — do not include `/v1/send`. Legacy hosted Plunk is `https://api.useplunk.com` |
 | `EMAIL_FROM` | API | Default From header (must be a domain verified in Plunk) |
 | `EMAIL_NOTIFY_TO` | API | Optional platform inbox for product notify mail; read via `EmailService.getNotifyTo()` |
 | `PORTAL_PUBLIC_URL` | API | Public portal origin for invite/reset links (e.g. `https://portal.speeko.ai`) |
@@ -263,7 +263,7 @@ Default local DB credentials (see `.env.example`):
 
 Models use **LiveKit Inference** (STT/LLM/TTS + **cloud turn detector v1**) — no separate OpenAI/Deepgram keys. Pins live in `apps/worker/src/models.ts`. Local EOT mini model is **not** loaded (saves ~138 MB idle); in-process Silero VAD remains for barge-in.
 
-**Email (Plunk):** inject global `EmailService` and call `send()` / `sendText()`. Never throws — failures return `{ ok: false }` and are logged. `from` must use a domain verified in Plunk. Soft-disabled without `PLUNK_API_KEY`.
+**Email (Plunk):** inject global `EmailService` and call `send()` / `sendText()`. Never throws — failures return `{ ok: false }` and are logged (invite/reset also warn at the auth layer). `from` must use a domain verified in Plunk. Soft-disabled without `PLUNK_API_KEY` — production **api** must set this or invites/resets succeed in HTTP but no mail is sent. New hosted Plunk projects use `PLUNK_API_BASE=https://next-api.useplunk.com`.
 
 **GoHighLevel (get-demo leads):** inject global `GhlService` and call `upsertLead()`. Never throws — missing `GHL_API_KEY` / `GHL_LOCATION_ID` or API errors return `{ ok: false }` and are logged (token never logged). Upserts a contact (`source=Speeko Get Demo`), then adds tags `speeko-get-demo` + `direction:…` and a note with team/calls/integrations.
 

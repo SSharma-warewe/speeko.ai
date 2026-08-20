@@ -189,7 +189,7 @@ export class AuthService {
       setPasswordUrl: url,
       expiresLabel: this.ttlLabel(ttlMs),
     });
-    await this.emailService.send({
+    await this.sendMail('Invite', {
       to: user.email,
       subject: mail.subject,
       html: mail.html,
@@ -321,7 +321,7 @@ export class AuthService {
       resetUrl: url,
       expiresLabel: this.ttlLabel(ttlMs),
     });
-    await this.emailService.send({
+    await this.sendMail('Admin reset', {
       to: admin.email,
       subject: mail.subject,
       html: mail.html,
@@ -399,7 +399,7 @@ export class AuthService {
       resetUrl: url,
       expiresLabel: this.ttlLabel(ttlMs),
     });
-    await this.emailService.send({
+    await this.sendMail('Reset', {
       to: user.email,
       subject: mail.subject,
       html: mail.html,
@@ -408,11 +408,23 @@ export class AuthService {
 
   private async sendPasswordChanged(to: string): Promise<void> {
     const mail = buildPasswordChangedEmail();
-    await this.emailService.send({
+    await this.sendMail('Password changed', {
       to,
       subject: mail.subject,
       html: mail.html,
     });
+  }
+
+  private async sendMail(
+    purpose: string,
+    params: { to: string; subject: string; html: string },
+  ): Promise<void> {
+    const result = await this.emailService.send(params);
+    if (!result.ok) {
+      this.logger.warn(
+        `${purpose} email not sent to=${params.to} error=${result.error}${result.skipped ? ' skipped=true' : ''}`,
+      );
+    }
   }
 
   private async findActiveOrgBySlug(slug: string) {

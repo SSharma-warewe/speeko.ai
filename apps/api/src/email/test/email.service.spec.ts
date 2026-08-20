@@ -80,7 +80,7 @@ describe('EmailService', () => {
     expect(result).toEqual({ ok: true, id: 'em_123' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://api.useplunk.com/v1/send');
+    expect(url).toBe('https://next-api.useplunk.com/v1/send');
     expect(init.method).toBe('POST');
     const headers = init.headers as Record<string, string>;
     expect(headers.Authorization).toBe(`Bearer ${apiKey}`);
@@ -91,6 +91,23 @@ describe('EmailService', () => {
       body: '<p>Click</p>',
       from: { name: 'Speeko', email: 'hello@speeko.ai' },
     });
+  });
+
+  it('strips a pasted /v1/send path from PLUNK_API_BASE', async () => {
+    const service = makeService({
+      PLUNK_API_KEY: apiKey,
+      PLUNK_API_BASE: 'https://next-api.useplunk.com/v1/send',
+      EMAIL_FROM: 'noreply@speeko.ai',
+    });
+
+    await service.send({
+      to: 'user@acme.com',
+      subject: 'Hello',
+      html: '<p>Hi</p>',
+    });
+
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://next-api.useplunk.com/v1/send');
   });
 
   it('wraps plain text as HTML', async () => {
@@ -122,6 +139,34 @@ describe('EmailService', () => {
     ).resolves.toEqual({ ok: false, error: 'Invalid API key' });
     expect(warn).toHaveBeenCalled();
     const logged = String(warn.mock.calls[0]?.[0] ?? '');
+    expect(logged).not.toContain(apiKey);
+  });
+
+  it('logs Plunk field errors and suggestions on 422', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Request validation failed',
+            requestId: 'req_2',
+            suggestion: 'Verify the sending domain',
+            errors: [{ field: 'from', message: 'Domain not verified' }],
+          },
+        }),
+        { status: 422, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+    const service = makeService();
+    const { warn } = serviceLogger(service);
+
+    await expect(
+      service.send({ to: 'a@b.com', subject: 'Hi', text: 'x' }),
+    ).resolves.toEqual({ ok: false, error: 'Request validation failed' });
+    const logged = String(warn.mock.calls[0]?.[0] ?? '');
+    expect(logged).toContain('fields=from: Domain not verified');
+    expect(logged).toContain('suggestion=Verify the sending domain');
     expect(logged).not.toContain(apiKey);
   });
 

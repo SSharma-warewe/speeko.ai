@@ -3,17 +3,29 @@ import { ConfigService } from '@nestjs/config';
 import type { SendEmailParams, SendEmailResult } from './email.types';
 
 const DEFAULT_FROM = 'Speeko <hello@speeko.ai>';
-const DEFAULT_API_BASE = 'https://api.useplunk.com';
+const DEFAULT_API_BASE = 'https://next-api.useplunk.com';
 const ERROR_BODY_LOG_LIMIT = 400;
 
 type PlunkFrom = string | { name: string; email: string };
+
+type PlunkFieldError = {
+  field?: string;
+  message?: string;
+  code?: string;
+};
 
 type PlunkSendResponse = {
   success?: boolean;
   data?: {
     emails?: Array<{ email?: string }>;
   };
-  error?: { message?: string; code?: string; requestId?: string };
+  error?: {
+    message?: string;
+    code?: string;
+    requestId?: string;
+    suggestion?: string;
+    errors?: PlunkFieldError[];
+  };
 };
 
 @Injectable()
@@ -23,13 +35,12 @@ export class EmailService {
   private readonly apiBase: string;
   private readonly defaultFrom: string;
   private readonly notifyTo: string | null;
-  private disabledLogged = false;
 
   constructor(private readonly config: ConfigService) {
     this.apiKey = this.config.get<string>('PLUNK_API_KEY')?.trim() ?? '';
-    const base =
-      this.config.get<string>('PLUNK_API_BASE')?.trim() || DEFAULT_API_BASE;
-    this.apiBase = base.replace(/\/$/, '');
+    this.apiBase = normalizePlunkApiBase(
+      this.config.get<string>('PLUNK_API_BASE'),
+    );
     this.defaultFrom =
       this.config.get<string>('EMAIL_FROM')?.trim() || DEFAULT_FROM;
     const notify = this.config.get<string>('EMAIL_NOTIFY_TO')?.trim() ?? '';
@@ -57,10 +68,9 @@ export class EmailService {
    */
   async send(params: SendEmailParams): Promise<SendEmailResult> {
     if (!this.apiKey) {
-      if (!this.disabledLogged) {
-        this.logger.warn('EmailService.send skipped: PLUNK_API_KEY not set');
-        this.disabledLogged = true;
-      }
+      this.logger.warn(
+        `EmailService.send skipped: PLUNK_API_KEY not set subject="${params.subject?.trim() || ''}"`,
+      );
       return { ok: false, skipped: true, error: 'email disabled' };
     }
 
@@ -112,8 +122,12 @@ export class EmailService {
         const message =
           json?.error?.message ||
           `plunk send ${res.status}${rawText ? `: ${truncate(rawText)}` : ''}`;
+        const fields = formatFieldErrors(json?.error?.errors);
+        const suggestion = json?.error?.suggestion
+          ? ` suggestion=${json.error.suggestion}`
+          : '';
         this.logger.warn(
-          `Email send failed: status=${res.status} requestId=${json?.error?.requestId ?? 'n/a'} body=${truncate(rawText)}`,
+          `Email send failed: status=${res.status} code=${json?.error?.code ?? 'n/a'} requestId=${json?.error?.requestId ?? 'n/a'}${fields}${suggestion} body=${truncate(rawText)}`,
         );
         return { ok: false, error: message };
       }
@@ -136,6 +150,14 @@ export class EmailService {
   ): Promise<SendEmailResult> {
     return this.send({ to, subject, text });
   }
+}
+
+function normalizePlunkApiBase(raw: string | undefined): string {
+  let base = raw?.trim() || DEFAULT_API_BASE;
+  base = base.replace(/\/+$/, '');
+  base = base.replace(/\/v1\/send$/i, '');
+  base = base.replace(/\/+$/, '');
+  return base || DEFAULT_API_BASE;
 }
 
 function normalizeTo(to: string | string[]): string | string[] | null {
@@ -181,6 +203,18 @@ function parseJson(raw: string): unknown {
   } catch {
     return null;
   }
+}
+
+function formatFieldErrors(errors: PlunkFieldError[] | undefined): string {
+  if (!errors?.length) return '';
+  const parts = errors
+    .map((item) => {
+      const field = item.field?.trim() || 'unknown';
+      const message = item.message?.trim() || item.code || 'invalid';
+      return `${field}: ${message}`;
+    })
+    .filter(Boolean);
+  return parts.length ? ` fields=${parts.join('; ')}` : '';
 }
 
 function truncate(value: string): string {
