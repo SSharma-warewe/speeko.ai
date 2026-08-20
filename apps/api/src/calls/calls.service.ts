@@ -12,6 +12,7 @@ import { Agent, AgentDirection } from '../agents/agent.entity';
 import { OrganizationAgent } from '../agents/organization-agent.entity';
 import { AgentsService } from '../agents/agents.service';
 import { OrganizationAgentsService } from '../agents/organization-agents.service';
+import { orgAgentDefaultTaskKey } from '../agents/org-agent-task';
 import { resolveVoiceRuntime } from '../agents/voice-settings';
 import { LivekitService } from '../livekit/livekit.service';
 import { CallBatchesService } from '../queue/call-batches.service';
@@ -269,7 +270,7 @@ export class CallsService {
 
     const taskKey = this.resolveTaskKey(
       dto.task,
-      orgAgent.defaultTaskKey,
+      orgAgentDefaultTaskKey(orgAgent, template),
       template.defaultTaskKey,
     );
 
@@ -397,7 +398,7 @@ export class CallsService {
 
     const taskKey = this.resolveTaskKey(
       dto.task,
-      orgAgent.defaultTaskKey,
+      orgAgentDefaultTaskKey(orgAgent, template),
       template.defaultTaskKey,
     );
     const enabledTools = await this.toolProfilesService.resolveEnabledToolIds(
@@ -541,7 +542,7 @@ export class CallsService {
 
     const taskKey = this.resolveTaskKey(
       dto.task,
-      orgAgent.defaultTaskKey,
+      orgAgentDefaultTaskKey(orgAgent, template),
       template.defaultTaskKey,
     );
     const enabledTools = await this.toolProfilesService.resolveEnabledToolIds(
@@ -668,7 +669,7 @@ export class CallsService {
 
     const taskKey = call.taskKey ?? this.resolveTaskKey(
       null,
-      orgAgent.defaultTaskKey,
+      orgAgentDefaultTaskKey(orgAgent, template),
       template.defaultTaskKey,
     );
     const enabledTools = await this.toolProfilesService.resolveEnabledToolIds(

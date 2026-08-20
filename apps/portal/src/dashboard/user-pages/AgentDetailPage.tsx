@@ -13,6 +13,7 @@ import {
   ApiError,
   cloneUserAgent,
   createUserTestCall,
+  deleteUserAgent,
   getUserAgent,
   listUserOrgIntegrations,
   listUserToolProfiles,
@@ -61,6 +62,7 @@ export default function UserAgentDetailPage() {
   const [silentStart, setSilentStart] = useState(false);
   const [silentEnd, setSilentEnd] = useState(false);
   const [defaultTaskKey, setDefaultTaskKey] = useState("general");
+  const [testTaskKey, setTestTaskKey] = useState("general");
   const [toolProfileId, setToolProfileId] = useState("");
   const [calendarIntegrationId, setCalendarIntegrationId] = useState("");
   const [isActive, setIsActive] = useState(true);
@@ -72,6 +74,7 @@ export default function UserAgentDetailPage() {
   const [temperature, setTemperature] = useState(DEFAULT_TEMPERATURE);
   const [submitting, setSubmitting] = useState(false);
   const [cloning, setCloning] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [testing, setTesting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -90,6 +93,7 @@ export default function UserAgentDetailPage() {
     setOnEnterInstructions(enter && enter !== "" ? enter : "");
     setOnExitInstructions(exit && exit !== "" ? exit : "");
     setDefaultTaskKey(data.agent.defaultTaskKey || "general");
+    setTestTaskKey(data.agent.defaultTaskKey || "general");
     setToolProfileId(data.agent.toolProfileId || "");
     setCalendarIntegrationId(data.agent.calendarIntegrationId || "");
     setIsActive(data.agent.isActive);
@@ -105,6 +109,11 @@ export default function UserAgentDetailPage() {
     setSaved(false);
     if (!name.trim()) {
       setFormError("Display name is required.");
+      return;
+    }
+    const inbound = data?.agent.direction === "inbound";
+    if (inbound && !defaultTaskKey.trim()) {
+      setFormError("Inbound agents require a default task.");
       return;
     }
     setSubmitting(true);
@@ -123,7 +132,7 @@ export default function UserAgentDetailPage() {
           : onExitInstructions.trim()
             ? onExitInstructions.trim()
             : null,
-        defaultTaskKey,
+        ...(inbound ? { defaultTaskKey } : {}),
         toolProfileId: toolProfileId || undefined,
         calendarIntegrationId: calendarIntegrationId || null,
         isActive,
@@ -168,6 +177,31 @@ export default function UserAgentDetailPage() {
     }
   };
 
+  const handleDelete = async () => {
+    if (
+      !window.confirm(
+        "Delete this agent config? Calls already logged stay. Integrations or dispatch rules that still point at it will block delete.",
+      )
+    ) {
+      return;
+    }
+    setFormError(null);
+    setDeleting(true);
+    try {
+      await deleteUserAgent(id);
+      navigate("/dashboard/agents", { replace: true });
+    } catch (err) {
+      if (err instanceof UnauthorizedError) {
+        logout();
+        return;
+      }
+      setFormError(
+        err instanceof ApiError ? err.message : "Could not delete agent.",
+      );
+      setDeleting(false);
+    }
+  };
+
   const handleTest = async () => {
     setFormError(null);
     setMeetUrl(null);
@@ -175,7 +209,10 @@ export default function UserAgentDetailPage() {
     try {
       const result = await createUserTestCall({
         organizationAgentId: id,
-        task: defaultTaskKey || undefined,
+        task:
+          data?.agent.direction === "inbound"
+            ? defaultTaskKey || undefined
+            : testTaskKey || undefined,
       });
       setMeetUrl(result.meetUrl);
       if (result.meetUrl) {
@@ -225,17 +262,31 @@ export default function UserAgentDetailPage() {
             variant="secondary"
             size="sm"
             loading={cloning}
-            disabled={cloning || submitting}
+            disabled={cloning || submitting || deleting}
             onClick={handleClone}
           >
             Clone
           </Button>
+          {agent.direction === "outbound" ? (
+            <Select
+              aria-label="Test task"
+              value={testTaskKey}
+              onChange={(e) => setTestTaskKey(e.target.value)}
+              disabled={testing || submitting}
+            >
+              {TASK_KEYS.map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </Select>
+          ) : null}
           <Button
             type="button"
             variant="primary"
             size="sm"
             loading={testing}
-            disabled={testing || submitting}
+            disabled={testing || submitting || deleting}
             onClick={handleTest}
           >
             Web test
@@ -415,24 +466,31 @@ export default function UserAgentDetailPage() {
                 disabled={submitting}
               />
             </Field>
-            <Field label="Default task" htmlFor="ua-task">
-              <Select
-                id="ua-task"
-                value={defaultTaskKey}
-                onChange={(e) => setDefaultTaskKey(e.target.value)}
-                disabled={submitting}
+            {agent.direction === "inbound" ? (
+              <Field
+                label="Default task"
+                htmlFor="ua-task"
+                required
+                hint="Packed on inbound ring. Outbound sets task per call."
               >
-                {TASK_KEYS.map((k) => (
-                  <option key={k} value={k}>
-                    {k}
-                  </option>
-                ))}
-                {defaultTaskKey &&
-                !(TASK_KEYS as readonly string[]).includes(defaultTaskKey) ? (
-                  <option value={defaultTaskKey}>{defaultTaskKey}</option>
-                ) : null}
-              </Select>
-            </Field>
+                <Select
+                  id="ua-task"
+                  value={defaultTaskKey}
+                  onChange={(e) => setDefaultTaskKey(e.target.value)}
+                  disabled={submitting}
+                >
+                  {TASK_KEYS.map((k) => (
+                    <option key={k} value={k}>
+                      {k}
+                    </option>
+                  ))}
+                  {defaultTaskKey &&
+                  !(TASK_KEYS as readonly string[]).includes(defaultTaskKey) ? (
+                    <option value={defaultTaskKey}>{defaultTaskKey}</option>
+                  ) : null}
+                </Select>
+              </Field>
+            ) : null}
             <Field label="Tool profile" htmlFor="ua-tp">
               <Select
                 id="ua-tp"
@@ -481,8 +539,22 @@ export default function UserAgentDetailPage() {
             </label>
 
             <div className="ops-desk-submit">
-              <Button type="submit" variant="primary" loading={submitting} disabled={submitting}>
+              <Button
+                type="submit"
+                variant="primary"
+                loading={submitting}
+                disabled={submitting || deleting}
+              >
                 Save changes
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                loading={deleting}
+                disabled={deleting || submitting}
+                onClick={handleDelete}
+              >
+                Delete
               </Button>
             </div>
 
@@ -498,9 +570,15 @@ export default function UserAgentDetailPage() {
             </dl>
 
             <p className="ops-desk-note">
-              <Link to={`/dashboard/calls?compose=dial&agentId=${id}`}>
-                Dial now with this agent →
-              </Link>
+              {agent.direction === "inbound" ? (
+                <Link to={`/dashboard/sip?tab=inbound&agentId=${id}`}>
+                  Set up inbound trunks & dispatch rules →
+                </Link>
+              ) : (
+                <Link to={`/dashboard/calls?compose=dial&agentId=${id}`}>
+                  Dial now with this agent →
+                </Link>
+              )}
             </p>
           </div>
         </section>

@@ -135,10 +135,8 @@ export default function UserIntegrationsPage() {
     const active = data.agents.filter((a) => a.isActive);
     if (!organizationAgentId && active.length > 0) {
       setOrganizationAgentId(active[0].id);
-      setTask(active[0].defaultTaskKey || "");
-      setDefaultContextText(
-        formatTaskContextSkeleton(active[0].defaultTaskKey || "general"),
-      );
+      setTask("general");
+      setDefaultContextText(formatTaskContextSkeleton("general"));
     }
   }, [data, editingId, organizationAgentId]);
 
@@ -187,11 +185,10 @@ export default function UserIntegrationsPage() {
 
   const handleAgentChange = (id: string) => {
     setOrganizationAgentId(id);
-    const agent = data?.agents.find((a) => a.id === id);
-    if (agent?.defaultTaskKey) {
-      setTask(agent.defaultTaskKey);
+    if (!task) {
+      setTask("general");
       if (!editingId) {
-        setDefaultContextText(formatTaskContextSkeleton(agent.defaultTaskKey));
+        setDefaultContextText(formatTaskContextSkeleton("general"));
       }
     }
   };

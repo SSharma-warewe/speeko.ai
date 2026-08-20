@@ -2927,11 +2927,12 @@
 .ops-desk-submit {
   display: flex;
   align-items: stretch;
+  gap: 0.5rem;
   padding-top: 0.1rem;
 }
 
 .ops-desk-submit .ca-btn {
-  width: 100%;
+  flex: 1;
   min-height: 2.55rem;
   font-weight: 650;
 }

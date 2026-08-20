@@ -7,6 +7,7 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
+import { orgAgentDefaultTaskKey } from '../agents/org-agent-task';
 import { OrganizationAgentsService } from '../agents/organization-agents.service';
 import { resolveVoiceRuntime } from '../agents/voice-settings';
 import { LivekitService } from '../livekit/livekit.service';
@@ -392,9 +393,10 @@ export class SipDispatchRulesService {
         row.organizationAgentId,
       );
     const template = orgAgent.agent;
+    const preferred = orgAgentDefaultTaskKey(orgAgent, template);
     const taskKey =
-      orgAgent.defaultTaskKey && isKnownTaskKey(orgAgent.defaultTaskKey)
-        ? orgAgent.defaultTaskKey
+      preferred && isKnownTaskKey(preferred)
+        ? preferred
         : template.defaultTaskKey && isKnownTaskKey(template.defaultTaskKey)
           ? template.defaultTaskKey
           : DEFAULT_TASK_KEY;

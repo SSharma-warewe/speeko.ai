@@ -155,7 +155,7 @@ describe('agent-response.mapper', () => {
       expect(dto.isActive).toBe(false);
     });
 
-    it('10. defaultTaskKey fallback: org → template → general', () => {
+    it('10. inbound defaultTaskKey: stored, else template, else general; outbound always null', () => {
       expect(
         toOrganizationAgentResponse({
           ...orgAgent,
@@ -178,6 +178,19 @@ describe('agent-response.mapper', () => {
       expect(
         toOrganizationAgentResponse(orgAgent).defaultTaskKey,
       ).toBe('confirm_appointment');
+
+      expect(
+        toOrganizationAgentResponse({
+          ...orgAgent,
+          defaultTaskKey: 'confirm_appointment',
+          agent: {
+            ...template,
+            key: 'outbound',
+            direction: AgentDirection.OUTBOUND,
+            defaultTaskKey: 'general',
+          },
+        } as OrganizationAgent).defaultTaskKey,
+      ).toBeNull();
     });
 
     it('11. voice/model/temperature/speakingRate/deliveryMode fall back to template when org null', () => {

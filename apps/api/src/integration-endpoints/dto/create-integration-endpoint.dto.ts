@@ -32,7 +32,7 @@ export class CreateIntegrationEndpointDto {
   @ApiPropertyOptional({
     example: 'confirm_appointment',
     description:
-      'LiveKit task key. Defaults to the organization agent default task.',
+      'LiveKit task key. Defaults to the platform template task (`general` if unset). Outbound agents have no default task.',
   })
   @IsOptional()
   @IsString()

@@ -77,7 +77,7 @@ tool_profiles                  (capability bundles: platform seeds + org-owned c
 - `tool_profiles` — named capability bundles (`key`, `name`, optional `organization_id`). Platform seeds (`organization_id` null): `default`, `outbound`. Org users may create **custom** profiles (pick known worker tool ids; `endCall` always included) and select them on agents.
 - `tool_profile_tools` — rows of `tool_id` strings (worker registry ids, e.g. `endCall`, `booking`). **Not** JSON tool schemas.
 - `agents` — **platform AI agent templates** (seeded: `inbound`, `outbound`). **Persona** via `system_prompt` (identity, tone, policies). Optional LiveKit hook instructions: `on_enter_instructions` / `on_exit_instructions` (`null` = worker default, empty string = silent). Also: `default_task_key`, `default_tool_profile_id`, optional `voice` / `model` / `temperature` (LLM), `speaking_rate` (Inworld TTS 0.5–1.5), `delivery_mode` (`STABLE` \| `BALANCED` \| `CREATIVE`). Not the same as user role `agent`.
-- `organization_agents` — org-owned **named** agent configs: FK to org + platform template (`agent_id`); display `name` + unique-per-org `slug`; effective persona `system_prompt`, optional `on_enter_instructions` / `on_exit_instructions`, `tool_profile_id`, optional `default_task_key` / `voice` / `model` / `temperature` / `speaking_rate` / `delivery_mode`. Unique `(organization_id, slug)` — **not** unique on template, so an org may have many inbound/outbound configs (different prompts/hooks/tools). Create/clone copies template or source config. Org null voice fields fall back to the template at response/metadata time.
+- `organization_agents` — org-owned **named** agent configs: FK to org + platform template (`agent_id`); display `name` + unique-per-org `slug`; effective persona `system_prompt`, optional `on_enter_instructions` / `on_exit_instructions`, `tool_profile_id`, optional `voice` / `model` / `temperature` / `speaking_rate` / `delivery_mode`. **`default_task_key` is inbound-only (required)** — packed into SIP dispatch metadata. Outbound configs store `null`; task is chosen on the call, batch, or integration endpoint (fallback: platform template → `general`). Unique `(organization_id, slug)` — **not** unique on template, so an org may have many inbound/outbound configs (different prompts/hooks/tools). Create/clone copies template or source config (outbound clone clears task). Org null voice fields fall back to the template at response/metadata time.
 - `organization_queue_settings` — 1:1 with org. Outbound dial queue: `enabled`, `paused`, `max_concurrent`, `max_dials_per_minute`, `default_max_attempts`, backoff (`fixed` \| `exponential`, base/max seconds), `retry_on` JSONB failure codes, optional quiet hours + timezone, `claim_batch_size`. Lazy-created on first access / seeded on org create.
 - `call_batches` — bulk enqueue groups: `status` `running` \| `paused` \| `cancelled` \| `completed`, optional overrides (`max_attempts`, `max_concurrent`, `priority`), `total_count`, agent/trunk/task snapshot.
 - `sip_trunks` — org SIP trunks (`direction` `outbound` \| `inbound`). Outbound: provider fields + `livekit_trunk_id` (`ST_…`) set on create (link or provision) via admin **or** org user; always `live` after create. Inbound: draft-first (`livekit_trunk_id` null until publish); also `allowed_numbers`, `allowed_addresses`, `krisp_enabled`, `published_at`. Never return `auth_password` in responses. Response `status`: `draft` \| `live` (derived from whether LiveKit id is set).
@@ -129,7 +129,7 @@ Aligned with LiveKit’s separation of **Instructions**, **Tasks**, **Tools**, a
 |---------|----------------|------------|
 | **Persona** | `agents.system_prompt` / `organization_agents.system_prompt` → metadata `prompt.systemPrompt` | Who the agent is, company, tone, policies, safety. **No** call-specific workflow steps. Portal edits this only. Worker `buildPersonaPrompt` **appends** a platform runtime layer (voice rules, direction, **current date/time/day** from the worker clock, safety) that is **not** in the portal. |
 | **Call open / close** | `on_enter_instructions` / `on_exit_instructions` → metadata `prompt.onEnterInstructions` / `onExitInstructions` | LiveKit parent **Agent** hooks: `onEnter` → `session.generateReply({ instructions })`; `onExit` → `session.say(text)` (verbatim, no second LLM turn). `null` = built-in default; `""` = skip speech. Tasks do **not** own opening speech. |
-| **Workflow** | Worker `TaskRegistry` (LiveKit `AgentTask`) selected by metadata `task` | Objective, completion conditions, structured result (e.g. appointment CONFIRMED). |
+| **Workflow** | Worker `TaskRegistry` (LiveKit `AgentTask`) selected by metadata `task` | Objective, completion conditions, structured result (e.g. appointment CONFIRMED). **Inbound:** org agent `default_task_key` (required). **Outbound:** call / integration `task` (not on the agent). |
 | **Capabilities** | Worker `ToolRegistry` hard-coded implementations; enabled by `tool_profiles` → metadata `enabledTools` | Executable actions (`endCall`, `booking`, …). Orgs create/select profiles of tool **ids** (not implementations). |
 | **Runtime context** | Call request `context` + ids in metadata | CRM fields, bookingId, phoneNumber, etc. Never executable code. |
 
@@ -151,7 +151,7 @@ Known tool ids: `endCall`, `booking`, `cancelBooking`, `transferCall`, `lookupCu
 | Term | Meaning |
 |------|---------|
 | `agents` table | AI call-agent **templates** (persona + default task/tool profile) |
-| `organization_agents` | Per-org **named** AI agent configs (persona + hooks + tool profile); many per template |
+| `organization_agents` | Per-org **named** AI agent configs (persona + hooks + tool profile); inbound also requires a default task; many per template |
 | LiveKit **Task** | Code-defined workflow unit in the worker (`apps/worker/src/tasks`) |
 | `tool_profiles` | Capability bundles of worker tool ids (platform + org custom) |
 | `calls` table | A single voice session / room lifecycle row |
@@ -451,17 +451,18 @@ Worker health is “registered with LiveKit” in service logs, not a public HTM
 | GET | `/api/admin/agents/:id` | admin JWT |
 | PATCH | `/api/admin/agents/:id` | admin JWT |
 | GET | `/api/admin/organizations/:orgId/agents` | admin JWT — list org agent configs |
-| POST | `/api/admin/organizations/:orgId/agents` | admin JWT — create from template (`agentId`, optional `name`/`slug`/profile/task); multiple per template OK |
+| POST | `/api/admin/organizations/:orgId/agents` | admin JWT — create from template (`agentId`, optional `name`/`slug`/profile; inbound requires task, outbound must omit); multiple per template OK |
 | POST | `/api/admin/organizations/:orgId/agents/:id/clone` | admin JWT — clone config (`name`, optional `slug`) |
 | GET | `/api/admin/organizations/:orgId/agents/:id` | admin JWT |
-| PATCH | `/api/admin/organizations/:orgId/agents/:id` | admin JWT — name/slug, persona, hooks, tools, task, active |
+| PATCH | `/api/admin/organizations/:orgId/agents/:id` | admin JWT — name/slug, persona, hooks, tools, inbound task (required), active. Outbound must not send `defaultTaskKey` |
 | DELETE | `/api/admin/organizations/:orgId/agents/:id` | admin JWT — blocked if referenced (integrations / FK RESTRICT) |
 | GET | `/api/users/agent-templates` | user JWT — list platform templates (starters for create) |
 | GET | `/api/users/agents` | user JWT — list org agent configs (many per template allowed) |
-| POST | `/api/users/agents` | user JWT — create org agent from template (`agentId`, optional `name`/`slug`/`toolProfileId`/`defaultTaskKey`) |
+| POST | `/api/users/agents` | user JWT — create org agent from template (`agentId`, optional `name`/`slug`/`toolProfileId`; inbound requires `defaultTaskKey`, outbound must omit it) |
 | POST | `/api/users/agents/:id/clone` | user JWT — clone config (`name`, optional `slug`) |
 | GET | `/api/users/agents/:id` | user JWT — get one org agent |
-| PATCH | `/api/users/agents/:id` | user JWT — update name/slug, system prompt, onEnter/onExit, task/profile/active |
+| PATCH | `/api/users/agents/:id` | user JWT — update name/slug, system prompt, onEnter/onExit, inbound task (required) / profile / active. Outbound PATCH must not send `defaultTaskKey` |
+| DELETE | `/api/users/agents/:id` | user JWT — delete org agent config (blocked if referenced by integrations / dispatch rules) |
 | GET | `/api/users/tool-profiles` | user JWT — list tool profiles (platform + own org custom) |
 | GET | `/api/users/tool-profiles/known-tools` | user JWT — known worker tool ids for profile create |
 | GET | `/api/users/tool-profiles/:id` | user JWT — get one tool profile (platform or own org) |
@@ -586,7 +587,7 @@ Agent APIs return persona + capability profile (not JSON tool schemas):
 ```
 
 - Platform templates: `key` is the template key; no `slug` / `organizationId` / `calendarIntegrationId`.
-- Org-owned rows: `name` + `slug` are org-owned; `key` / `templateKey` are the platform template key; also `organizationId` + `agentId` (template id) + optional `calendarIntegrationId` (Nylas). Multiple org rows may share the same template.
+- Org-owned rows: `name` + `slug` are org-owned; `key` / `templateKey` are the platform template key; also `organizationId` + `agentId` (template id) + optional `calendarIntegrationId` (Nylas). Multiple org rows may share the same template. **`defaultTaskKey` is required on inbound org agents; outbound org agents return `null`** (set task on the call or integration).
 - Hook fields: `null` = worker default opening/closing; `""` = silent for that hook; non-empty onEnter = custom `generateReply` instructions; non-empty onExit = verbatim `session.say` line.
 
 ### Job metadata shape (API → worker)
@@ -617,8 +618,8 @@ Agent APIs return persona + capability profile (not JSON tool schemas):
 
 `temperature` is **LLM** reply randomness. `speakingRate` / `deliveryMode` are Inworld TTS-2 `modelOptions` (`speaking_rate`, `delivery_mode`). TTS temperature is not stored — tts-2 ignores it.
 
-Outbound: `POST /api/admin/calls/outbound` accepts optional `task` (defaults to org agent / template `default_task_key`).  
-Test: `POST /api/admin/calls/test` accepts optional `task` + `context`.
+Outbound: `POST /api/admin/calls/outbound` (and user enqueue / dial / integration) accepts optional `task` (defaults to platform template `default_task_key` → `general` — **not** the org agent). Inbound SIP dispatch packs the org agent’s required `default_task_key`.  
+Test: `POST /api/admin/calls/test` accepts optional `task` + `context`. Org web test for outbound also sends an explicit task (not stored on the agent).
 
 ### Calls vs LiveKit modules
 

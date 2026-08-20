@@ -62,9 +62,11 @@ export class AgentResponseDto {
 
   @ApiProperty({
     example: 'general',
-    description: 'Default LiveKit task key used when a call omits task',
+    nullable: true,
+    description:
+      'Inbound org agents and platform templates: default LiveKit task. Outbound org agents: always null (set task on the call or integration).',
   })
-  defaultTaskKey!: string;
+  defaultTaskKey!: string | null;
 
   @ApiPropertyOptional({
     format: 'uuid',

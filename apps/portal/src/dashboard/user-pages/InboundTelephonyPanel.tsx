@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Alert, Button, Field, Input } from "@call-agent/ui";
 import {
   ApiError,
@@ -63,7 +63,11 @@ function formatPublishSummary(result: InboundPublishResult): string {
   return parts.join(". ");
 }
 
-export default function InboundTelephonyPanel() {
+export default function InboundTelephonyPanel({
+  presetAgentId,
+}: {
+  presetAgentId?: string;
+}) {
   const { logout } = useUserAuth();
   const { data, error, loading, reload } = useUserAsync(
     () =>
@@ -107,6 +111,17 @@ export default function InboundTelephonyPanel() {
   const trunks = data?.trunks ?? [];
   const rules = data?.rules ?? [];
   const agents = data?.agents ?? [];
+
+  useEffect(() => {
+    if (!presetAgentId || !data?.agents) return;
+    const match = data.agents.find(
+      (a) => a.id === presetAgentId && a.direction === "inbound",
+    );
+    if (!match) return;
+    setRuleAgentId(match.id);
+    setShowRuleForm(true);
+    setRuleName((prev) => (prev.trim() ? prev : `${match.name} routing`));
+  }, [presetAgentId, data?.agents]);
 
   const trunkNameById = useMemo(() => {
     const map = new Map<string, string>();

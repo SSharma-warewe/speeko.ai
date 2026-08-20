@@ -7,6 +7,7 @@ import {
   listAgentTemplates,
   listOrgAgents,
   listOrgToolProfiles,
+  TASK_KEYS,
   type Agent,
   type ToolProfile,
   UnauthorizedError,
@@ -65,6 +66,7 @@ export default function OrgAgentsPage() {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [toolProfileId, setToolProfileId] = useState("");
+  const [defaultTaskKey, setDefaultTaskKey] = useState("general");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -78,10 +80,12 @@ export default function OrgAgentsPage() {
       setToolProfileId("");
       setName("");
       setSlug("");
+      setDefaultTaskKey("general");
       return;
     }
     const template = templates.find((t) => t.id === nextAgentId);
     setToolProfileId(defaultProfileId(template, profiles));
+    setDefaultTaskKey(template?.defaultTaskKey || "general");
     if (template && !name.trim()) {
       setName(template.name);
     }
@@ -95,6 +99,10 @@ export default function OrgAgentsPage() {
       return;
     }
     const template = data?.templates.find((t) => t.id === agentId);
+    if (template?.direction === "inbound" && !defaultTaskKey.trim()) {
+      setFormError("Inbound agents require a default task.");
+      return;
+    }
     const profiles = data?.profiles ?? [];
     const resolvedProfileId =
       (toolProfileId && profiles.some((p) => p.id === toolProfileId)
@@ -108,11 +116,13 @@ export default function OrgAgentsPage() {
         name: name.trim() || undefined,
         slug: slug.trim() || undefined,
         toolProfileId: resolvedProfileId,
+        ...(template?.direction === "inbound" ? { defaultTaskKey } : {}),
       });
       setAgentId("");
       setName("");
       setSlug("");
       setToolProfileId("");
+      setDefaultTaskKey("general");
       setShowForm(false);
       reload();
     } catch (err) {
@@ -233,6 +243,28 @@ export default function OrgAgentsPage() {
                 )}
               </select>
             </Field>
+            {selectedTemplate?.direction === "inbound" ? (
+              <Field
+                label="Default task"
+                htmlFor="assign-task"
+                required
+                hint="Workflow packed on inbound ring."
+              >
+                <select
+                  id="assign-task"
+                  value={defaultTaskKey}
+                  onChange={(e) => setDefaultTaskKey(e.target.value)}
+                  disabled={submitting}
+                  style={selectStyle}
+                >
+                  {TASK_KEYS.map((k) => (
+                    <option key={k} value={k}>
+                      {k}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            ) : null}
           </div>
           {selectedTemplate && previewTools.length > 0 ? (
             <div>

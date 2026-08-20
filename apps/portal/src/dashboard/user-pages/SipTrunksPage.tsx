@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Alert, Button, Field, Input } from "@call-agent/ui";
 import {
   ApiError,
@@ -314,8 +315,25 @@ function OutboundTrunksPanel() {
   );
 }
 
+function parseTab(raw: string | null): Tab {
+  return raw === "inbound" ? "inbound" : "outbound";
+}
+
 export default function UserSipTrunksPage() {
-  const [tab, setTab] = useState<Tab>("outbound");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = parseTab(searchParams.get("tab"));
+  const presetAgentId = searchParams.get("agentId") || undefined;
+
+  const setTab = (next: Tab) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (next === "inbound") {
+      nextParams.set("tab", "inbound");
+    } else {
+      nextParams.delete("tab");
+      nextParams.delete("agentId");
+    }
+    setSearchParams(nextParams, { replace: true });
+  };
 
   return (
     <div>
@@ -351,7 +369,11 @@ export default function UserSipTrunksPage() {
         </button>
       </div>
 
-      {tab === "outbound" ? <OutboundTrunksPanel /> : <InboundTelephonyPanel />}
+      {tab === "outbound" ? (
+        <OutboundTrunksPanel />
+      ) : (
+        <InboundTelephonyPanel presetAgentId={presetAgentId} />
+      )}
     </div>
   );
 }

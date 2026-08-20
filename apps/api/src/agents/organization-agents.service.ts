@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -8,11 +9,18 @@ import { Repository } from 'typeorm';
 import { OrganizationIntegration } from '../organization-integrations/organization-integration.entity';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { ToolProfilesService } from '../tools/tool-profiles.service';
+import { AgentDirection } from './agent.entity';
 import { AgentsService, normalizeHookInstructions } from './agents.service';
 import { AssignAgentDto } from './dto/assign-agent.dto';
 import { CloneOrganizationAgentDto } from './dto/clone-organization-agent.dto';
 import { UpdateOrganizationAgentDto } from './dto/update-organization-agent.dto';
 import { toOrganizationAgentResponse } from './mappers/agent-response.mapper';
+import {
+  INBOUND_TASK_REQUIRED,
+  isOutboundTemplate,
+  OUTBOUND_NO_DEFAULT_TASK,
+  storedDefaultTaskKey,
+} from './org-agent-task';
 import { normalizeDeliveryMode, normalizeVoice } from './voice-settings';
 import { OrganizationAgent } from './organization-agent.entity';
 import { OrganizationAgentsRepository } from './organization-agents.repository';
@@ -164,7 +172,11 @@ export class OrganizationAgentsService {
       onExitInstructions: template.onExitInstructions ?? null,
       toolProfileId,
       calendarIntegrationId,
-      defaultTaskKey: dto.defaultTaskKey ?? template.defaultTaskKey ?? 'general',
+      defaultTaskKey: storedDefaultTaskKey(
+        template.direction,
+        dto.defaultTaskKey,
+        template.defaultTaskKey,
+      ),
       voice: template.voice,
       model: template.model,
       temperature: template.temperature,
@@ -207,7 +219,11 @@ export class OrganizationAgentsService {
       onExitInstructions: source.onExitInstructions,
       toolProfileId: source.toolProfileId,
       calendarIntegrationId: source.calendarIntegrationId,
-      defaultTaskKey: source.defaultTaskKey,
+      defaultTaskKey: storedDefaultTaskKey(
+        source.agent?.direction ?? AgentDirection.INBOUND,
+        isOutboundTemplate(source.agent) ? undefined : source.defaultTaskKey,
+        source.agent?.defaultTaskKey,
+      ),
       voice: source.voice,
       model: source.model,
       temperature: source.temperature,
@@ -264,8 +280,18 @@ export class OrganizationAgentsService {
         row.calendarIntegrationId = dto.calendarIntegrationId;
       }
     }
-    if (dto.defaultTaskKey !== undefined) {
-      row.defaultTaskKey = dto.defaultTaskKey;
+    const direction = row.agent?.direction;
+    if (direction === AgentDirection.OUTBOUND) {
+      if (dto.defaultTaskKey !== undefined) {
+        throw new BadRequestException(OUTBOUND_NO_DEFAULT_TASK);
+      }
+      row.defaultTaskKey = null;
+    } else if (dto.defaultTaskKey !== undefined) {
+      const key = dto.defaultTaskKey?.trim() ?? '';
+      if (!key) {
+        throw new BadRequestException(INBOUND_TASK_REQUIRED);
+      }
+      row.defaultTaskKey = key;
     }
     if (dto.voice !== undefined) {
       row.voice = normalizeVoice(dto.voice);

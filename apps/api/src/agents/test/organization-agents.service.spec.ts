@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
@@ -402,7 +403,7 @@ describe('OrganizationAgentsService', () => {
       expect(repository.save).not.toHaveBeenCalled();
     });
 
-    it('12. defaultTaskKey dto override vs template vs general', async () => {
+    it('12. inbound defaultTaskKey dto override vs template vs general; outbound null', async () => {
       repository.findByIdAndOrgWithAgent.mockResolvedValue(makeOrgAgent());
 
       await service.assign(ORG_ID, {
@@ -424,6 +425,34 @@ describe('OrganizationAgentsService', () => {
       expect(repository.create).toHaveBeenCalledWith(
         expect.objectContaining({ defaultTaskKey: 'general' }),
       );
+
+      const outboundTemplate = {
+        ...template,
+        key: 'outbound',
+        direction: AgentDirection.OUTBOUND,
+        defaultTaskKey: 'general',
+      };
+      agentsService.findById.mockResolvedValue(outboundTemplate);
+      repository.create.mockClear();
+      repository.findByIdAndOrgWithAgent.mockResolvedValue(
+        makeOrgAgent({
+          defaultTaskKey: null,
+          agent: outboundTemplate,
+        }),
+      );
+      await service.assign(ORG_ID, {
+        agentId: TEMPLATE_ID,
+      } as AssignAgentDto);
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ defaultTaskKey: null }),
+      );
+
+      await expect(
+        service.assign(ORG_ID, {
+          agentId: TEMPLATE_ID,
+          defaultTaskKey: 'survey',
+        } as AssignAgentDto),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('13. calendar integration must be same-org; asserts findOne where clause', async () => {
@@ -547,6 +576,36 @@ describe('OrganizationAgentsService', () => {
           deliveryMode: 'BALANCED',
           isActive: true,
         }),
+      );
+    });
+
+    it('16b. outbound clone stores null defaultTaskKey even if source had leftover', async () => {
+      const outboundTemplate = {
+        ...template,
+        key: 'outbound',
+        direction: AgentDirection.OUTBOUND,
+      };
+      const source = makeOrgAgent({
+        defaultTaskKey: 'demo_booking',
+        agent: outboundTemplate,
+      });
+      repository.findByIdAndOrgWithAgent
+        .mockResolvedValueOnce(source)
+        .mockResolvedValueOnce(
+          makeOrgAgent({
+            id: 'clone-out',
+            defaultTaskKey: null,
+            agent: outboundTemplate,
+          }),
+        );
+      repository.listSlugsByOrganization.mockResolvedValue([]);
+
+      await service.clone(ORG_ID, ORG_AGENT_ID, {
+        name: 'Outbound copy',
+      } as CloneOrganizationAgentDto);
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ defaultTaskKey: null }),
       );
     });
 
@@ -745,6 +804,50 @@ describe('OrganizationAgentsService', () => {
         } as UpdateOrganizationAgentDto),
       ).rejects.toThrow('Tool profile not found: bad');
       expect(repository.save).not.toHaveBeenCalled();
+    });
+
+    it('27b. inbound rejects null/blank defaultTaskKey; outbound rejects any set and clears leftover', async () => {
+      const inbound = makeOrgAgent({ defaultTaskKey: 'confirm_appointment' });
+      repository.findByIdAndOrgWithAgent.mockResolvedValue(inbound);
+      repository.save.mockImplementation(async (r: OrganizationAgent) => r);
+
+      await expect(
+        service.update(ORG_ID, ORG_AGENT_ID, {
+          defaultTaskKey: null,
+        } as UpdateOrganizationAgentDto),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        service.update(ORG_ID, ORG_AGENT_ID, {
+          defaultTaskKey: '  ',
+        } as UpdateOrganizationAgentDto),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      await service.update(ORG_ID, ORG_AGENT_ID, {
+        defaultTaskKey: 'survey',
+      } as UpdateOrganizationAgentDto);
+      expect(inbound.defaultTaskKey).toBe('survey');
+
+      const outboundTemplate = {
+        ...template,
+        key: 'outbound',
+        direction: AgentDirection.OUTBOUND,
+      };
+      const outbound = makeOrgAgent({
+        defaultTaskKey: 'demo_booking',
+        agent: outboundTemplate,
+      });
+      repository.findByIdAndOrgWithAgent.mockResolvedValue(outbound);
+
+      await expect(
+        service.update(ORG_ID, ORG_AGENT_ID, {
+          defaultTaskKey: 'survey',
+        } as UpdateOrganizationAgentDto),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      await service.update(ORG_ID, ORG_AGENT_ID, {
+        name: 'Still outbound',
+      } as UpdateOrganizationAgentDto);
+      expect(outbound.defaultTaskKey).toBeNull();
     });
 
     it('28. persona-only patch does not touch slug/toolProfile/agentId', async () => {

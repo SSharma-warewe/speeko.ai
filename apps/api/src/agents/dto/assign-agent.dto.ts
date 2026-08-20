@@ -55,7 +55,8 @@ export class AssignAgentDto {
 
   @ApiPropertyOptional({
     example: 'confirm_appointment',
-    description: 'Override default LiveKit task key for this org agent',
+    description:
+      'Inbound only: default LiveKit task (required). Outbound: omit — 400 if sent.',
   })
   @IsOptional()
   @IsString()

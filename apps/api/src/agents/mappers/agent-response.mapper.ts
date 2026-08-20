@@ -1,5 +1,6 @@
 import { Agent } from '../agent.entity';
 import { AgentResponseDto } from '../dto/agent-response.dto';
+import { orgAgentDefaultTaskKey } from '../org-agent-task';
 import { OrganizationAgent } from '../organization-agent.entity';
 import { resolveVoiceRuntime } from '../voice-settings';
 
@@ -55,7 +56,7 @@ export function toOrganizationAgentResponse(
       onEnterInstructions: row.onEnterInstructions ?? null,
       onExitInstructions: row.onExitInstructions ?? null,
     },
-    defaultTaskKey: row.defaultTaskKey ?? template.defaultTaskKey ?? 'general',
+    defaultTaskKey: orgAgentDefaultTaskKey(row, template),
     toolProfileId: row.toolProfileId,
     calendarIntegrationId: row.calendarIntegrationId ?? null,
     enabledTools,

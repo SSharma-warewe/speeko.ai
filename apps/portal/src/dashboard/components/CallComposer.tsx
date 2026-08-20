@@ -61,8 +61,7 @@ export function CallComposer({
   } | null>(null);
   const [dialed, setDialed] = useState<CallRecord | null>(null);
 
-  const selectedAgent = data?.agents.find((a) => a.id === organizationAgentId);
-  const effectiveTask = task || selectedAgent?.defaultTaskKey || "general";
+  const effectiveTask = task || "general";
 
   const applySkeletonForTask = (taskKey: string | null | undefined) => {
     setContextJson(formatTaskContextSkeleton(taskKey || "general"));
@@ -78,8 +77,8 @@ export function CallComposer({
       const pick = preset ?? active[0];
       if (pick) {
         setOrganizationAgentId(pick.id);
-        setTask(pick.defaultTaskKey || "");
-        applySkeletonForTask(pick.defaultTaskKey || "general");
+        setTask("general");
+        applySkeletonForTask("general");
       }
     }
     if (!sipTrunkId && data.trunks.length > 0) {
@@ -90,18 +89,15 @@ export function CallComposer({
 
   const handleAgentChange = (id: string) => {
     setOrganizationAgentId(id);
-    const agent = data?.agents.find((a) => a.id === id);
-    const nextTask = agent?.defaultTaskKey || "";
-    setTask(nextTask);
-    applySkeletonForTask(nextTask || "general");
+    if (!task) {
+      setTask("general");
+      applySkeletonForTask("general");
+    }
   };
 
   const handleTaskChange = (value: string) => {
     setTask(value);
-    const agentDefault =
-      data?.agents.find((a) => a.id === organizationAgentId)?.defaultTaskKey ||
-      "general";
-    applySkeletonForTask(value || agentDefault);
+    applySkeletonForTask(value || "general");
   };
 
   const handleEnqueue = async (e: FormEvent) => {

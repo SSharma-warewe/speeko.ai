@@ -7,6 +7,7 @@ import {
   listUserAgentTemplates,
   listUserAgents,
   listUserToolProfiles,
+  TASK_KEYS,
   type Agent,
   type ToolProfile,
   UnauthorizedError,
@@ -82,6 +83,7 @@ export default function UserAgentsPage() {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [toolProfileId, setToolProfileId] = useState("");
+  const [defaultTaskKey, setDefaultTaskKey] = useState("general");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [createdName, setCreatedName] = useState<string | null>(null);
@@ -93,6 +95,7 @@ export default function UserAgentsPage() {
     setToolProfileId(defaultProfileId(template, profiles));
     if (template) {
       setName((prev) => (prev.trim() ? prev : template.name));
+      setDefaultTaskKey(template.defaultTaskKey || "general");
     }
   };
 
@@ -104,6 +107,11 @@ export default function UserAgentsPage() {
       setFormError("Select a platform template.");
       return;
     }
+    const template = data?.templates.find((t) => t.id === agentId);
+    if (template?.direction === "inbound" && !defaultTaskKey.trim()) {
+      setFormError("Inbound agents require a default task.");
+      return;
+    }
     setSubmitting(true);
     try {
       const created = await createUserAgent({
@@ -111,11 +119,15 @@ export default function UserAgentsPage() {
         name: name.trim() || undefined,
         slug: slug.trim() || undefined,
         toolProfileId: toolProfileId || undefined,
+        ...(template?.direction === "inbound"
+          ? { defaultTaskKey }
+          : {}),
       });
       setAgentId("");
       setName("");
       setSlug("");
       setToolProfileId("");
+      setDefaultTaskKey("general");
       setCreatedName(created.name);
       reload();
     } catch (err) {
@@ -251,6 +263,27 @@ export default function UserAgentsPage() {
                 placeholder="booking-confirmations"
               />
             </Field>
+            {selectedTemplate?.direction === "inbound" ? (
+              <Field
+                label="Default task"
+                htmlFor="ua-create-task"
+                required
+                hint="Workflow for inbound ring. Outbound sets this per call."
+              >
+                <Select
+                  id="ua-create-task"
+                  value={defaultTaskKey}
+                  onChange={(e) => setDefaultTaskKey(e.target.value)}
+                  disabled={submitting}
+                >
+                  {TASK_KEYS.map((k) => (
+                    <option key={k} value={k}>
+                      {k}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ) : null}
             <Field label="Tool profile" htmlFor="ua-create-tp">
               <Select
                 id="ua-create-tp"
@@ -331,7 +364,11 @@ export default function UserAgentsPage() {
                         <td>
                           <StatusBadge status={a.direction} />
                         </td>
-                        <td className="ops-mono">{a.defaultTaskKey}</td>
+                        <td className="ops-mono">
+                          {a.direction === "inbound"
+                            ? a.defaultTaskKey || "—"
+                            : "—"}
+                        </td>
                         <td>
                           <ToolPills ids={a.enabledTools} />
                         </td>

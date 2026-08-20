@@ -420,7 +420,7 @@ describe('CallsService', () => {
       expect(dispatchMeta.prompt.systemPrompt).toBe('Org persona');
       expect(dispatchMeta.prompt.onEnterInstructions).toBe('Org enter');
       expect(dispatchMeta.prompt.onExitInstructions).toBe('');
-      expect(dispatchMeta.task).toBe('confirm_appointment'); // org default
+      expect(dispatchMeta.task).toBe('general'); // outbound: template, ignore leftover org default
       expect(dispatchMeta.voice).toBe('org-voice');
       expect(dispatchMeta.model).toBe('template-model'); // fallback
       expect(dispatchMeta.speakingRate).toBe(1.2);
@@ -428,6 +428,30 @@ describe('CallsService', () => {
       expect(result.agentKey).toBe('outbound');
       expect(result.organizationId).toBe(ORG_ID);
       expect(result.organizationAgentId).toBe(ORG_AGENT_ID);
+    });
+
+    it('6b. inbound org test uses stored defaultTaskKey', async () => {
+      const inboundTemplate = {
+        ...template,
+        key: 'inbound',
+        direction: AgentDirection.INBOUND,
+        defaultTaskKey: 'general',
+      };
+      organizationAgentsService.getEntityWithTemplate.mockResolvedValue({
+        ...orgAgent,
+        defaultTaskKey: 'confirm_appointment',
+        agent: inboundTemplate,
+      });
+
+      await service.createOrgAgentTestCall(ORG_ID, {
+        organizationAgentId: ORG_AGENT_ID,
+      });
+
+      const dispatchMeta = JSON.parse(
+        livekit.createAgentDispatch.mock.calls[0][0].metadata,
+      );
+      expect(dispatchMeta.task).toBe('confirm_appointment');
+      expect(dispatchMeta.direction).toBe(AgentDirection.INBOUND);
     });
 
     it('7. rejects inactive org agent', async () => {
@@ -464,7 +488,7 @@ describe('CallsService', () => {
           organizationId: ORG_ID,
           organizationAgentId: ORG_AGENT_ID,
           sipTrunkId: TRUNK_ID,
-          taskKey: 'confirm_appointment',
+          taskKey: 'general',
           maxAttempts: 5,
           priority: 2,
           totalCount: 2,

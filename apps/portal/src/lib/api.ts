@@ -103,7 +103,8 @@ export interface Agent {
   description: string | null;
   isActive: boolean;
   prompt: AgentPrompt;
-  defaultTaskKey: string;
+  /** Inbound org agents + templates: default workflow. Outbound org agents: null. */
+  defaultTaskKey: string | null;
   toolProfileId: string | null;
   /** Linked Nylas (org) calendar integration for calendar tools. */
   calendarIntegrationId?: string | null;
@@ -1134,6 +1135,9 @@ export const updateUserAgent = (
     method: "PATCH",
     body: data,
   });
+
+export const deleteUserAgent = (id: string) =>
+  userFetch<void>(`/users/agents/${id}`, { method: "DELETE" });
 
 /* ── User org integrations (Nylas calendar, etc.) ── */
 export const listUserOrgIntegrations = () =>

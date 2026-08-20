@@ -1,8 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -12,6 +15,7 @@ import {
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -168,6 +172,24 @@ export class UsersController {
       this.orgIdFrom(principal),
       id,
       dto,
+    );
+  }
+
+  @Delete('users/agents/:id')
+  @UseGuards(JwtAuthGuard, UserGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Delete an organization agent config (blocked if referenced by integrations / dispatch rules)',
+  })
+  @ApiNoContentResponse()
+  async removeAgent(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    await this.organizationAgentsService.remove(
+      this.orgIdFrom(principal),
+      id,
     );
   }
 

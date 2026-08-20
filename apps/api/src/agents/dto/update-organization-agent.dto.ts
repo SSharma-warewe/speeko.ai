@@ -90,7 +90,9 @@ export class UpdateOrganizationAgentDto {
 
   @ApiPropertyOptional({
     example: 'confirm_appointment',
-    description: 'Default LiveKit task key when outbound call omits task',
+    nullable: true,
+    description:
+      'Inbound only: default LiveKit task (cannot clear). Outbound: omit — 400 if sent.',
   })
   @IsOptional()
   @IsString()

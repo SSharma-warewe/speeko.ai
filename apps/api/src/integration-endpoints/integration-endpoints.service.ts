@@ -5,6 +5,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { orgAgentDefaultTaskKey } from '../agents/org-agent-task';
 import { OrganizationAgentsService } from '../agents/organization-agents.service';
 import { CallsService } from '../calls/calls.service';
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -79,7 +80,7 @@ export class IntegrationEndpointsService {
 
     const taskKey = this.resolveTaskKey(
       dto.task,
-      orgAgent.defaultTaskKey,
+      orgAgentDefaultTaskKey(orgAgent, orgAgent.agent),
       orgAgent.agent?.defaultTaskKey,
     );
 
@@ -149,7 +150,7 @@ export class IntegrationEndpointsService {
         );
       row.taskKey = this.resolveTaskKey(
         dto.task,
-        orgAgent.defaultTaskKey,
+        orgAgentDefaultTaskKey(orgAgent, orgAgent.agent),
         orgAgent.agent?.defaultTaskKey,
       );
     }

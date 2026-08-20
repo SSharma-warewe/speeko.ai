@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Alert, Button, Field, Input, Textarea } from "@call-agent/ui";
+import { Alert, Button, Field, Input, Select, Textarea } from "@call-agent/ui";
 import { AgentVoiceRack } from "../components/AgentVoiceRack";
 import {
   DEFAULT_DELIVERY_MODE,
@@ -14,6 +14,7 @@ import {
   cloneOrgAgent,
   deleteOrgAgent,
   getOrgAgent,
+  TASK_KEYS,
   UnauthorizedError,
   updateOrgAgent,
 } from "../../lib/api";
@@ -41,6 +42,7 @@ export default function OrgAgentDetailPage() {
   const [silentStart, setSilentStart] = useState(false);
   const [silentEnd, setSilentEnd] = useState(false);
   const [isActive, setIsActive] = useState(true);
+  const [defaultTaskKey, setDefaultTaskKey] = useState("general");
   const [voice, setVoice] = useState<string | null>(null);
   const [speakingRate, setSpeakingRate] = useState(DEFAULT_SPEAKING_RATE);
   const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>(
@@ -65,6 +67,7 @@ export default function OrgAgentDetailPage() {
       setOnEnterInstructions(enter && enter !== "" ? enter : "");
       setOnExitInstructions(exit && exit !== "" ? exit : "");
       setIsActive(data.isActive);
+      setDefaultTaskKey(data.defaultTaskKey || "general");
       setVoice(data.voice ?? null);
       setSpeakingRate(data.speakingRate ?? DEFAULT_SPEAKING_RATE);
       setDeliveryMode(parseDeliveryMode(data.deliveryMode));
@@ -78,6 +81,11 @@ export default function OrgAgentDetailPage() {
     setSaved(false);
     if (!name.trim()) {
       setFormError("Display name is required.");
+      return;
+    }
+    const inbound = data?.direction === "inbound";
+    if (inbound && !defaultTaskKey.trim()) {
+      setFormError("Inbound agents require a default task.");
       return;
     }
     setSubmitting(true);
@@ -96,6 +104,7 @@ export default function OrgAgentDetailPage() {
           : onExitInstructions.trim()
             ? onExitInstructions.trim()
             : null,
+        ...(inbound ? { defaultTaskKey } : {}),
         isActive,
         voice,
         speakingRate,
@@ -270,6 +279,31 @@ export default function OrgAgentDetailPage() {
               />
               Silent end (skip closing speech)
             </label>
+            {data.direction === "inbound" ? (
+              <Field
+                label="Default task"
+                htmlFor="oa-task"
+                required
+                hint="Packed on inbound ring. Outbound sets task per call."
+              >
+                <Select
+                  id="oa-task"
+                  value={defaultTaskKey}
+                  onChange={(e) => setDefaultTaskKey(e.target.value)}
+                  disabled={submitting}
+                >
+                  {TASK_KEYS.map((k) => (
+                    <option key={k} value={k}>
+                      {k}
+                    </option>
+                  ))}
+                  {defaultTaskKey &&
+                  !(TASK_KEYS as readonly string[]).includes(defaultTaskKey) ? (
+                    <option value={defaultTaskKey}>{defaultTaskKey}</option>
+                  ) : null}
+                </Select>
+              </Field>
+            ) : null}
             <label style={{ display: "flex", gap: "0.5rem", alignItems: "center", fontSize: "0.88rem" }}>
               <input
                 type="checkbox"
@@ -326,7 +360,11 @@ export default function OrgAgentDetailPage() {
               </div>
               <div className="ops-detail-item">
                 <dt>Default task</dt>
-                <dd className="ops-mono">{data.defaultTaskKey}</dd>
+                <dd className="ops-mono">
+                  {data.direction === "inbound"
+                    ? data.defaultTaskKey || "—"
+                    : "—"}
+                </dd>
               </div>
               <div className="ops-detail-item">
                 <dt>Tool profile</dt>

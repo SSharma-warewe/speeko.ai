@@ -88,7 +88,10 @@ export class OrganizationAgent {
   @Column({ name: 'calendar_integration_id', type: 'uuid', nullable: true })
   calendarIntegrationId!: string | null;
 
-  /** Default task when outbound request omits `task`. */
+  /**
+   * Inbound-only required workflow key (packed on SIP dispatch).
+   * Outbound is always null — task lives on the call or integration endpoint.
+   */
   @Column({ name: 'default_task_key', type: 'varchar', length: 80, nullable: true })
   defaultTaskKey!: string | null;
 
