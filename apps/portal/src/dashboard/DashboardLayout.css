@@ -2760,6 +2760,15 @@
   min-height: 0;
 }
 
+.ops-desk-pane.is-voice {
+  min-height: 0;
+}
+
+.ops-desk-pane.is-voice .ops-voice-rack {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .ops-desk-pane[hidden] {
   display: none;
 }
@@ -3242,26 +3251,34 @@
 .ops-voice-rack {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.7rem;
+  gap: 1rem;
   align-items: stretch;
   align-content: start;
+  min-height: 0;
 }
 
 .ops-voice-mix {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.7rem;
+  gap: 0.9rem;
   align-items: stretch;
+}
+
+.ops-voice-mix > .ca-slider,
+.ops-voice-mix > .ops-voice-delivery {
+  min-height: 9.25rem;
+  padding: 1.2rem 1.2rem 1.1rem;
 }
 
 .ops-voice-cast {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.7rem;
   min-width: 0;
-  padding: 0.7rem 0.75rem 0.75rem;
+  min-height: 0;
+  padding: 1rem 1.05rem 1.1rem;
   border: 1px solid var(--ops-line);
-  border-radius: 12px;
+  border-radius: 14px;
   background:
     radial-gradient(120% 80% at 0% 0%, rgba(254, 243, 199, 0.5), transparent 55%),
     linear-gradient(165deg, #fffefb 0%, #f7f5f0 100%);
@@ -3275,27 +3292,32 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 0.5rem;
+  flex: 0 0 auto;
 }
 
 .ops-voice-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(7.6rem, 1fr));
-  gap: 0.4rem;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.55rem;
+  flex: 1 1 auto;
+  align-content: start;
+  min-height: 0;
 }
 
 .ops-voice-tile {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.45rem;
+  gap: 0.7rem;
   align-items: center;
   margin: 0;
-  padding: 0.42rem 0.5rem;
+  min-height: 4.1rem;
+  padding: 0.75rem 0.85rem;
   text-align: left;
   font: inherit;
   color: var(--ops-ink);
   background: #fff;
   border: 1px solid var(--ops-line);
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
   transition:
     border-color 0.16s ease,
@@ -3323,13 +3345,13 @@
 .ops-voice-tile-mark {
   display: grid;
   place-items: center;
-  width: 1.7rem;
-  height: 1.7rem;
-  border-radius: 6px;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 8px;
   background: #0a0a0a;
   color: #fde68a;
   font-family: var(--font-display);
-  font-size: 0.82rem;
+  font-size: 1rem;
   font-weight: 600;
   letter-spacing: -0.04em;
   line-height: 1;
@@ -3343,32 +3365,30 @@
 .ops-voice-tile-copy {
   display: grid;
   min-width: 0;
-  gap: 0.05rem;
+  gap: 0.18rem;
 }
 
 .ops-voice-tile-name {
-  font-size: 0.78rem;
+  font-size: 0.92rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.15;
 }
 
 .ops-voice-tile-line {
-  font-size: 0.62rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
+  line-height: 1.3;
   color: var(--ops-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .ops-voice-delivery {
   display: grid;
   align-content: start;
-  gap: 0.55rem;
+  gap: 0.7rem;
   min-width: 0;
-  padding: 0.95rem 1rem 0.85rem;
+  padding: 1.2rem 1.2rem 1.1rem;
   border-radius: 12px;
   border: 1px solid var(--ops-line);
   background:
@@ -3385,7 +3405,7 @@
 }
 
 .ops-voice-delivery-label {
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 650;
   letter-spacing: 0.01em;
   color: var(--ops-ink);
@@ -3393,14 +3413,14 @@
 
 .ops-voice-delivery-hint {
   margin: 0;
-  font-size: 0.66rem;
-  line-height: 1.4;
+  font-size: 0.7rem;
+  line-height: 1.45;
   color: var(--ops-muted);
 }
 
 .ops-voice-compact {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.9rem;
 }
 
 .ops-voice-compact-label {
@@ -3454,6 +3474,10 @@
   .ops-voice-mix {
     grid-template-columns: 1fr 1fr;
   }
+
+  .ops-voice-mix > :last-child {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 960px) {
@@ -3486,6 +3510,14 @@
   .ops-desk-triple,
   .ops-voice-mix {
     grid-template-columns: 1fr;
+  }
+
+  .ops-voice-mix > :last-child {
+    grid-column: auto;
+  }
+
+  .ops-voice-tiles {
+    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
   }
 
   .ops-desk-script .ops-desk-prompt .ca-textarea {
