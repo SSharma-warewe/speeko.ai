@@ -12,6 +12,7 @@ import { createLookupCustomerTool } from './lookup-customer.tool.js';
 import { createScheduleGhlMeetingTool } from './schedule-ghl-meeting.tool.js';
 import { TOOL_IDS } from './tool-ids.js';
 import { createTransferCallTool } from './transfer-call.tool.js';
+import { createUpsertGhlContactTool } from './upsert-ghl-contact.tool.js';
 import type { ToolFactory, ToolFactoryContext } from './types.js';
 
 const factories = new Map<string, ToolFactory>([
@@ -26,6 +27,7 @@ const factories = new Map<string, ToolFactory>([
   [TOOL_IDS.createCalendarEvent, createCreateCalendarEventTool],
   [TOOL_IDS.cancelCalendarEvent, createCancelCalendarEventTool],
   [TOOL_IDS.checkGhlFreeSlots, createCheckGhlFreeSlotsTool],
+  [TOOL_IDS.upsertGhlContact, createUpsertGhlContactTool],
   [TOOL_IDS.scheduleGhlMeeting, createScheduleGhlMeetingTool],
 ]);
 

@@ -15,7 +15,7 @@ export type GhlLeadInput = {
 
 export type GhlUpsertLeadResult =
   | { ok: true; contactId: string; created: boolean }
-  | { ok: false; error: string; skipped?: boolean };
+  | { ok: false; error: string; skipped?: boolean; message?: string };
 
 export type GhlContactInput = {
   firstName?: string;
@@ -23,6 +23,8 @@ export type GhlContactInput = {
   email?: string;
   phone?: string;
   company?: string;
+  /** Optional GHL contact note. Failures are non-fatal. */
+  notes?: string;
 };
 
 export type GhlFreeSlot = {

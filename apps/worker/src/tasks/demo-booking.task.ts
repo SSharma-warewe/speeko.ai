@@ -35,11 +35,18 @@ function bookingToolLines(enabledTools: string[]): string[] {
   const useGhl =
     ids.has('checkGhlFreeSlots') || ids.has('scheduleGhlMeeting');
   if (useGhl) {
-    return [
+    const lines: string[] = [];
+    if (ids.has('upsertGhlContact')) {
+      lines.push(
+        '- Before booking, call upsert_ghl_contact with their name, email, and phone (email or phone required) so GoHighLevel has a contact id. SIP phoneNumber is enough if they have no email. Do not invent an email.',
+      );
+    }
+    lines.push(
       '- ALWAYS call check_ghl_free_slots for the proposed day or window before confirming a time.',
       '- If free, book with schedule_ghl_meeting (title like “Demo — {name}”, include email when known). Pass the exact startIso from check_ghl_free_slots.',
       '- NEVER claim the demo is booked unless schedule_ghl_meeting returned ok. If tools fail, say so and offer another time or a human callback.',
-    ];
+    );
+    return lines;
   }
   return [
     '- ALWAYS call check_calendar_availability (or checkCalendarAvailability) for the proposed slot before confirming.',

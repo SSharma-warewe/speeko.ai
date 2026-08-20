@@ -17,6 +17,7 @@ import {
   GhlCalendarToolResponseDto,
   GhlFreeSlotsDto,
   GhlScheduleMeetingDto,
+  GhlUpsertContactDto,
 } from './dto/ghl-calendar-tool.dto';
 import { GhlCalendarToolsService } from './ghl-calendar-tools.service';
 
@@ -55,5 +56,18 @@ export class InternalGhlCalendarController {
     @Body() dto: GhlScheduleMeetingDto,
   ): Promise<GhlCalendarToolResponseDto> {
     return this.ghlCalendar.scheduleMeeting(callId, dto);
+  }
+
+  @Post(':callId/ghl-calendar/contacts')
+  @ApiOperation({
+    summary:
+      'Worker tool: upsert a GHL contact (persists ghlContactId on the call)',
+  })
+  @ApiOkResponse({ type: GhlCalendarToolResponseDto })
+  upsertContact(
+    @Param('callId', ParseUUIDPipe) callId: string,
+    @Body() dto: GhlUpsertContactDto,
+  ): Promise<GhlCalendarToolResponseDto> {
+    return this.ghlCalendar.upsertContact(callId, dto);
   }
 }

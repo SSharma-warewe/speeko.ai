@@ -23,6 +23,7 @@ const BASE_DESCRIPTION = [
   '- title: short, include their name when known (e.g. “Meeting — Ada”).',
   '- participantEmail / phone / participantName: for the title only.',
   '- contactId: only if the caller gave a GHL contact id; otherwise the API uses ghlContactId from call context.',
+  '- If missing_contact, call upsert_ghl_contact first with email or phone, then retry this tool.',
   '',
   'AFTER SUCCESS:',
   '- Read back the confirmed time in natural language once.',
@@ -30,7 +31,7 @@ const BASE_DESCRIPTION = [
   '',
   'ON FAILURE:',
   '- If slot_unavailable, check free slots again. Do not claim it is booked.',
-  '- If missing_contact, the call has no GHL contact id. Do not invent one. Do not claim it is booked.',
+  '- If missing_contact, call upsert_ghl_contact (email or phone required). Do not invent a contact id. Do not claim it is booked.',
 ].join('\n');
 
 export const createScheduleGhlMeetingTool: ToolFactory = ({
@@ -79,7 +80,7 @@ export const createScheduleGhlMeetingTool: ToolFactory = ({
         .string()
         .optional()
         .describe(
-          'Existing GHL contact id. Prefer call context ghlContactId; this tool does not create contacts.',
+          'Existing GHL contact id. Prefer call context ghlContactId; this tool does not create contacts — use upsert_ghl_contact first.',
         ),
     }),
     execute: async (args) => {

@@ -229,6 +229,72 @@ describe('GhlService calendar', () => {
     });
   });
 
+  it('upserts a contact with org creds, not the platform contacts PIT', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ new: false, contact: { id: 'ct_org' } }),
+    );
+    const service = makeService();
+    await expect(
+      service.upsertContact(
+        { email: 'ada@example.com' },
+        { token: 'pit-org', locationId: 'loc_org' },
+      ),
+    ).resolves.toEqual({ ok: true, contactId: 'ct_org', created: false });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://services.leadconnectorhq.com/contacts/upsert');
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer pit-org');
+    expect(JSON.parse(String(init.body))).toEqual({
+      locationId: 'loc_org',
+      source: 'Speeko Voice Agent',
+      email: 'ada@example.com',
+    });
+  });
+
+  it('posts an optional note after contact upsert; note failure is non-fatal', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/contacts/upsert')) {
+        return jsonResponse({ new: true, contact: { id: 'ct_9' } });
+      }
+      if (url.includes('/notes')) return jsonResponse({ error: 'nope' }, 422);
+      return jsonResponse({ error: 'unexpected' }, 500);
+    });
+    const service = makeService();
+    await expect(
+      service.upsertContact({
+        email: 'ada@example.com',
+        notes: 'Called about a demo',
+      }),
+    ).resolves.toEqual({ ok: true, contactId: 'ct_9', created: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[1][0])).toContain('/contacts/ct_9/notes');
+  });
+
+  it('maps 401 contact upsert to a contacts.write message and does not log the token', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ message: 'Unauthorized' }, 401));
+    const service = makeService();
+    const logger = (
+      service as unknown as {
+        logger: { warn: (m: string) => void };
+      }
+    ).logger;
+    const warn = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+
+    const result = await service.upsertContact({ email: 'ada@example.com' });
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'ghl upsert 401',
+    });
+    if (!result.ok) {
+      expect(result.message).toMatch(/contacts.write/);
+    }
+    const joined = warn.mock.calls.map((c) => String(c[0])).join('\n');
+    expect(joined).not.toContain(apiKey);
+    expect(joined).not.toMatch(/Bearer /i);
+  });
+
   it('POSTs appointment with calendar PIT and no ignoreFreeSlotValidation', async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({
@@ -385,7 +451,7 @@ describe('GhlCalendarToolsService', () => {
   const futureStart = new Date(Date.now() + 48 * 3600_000).toISOString();
   const futureEnd = new Date(Date.now() + 72 * 3600_000).toISOString();
 
-  let callsRepository: { findById: jest.Mock };
+  let callsRepository: { findById: jest.Mock; save: jest.Mock };
   let organizationAgentsService: { getEntityWithTemplate: jest.Mock };
   let organizationIntegrationsService: { getEntityForOrg: jest.Mock };
   let ghl: {
@@ -419,7 +485,10 @@ describe('GhlCalendarToolsService', () => {
   }
 
   beforeEach(() => {
-    callsRepository = { findById: jest.fn() };
+    callsRepository = {
+      findById: jest.fn(),
+      save: jest.fn(async (call: unknown) => call),
+    };
     organizationAgentsService = { getEntityWithTemplate: jest.fn() };
     organizationIntegrationsService = { getEntityForOrg: jest.fn() };
     ghl = {
@@ -604,9 +673,114 @@ describe('GhlCalendarToolsService', () => {
       service.scheduleMeeting(CALL_ID, {
         startTime: '2028-06-15T10:00:00+05:30',
       }),
-    ).resolves.toMatchObject({ ok: false, error: 'missing_contact' });
+    ).resolves.toMatchObject({
+      ok: false,
+      error: 'missing_contact',
+      message: expect.stringMatching(/upsertGhlContact/),
+    });
     expect(ghl.upsertContact).not.toHaveBeenCalled();
     expect(ghl.createAppointment).not.toHaveBeenCalled();
+    expect(callsRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('upserts a GHL contact with org creds and persists ghlContactId', async () => {
+    stubLinkedGhl({ source: 'queue', company: 'Acme' });
+    ghl.upsertContact.mockResolvedValue({
+      ok: true,
+      contactId: 'ct_new',
+      created: true,
+    });
+
+    const res = await service.upsertContact(CALL_ID, {
+      participantName: 'Ada Lovelace',
+      participantEmail: 'ada@example.com',
+      phone: '+15550102000',
+    });
+
+    expect(res).toMatchObject({
+      ok: true,
+      data: { contactId: 'ct_new', created: true },
+    });
+    expect(ghl.upsertContact).toHaveBeenCalledWith(
+      {
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+        email: 'ada@example.com',
+        phone: '+15550102000',
+        company: 'Acme',
+        notes: undefined,
+      },
+      { token: GHL_CREDS.token, locationId: GHL_CREDS.locationId },
+    );
+    expect(callsRepository.save).toHaveBeenCalledTimes(1);
+    const saved = callsRepository.save.mock.calls[0][0] as {
+      context: Record<string, unknown>;
+    };
+    expect(saved.context).toMatchObject({
+      source: 'queue',
+      company: 'Acme',
+      ghlContactId: 'ct_new',
+      email: 'ada@example.com',
+      phone: '+15550102000',
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+    });
+  });
+
+  it('fills phone from call context when the DTO omits it', async () => {
+    stubLinkedGhl({ phoneNumber: '+15550109999', firstName: 'Ada' });
+    ghl.upsertContact.mockResolvedValue({
+      ok: true,
+      contactId: 'ct_ctx',
+      created: false,
+    });
+
+    const res = await service.upsertContact(CALL_ID, {});
+    expect(res.ok).toBe(true);
+    expect(ghl.upsertContact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        firstName: 'Ada',
+        phone: '+15550109999',
+      }),
+      expect.anything(),
+    );
+  });
+
+  it('rejects contact upsert without email or phone', async () => {
+    stubLinkedGhl({ name: 'Ada' });
+    await expect(service.upsertContact(CALL_ID, {})).resolves.toMatchObject({
+      ok: false,
+      error: 'missing_identity',
+    });
+    expect(ghl.upsertContact).not.toHaveBeenCalled();
+    expect(callsRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('maps 401 contact upsert without logging the org token', async () => {
+    stubLinkedGhl({ email: 'ada@example.com' });
+    ghl.upsertContact.mockResolvedValue({
+      ok: false,
+      error: 'ghl upsert 401',
+      message:
+        'Unauthorized. Check the v3 Private Integration Token and that it includes contacts.write.',
+    });
+    const logger = (
+      service as unknown as {
+        logger: { warn: (m: string) => void };
+      }
+    ).logger;
+    const warn = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+
+    const res = await service.upsertContact(CALL_ID, {});
+    expect(res).toMatchObject({
+      ok: false,
+      error: 'ghl upsert 401',
+    });
+    expect(res.message).toMatch(/contacts.write/);
+    expect(callsRepository.save).not.toHaveBeenCalled();
+    const joined = warn.mock.calls.map((c) => String(c[0])).join('\n');
+    expect(joined).not.toContain(GHL_CREDS.token);
+    expect(joined).not.toMatch(/Bearer /i);
   });
 
   it('books a Z+timezone spoken time as local IST, not UTC', async () => {

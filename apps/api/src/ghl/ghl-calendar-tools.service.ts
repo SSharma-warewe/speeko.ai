@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { OrganizationAgentsService } from '../agents/organization-agents.service';
+import { Call } from '../calls/call.entity';
 import { CallsRepository } from '../calls/calls.repository';
 import { IntegrationProvider } from '../organization-integrations/organization-integration.entity';
 import { OrganizationIntegrationsService } from '../organization-integrations/organization-integrations.service';
@@ -7,6 +8,7 @@ import {
   GhlCalendarToolResponseDto,
   GhlFreeSlotsDto,
   GhlScheduleMeetingDto,
+  GhlUpsertContactDto,
 } from './dto/ghl-calendar-tool.dto';
 import { GhlService } from './ghl.service';
 import type { GhlCalendarCreds } from './ghl.types';
@@ -157,7 +159,7 @@ export class GhlCalendarToolsService {
         ok: false,
         error: 'missing_contact',
         message:
-          'Need an existing GoHighLevel contact id on this call (ghlContactId). Calendar tools do not create contacts.',
+          'Need a GoHighLevel contact id on this call. Call upsertGhlContact first with the caller’s email or phone (ghlContactId is then stored on the call). Calendar tools do not create contacts.',
       };
     }
 
@@ -206,6 +208,81 @@ export class GhlCalendarToolsService {
         title: booked.title ?? title,
         startIso: booked.startTime,
         endIso: booked.endTime ?? endTime,
+      },
+    };
+  }
+
+  /**
+   * Create or update a GHL contact for this call (same upsert as get-demo,
+   * using the org PIT). Persists ghlContactId onto calls.context so
+   * scheduleMeeting can book afterwards.
+   */
+  async upsertContact(
+    callId: string,
+    dto: GhlUpsertContactDto,
+  ): Promise<GhlCalendarToolResponseDto> {
+    const resolved = await this.resolveGhl(callId);
+    if (!resolved.ok) {
+      return resolved;
+    }
+    const { call, creds } = resolved;
+
+    const identity = resolveIdentity(dto, call.context);
+    if (!identity.email && !identity.phone) {
+      return {
+        ok: false,
+        error: 'missing_identity',
+        message:
+          'Need an email or phone to create a GoHighLevel contact. Ask the caller, or use the number on this call.',
+      };
+    }
+
+    const result = await this.ghl.upsertContact(
+      {
+        firstName: identity.firstName,
+        lastName: identity.lastName,
+        email: identity.email,
+        phone: identity.phone,
+        company: identity.company,
+        notes: dto.notes,
+      },
+      { token: creds.token, locationId: creds.locationId },
+    );
+    if (!result.ok) {
+      this.logger.warn(
+        `ghl upsert contact callId=${callId} error=${result.error}`,
+      );
+      return {
+        ok: false,
+        error: result.error,
+        message:
+          result.message ??
+          'Could not create or update the GoHighLevel contact. Check that the Private Integration Token includes contacts.write.',
+      };
+    }
+
+    call.context = mergeGhlContactContext(call.context, {
+      contactId: result.contactId,
+      email: identity.email,
+      phone: identity.phone,
+      firstName: identity.firstName,
+      lastName: identity.lastName,
+      name: identity.name,
+      company: identity.company,
+    });
+    await this.callsRepository.save(call);
+
+    this.logger.log(
+      `ghl upsert contact callId=${callId} ok=true contact=${result.contactId} created=${result.created}`,
+    );
+    return {
+      ok: true,
+      message: result.created
+        ? 'GoHighLevel contact created. You can now book with scheduleGhlMeeting.'
+        : 'GoHighLevel contact updated. You can now book with scheduleGhlMeeting.',
+      data: {
+        contactId: result.contactId,
+        created: result.created,
       },
     };
   }
@@ -317,7 +394,7 @@ export class GhlCalendarToolsService {
 type GhlResolveResult =
   | {
       ok: true;
-      call: { context?: Record<string, unknown> | null };
+      call: Call;
       creds: GhlCalendarCreds;
     }
   | { ok: false; error: string; message: string };
@@ -344,8 +421,17 @@ export function resolveGhlContactId(
   );
 }
 
+type GhlIdentityFields = {
+  participantEmail?: string;
+  participantName?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  company?: string;
+};
+
 export function resolveIdentity(
-  dto: GhlScheduleMeetingDto,
+  dto: GhlIdentityFields,
   context: Record<string, unknown> | null | undefined,
 ): {
   firstName?: string;
@@ -360,7 +446,7 @@ export function resolveIdentity(
     contextField(context, 'email', 'participantEmail');
   const phone =
     dto.phone?.trim() ||
-    contextField(context, 'phone', 'phoneNumber');
+    contextField(context, 'phone', 'phoneNumber', 'toNumber');
   const full =
     dto.participantName?.trim() ||
     contextField(
@@ -371,12 +457,48 @@ export function resolveIdentity(
       'patientName',
     );
   const first =
+    dto.firstName?.trim() ||
     contextField(context, 'firstName', 'first_name') ||
     (full ? full.split(/\s+/)[0] : undefined);
   const lastFromFull = full?.split(/\s+/).slice(1).join(' ') || undefined;
-  const last = contextField(context, 'lastName', 'last_name') || lastFromFull;
+  const last =
+    dto.lastName?.trim() ||
+    contextField(context, 'lastName', 'last_name') ||
+    lastFromFull;
   const name =
     full || (first && last ? `${first} ${last}` : first || last);
-  const company = contextField(context, 'company', 'companyName');
+  const company =
+    dto.company?.trim() || contextField(context, 'company', 'companyName');
   return { firstName: first, lastName: last, name, email, phone, company };
+}
+
+export function mergeGhlContactContext(
+  context: Record<string, unknown> | null | undefined,
+  input: {
+    contactId: string;
+    email?: string;
+    phone?: string;
+    firstName?: string;
+    lastName?: string;
+    name?: string;
+    company?: string;
+  },
+): Record<string, unknown> {
+  const next: Record<string, unknown> = { ...(context ?? {}) };
+  next.ghlContactId = input.contactId;
+  const fill = (key: string, value?: string) => {
+    if (!value) return;
+    const existing = next[key];
+    if (typeof existing !== 'string' || !existing.trim()) {
+      next[key] = value;
+    }
+  };
+  fill('email', input.email);
+  fill('phone', input.phone);
+  fill('phoneNumber', input.phone);
+  fill('firstName', input.firstName);
+  fill('lastName', input.lastName);
+  fill('name', input.name);
+  fill('company', input.company);
+  return next;
 }

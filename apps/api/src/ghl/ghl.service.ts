@@ -207,6 +207,8 @@ export class GhlService {
         ok: false,
         skipped: true,
         error: 'contact_upsert_unavailable',
+        message:
+          'GoHighLevel contact credentials are missing on this connection.',
       };
     }
 
@@ -218,7 +220,11 @@ export class GhlService {
 
     if (!email && !phone) {
       this.logger.warn('GhlService.upsertContact rejected: email or phone required');
-      return { ok: false, error: 'email or phone is required' };
+      return {
+        ok: false,
+        error: 'email or phone is required',
+        message: 'Need an email or phone to create a GoHighLevel contact.',
+      };
     }
 
     const body: GhlJson = {
@@ -240,13 +246,21 @@ export class GhlService {
     );
     if (upsert.networkError) {
       this.logger.warn(`GHL contact upsert network error: ${upsert.networkError}`);
-      return { ok: false, error: upsert.networkError };
+      return {
+        ok: false,
+        error: upsert.networkError,
+        message: upsert.networkError,
+      };
     }
     if (!upsert.ok) {
       this.logger.warn(
         `GHL contact upsert failed: status=${upsert.status} body=${truncate(upsert.text)}`,
       );
-      return { ok: false, error: `ghl upsert ${upsert.status}` };
+      return {
+        ok: false,
+        error: `ghl upsert ${upsert.status}`,
+        message: upsertContactErrorMessage(upsert.status),
+      };
     }
 
     const contactId = readContactId(upsert.json);
@@ -256,6 +270,22 @@ export class GhlService {
     }
 
     const created = upsert.json?.new === true;
+    const notes = input.notes?.trim() ?? '';
+    if (notes) {
+      const noteResult = await this.request(
+        'POST',
+        `/contacts/${contactId}/notes`,
+        { body: notes },
+        'contacts',
+        token,
+      );
+      if (!noteResult.ok) {
+        this.logger.warn(
+          `GHL add note failed for contact=${contactId} status=${noteResult.status} body=${truncate(noteResult.text)}`,
+        );
+      }
+    }
+
     this.logger.log(
       `GHL contact upserted contact=${contactId} created=${created} email=${email || 'n/a'}`,
     );
@@ -519,6 +549,19 @@ export function buildLeadNote(input: {
     lines.push(`Integrations: ${input.integrations.join(', ')}`);
   }
   return lines.join('\n');
+}
+
+function upsertContactErrorMessage(status: number): string {
+  if (status === 401) {
+    return 'Unauthorized. Check the v3 Private Integration Token and that it includes contacts.write.';
+  }
+  if (status === 403) {
+    return 'Forbidden. Use a sub-account token with contacts.write for this location.';
+  }
+  if (status === 400) {
+    return 'Bad request. Check the location (sub-account) id and contact fields.';
+  }
+  return 'Could not create or update the GoHighLevel contact. Check that the Private Integration Token includes contacts.write.';
 }
 
 function listCalendarsErrorMessage(status: number): string {

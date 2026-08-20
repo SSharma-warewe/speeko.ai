@@ -85,12 +85,58 @@ export class GhlScheduleMeetingDto {
   @ApiPropertyOptional({
     example: 'ct_1',
     description:
-      'Existing GHL contact id. Calendar PIT has no contacts.write — will not create one.',
+      'Existing GHL contact id. Calendar book does not create contacts — use upsertGhlContact first.',
   })
   @IsOptional()
   @IsString()
   @MaxLength(80)
   contactId?: string;
+}
+
+export class GhlUpsertContactDto {
+  @ApiPropertyOptional({ example: 'Ada' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  firstName?: string;
+
+  @ApiPropertyOptional({ example: 'Lovelace' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  lastName?: string;
+
+  @ApiPropertyOptional({ example: 'Ada Lovelace' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  participantName?: string;
+
+  @ApiPropertyOptional({ example: 'ada@example.com' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  participantEmail?: string;
+
+  @ApiPropertyOptional({ example: '+15550102000' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  phone?: string;
+
+  @ApiPropertyOptional({ example: 'Acme Health' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  company?: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional note stored on the GHL contact. Failures are non-fatal.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  notes?: string;
 }
 
 export class GhlCalendarToolResponseDto {

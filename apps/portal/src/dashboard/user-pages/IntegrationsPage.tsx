@@ -71,6 +71,8 @@ const GHL_V3_SCOPES = [
   { label: "View Calendars", scope: "calendars.readonly" },
   { label: "View Calendar Events", scope: "calendars/events.readonly" },
   { label: "Edit Calendar Events", scope: "calendars/events.write" },
+  { label: "View Contacts", scope: "contacts.readonly" },
+  { label: "Edit Contacts", scope: "contacts.write" },
 ] as const;
 
 function calendarLabel(cal: GhlCalendarOption): string {
@@ -934,9 +936,11 @@ export default function UserIntegrationsPage() {
                         <span className="ops-mono">{s.scope}</span>)
                       </span>
                     ))}
-                    . Calendar tools do not create contacts — no{" "}
-                    <span className="ops-mono">contacts.write</span>. Then link
-                    this connection on an{" "}
+                    . Calendar tools still do not create contacts — enable{" "}
+                    <span className="ops-mono">upsertGhlContact</span> on the
+                    tool profile and include{" "}
+                    <span className="ops-mono">contacts.write</span> on this PIT.
+                    Then link this connection on an{" "}
                     <Link to="/dashboard/agents">agent</Link> and enable GHL
                     tools on a{" "}
                     <Link to="/dashboard/tool-profiles">tool profile</Link>.
