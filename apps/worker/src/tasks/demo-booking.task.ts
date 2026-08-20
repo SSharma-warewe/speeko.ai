@@ -1,7 +1,11 @@
 import { llm, voice } from '@livekit/agents';
 import { z } from 'zod';
 import { withToolRecording } from '../tools/tool-events.js';
-import { contextField, formatContextForInstructions } from './context-format.js';
+import {
+  contextField,
+  displayNameFromContext,
+  formatContextForInstructions,
+} from './context-format.js';
 import { markTaskFinished, nullishString } from './task-complete.js';
 import type { TaskFactory } from './types.js';
 
@@ -42,23 +46,6 @@ function bookingToolLines(enabledTools: string[]): string[] {
     '- If free, create the event with create_calendar_event / createCalendarEvent (title like “Demo — {name}”, include email when known).',
     '- NEVER claim the demo is booked unless create_calendar_event returned ok/success. If tools fail, say so and offer another time or a human callback.',
   ];
-}
-
-function displayNameFromContext(
-  context: Record<string, unknown> | undefined,
-): string | undefined {
-  const full = contextField(
-    context,
-    'customerName',
-    'patientName',
-    'name',
-    'fullName',
-  );
-  if (full) return full;
-  const first = contextField(context, 'firstName', 'first_name');
-  const last = contextField(context, 'lastName', 'last_name');
-  if (first && last) return `${first} ${last}`;
-  return first ?? last;
 }
 
 /**

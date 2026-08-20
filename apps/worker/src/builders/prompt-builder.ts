@@ -1,5 +1,9 @@
 import type { AgentJobMetadata } from '../job-metadata.js';
-import { contextField, formatContextForInstructions } from '../tasks/context-format.js';
+import {
+  contextField,
+  displayNameFromContext,
+  formatContextForInstructions,
+} from '../tasks/context-format.js';
 
 /**
  * Build full parent-agent instructions for LiveKit.
@@ -318,15 +322,7 @@ function defaultOpeningInstructions(meta: AgentJobMetadata): string {
     'time',
   );
 
-  const demoName =
-    patientName ||
-    [
-      contextField(meta.context, 'firstName', 'first_name'),
-      contextField(meta.context, 'lastName', 'last_name'),
-    ]
-      .filter(Boolean)
-      .join(' ') ||
-    undefined;
+  const demoName = displayNameFromContext(meta.context);
 
   switch (meta.task) {
     case 'confirm_appointment':
@@ -355,6 +351,16 @@ function defaultOpeningInstructions(meta: AgentJobMetadata): string {
         demoName ? `Address them as ${demoName} if appropriate.` : null,
         'Say this will be short: first pick a demo time, then two quick questions about what they want from the product.',
         'Ask what date and time they prefer for the demo.',
+      ]
+        .filter(Boolean)
+        .join(' ');
+    case 'interview_booking':
+      return [
+        'Greet the person briefly as an automated outbound call about scheduling an interview.',
+        demoName
+          ? `Ask if you are speaking with ${demoName} before discussing times.`
+          : 'Ask for their name before discussing times.',
+        'Do not offer interview slots until they confirm they are the right person (or they have given their name).',
       ]
         .filter(Boolean)
         .join(' ');

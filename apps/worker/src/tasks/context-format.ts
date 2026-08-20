@@ -26,3 +26,21 @@ export function contextField(
   }
   return undefined;
 }
+
+/** Best-effort display name from CRM/dial context (not spoken raw JSON). */
+export function displayNameFromContext(
+  context: Record<string, unknown> | undefined,
+): string | undefined {
+  const full = contextField(
+    context,
+    'customerName',
+    'patientName',
+    'name',
+    'fullName',
+  );
+  if (full) return full;
+  const first = contextField(context, 'firstName', 'first_name');
+  const last = contextField(context, 'lastName', 'last_name');
+  if (first && last) return `${first} ${last}`;
+  return first ?? last;
+}

@@ -3,6 +3,7 @@ import { createCustomerSupportTask } from './customer-support.task.js';
 import { createDebtCollectionTask } from './debt-collection.task.js';
 import { createDemoBookingTask } from './demo-booking.task.js';
 import { createGeneralConversationTask } from './general-conversation.task.js';
+import { createInterviewBookingTask } from './interview-booking.task.js';
 import { createLeadQualificationTask } from './lead-qualification.task.js';
 import { createSurveyTask } from './survey.task.js';
 import { TASK_KEYS } from './task-ids.js';
@@ -17,6 +18,7 @@ const factories = new Map<string, TaskFactory>([
   [TASK_KEYS.survey, createSurveyTask],
   [TASK_KEYS.debtCollection, createDebtCollectionTask],
   [TASK_KEYS.demoBooking, createDemoBookingTask],
+  [TASK_KEYS.interviewBooking, createInterviewBookingTask],
 ]);
 
 export class TaskRegistry {

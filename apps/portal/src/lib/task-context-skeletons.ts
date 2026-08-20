@@ -41,6 +41,12 @@ export const TASK_CONTEXT_SKELETONS: Record<string, Record<string, unknown>> = {
     company: "",
     notes: "",
   },
+  interview_booking: {
+    customerName: "",
+    email: "",
+    durationMinutes: 30,
+    notes: "",
+  },
 };
 
 export function getTaskContextSkeleton(

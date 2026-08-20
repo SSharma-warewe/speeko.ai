@@ -12,6 +12,7 @@ export const TASK_KEYS = [
   "survey",
   "debt_collection",
   "demo_booking",
+  "interview_booking",
 ] as const;
 
 export class ApiError extends Error {

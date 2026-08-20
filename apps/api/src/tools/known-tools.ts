@@ -38,6 +38,7 @@ export const KNOWN_TASK_KEYS = [
   'survey',
   'debt_collection',
   'demo_booking',
+  'interview_booking',
 ] as const;
 
 export type KnownTaskKey = (typeof KNOWN_TASK_KEYS)[number];
