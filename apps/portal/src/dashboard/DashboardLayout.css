@@ -564,6 +564,18 @@
   color: var(--ops-amber-ink);
 }
 
+.ops-table a.ops-desk-entity,
+.ops-table a.ops-calls-party {
+  border-bottom: none;
+  font-weight: inherit;
+}
+
+.ops-table a.ops-desk-entity:hover,
+.ops-table a.ops-calls-party:hover {
+  border-bottom: none;
+  color: inherit;
+}
+
 .ops-mono {
   font-family: var(--font-mono);
   font-size: 0.78rem;
