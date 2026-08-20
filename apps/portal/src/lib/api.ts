@@ -299,9 +299,11 @@ export interface CallRecord {
   maxAttempts: number;
   priority?: number;
   lastFailureCode: string | null;
+  lastFailureAt?: string | null;
   createdAt: string;
   updatedAt: string;
   startedAt?: string | null;
+  answeredAt?: string | null;
   endedAt?: string | null;
 }
 
