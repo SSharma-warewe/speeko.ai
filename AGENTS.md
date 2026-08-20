@@ -139,7 +139,7 @@ Aligned with LiveKit’s separation of **Instructions**, **Tasks**, **Tools**, a
 Parse metadata → PromptBuilder → ToolBuilder (registry) → TaskBuilder → AgentSession
 ```
 
-Known task keys: `general`, `confirm_appointment`, `lead_qualification`, `customer_support`, `survey`, `debt_collection`, `demo_booking` (schedule calendar demo then short product discovery), `interview_booking` (confirm callee name, then book an interview; calendar tools come from the agent tool profile, not the task).  
+Known task keys: `general`, `confirm_appointment`, `lead_qualification`, `customer_support`, `survey`, `debt_collection`, `demo_booking` (schedule calendar demo then short product discovery), `interview_booking` (confirm callee name, congratulate they were selected, then book an interview; calendar tools come from the agent tool profile, not the task).  
 Known tool ids: `endCall`, `booking`, `cancelBooking`, `transferCall`, `lookupCustomer`, `confirmAppointment`, `checkCalendarAvailability`, `listCalendarEvents`, `createCalendarEvent`, `cancelCalendarEvent`, `checkGhlFreeSlots`, `scheduleGhlMeeting`.
 
 **Calendar tools (Nylas):** org stores API key + grant on `organization_integrations` (`provider=nylas`); link via `organization_agents.calendar_integration_id`; enable Nylas tool ids on a tool profile. Worker tools call `POST /api/internal/calls/:callId/calendar/*` with `X-Worker-Secret` — API holds secrets (never in LiveKit metadata).
@@ -776,7 +776,7 @@ Work **top-down by risk**: security → money/dial side effects → multi-tenant
 | P2 | `email` | **Done** | Soft-disable without key, never throws, Plunk `send` / `sendText`, never log API key |
 | P2 | `ghl` | **Done** | Soft-disable without key/location, upsert + tags/note, org calendar creds + listCalendars, never throws, never log token, free-slots map + ms query, book upsert+appointment, hide existing events |
 | P2 | `livekit` | **Done** | URL helper; adapter with mocked SDK (rooms, dispatch, token/meet, SIP trunks/rules/participant, hasRemoteCallee) |
-| P3 | Worker (`apps/worker`) | Partial | SIP answer wait + unanswered shutdown (`sip-answer`, `shutdown-status` including `taskCompleted`); `buildClosingSpeech` (silent/custom/default); `interview_booking` identity-then-book instructions (tool-agnostic). Remaining: metadata parse, other prompt/tool/task builders, hangup helpers — no LiveKit cloud in unit tests |
+| P3 | Worker (`apps/worker`) | Partial | SIP answer wait + unanswered shutdown (`sip-answer`, `shutdown-status` including `taskCompleted`); `buildClosingSpeech` (silent/custom/default); `interview_booking` identity-then-congratulate-then-book instructions (tool-agnostic). Remaining: metadata parse, other prompt/tool/task builders, hangup helpers — no LiveKit cloud in unit tests |
 | P3 | Portal / web | Todo | Separate tooling later (Vitest/Playwright); not part of root `npm test` yet |
 
 Update the **Status** column when a module suite lands or expands.

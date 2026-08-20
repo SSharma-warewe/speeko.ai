@@ -39,6 +39,11 @@ describe('interview_booking task', () => {
     expect(text).toMatch(/PHASE 1 — IDENTITY/);
     expect(text).toMatch(/PHASE 2 — BOOK THE INTERVIEW/);
     expect(text).toMatch(/speaking with Ada Lovelace/);
+    expect(text).toMatch(
+      /After they confirm they are the right person[\s\S]*congratulate them briefly that they have been selected for the interview/,
+    );
+    expect(text).toMatch(/Do not congratulate before identity is confirmed/);
+    expect(text).toMatch(/If it is the wrong person, do not congratulate/);
     expect(text).toMatch(/calendar availability and booking tools/i);
     expect(text).toMatch(/complete_interview_booking_task/);
     expect(text).toMatch(/Default interview length is 30 minutes/);
@@ -73,6 +78,7 @@ describe('interview_booking task', () => {
     );
     expect(opening).toMatch(/speaking with Ada Lovelace/);
     expect(opening).toMatch(/Do not offer interview slots/);
+    expect(opening).not.toMatch(/congratulat/i);
     expect(opening).toMatch(/AUTHORITATIVE CLOCK/);
   });
 });

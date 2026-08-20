@@ -66,9 +66,10 @@ export function buildInterviewBookingInstructions(
       ? `- Confirm it is a good time, then verify identity: ask if you are speaking with ${name}.`
       : '- Confirm it is a good time, then ask once for their name.',
     '- Do not discuss interview times until they confirm they are the right person, or they have given a name when none was expected.',
-    '- If it is the wrong person, do not book. Complete with WRONG_PERSON (offer a callback if they volunteer how to reach the right person).',
+    '- If it is the wrong person, do not congratulate and do not book. Complete with WRONG_PERSON (offer a callback if they volunteer how to reach the right person).',
+    '- After they confirm they are the right person (or have given their name when none was expected), congratulate them briefly that they have been selected for the interview — one short sentence. Do not congratulate before identity is confirmed.',
     '',
-    'PHASE 2 — BOOK THE INTERVIEW (only after identity is confirmed):',
+    'PHASE 2 — BOOK THE INTERVIEW (only after identity is confirmed and you have congratulated):',
     '- Ask for a preferred date and time.',
     '- Resolve relative times using the authoritative call clock in system instructions. Never append Z to a local wall-clock time.',
     '- Use the calendar availability and booking tools you have been given. Check that the proposed window is free before booking.',
