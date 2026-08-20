@@ -76,6 +76,7 @@ export default function UserAgentDetailPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [meetUrl, setMeetUrl] = useState<string | null>(null);
+  const [studioPane, setStudioPane] = useState<"persona" | "voice">("persona");
 
   useEffect(() => {
     if (!data) return;
@@ -245,8 +246,43 @@ export default function UserAgentDetailPage() {
       <form className="ops-desk-board" onSubmit={handleSave}>
         <section className="ops-panel ops-desk-script">
           <div className="ops-panel-head">
-            <span className="ops-desk-kicker">Persona</span>
-            <span className="ops-desk-hint">Script only · tasks live in workflow</span>
+            <div
+              className="ops-mode-toggle"
+              role="tablist"
+              aria-label="Agent editor"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={studioPane === "persona"}
+                className={
+                  studioPane === "persona"
+                    ? "ops-mode-btn is-active"
+                    : "ops-mode-btn"
+                }
+                onClick={() => setStudioPane("persona")}
+              >
+                Persona
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={studioPane === "voice"}
+                className={
+                  studioPane === "voice"
+                    ? "ops-mode-btn is-active"
+                    : "ops-mode-btn"
+                }
+                onClick={() => setStudioPane("voice")}
+              >
+                Voice
+              </button>
+            </div>
+            <span className="ops-desk-hint">
+              {studioPane === "persona"
+                ? "Script only · tasks live in workflow"
+                : "Speed · delivery · reply temp"}
+            </span>
           </div>
           <div className="ops-panel-body ops-form ops-desk-form">
             {formError ? <Alert tone="error">{formError}</Alert> : null}
@@ -260,70 +296,99 @@ export default function UserAgentDetailPage() {
               </Alert>
             ) : null}
 
-            <Field
-              label="System prompt"
-              htmlFor="ua-prompt"
-              required
-              className="ops-desk-prompt"
+            <div
+              className="ops-desk-pane"
+              hidden={studioPane !== "persona"}
+              aria-hidden={studioPane !== "persona"}
             >
-              <Textarea
-                id="ua-prompt"
-                value={systemPrompt}
-                onChange={(e) => setSystemPrompt(e.target.value)}
-                rows={14}
-                disabled={submitting}
-              />
-            </Field>
+              <Field
+                label="System prompt"
+                htmlFor="ua-prompt"
+                required
+                className="ops-desk-prompt"
+              >
+                <Textarea
+                  id="ua-prompt"
+                  value={systemPrompt}
+                  onChange={(e) => setSystemPrompt(e.target.value)}
+                  rows={14}
+                  disabled={submitting}
+                />
+              </Field>
 
-            <div className="ops-hooks">
-              <div className="ops-hook">
-                <div className="ops-hook-head">
-                  <label className="ops-hook-label" htmlFor="ua-on-enter">
-                    On start
-                  </label>
-                  <label className="ops-check ops-check-inline">
-                    <input
-                      type="checkbox"
-                      checked={silentStart}
-                      onChange={(e) => setSilentStart(e.target.checked)}
-                      disabled={submitting}
-                    />
-                    Silent
-                  </label>
+              <div className="ops-hooks">
+                <div className="ops-hook">
+                  <div className="ops-hook-head">
+                    <label className="ops-hook-label" htmlFor="ua-on-enter">
+                      On start
+                    </label>
+                    <label className="ops-check ops-check-inline">
+                      <input
+                        type="checkbox"
+                        checked={silentStart}
+                        onChange={(e) => setSilentStart(e.target.checked)}
+                        disabled={submitting}
+                      />
+                      Silent
+                    </label>
+                  </div>
+                  <Textarea
+                    id="ua-on-enter"
+                    value={onEnterInstructions}
+                    onChange={(e) => setOnEnterInstructions(e.target.value)}
+                    rows={4}
+                    disabled={submitting || silentStart}
+                    placeholder="Empty = built-in greeting"
+                  />
                 </div>
-                <Textarea
-                  id="ua-on-enter"
-                  value={onEnterInstructions}
-                  onChange={(e) => setOnEnterInstructions(e.target.value)}
-                  rows={4}
-                  disabled={submitting || silentStart}
-                  placeholder="Empty = built-in greeting"
-                />
-              </div>
-              <div className="ops-hook">
-                <div className="ops-hook-head">
-                  <label className="ops-hook-label" htmlFor="ua-on-exit">
-                    On end
-                  </label>
-                  <label className="ops-check ops-check-inline">
-                    <input
-                      type="checkbox"
-                      checked={silentEnd}
-                      onChange={(e) => setSilentEnd(e.target.checked)}
-                      disabled={submitting}
-                    />
-                    Silent
-                  </label>
+                <div className="ops-hook">
+                  <div className="ops-hook-head">
+                    <label className="ops-hook-label" htmlFor="ua-on-exit">
+                      On end
+                    </label>
+                    <label className="ops-check ops-check-inline">
+                      <input
+                        type="checkbox"
+                        checked={silentEnd}
+                        onChange={(e) => setSilentEnd(e.target.checked)}
+                        disabled={submitting}
+                      />
+                      Silent
+                    </label>
+                  </div>
+                  <Textarea
+                    id="ua-on-exit"
+                    value={onExitInstructions}
+                    onChange={(e) => setOnExitInstructions(e.target.value)}
+                    rows={4}
+                    disabled={submitting || silentEnd}
+                    placeholder="Empty = built-in goodbye"
+                  />
                 </div>
-                <Textarea
-                  id="ua-on-exit"
-                  value={onExitInstructions}
-                  onChange={(e) => setOnExitInstructions(e.target.value)}
-                  rows={4}
-                  disabled={submitting || silentEnd}
-                  placeholder="Empty = built-in goodbye"
-                />
               </div>
+            </div>
+
+            <div
+              className="ops-desk-pane is-voice"
+              hidden={studioPane !== "voice"}
+              aria-hidden={studioPane !== "voice"}
+            >
+              <AgentVoiceRack
+                voice={voice}
+                speakingRate={speakingRate}
+                deliveryMode={deliveryMode}
+                temperature={temperature}
+                disabled={submitting}
+                onChange={(next) => {
+                  if (next.voice !== undefined) setVoice(next.voice);
+                  if (next.speakingRate !== undefined)
+                    setSpeakingRate(next.speakingRate);
+                  if (next.deliveryMode !== undefined)
+                    setDeliveryMode(next.deliveryMode);
+                  if (next.temperature !== undefined)
+                    setTemperature(next.temperature);
+                }}
+              />
             </div>
           </div>
         </section>
@@ -437,28 +502,6 @@ export default function UserAgentDetailPage() {
                 Dial now with this agent →
               </Link>
             </p>
-          </div>
-        </section>
-
-        <section className="ops-panel ops-desk-voice">
-          <div className="ops-panel-head">
-            <span className="ops-desk-kicker">Voice</span>
-            <span className="ops-desk-hint">Speed · delivery · reply temp</span>
-          </div>
-          <div className="ops-panel-body">
-            <AgentVoiceRack
-              voice={voice}
-              speakingRate={speakingRate}
-              deliveryMode={deliveryMode}
-              temperature={temperature}
-              disabled={submitting}
-              onChange={(next) => {
-                if (next.voice !== undefined) setVoice(next.voice);
-                if (next.speakingRate !== undefined) setSpeakingRate(next.speakingRate);
-                if (next.deliveryMode !== undefined) setDeliveryMode(next.deliveryMode);
-                if (next.temperature !== undefined) setTemperature(next.temperature);
-              }}
-            />
           </div>
         </section>
       </form>

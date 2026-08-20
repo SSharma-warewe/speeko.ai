@@ -104,7 +104,7 @@ export function AgentVoiceRack({
     <div className="ops-voice-rack">
       <div className="ops-voice-cast">
         <div className="ops-voice-cast-head">
-          <span className="ops-desk-kicker">Cast</span>
+          <span className="ops-desk-kicker">Talent</span>
           <span className="ops-desk-hint">Inworld TTS-2</span>
         </div>
         <div className="ops-voice-tiles" role="listbox" aria-label="Voice">
@@ -136,48 +136,54 @@ export function AgentVoiceRack({
         </div>
       </div>
 
-      <Slider
-        label="Speaking speed"
-        value={speakingRate}
-        min={0.5}
-        max={1.5}
-        step={0.05}
-        unit="×"
-        ticks={5}
-        disabled={disabled}
-        hint="0.5 is half pace · 1.0 native · 1.5 rushed"
-        onChange={(value) =>
-          onChange({ speakingRate: Math.round(value * 100) / 100 })
-        }
-      />
-
-      <div className={disabled ? "ops-voice-delivery is-disabled" : "ops-voice-delivery"}>
-        <span className="ops-voice-delivery-label">Delivery</span>
-        <SegmentedControl
-          aria-label="TTS delivery mode"
-          value={deliveryMode}
-          options={DELIVERY_OPTIONS}
-          onChange={(value) => onChange({ deliveryMode: value })}
+      <div className="ops-voice-mix">
+        <Slider
+          label="Speaking speed"
+          value={speakingRate}
+          min={0.5}
+          max={1.5}
+          step={0.05}
+          unit="×"
+          ticks={5}
+          disabled={disabled}
+          hint="0.5 is half pace · 1.0 native · 1.5 rushed"
+          onChange={(value) =>
+            onChange({ speakingRate: Math.round(value * 100) / 100 })
+          }
         />
-        <p className="ops-voice-delivery-hint">
-          Stable is even. Creative lets the voice wander. TTS-2 ignores
-          temperature here.
-        </p>
-      </div>
 
-      <Slider
-        label="Reply temperature"
-        value={temperature}
-        min={0}
-        max={2}
-        step={0.1}
-        ticks={5}
-        disabled={disabled}
-        hint="LLM only — not TTS. 0 precise · 0.7 typical · 2 loose"
-        onChange={(value) =>
-          onChange({ temperature: Math.round(value * 10) / 10 })
-        }
-      />
+        <div
+          className={
+            disabled ? "ops-voice-delivery is-disabled" : "ops-voice-delivery"
+          }
+        >
+          <span className="ops-voice-delivery-label">Delivery</span>
+          <SegmentedControl
+            aria-label="TTS delivery mode"
+            value={deliveryMode}
+            options={DELIVERY_OPTIONS}
+            onChange={(value) => onChange({ deliveryMode: value })}
+          />
+          <p className="ops-voice-delivery-hint">
+            Stable is even. Creative lets the voice wander. TTS-2 ignores
+            temperature here.
+          </p>
+        </div>
+
+        <Slider
+          label="Reply temperature"
+          value={temperature}
+          min={0}
+          max={2}
+          step={0.1}
+          ticks={5}
+          disabled={disabled}
+          hint="LLM only — not TTS. 0 precise · 0.7 typical · 2 loose"
+          onChange={(value) =>
+            onChange({ temperature: Math.round(value * 10) / 10 })
+          }
+        />
+      </div>
     </div>
   );
 }

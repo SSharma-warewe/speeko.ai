@@ -2316,25 +2316,33 @@
 
 .ops-desk.is-studio .ops-desk-board {
   grid-template-columns: minmax(0, 1fr) minmax(17.5rem, 22.5rem);
-  grid-template-rows: minmax(0, 1fr) auto;
-}
-
-.ops-desk-voice {
-  grid-column: 1 / -1;
-}
-
-.ops-desk-voice.ops-panel {
-  position: relative;
-  background:
-    linear-gradient(180deg, #fffbeb 0%, #fff 48%);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.85) inset,
-    0 14px 36px -22px rgba(133, 77, 14, 0.22);
 }
 
 .ops-desk.is-studio .ops-desk-script .ops-panel-body {
   display: flex;
   flex-direction: column;
+}
+
+.ops-desk-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.ops-desk-pane[hidden] {
+  display: none;
+}
+
+.ops-desk-script .ops-panel-head .ops-mode-toggle {
+  flex: 0 0 auto;
+}
+
+.ops-desk-script .ops-panel-head .ops-mode-btn {
+  padding: 0.28rem 0.7rem;
+  font-size: 0.73rem;
+  white-space: nowrap;
 }
 
 .ops-desk.is-studio .ops-desk-prompt {
@@ -2357,8 +2365,7 @@
 .ops-desk-compose,
 .ops-desk-list,
 .ops-desk-script,
-.ops-desk-card,
-.ops-desk-voice {
+.ops-desk-card {
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -2391,7 +2398,6 @@
 .ops-desk-compose .ops-panel-head,
 .ops-desk-script .ops-panel-head,
 .ops-desk-card .ops-panel-head,
-.ops-desk-voice .ops-panel-head,
 .ops-desk-list-bar {
   min-height: 3.15rem;
   padding: 0.45rem 0.75rem;
@@ -2440,8 +2446,7 @@
 
 .ops-desk-compose .ops-panel-body,
 .ops-desk-script .ops-panel-body,
-.ops-desk-card .ops-panel-body,
-.ops-desk-voice .ops-panel-body {
+.ops-desk-card .ops-panel-body {
   padding: 0.75rem 0.85rem 0.9rem;
   flex: 1 1 auto;
   min-height: 0;
@@ -2806,11 +2811,15 @@
 /* ── Voice rack (studio mixing plates) ── */
 .ops-voice-rack {
   display: grid;
-  grid-template-columns:
-    minmax(16rem, 1.45fr)
-    minmax(12.5rem, 1fr)
-    minmax(11.5rem, 0.85fr)
-    minmax(12.5rem, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: stretch;
+  align-content: start;
+}
+
+.ops-voice-mix {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.7rem;
   align-items: stretch;
 }
@@ -3012,7 +3021,7 @@
 }
 
 @media (max-width: 1200px) {
-  .ops-voice-rack {
+  .ops-voice-mix {
     grid-template-columns: 1fr 1fr;
   }
 }
@@ -3045,12 +3054,8 @@
   .ops-hooks,
   .ops-desk-pair,
   .ops-desk-triple,
-  .ops-voice-rack {
+  .ops-voice-mix {
     grid-template-columns: 1fr;
-  }
-
-  .ops-desk-voice {
-    grid-column: auto;
   }
 
   .ops-desk-script .ops-desk-prompt .ca-textarea {
@@ -3068,8 +3073,7 @@
   .ops-desk-compose,
   .ops-desk-list,
   .ops-desk-script,
-  .ops-desk-card,
-  .ops-desk-voice {
+  .ops-desk-card {
     animation: none !important;
     transition: none !important;
   }
