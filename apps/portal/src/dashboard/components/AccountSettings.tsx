@@ -38,6 +38,8 @@ type Props = {
   onUnauthorized: () => void;
 };
 
+const HIDDEN_FACT_LABELS = new Set(["email", "role"]);
+
 async function copyText(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);
@@ -62,7 +64,12 @@ function CopyValue({ value, mono }: { value: string; mono?: boolean }) {
       <span className={mono ? "ops-mono" : undefined} title={value}>
         {mono && value.length > 12 ? shortId(value, 10) : value}
       </span>
-      <button type="button" className="ops-account-copy" onClick={() => void handleCopy()}>
+      <button
+        type="button"
+        className="ops-account-copy"
+        onClick={() => void handleCopy()}
+        aria-label={copied ? "Copied" : `Copy ${value}`}
+      >
         {copied ? "Copied" : "Copy"}
       </button>
     </span>
@@ -153,6 +160,25 @@ export function AccountSettings({
 
   const nameDirty = nameDraft.trim() !== (displayName ?? "").trim();
 
+  const facts: AccountDetail[] = [
+    ...(workspace
+      ? [
+          { label: "Workspace", value: workspace.name },
+          { label: "Slug", value: workspace.slug, mono: true },
+          {
+            label: "Organization ID",
+            value: workspace.id,
+            mono: true,
+            copy: true,
+          },
+        ]
+      : []),
+    ...details.filter((row) => !HIDDEN_FACT_LABELS.has(row.label.toLowerCase())),
+    ...(memberSince
+      ? [{ label: "Member since", value: formatDateTime(memberSince) }]
+      : []),
+  ];
+
   const handleNameSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setNameError(null);
@@ -219,14 +245,14 @@ export function AccountSettings({
     <div className="ops-account">
       <PageHeader eyebrow={eyebrow} title={title} description={description} />
 
-      <section className="ops-panel ops-account-hero">
-        <div className="ops-account-hero-main">
+      <section className="ops-panel ops-account-plate">
+        <div className="ops-account-who">
           <span className="ops-account-mark" aria-hidden>
             {mark}
           </span>
           <div className="ops-account-identity">
             <h2>{headline}</h2>
-            <p>{email}</p>
+            <p title={email}>{email}</p>
             <div className="ops-account-badges">
               <Badge tone="info">{roleLabel}</Badge>
               <StatusBadge
@@ -234,47 +260,51 @@ export function AccountSettings({
                 label={statusActive ? "Active" : "Inactive"}
               />
             </div>
-            {memberSince ? (
-              <p className="ops-account-since">Member since {formatDateTime(memberSince)}</p>
-            ) : null}
           </div>
         </div>
-        {workspace ? (
-          <dl className="ops-account-workspace">
-            <div>
-              <dt>Workspace</dt>
-              <dd>{workspace.name}</dd>
-            </div>
-            <div>
-              <dt>Slug</dt>
-              <dd className="ops-mono">{workspace.slug}</dd>
-            </div>
-            <div>
-              <dt>Organization ID</dt>
-              <dd>
-                <CopyValue value={workspace.id} mono />
-              </dd>
-            </div>
+
+        {facts.length > 0 ? (
+          <dl className="ops-account-facts">
+            {facts.map((row) => (
+              <div key={row.label} className="ops-account-fact">
+                <dt>{row.label}</dt>
+                <dd>
+                  {row.copy ? (
+                    <CopyValue value={row.value} mono={row.mono} />
+                  ) : (
+                    <span
+                      className={row.mono ? "ops-mono" : "ops-account-fact-value"}
+                      title={row.value}
+                    >
+                      {row.value}
+                    </span>
+                  )}
+                </dd>
+              </div>
+            ))}
           </dl>
         ) : null}
       </section>
 
-      <div className="ops-account-grid">
-        <div className="ops-account-col">
-          <section className="ops-panel">
-            <div className="ops-panel-head">
-              <h3>Display name</h3>
+      <div className="ops-account-work">
+        <section className="ops-panel">
+          <div className="ops-panel-head">
+            <div className="ops-account-panel-title">
+              <h3>Profile</h3>
+              <p>Name shown on this desk. Email stays as your login.</p>
             </div>
-            <div className="ops-panel-body">
-              <form className="ops-form" onSubmit={handleNameSubmit} noValidate>
-                {nameError ? <Alert tone="error">{nameError}</Alert> : null}
-                {nameOk ? <Alert tone="success">Display name updated.</Alert> : null}
-                <Field
-                  label="Name shown in the sidebar"
-                  htmlFor={`${ids}-name`}
-                  hint="Email stays as your login. Name is what colleagues see."
-                  required
-                >
+          </div>
+          <div className="ops-panel-body">
+            <form className="ops-form ops-account-form" onSubmit={handleNameSubmit} noValidate>
+              {nameError ? <Alert tone="error">{nameError}</Alert> : null}
+              {nameOk ? <Alert tone="success">Display name updated.</Alert> : null}
+              <Field
+                label="Display name"
+                htmlFor={`${ids}-name`}
+                hint="What colleagues see in the sidebar."
+                required
+              >
+                <div className="ops-account-name-row">
                   <Input
                     id={`${ids}-name`}
                     value={nameDraft}
@@ -286,119 +316,102 @@ export function AccountSettings({
                     disabled={nameSubmitting}
                     maxLength={255}
                   />
-                </Field>
-                <div className="ops-form-actions">
                   <Button
                     type="submit"
                     variant="primary"
                     loading={nameSubmitting}
                     disabled={nameSubmitting || !nameDirty}
                   >
-                    Save name
+                    Save
                   </Button>
                 </div>
-              </form>
-            </div>
-          </section>
-
-          <section className="ops-panel">
-            <div className="ops-panel-head">
-              <h3>Account details</h3>
-            </div>
-            <dl className="ops-account-dl">
-              {details.map((row) => (
-                <div key={row.label} className="ops-account-dl-row">
-                  <dt>{row.label}</dt>
-                  <dd>
-                    {row.copy ? (
-                      <CopyValue value={row.value} mono={row.mono} />
-                    ) : (
-                      <span className={row.mono ? "ops-mono" : undefined}>{row.value}</span>
-                    )}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-        </div>
-
-        <div className="ops-account-col">
-          <section className="ops-panel">
-            <div className="ops-panel-head">
-              <h3>Password</h3>
-            </div>
-            <div className="ops-panel-body">
-              <form className="ops-form" onSubmit={handlePasswordSubmit} noValidate>
-                {passError ? <Alert tone="error">{passError}</Alert> : null}
-                {passOk ? (
-                  <Alert tone="success">
-                    Password updated. A confirmation was sent to {email}.
-                  </Alert>
-                ) : null}
-                <PasswordField
-                  id={`${ids}-cur`}
-                  label="Current password"
-                  autoComplete="current-password"
-                  value={currentPassword}
-                  onChange={setCurrentPassword}
-                  disabled={passSubmitting}
-                  required
+              </Field>
+              <Field
+                label="Login email"
+                htmlFor={`${ids}-email`}
+                hint="Used to sign in. Not editable here."
+              >
+                <Input
+                  id={`${ids}-email`}
+                  value={email}
+                  readOnly
+                  autoComplete="username"
                 />
-                <PasswordField
-                  id={`${ids}-new`}
-                  label="New password"
-                  hint="At least 8 characters. Must differ from the current password."
-                  autoComplete="new-password"
-                  value={newPassword}
-                  onChange={setNewPassword}
-                  disabled={passSubmitting}
-                  required
-                />
-                <PasswordField
-                  id={`${ids}-conf`}
-                  label="Confirm new password"
-                  autoComplete="new-password"
-                  value={confirm}
-                  onChange={setConfirm}
-                  disabled={passSubmitting}
-                  required
-                />
-                <p className="ops-account-note">
-                  Changing your password signs you in on this browser as usual. We’ll email{" "}
-                  {email} to confirm the change.
-                </p>
-                <div className="ops-form-actions">
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    loading={passSubmitting}
-                    disabled={passSubmitting}
-                  >
-                    Update password
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </section>
+              </Field>
+            </form>
+          </div>
+        </section>
 
-          <section className="ops-panel">
-            <div className="ops-panel-head">
-              <h3>Session</h3>
+        <section className="ops-panel">
+          <div className="ops-panel-head">
+            <div className="ops-account-panel-title">
+              <h3>Sign-in</h3>
+              <p>Change the password for this browser session.</p>
             </div>
-            <div className="ops-panel-body">
+          </div>
+          <div className="ops-panel-body">
+            <form className="ops-form ops-account-form" onSubmit={handlePasswordSubmit} noValidate>
+              {passError ? <Alert tone="error">{passError}</Alert> : null}
+              {passOk ? (
+                <Alert tone="success">
+                  Password updated. A confirmation was sent to {email}.
+                </Alert>
+              ) : null}
+              <PasswordField
+                id={`${ids}-cur`}
+                label="Current password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={setCurrentPassword}
+                disabled={passSubmitting}
+                required
+              />
+              <PasswordField
+                id={`${ids}-new`}
+                label="New password"
+                hint="At least 8 characters. Must differ from the current password."
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={setNewPassword}
+                disabled={passSubmitting}
+                required
+              />
+              <PasswordField
+                id={`${ids}-conf`}
+                label="Confirm new password"
+                autoComplete="new-password"
+                value={confirm}
+                onChange={setConfirm}
+                disabled={passSubmitting}
+                required
+              />
               <p className="ops-account-note">
-                Signed in as <strong>{email}</strong> in this browser. Signing out ends this
-                session on this device only.
+                We’ll email {email} to confirm the change. Other devices stay signed in.
               </p>
               <div className="ops-form-actions">
-                <Button type="button" variant="dangerGhost" onClick={onLogout}>
-                  Sign out
+                <Button
+                  type="submit"
+                  variant="primary"
+                  loading={passSubmitting}
+                  disabled={passSubmitting}
+                >
+                  Update password
                 </Button>
               </div>
-            </div>
-          </section>
-        </div>
+            </form>
+          </div>
+        </section>
       </div>
+
+      <section className="ops-panel ops-account-session">
+        <p className="ops-account-note">
+          Signed in as <strong>{email}</strong> in this browser. Signing out ends this
+          session on this device only.
+        </p>
+        <Button type="button" variant="secondary" onClick={onLogout}>
+          Sign out
+        </Button>
+      </section>
     </div>
   );
 }

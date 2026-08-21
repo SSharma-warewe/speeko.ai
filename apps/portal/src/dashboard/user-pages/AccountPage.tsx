@@ -37,9 +37,7 @@ export default function UserAccountPage() {
         id: user.organization.id,
       }}
       details={[
-        { label: "Email", value: user.email },
         { label: "User ID", value: user.id, mono: true, copy: true },
-        { label: "Role", value: ROLE_LABEL[user.role] ?? user.role },
         ...(user.updatedAt
           ? [{ label: "Profile updated", value: formatDateTime(user.updatedAt) }]
           : []),

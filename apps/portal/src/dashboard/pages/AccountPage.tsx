@@ -26,9 +26,7 @@ export default function AdminAccountPage() {
       statusActive={admin.isActive}
       memberSince={admin.createdAt}
       details={[
-        { label: "Email", value: admin.email },
         { label: "Admin ID", value: admin.id, mono: true, copy: true },
-        { label: "Role", value: "Platform admin" },
         { label: "Profile updated", value: formatDateTime(admin.updatedAt) },
       ]}
       onSaveName={async (name) => {
