@@ -2,7 +2,6 @@ import { useEffect, useId, useState, type FormEvent } from "react";
 import { Alert, Badge, Button, Field, Input } from "@call-agent/ui";
 import { ApiError, UnauthorizedError } from "../../lib/api";
 import { formatDateTime, initialsFromName, shortId } from "../../lib/format";
-import { PageHeader } from "./PageHeader";
 import { StatusBadge } from "./StatusBadge";
 
 export type AccountDetail = {
@@ -19,9 +18,6 @@ export type AccountWorkspace = {
 };
 
 type Props = {
-  eyebrow?: string;
-  title: string;
-  description: string;
   displayName: string | null;
   email: string;
   roleLabel: string;
@@ -123,9 +119,6 @@ function PasswordField({
 }
 
 export function AccountSettings({
-  eyebrow = "You",
-  title,
-  description,
   displayName,
   email,
   roleLabel,
@@ -243,8 +236,6 @@ export function AccountSettings({
 
   return (
     <div className="ops-account">
-      <PageHeader eyebrow={eyebrow} title={title} description={description} />
-
       <section className="ops-panel ops-account-plate">
         <div className="ops-account-who">
           <span className="ops-account-mark" aria-hidden>

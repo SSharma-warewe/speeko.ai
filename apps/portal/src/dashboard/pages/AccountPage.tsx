@@ -17,9 +17,6 @@ export default function AdminAccountPage() {
 
   return (
     <AccountSettings
-      eyebrow="Platform"
-      title="Account"
-      description="Your platform admin identity and sign-in security."
       displayName={admin.name}
       email={admin.email}
       roleLabel="Platform admin"

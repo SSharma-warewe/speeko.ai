@@ -389,10 +389,6 @@
   min-width: 0;
 }
 
-.ops-account .ops-page-header {
-  margin-bottom: 0.15rem;
-}
-
 .ops-account-plate {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

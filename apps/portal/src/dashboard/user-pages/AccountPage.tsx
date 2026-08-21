@@ -24,8 +24,6 @@ export default function UserAccountPage() {
 
   return (
     <AccountSettings
-      title="Account"
-      description="Your identity, workspace membership, and sign-in security."
       displayName={user.name}
       email={user.email}
       roleLabel={ROLE_LABEL[user.role] ?? user.role}
