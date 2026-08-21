@@ -4,6 +4,7 @@ import { Button } from "@call-agent/ui";
 import {
   ApiError,
   cancelUserCall,
+  getUserCostSummary,
   getUserQueueStats,
   listUserCalls,
   prioritizeUserCall,
@@ -12,8 +13,9 @@ import {
   type UserCallBucket,
 } from "../../lib/api";
 import { useUserAuth } from "../../lib/auth";
-import { formatRelative, shortId } from "../../lib/format";
+import { formatRelative, formatUsd, shortId } from "../../lib/format";
 import { CallComposer, type ComposeMode } from "../components/CallComposer";
+import { CallCostCell } from "../components/CallCostCell";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorBlock } from "../components/ErrorBlock";
 import { StatusBadge } from "../components/StatusBadge";
@@ -63,6 +65,7 @@ export default function UserCallsPage() {
   );
 
   const statsState = useUserAsync(() => getUserQueueStats(), []);
+  const costsState = useUserAsync(() => getUserCostSummary(), []);
 
   useEffect(() => {
     setDirection(parseDirection(searchParams.get("direction")));
@@ -75,9 +78,10 @@ export default function UserCallsPage() {
     const id = window.setInterval(() => {
       callsState.reload();
       statsState.reload();
+      costsState.reload();
     }, 6000);
     return () => window.clearInterval(id);
-  }, [callsState.reload, statsState.reload]);
+  }, [callsState.reload, statsState.reload, costsState.reload]);
 
   const patchParams = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams);
@@ -164,17 +168,38 @@ export default function UserCallsPage() {
             </button>
           </div>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            callsState.reload();
-            statsState.reload();
-          }}
-        >
-          Refresh
-        </Button>
+        <div className="ops-calls-toolbar-side">
+          {costsState.data ? (
+            <div
+              className="ops-calls-ledger"
+              title={
+                costsState.data.callCount > 0
+                  ? `${costsState.data.callCount} priced · ${costsState.data.unpricedCount} unpriced · catalog ${costsState.data.catalogAsOf}`
+                  : "LiveKit list price, last 30 days · no markup"
+              }
+            >
+              <span className="ops-calls-ledger-kicker">30d meter</span>
+              <strong>{formatUsd(costsState.data.totalUsd)}</strong>
+              <span className="ops-calls-ledger-hint">
+                {costsState.data.callCount > 0
+                  ? `${formatUsd(costsState.data.avgUsd)} avg · list`
+                  : "list price"}
+              </span>
+            </div>
+          ) : null}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              callsState.reload();
+              statsState.reload();
+              costsState.reload();
+            }}
+          >
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <div className="ops-calls-board">
@@ -192,10 +217,12 @@ export default function UserCallsPage() {
             setBucket("all");
             callsState.reload();
             statsState.reload();
+            costsState.reload();
           }}
           onDialed={() => {
             callsState.reload();
             statsState.reload();
+            costsState.reload();
           }}
         />
       ) : (
@@ -316,6 +343,7 @@ export default function UserCallsPage() {
                     <th>Party</th>
                     <th>Status</th>
                     <th>Task</th>
+                    <th className="ops-calls-cost-col">Cost</th>
                     {!isInbound ? <th>Try</th> : null}
                     <th>When</th>
                     {!isInbound ? <th /> : null}
@@ -350,6 +378,9 @@ export default function UserCallsPage() {
                           <StatusBadge status={c.status} />
                         </td>
                         <td className="ops-mono">{c.taskKey || "—"}</td>
+                        <td className="ops-calls-cost-col">
+                          <CallCostCell cost={c.cost} live={live} />
+                        </td>
                         {!isInbound ? (
                           <td className="ops-mono">
                             {c.attemptCount}/{c.maxAttempts}

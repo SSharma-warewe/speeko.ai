@@ -17,6 +17,7 @@ import {
 } from "../../lib/api";
 import { useUserAuth } from "../../lib/auth";
 import { formatRelative } from "../../lib/format";
+import { CallCostCell } from "../components/CallCostCell";
 import { CallOutcomeBar } from "../components/CallOutcomeBar";
 import { CallsVolumeChart } from "../components/CallsVolumeChart";
 import { ErrorBlock } from "../components/ErrorBlock";
@@ -456,6 +457,9 @@ function TapeRow({ call }: { call: CallRecord }) {
       </span>
       <span className="ops-ov-tape-try">
         {call.attemptCount}/{call.maxAttempts}
+      </span>
+      <span className="ops-ov-tape-cost">
+        <CallCostCell cost={call.cost} live={live} />
       </span>
       <time className="ops-ov-tape-when" dateTime={call.createdAt}>
         {formatRelative(call.createdAt)}

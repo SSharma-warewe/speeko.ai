@@ -1,7 +1,13 @@
 import { Link, useOutletContext, useParams } from "react-router-dom";
 import type { Organization } from "../../lib/api";
-import { getOrgQueueStats, listOrgAgents, listOrgUsers, listSipTrunks } from "../../lib/api";
-import { formatDateTime } from "../../lib/format";
+import {
+  getAdminCostSummary,
+  getOrgQueueStats,
+  listOrgAgents,
+  listOrgUsers,
+  listSipTrunks,
+} from "../../lib/api";
+import { formatDateTime, formatUsd } from "../../lib/format";
 import { ErrorBlock } from "../components/ErrorBlock";
 import { KpiCard } from "../components/KpiCard";
 import { LoadingBlock } from "../components/LoadingBlock";
@@ -12,19 +18,20 @@ export default function OrgOverviewTab() {
   const { org } = useOutletContext<{ org: Organization }>();
 
   const { data, error, loading, reload } = useAsync(async () => {
-    const [stats, users, agents, trunks] = await Promise.all([
+    const [stats, users, agents, trunks, costs] = await Promise.all([
       getOrgQueueStats(orgId),
       listOrgUsers(orgId),
       listOrgAgents(orgId),
       listSipTrunks(orgId),
+      getAdminCostSummary({ organizationId: orgId }),
     ]);
-    return { stats, users, agents, trunks };
+    return { stats, users, agents, trunks, costs };
   }, [orgId]);
 
   if (loading) return <LoadingBlock label="Loading org overview" />;
   if (error || !data) return <ErrorBlock message={error ?? "Failed"} onRetry={reload} />;
 
-  const { stats, users, agents, trunks } = data;
+  const { stats, users, agents, trunks, costs } = data;
 
   return (
     <div className="ops-stack">
@@ -37,6 +44,15 @@ export default function OrgOverviewTab() {
           label="Queue pending"
           hint={`${stats.queue.inProgress} in flight`}
           highlight={stats.queue.inProgress > 0}
+        />
+        <KpiCard
+          value={formatUsd(costs.totalUsd)}
+          label="30d spend"
+          hint={
+            costs.callCount > 0
+              ? `${formatUsd(costs.avgUsd)} avg · list price`
+              : "LiveKit list price"
+          }
         />
       </div>
 

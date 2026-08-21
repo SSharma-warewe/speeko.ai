@@ -1210,6 +1210,7 @@ describe('CallsService', () => {
       });
       expect(rows).toHaveLength(1);
       expect(rows[0].status).toBe(CallStatus.DIALING);
+      expect(rows[0].cost).toBeNull();
     });
 
     it('36. listByOrganization prefers explicit status over bucket', async () => {

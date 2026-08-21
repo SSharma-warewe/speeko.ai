@@ -43,6 +43,51 @@ export function initialsFromName(
   return token.slice(0, 2).toUpperCase();
 }
 
+export function formatUsd(value?: number | null): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  if (value === 0) return "$0.00";
+  const abs = Math.abs(value);
+  const digits = abs >= 0.01 ? 2 : abs >= 0.0001 ? 4 : 6;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(value);
+}
+
+export function formatCostQuantity(input: {
+  quantity: number;
+  unit: string;
+}): string {
+  const q = input.quantity;
+  if (!Number.isFinite(q)) return "—";
+  switch (input.unit) {
+    case "minutes":
+      return `${trimQty(q, 3)} min`;
+    case "tokens_in":
+    case "tokens_cached":
+    case "tokens_out":
+      return `${trimQty(q, 0)} tok`;
+    case "characters":
+      return `${trimQty(q, 0)} chars`;
+    case "requests":
+      return `${trimQty(q, 0)} req`;
+    default:
+      return `${trimQty(q, 2)} ${input.unit}`;
+  }
+}
+
+function trimQty(n: number, maxFrac: number): string {
+  if (maxFrac <= 0) {
+    return Math.round(n).toLocaleString("en-US");
+  }
+  const rounded = Number(n.toFixed(maxFrac));
+  return rounded.toLocaleString("en-US", {
+    maximumFractionDigits: maxFrac,
+  });
+}
+
 export function slugify(value: string): string {
   return value
     .toLowerCase()

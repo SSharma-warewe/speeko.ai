@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { listCalls } from "../../lib/api";
 import { formatDateTime, shortId } from "../../lib/format";
+import { CallCostCell } from "../components/CallCostCell";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorBlock } from "../components/ErrorBlock";
 import { LoadingBlock } from "../components/LoadingBlock";
@@ -42,6 +43,7 @@ export default function CallsListPage() {
                     <th>Direction</th>
                     <th>To</th>
                     <th>Task</th>
+                    <th className="ops-calls-cost-col">Cost</th>
                     <th>Created</th>
                   </tr>
                 </thead>
@@ -62,6 +64,16 @@ export default function CallsListPage() {
                       </td>
                       <td className="ops-mono">{c.toNumber || "—"}</td>
                       <td className="ops-mono">{c.taskKey || "—"}</td>
+                      <td className="ops-calls-cost-col">
+                        <CallCostCell
+                          cost={c.cost}
+                          live={
+                            c.status === "dialing" ||
+                            c.status === "ready" ||
+                            c.status === "creating"
+                          }
+                        />
+                      </td>
                       <td className="ops-faint">{formatDateTime(c.createdAt)}</td>
                     </tr>
                   ))}

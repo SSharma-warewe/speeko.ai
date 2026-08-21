@@ -97,7 +97,7 @@ export class CallResponseDto {
     type: CallCostSnapshotDto,
     nullable: true,
     description:
-      'Admin only: LiveKit list-price cost (no markup). Omitted on org-user responses.',
+      'LiveKit list-price cost (no markup). Null until the worker completes an attempt.',
   })
   cost?: CallCostSnapshotDto | null;
 

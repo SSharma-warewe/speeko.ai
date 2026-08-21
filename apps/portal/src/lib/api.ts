@@ -308,6 +308,88 @@ export interface CallRecord {
   startedAt?: string | null;
   answeredAt?: string | null;
   endedAt?: string | null;
+  /** LiveKit list-price snapshot (no markup). Null until the worker completes. */
+  cost?: CallCostSnapshot | null;
+}
+
+export type CostLineKey =
+  | "llm"
+  | "stt"
+  | "tts"
+  | "webrtc"
+  | "sip"
+  | "agent_session"
+  | "krisp"
+  | "sip_vendor"
+  | "eot"
+  | string;
+
+export type CostUnit =
+  | "tokens_in"
+  | "tokens_cached"
+  | "tokens_out"
+  | "minutes"
+  | "characters"
+  | "requests"
+  | string;
+
+export interface CallCostLine {
+  key: CostLineKey;
+  label: string;
+  model?: string | null;
+  quantity: number;
+  unit: CostUnit;
+  unitPriceUsd: number;
+  amountUsd: number;
+  notes?: string;
+}
+
+export interface CallCostAttempt {
+  attempt: number;
+  billedMinutes: number;
+  totalUsd: number;
+  lines: CallCostLine[];
+  unknownModels: string[];
+}
+
+export interface CallCostSnapshot {
+  currency: "USD";
+  markup: 0;
+  plan: string;
+  catalogAsOf: string;
+  totalUsd: number;
+  billedMinutes: number;
+  unknownModels: string[];
+  lines: CallCostLine[];
+  attempts: CallCostAttempt[];
+}
+
+export interface CostSummaryByKey {
+  key: string;
+  amountUsd: number;
+}
+
+export interface CostSummaryDaily {
+  date: string;
+  callCount: number;
+  totalUsd: number;
+}
+
+export interface CostSummary {
+  currency: "USD";
+  markup: 0;
+  plan: string;
+  catalogAsOf: string;
+  from: string;
+  to: string;
+  organizationId: string | null;
+  callCount: number;
+  unpricedCount: number;
+  totalUsd: number;
+  avgUsd: number;
+  billedMinutes: number;
+  byKey: CostSummaryByKey[];
+  daily: CostSummaryDaily[];
 }
 
 export interface TestCallResponse extends CallRecord {
@@ -915,6 +997,21 @@ export const listCalls = (limit = 50) =>
 export const getCall = (id: string) =>
   adminFetch<CallRecord>(`/admin/calls/${id}`);
 
+export const getAdminCostSummary = (opts?: {
+  organizationId?: string;
+  from?: string;
+  to?: string;
+}) => {
+  const q = new URLSearchParams();
+  if (opts?.organizationId) q.set("organizationId", opts.organizationId);
+  if (opts?.from) q.set("from", opts.from);
+  if (opts?.to) q.set("to", opts.to);
+  const qs = q.toString();
+  return adminFetch<CostSummary>(
+    `/admin/costs/summary${qs ? `?${qs}` : ""}`,
+  );
+};
+
 /* ── Queue ── */
 export const getAdminQueueStats = () =>
   adminFetch<AdminQueueStats>("/admin/queue/stats");
@@ -1330,6 +1427,14 @@ export const listUserCalls = (params?: {
 
 export const getUserCall = (id: string) =>
   userFetch<CallRecord>(`/users/calls/${id}`);
+
+export const getUserCostSummary = (opts?: { from?: string; to?: string }) => {
+  const q = new URLSearchParams();
+  if (opts?.from) q.set("from", opts.from);
+  if (opts?.to) q.set("to", opts.to);
+  const qs = q.toString();
+  return userFetch<CostSummary>(`/users/costs/summary${qs ? `?${qs}` : ""}`);
+};
 
 export const enqueueUserCalls = (data: {
   organizationAgentId: string;

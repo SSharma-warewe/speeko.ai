@@ -121,11 +121,10 @@ describe('call-response.mapper', () => {
       expect(dto.queueLockedAt).toBeNull();
     });
 
-    it('3b. omits cost by default (org-user) and includes it for admin', () => {
-      expect(toCallResponse(baseCall).cost).toBeUndefined();
-      expect(toCallResponse(baseCall, { includeCost: true }).cost?.totalUsd).toBe(
-        0.042,
-      );
+    it('3b. includes cost snapshot by default (null when unpriced)', () => {
+      expect(toCallResponse(baseCall).cost?.totalUsd).toBe(0.042);
+      expect(toCallResponse({ ...baseCall, cost: null }).cost).toBeNull();
+      expect(toCallResponse(baseCall, { includeCost: false }).cost).toBeUndefined();
     });
 
     it('4. toolEvents is null when sessionReport is null', () => {

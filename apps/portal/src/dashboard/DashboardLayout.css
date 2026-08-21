@@ -1727,7 +1727,7 @@
 
 .ops-ov-tape-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1.2fr) minmax(0, 0.8fr) auto auto auto;
+  grid-template-columns: auto minmax(0, 1.2fr) minmax(0, 0.8fr) auto auto auto auto;
   gap: 0.5rem 0.65rem;
   align-items: center;
   min-height: 2.15rem;
@@ -1786,6 +1786,18 @@
   font-size: 0.66rem;
   color: var(--ops-faint);
   text-align: right;
+}
+
+.ops-ov-tape-cost {
+  justify-self: end;
+}
+
+.ops-ov-tape-cost .ops-cost-cell {
+  min-width: 3.5rem;
+}
+
+.ops-ov-tape-cost .ops-cost-cell strong {
+  font-size: 0.72rem;
 }
 
 .ops-ov-side {
@@ -1898,10 +1910,10 @@
 }
 
 .ops-ov-kpis--admin {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 
-.ops-ov-kpis--admin .ops-ov-kpi:nth-child(6n) {
+.ops-ov-kpis--admin .ops-ov-kpi:nth-child(7n) {
   border-right: none;
 }
 
@@ -1980,7 +1992,8 @@
 
   .ops-ov-tape-task,
   .ops-ov-tape-meta,
-  .ops-ov-tape-try {
+  .ops-ov-tape-try,
+  .ops-ov-tape-when {
     display: none;
   }
 
@@ -2045,6 +2058,43 @@
 .ops-calls-toolbar .ops-mode-btn {
   padding: 0.26rem 0.68rem;
   font-size: 0.72rem;
+}
+
+.ops-calls-toolbar-side {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.ops-calls-ledger {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.04rem;
+  min-width: 5.5rem;
+}
+
+.ops-calls-ledger-kicker {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ops-faint);
+}
+
+.ops-calls-ledger strong {
+  font-family: var(--font-display);
+  font-size: 1.28rem;
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+  line-height: 0.95;
+  color: var(--ops-ink);
+}
+
+.ops-calls-ledger-hint {
+  font-size: 0.62rem;
+  color: var(--ops-muted);
 }
 
 .ops-calls-board {
@@ -2437,6 +2487,56 @@
   color: var(--ops-faint);
 }
 
+.ops-calls-cost-col {
+  text-align: right;
+}
+
+.ops-calls-cost-col .ops-cost-cell {
+  margin-left: auto;
+}
+
+.ops-cost-cell {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.16rem;
+  min-width: 4.2rem;
+}
+
+.ops-cost-cell strong {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--ops-ink);
+}
+
+.ops-cost-cell.is-empty {
+  color: var(--ops-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.ops-cost-cell.is-live {
+  color: var(--ops-amber-ink);
+}
+
+.ops-cost-spark {
+  display: flex;
+  width: 100%;
+  min-width: 3.2rem;
+  height: 3px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: var(--ops-line);
+}
+
+.ops-cost-spark i {
+  display: block;
+  min-width: 0;
+  height: 100%;
+}
+
 .ops-calls-list .ops-state {
   padding: 1.4rem 1rem;
 }
@@ -2483,6 +2583,10 @@
 
   .ops-calls-list-bar {
     flex-wrap: wrap;
+  }
+
+  .ops-calls-ledger strong {
+    font-size: 1.1rem;
   }
 }
 
@@ -2557,7 +2661,7 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   border: 1px solid var(--ops-line);
   border-radius: 12px;
   background: var(--ops-panel);
@@ -2641,6 +2745,139 @@
   margin: 0;
   font-size: 0.84rem;
   line-height: 1.45;
+}
+
+.ops-call-cost-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+  margin-bottom: 0.85rem;
+}
+
+.ops-call-cost-kicker {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ops-faint);
+  margin-bottom: 0.2rem;
+}
+
+.ops-call-cost-total {
+  font-size: 1.55rem;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ops-ink);
+}
+
+.ops-call-cost-mix {
+  display: flex;
+  height: 7px;
+  width: min(18rem, 100%);
+  margin-top: 0.5rem;
+  border-radius: 99px;
+  overflow: hidden;
+  background: var(--ops-line);
+}
+
+.ops-call-cost-meta {
+  display: flex;
+  gap: 1.15rem;
+  margin: 0;
+}
+
+.ops-call-cost-meta dt {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ops-faint);
+}
+
+.ops-call-cost-meta dd {
+  margin: 0.15rem 0 0;
+  font-size: 0.86rem;
+}
+
+.ops-call-cost .ca-alert {
+  margin-bottom: 0.75rem;
+}
+
+.ops-call-cost-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.ops-call-cost-line-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.55rem 0.85rem;
+  align-items: baseline;
+}
+
+.ops-call-cost-line-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ops-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ops-call-cost-line-head strong {
+  font-variant-numeric: tabular-nums;
+  min-width: 4.5rem;
+  text-align: right;
+}
+
+.ops-call-cost-bar {
+  height: 3px;
+  border-radius: 99px;
+  background: var(--ops-line);
+  overflow: hidden;
+  margin-top: 0.28rem;
+}
+
+.ops-call-cost-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ops-amber-ink, #ca8a04);
+}
+
+.ops-call-cost-line.is-zero .ops-call-cost-line-label,
+.ops-call-cost-line.is-zero strong {
+  color: var(--ops-muted);
+}
+
+.ops-call-cost-attempts {
+  margin-top: 0.85rem;
+}
+
+.ops-call-cost-attempt-list {
+  list-style: none;
+  margin: 0.45rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.ops-call-cost-attempt-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.ops-call-cost-attempt-list strong {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
 }
 
 .ops-call-rail {
@@ -2877,8 +3114,27 @@
 }
 
 @media (max-width: 520px) {
+  .ops-cost-cell .ops-cost-spark {
+    display: none;
+  }
+
   .ops-call-facts {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .ops-call-cost-line-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .ops-call-cost-line-head .ops-faint {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .ops-call-cost-line-head strong {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
   }
 
   .ops-call-hero h1 {

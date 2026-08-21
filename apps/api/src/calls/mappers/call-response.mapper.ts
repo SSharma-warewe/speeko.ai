@@ -45,7 +45,7 @@ export function toCallResponse(
     createdAt: call.createdAt,
     updatedAt: call.updatedAt,
   };
-  if (options.includeCost) {
+  if (options.includeCost !== false) {
     dto.cost = call.cost ?? null;
   }
   return dto;

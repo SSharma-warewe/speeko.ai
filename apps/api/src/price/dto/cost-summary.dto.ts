@@ -10,7 +10,7 @@ import {
   Min,
 } from 'class-validator';
 
-export class CostSummaryQueryDto {
+export class UserCostSummaryQueryDto {
   @ApiPropertyOptional({
     description: 'Inclusive start (ISO). Default: 30 days before `to`.',
   })
@@ -24,7 +24,9 @@ export class CostSummaryQueryDto {
   @IsOptional()
   @IsDateString()
   to?: string;
+}
 
+export class CostSummaryQueryDto extends UserCostSummaryQueryDto {
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
   @IsUUID()

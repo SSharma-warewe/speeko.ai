@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Alert, LiveDot } from "@call-agent/ui";
 import type { CallRecord } from "../../lib/api";
-import { formatDateTime, formatRelative, shortId } from "../../lib/format";
+import { formatDateTime, formatRelative, formatUsd, shortId } from "../../lib/format";
+import { CallCostPanel } from "./CallCostPanel";
 import { PageHeader } from "./PageHeader";
 import { StatusBadge } from "./StatusBadge";
 
@@ -46,6 +47,7 @@ export function CallDetailView({
   const duration = callDuration(call);
   const party = partyTitle(call);
   const subtitle = heroSubtitle(call, context, duration);
+  const showCost = call.cost !== undefined;
 
   return (
     <div className={`ops-call${live ? " is-live" : ""}`}>
@@ -95,6 +97,12 @@ export function CallDetailView({
             <time dateTime={call.createdAt}>{formatRelative(call.createdAt)}</time>
           </strong>
         </li>
+        {showCost ? (
+          <li>
+            <span>Cost</span>
+            <strong className="ops-mono">{formatUsd(call.cost?.totalUsd)}</strong>
+          </li>
+        ) : null}
       </ul>
 
       {call.errorMessage || call.lastFailureCode ? (
@@ -109,6 +117,8 @@ export function CallDetailView({
           </span>
         </Alert>
       ) : null}
+
+      {showCost ? <CallCostPanel cost={call.cost} live={live} /> : null}
 
       <div className="ops-call-board">
         <section className="ops-panel ops-call-talk">

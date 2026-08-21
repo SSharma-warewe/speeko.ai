@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@call-agent/ui";
-import { getAdminQueueStats, listCalls, listOrganizations } from "../../lib/api";
-import { formatRelative, shortId } from "../../lib/format";
+import { getAdminCostSummary, getAdminQueueStats, listCalls, listOrganizations } from "../../lib/api";
+import { formatRelative, formatUsd, shortId } from "../../lib/format";
 import { ErrorBlock } from "../components/ErrorBlock";
 import { LoadingBlock } from "../components/LoadingBlock";
 import { StatusBadge } from "../components/StatusBadge";
@@ -9,18 +9,19 @@ import { useAsync } from "../hooks/useAsync";
 
 export default function OverviewPage() {
   const { data, error, loading, reload } = useAsync(async () => {
-    const [stats, orgs, calls] = await Promise.all([
+    const [stats, orgs, calls, costs] = await Promise.all([
       getAdminQueueStats(),
       listOrganizations(),
       listCalls(12),
+      getAdminCostSummary(),
     ]);
-    return { stats, orgs, calls };
+    return { stats, orgs, calls, costs };
   }, []);
 
   if (loading) return <LoadingBlock label="Loading overview" />;
   if (error || !data) return <ErrorBlock message={error ?? "Failed to load"} onRetry={reload} />;
 
-  const { stats, orgs, calls } = data;
+  const { stats, orgs, calls, costs } = data;
   const totals = stats.totals;
 
   return (
@@ -101,6 +102,15 @@ export default function OverviewPage() {
           <span className="ops-ov-kpi-label">Paused</span>
           <span className="ops-ov-kpi-value">{totals.orgsPaused}</span>
           <span className="ops-ov-kpi-hint">orgs on hold</span>
+        </Link>
+        <Link to="/admin-dashboard/calls" className="ops-ov-kpi" role="listitem">
+          <span className="ops-ov-kpi-label">30d spend</span>
+          <span className="ops-ov-kpi-value">{formatUsd(costs.totalUsd)}</span>
+          <span className="ops-ov-kpi-hint">
+            {costs.callCount > 0
+              ? `${formatUsd(costs.avgUsd)} avg · ${costs.unpricedCount} unpriced`
+              : `${costs.unpricedCount} unpriced`}
+          </span>
         </Link>
       </div>
 
