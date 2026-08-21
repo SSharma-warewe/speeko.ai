@@ -379,7 +379,7 @@ export class CallsService {
     return {
       batchId,
       count: saved.length,
-      calls: saved.map(toCallResponse),
+      calls: saved.map((call) => toCallResponse(call)),
     };
   }
 
@@ -1342,7 +1342,7 @@ export class CallsService {
 
   async list(limit = 50): Promise<CallResponseDto[]> {
     const rows = await this.callsRepository.findRecent(limit);
-    return rows.map(toAdminCallResponse);
+    return rows.map((call) => toAdminCallResponse(call));
   }
 
   async listByOrganization(
@@ -1369,7 +1369,7 @@ export class CallsService {
       batchId: options.batchId,
       direction: options.direction,
     });
-    return rows.map(toCallResponse);
+    return rows.map((call) => toCallResponse(call));
   }
 
   private async resolvePlatformAgent(dto: CreateTestCallDto): Promise<Agent> {
