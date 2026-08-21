@@ -34,6 +34,18 @@ describe('call-response.mapper', () => {
     transcript: [{ role: 'user', content: 'hi' }],
     usage: { models: [] },
     sessionReport: null as Record<string, unknown> | null,
+    cost: {
+      currency: 'USD' as const,
+      markup: 0 as const,
+      plan: 'ship',
+      catalogAsOf: '2026-08-21',
+      totalUsd: 0.042,
+      billedMinutes: 1,
+      unknownModels: [],
+      lines: [],
+      attempts: [],
+    },
+    costUsd: 0.042,
     errorMessage: null,
     attemptCount: 1,
     maxAttempts: 3,
@@ -107,6 +119,13 @@ describe('call-response.mapper', () => {
       expect(dto.lastFailureAt).toBeNull();
       expect(dto.dialStartedAt).toBeNull();
       expect(dto.queueLockedAt).toBeNull();
+    });
+
+    it('3b. omits cost by default (org-user) and includes it for admin', () => {
+      expect(toCallResponse(baseCall).cost).toBeUndefined();
+      expect(toCallResponse(baseCall, { includeCost: true }).cost?.totalUsd).toBe(
+        0.042,
+      );
     });
 
     it('4. toolEvents is null when sessionReport is null', () => {

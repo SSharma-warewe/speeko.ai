@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AgentsModule } from '../agents/agents.module';
 import { LivekitModule } from '../livekit/livekit.module';
+import { PriceModule } from '../price/price.module';
 import { QueueModule } from '../queue/queue.module';
 import { SipTrunksModule } from '../sip-trunks/sip-trunks.module';
 import { ToolsModule } from '../tools/tools.module';
@@ -19,6 +20,7 @@ import { UserCallsController } from './user-calls.controller';
     ToolsModule,
     LivekitModule,
     SipTrunksModule,
+    PriceModule,
     forwardRef(() => QueueModule),
   ],
   controllers: [CallsController, UserCallsController, InternalCallsController],

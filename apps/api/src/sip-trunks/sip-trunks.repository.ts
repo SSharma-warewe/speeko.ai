@@ -18,6 +18,10 @@ export class SipTrunksRepository {
     return this.repo.save(row);
   }
 
+  findById(id: string): Promise<SipTrunk | null> {
+    return this.repo.findOne({ where: { id } });
+  }
+
   findByIdAndOrg(organizationId: string, id: string): Promise<SipTrunk | null> {
     return this.repo.findOne({ where: { id, organizationId } });
   }

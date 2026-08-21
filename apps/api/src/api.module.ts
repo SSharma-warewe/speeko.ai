@@ -13,6 +13,7 @@ import { GhlModule } from './ghl/ghl.module';
 import { IntegrationEndpointsModule } from './integration-endpoints/integration-endpoints.module';
 import { OrganizationIntegrationsModule } from './organization-integrations/organization-integrations.module';
 import { OrganizationsModule } from './organizations/organizations.module';
+import { PriceModule } from './price/price.module';
 import { QueueModule } from './queue/queue.module';
 import { SipDispatchRulesModule } from './sip-dispatch-rules/sip-dispatch-rules.module';
 import { SipTrunksModule } from './sip-trunks/sip-trunks.module';
@@ -51,6 +52,7 @@ import { UsersModule } from './users/users.module';
     SipTrunksModule,
     SipDispatchRulesModule,
     CallsModule,
+    PriceModule,
     QueueModule,
     IntegrationEndpointsModule,
     OrganizationIntegrationsModule,

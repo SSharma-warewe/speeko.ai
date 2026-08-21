@@ -27,6 +27,10 @@ export class SipTrunksService {
     private readonly livekit: LivekitService,
   ) {}
 
+  findById(id: string): Promise<SipTrunk | null> {
+    return this.sipTrunksRepository.findById(id);
+  }
+
   async listByOrganization(organizationId: string): Promise<SipTrunkResponseDto[]> {
     await this.organizationsService.findById(organizationId);
     const rows = await this.sipTrunksRepository.findByOrganization(organizationId);

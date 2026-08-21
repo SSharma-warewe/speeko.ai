@@ -12,6 +12,7 @@ import { CallBatchesService } from '../../queue/call-batches.service';
 import { OrganizationQueueSettingsService } from '../../queue/organization-queue-settings.service';
 import { QueueClaimService } from '../../queue/queue-claim.service';
 import { QueueRetryService } from '../../queue/queue-retry.service';
+import { PriceService } from '../../price/price.service';
 import { SipTrunk } from '../../sip-trunks/sip-trunk.entity';
 import { SipTrunksService } from '../../sip-trunks/sip-trunks.service';
 import { ToolProfilesService } from '../../tools/tool-profiles.service';
@@ -108,6 +109,10 @@ describe('CallsService', () => {
   let organizationAgentsService: { getEntityWithTemplate: jest.Mock };
   let toolProfilesService: { resolveEnabledToolIds: jest.Mock };
   let sipTrunksService: { resolveOutboundForCall: jest.Mock };
+  let priceService: {
+    applyAttemptToCall: jest.Mock;
+    fillCostIfMissing: jest.Mock;
+  };
   let livekit: {
     getAgentName: jest.Mock;
     getUrl: jest.Mock;
@@ -165,6 +170,8 @@ describe('CallsService', () => {
       transcript: null,
       usage: null,
       sessionReport: null,
+      cost: null,
+      costUsd: null,
       errorMessage: null,
       attemptCount: 0,
       maxAttempts: 3,
@@ -191,6 +198,7 @@ describe('CallsService', () => {
       organizationAgentsService as unknown as OrganizationAgentsService,
       toolProfilesService as unknown as ToolProfilesService,
       sipTrunksService as unknown as SipTrunksService,
+      priceService as unknown as PriceService,
       livekit as unknown as LivekitService,
       config as unknown as ConfigService,
       queueSettingsService as unknown as OrganizationQueueSettingsService,
@@ -242,6 +250,59 @@ describe('CallsService', () => {
 
     sipTrunksService = {
       resolveOutboundForCall: jest.fn().mockResolvedValue(trunk),
+    };
+
+    priceService = {
+      applyAttemptToCall: jest.fn(async (call: Call) => {
+        const nextAttempt = (call.cost?.attempts?.length ?? 0) + 1;
+        const totalUsd = 0.01 * nextAttempt;
+        call.cost = {
+          currency: 'USD',
+          markup: 0,
+          plan: 'ship',
+          catalogAsOf: '2026-08-21',
+          totalUsd,
+          billedMinutes: nextAttempt,
+          unknownModels: [],
+          lines: [],
+          attempts: [
+            ...(call.cost?.attempts ?? []),
+            {
+              attempt: nextAttempt,
+              billedMinutes: 1,
+              totalUsd: 0.01,
+              lines: [],
+              unknownModels: [],
+            },
+          ],
+        };
+        call.costUsd = totalUsd;
+        return call.cost;
+      }),
+      fillCostIfMissing: jest.fn(async (call: Call) => {
+        if (call.cost) return call.cost;
+        call.cost = {
+          currency: 'USD',
+          markup: 0,
+          plan: 'ship',
+          catalogAsOf: '2026-08-21',
+          totalUsd: 0.01,
+          billedMinutes: 1,
+          unknownModels: [],
+          lines: [],
+          attempts: [
+            {
+              attempt: 1,
+              billedMinutes: 1,
+              totalUsd: 0.01,
+              lines: [],
+              unknownModels: [],
+            },
+          ],
+        };
+        call.costUsd = 0.01;
+        return call.cost;
+      }),
     };
 
     livekit = {
@@ -833,6 +894,85 @@ describe('CallsService', () => {
         already: true,
         toolEvents: [{ toolId: 'endCall', ok: true }],
       });
+    });
+
+    it('24a. completed path appends cost via PriceService', async () => {
+      const call = makeCall({
+        id: CALL_ID,
+        status: CallStatus.DIALING,
+        batchId: BATCH_ID,
+      });
+      callsRepository.findById.mockResolvedValue(call);
+
+      const result = await service.completeFromWorker(CALL_ID, {
+        status: 'completed',
+        taskCompleted: true,
+        endedAt: '2024-06-01T10:05:00.000Z',
+      });
+
+      expect(priceService.applyAttemptToCall).toHaveBeenCalled();
+      expect(result.cost?.totalUsd).toBe(0.01);
+      expect(result.cost?.markup).toBe(0);
+    });
+
+    it('24b. requeue prices attempt before resetForRequeue', async () => {
+      const call = makeCall({
+        id: CALL_ID,
+        status: CallStatus.READY,
+        maxAttempts: 3,
+        attemptCount: 1,
+        roomName: 'out-x',
+        organizationId: ORG_ID,
+      });
+      callsRepository.findById.mockResolvedValue(call);
+      queueRetryService.classifyFromWorker.mockReturnValue(
+        CallFailureCode.TIMEOUT,
+      );
+      queueRetryService.decide.mockReturnValue({
+        action: 'requeue',
+        nextAttemptAt: new Date('2024-06-01T03:00:00.000Z'),
+      });
+      const order: string[] = [];
+      priceService.applyAttemptToCall.mockImplementation(async () => {
+        order.push('price');
+      });
+      queueRetryService.resetForRequeue.mockImplementation(() => {
+        order.push('reset');
+      });
+
+      await service.completeFromWorker(CALL_ID, {
+        status: 'failed',
+        failureCode: 'timeout',
+      });
+
+      expect(order).toEqual(['price', 'reset']);
+    });
+
+    it('24c. idempotent complete fills cost only if missing', async () => {
+      const call = makeCall({
+        id: CALL_ID,
+        status: CallStatus.COMPLETED,
+        cost: {
+          currency: 'USD',
+          markup: 0,
+          plan: 'ship',
+          catalogAsOf: '2026-08-21',
+          totalUsd: 0.02,
+          billedMinutes: 1,
+          unknownModels: [],
+          lines: [],
+          attempts: [],
+        },
+        costUsd: 0.02,
+      });
+      callsRepository.findById.mockResolvedValue(call);
+
+      await service.completeFromWorker(CALL_ID, {
+        status: 'completed',
+      });
+
+      expect(priceService.fillCostIfMissing).toHaveBeenCalled();
+      expect(priceService.applyAttemptToCall).not.toHaveBeenCalled();
     });
 
     it('24. session ended without taskCompleted → incomplete, no invented answeredAt', async () => {

@@ -19,6 +19,7 @@ import { CallBatchesService } from '../queue/call-batches.service';
 import { OrganizationQueueSettingsService } from '../queue/organization-queue-settings.service';
 import { QueueClaimService } from '../queue/queue-claim.service';
 import { QueueRetryService } from '../queue/queue-retry.service';
+import { PriceService } from '../price/price.service';
 import { SipTrunksService } from '../sip-trunks/sip-trunks.service';
 import {
   DEFAULT_TASK_KEY,
@@ -55,7 +56,11 @@ import {
   EnqueueCallsResponseDto,
   TestCallResponseDto,
 } from './dto/call-response.dto';
-import { toCallResponse, toTestCallResponse } from './mappers/call-response.mapper';
+import {
+  toAdminCallResponse,
+  toCallResponse,
+  toTestCallResponse,
+} from './mappers/call-response.mapper';
 
 /**
  * Runtime-only payload the worker reads from job metadata.
@@ -97,6 +102,7 @@ export class CallsService {
     private readonly organizationAgentsService: OrganizationAgentsService,
     private readonly toolProfilesService: ToolProfilesService,
     private readonly sipTrunksService: SipTrunksService,
+    private readonly priceService: PriceService,
     private readonly livekit: LivekitService,
     private readonly config: ConfigService,
     @Inject(forwardRef(() => OrganizationQueueSettingsService))
@@ -155,6 +161,8 @@ export class CallsService {
       transcript: null,
       usage: null,
       sessionReport: null,
+      cost: null,
+      costUsd: null,
       errorMessage: null,
       startedAt: null,
       answeredAt: null,
@@ -212,12 +220,16 @@ export class CallsService {
         `Test call ready id=${call.id} room=${roomName} agentKey=${agent.key} task=${taskKey}`,
       );
 
-      return toTestCallResponse(call, {
-        agentKey: agent.key,
-        livekitUrl: this.livekit.getUrl(),
-        participantToken,
-        meetUrl: this.livekit.buildMeetUrl(participantToken),
-      });
+      return toTestCallResponse(
+        call,
+        {
+          agentKey: agent.key,
+          livekitUrl: this.livekit.getUrl(),
+          participantToken,
+          meetUrl: this.livekit.buildMeetUrl(participantToken),
+        },
+        { includeCost: true },
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       applyCallEvent(call, CallLifecycleEvent.DIAL_FAILED, CallStatus.FAILED);
@@ -339,6 +351,8 @@ export class CallsService {
           transcript: null,
           usage: null,
           sessionReport: null,
+          cost: null,
+          costUsd: null,
           errorMessage: null,
           attemptCount: 0,
           maxAttempts,
@@ -431,6 +445,8 @@ export class CallsService {
       transcript: null,
       usage: null,
       sessionReport: null,
+      cost: null,
+      costUsd: null,
       errorMessage: null,
       attemptCount: 1,
       maxAttempts: 1,
@@ -592,6 +608,8 @@ export class CallsService {
       transcript: null,
       usage: null,
       sessionReport: null,
+      cost: null,
+      costUsd: null,
       errorMessage: null,
       attemptCount: 1,
       maxAttempts: 1,
@@ -1059,8 +1077,9 @@ export class CallsService {
       if (dto.endedAt && !call.endedAt) {
         call.endedAt = this.parseDate(dto.endedAt);
       }
+      await this.priceAttemptSafe(call, 'fill');
       const saved = await this.callsRepository.save(call);
-      return toCallResponse(saved);
+      return toAdminCallResponse(saved);
     }
 
     if (dto.transcript) {
@@ -1096,6 +1115,7 @@ export class CallsService {
       call.endedAt = dto.endedAt ? this.parseDate(dto.endedAt) : new Date();
       call.queueLockedAt = null;
       call.nextAttemptAt = null;
+      await this.priceAttemptSafe(call, 'append');
       const saved = await this.callsRepository.save(call);
       if (saved.batchId) {
         await this.callBatchesService.maybeMarkCompleted(saved.batchId);
@@ -1104,9 +1124,10 @@ export class CallsService {
         `Call complete id=${saved.id} status=${saved.status} ` +
           `task=${saved.taskKey ?? 'n/a'} taskStatus=${saved.taskStatus} ` +
           `transcriptItems=${saved.transcript?.length ?? 0} ` +
-          `tools=${this.formatToolEventsSummary(saved.sessionReport)}`,
+          `tools=${this.formatToolEventsSummary(saved.sessionReport)} ` +
+          `costUsd=${saved.costUsd ?? 'n/a'}`,
       );
-      return toCallResponse(saved);
+      return toAdminCallResponse(saved);
     }
 
     // Failed from worker — may requeue under org policy
@@ -1129,17 +1150,21 @@ export class CallsService {
         if (call.roomName) {
           await this.livekit.deleteRoom(call.roomName).catch(() => undefined);
         }
+        // Price this attempt before resetForRequeue clears dial timestamps.
+        await this.priceAttemptSafe(call, 'append');
         // Keep transcript/usage from this attempt on the row for inspection
         this.queueRetryService.resetForRequeue(call, decision);
         const saved = await this.callsRepository.save(call);
         this.logger.warn(
           `Worker failed; requeued call id=${saved.id} code=${failureCode} ` +
-            `attempt=${saved.attemptCount}/${saved.maxAttempts}`,
+            `attempt=${saved.attemptCount}/${saved.maxAttempts} ` +
+            `costUsd=${saved.costUsd ?? 'n/a'}`,
         );
-        return toCallResponse(saved);
+        return toAdminCallResponse(saved);
       }
     }
 
+    await this.priceAttemptSafe(call, 'append');
     this.queueRetryService.markTerminalFailed(call, failureCode);
     const saved = await this.callsRepository.save(call);
     if (saved.batchId) {
@@ -1150,7 +1175,23 @@ export class CallsService {
         `task=${saved.taskKey ?? 'n/a'} transcriptItems=${saved.transcript?.length ?? 0} ` +
         `tools=${this.formatToolEventsSummary(saved.sessionReport)}`,
     );
-    return toCallResponse(saved);
+    return toAdminCallResponse(saved);
+  }
+
+  private async priceAttemptSafe(
+    call: Call,
+    mode: 'append' | 'fill',
+  ): Promise<void> {
+    try {
+      if (mode === 'fill') {
+        await this.priceService.fillCostIfMissing(call);
+      } else {
+        await this.priceService.applyAttemptToCall(call);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Cost pricing failed call=${call.id}: ${message}`);
+    }
   }
 
   /** Merge worker toolEvents into sessionReport.toolEvents (JSONB, no schema change). */
@@ -1282,7 +1323,7 @@ export class CallsService {
     if (!call) {
       throw new NotFoundException(`Call not found: ${id}`);
     }
-    return toCallResponse(call);
+    return toAdminCallResponse(call);
   }
 
   async findByIdForOrganization(
@@ -1301,7 +1342,7 @@ export class CallsService {
 
   async list(limit = 50): Promise<CallResponseDto[]> {
     const rows = await this.callsRepository.findRecent(limit);
-    return rows.map(toCallResponse);
+    return rows.map(toAdminCallResponse);
   }
 
   async listByOrganization(

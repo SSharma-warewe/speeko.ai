@@ -28,6 +28,14 @@ export const envValidationSchema = Joi.object({
   LIVEKIT_SIP_OUTBOUND_NUMBER: Joi.string().optional().allow(''),
   LIVEKIT_SIP_WAIT_UNTIL_ANSWERED: Joi.string().optional().allow(''),
   LIVEKIT_SIP_DEFAULT_COUNTRY_CODE: Joi.string().optional().allow(''),
+  // LiveKit list-price cost analysis (no markup). Default Ship overage rates.
+  LIVEKIT_PRICING_PLAN: Joi.string()
+    .valid('build', 'ship', 'scale')
+    .default('ship'),
+  LIVEKIT_AGENT_DEPLOYED: Joi.string()
+    .valid('true', 'false', '0', '1')
+    .optional(),
+  LIVEKIT_SIP_VENDOR_USD_PER_MIN: Joi.number().min(0).optional(),
   // Outbound dial queue (API process)
   QUEUE_DIALER_ENABLED: Joi.string().valid('true', 'false', '0', '1').optional(),
   QUEUE_DIALER_INTERVAL_MS: Joi.number().optional(),

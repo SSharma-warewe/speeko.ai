@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AgentDirection } from '../../agents/agent.entity';
+import { CallCostSnapshotDto } from '../../price/dto/call-cost.dto';
 import { CallMedium, CallStatus, CallTaskStatus } from '../call.entity';
 
 export class CallResponseDto {
@@ -91,6 +92,14 @@ export class CallResponseDto {
 
   @ApiPropertyOptional({ type: 'object', additionalProperties: true, nullable: true })
   sessionReport!: Record<string, unknown> | null;
+
+  @ApiPropertyOptional({
+    type: CallCostSnapshotDto,
+    nullable: true,
+    description:
+      'Admin only: LiveKit list-price cost (no markup). Omitted on org-user responses.',
+  })
+  cost?: CallCostSnapshotDto | null;
 
   @ApiPropertyOptional({
     type: 'array',

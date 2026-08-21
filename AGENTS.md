@@ -82,7 +82,7 @@ tool_profiles                  (capability bundles: platform seeds + org-owned c
 - `call_batches` — bulk enqueue groups: `status` `running` \| `paused` \| `cancelled` \| `completed`, optional overrides (`max_attempts`, `max_concurrent`, `priority`), `total_count`, agent/trunk/task snapshot.
 - `sip_trunks` — org SIP trunks (`direction` `outbound` \| `inbound`). Outbound: provider fields + `livekit_trunk_id` (`ST_…`) set on create (link or provision) via admin **or** org user; always `live` after create. Inbound: draft-first (`livekit_trunk_id` null until publish); also `allowed_numbers`, `allowed_addresses`, `krisp_enabled`, `published_at`. Never return `auth_password` in responses. Response `status`: `draft` \| `live` (derived from whether LiveKit id is set).
 - `sip_dispatch_rules` — org inbound routing configs. Local draft of LiveKit dispatch rule: `rule_type` (`individual` \| `direct` \| `callee`), room fields, `sip_trunk_ids` (local inbound trunk UUIDs), optional `organization_agent_id` (persona packed into agent job metadata on publish), `agent_name`, `livekit_dispatch_rule_id` (`SDR_…`, null until publish), `published_at`. Default for agent telephony: `individual` + `room_prefix=call-`.
-- `calls` — voice call records (queued pending, web test, or SIP outbound). Links optional `organization_id` / `organization_agent_id` / `agent_id` / `sip_trunk_id` / `batch_id` (→ `call_batches`); LiveKit `room_name` (null while pending), dispatch id, optional `livekit_sip_call_id`, numbers, **`context` JSONB** (request payload: CRM/demo fields, phoneNumber, externalId — what was asked of this call), `task_key` / `task_result` / **`task_status`** (`pending` \| `completed` \| `incomplete`), transcript/usage/`session_report` (includes **`toolEvents`**: worker tool invocations with args/result/ok/duration), queue fields (`attempt_count`, `max_attempts`, `next_attempt_at`, `priority`, `last_failure_code`, `last_failure_at`, `dial_started_at`, `queue_locked_at`), timestamps. Status: `pending` \| `creating` \| `dialing` \| `ready` \| `failed` \| **`completed`** (session ended **and** `task.complete()` ran) \| **`incomplete`** (conversation ended without `task.complete()`) \| `cancelled`. Do **not** infer task done from `task_result` JSON (unanswered/crash paths also write one). Transitions go through `call-state-machine.ts`. Buckets: **pending** / **in_progress** / **done** (`completed` \| `incomplete` \| `failed` \| `cancelled`). Medium: `web` \| `sip`. Full inbound call-row lifecycle on ring is not wired yet. Call APIs also expose derived top-level `toolEvents` from `session_report.toolEvents` for portal history.
+- `calls` — voice call records (queued pending, web test, or SIP outbound). Links optional `organization_id` / `organization_agent_id` / `agent_id` / `sip_trunk_id` / `batch_id` (→ `call_batches`); LiveKit `room_name` (null while pending), dispatch id, optional `livekit_sip_call_id`, numbers, **`context` JSONB** (request payload: CRM/demo fields, phoneNumber, externalId — what was asked of this call), `task_key` / `task_result` / **`task_status`** (`pending` \| `completed` \| `incomplete`), transcript/usage/`session_report` (includes **`toolEvents`**: worker tool invocations with args/result/ok/duration), **`cost` JSONB** + **`cost_usd`** (LiveKit list-price snapshot, **markup 0**, frozen on worker complete; retries append attempts), queue fields (`attempt_count`, `max_attempts`, `next_attempt_at`, `priority`, `last_failure_code`, `last_failure_at`, `dial_started_at`, `queue_locked_at`), timestamps. Status: `pending` \| `creating` \| `dialing` \| `ready` \| `failed` \| **`completed`** (session ended **and** `task.complete()` ran) \| **`incomplete`** (conversation ended without `task.complete()`) \| `cancelled`. Do **not** infer task done from `task_result` JSON (unanswered/crash paths also write one). Transitions go through `call-state-machine.ts`. Buckets: **pending** / **in_progress** / **done** (`completed` \| `incomplete` \| `failed` \| `cancelled`). Medium: `web` \| `sip`. Full inbound call-row lifecycle on ring is not wired yet. Call APIs also expose derived top-level `toolEvents` from `session_report.toolEvents` for portal history.
 - `integration_endpoints` — org CRM / external dial-in configs. Baked-in `organization_agent_id`, `task_key`, optional `sip_trunk_id`, queue overrides (`max_attempts`, `priority`, `max_concurrent`), optional `default_context` JSONB. Auth: opaque `public_id` in the URL path + per-endpoint API key (`key_prefix` display + `key_hash` SHA-256; full secret shown only on create/rotate). Soft `is_active`; `last_used_at` on successful public enqueue. Never return `key_hash` or full secret on list/get.
 - `organization_integrations` — org-owned third-party credentials (`provider=nylas` \| `ghl`): `name`, `api_key` (secret, never returned), `api_key_prefix`, `grant_id` (Nylas; null for GHL), `location_id` (GHL; null for Nylas), `calendar_id` (Nylas default `primary`, or GHL calendar id), `api_uri` / `email` (Nylas-only), `is_active`. Used by calendar tools via agent link.
 - `organization_agents.calendar_integration_id` — optional FK → `organization_integrations` (SET NULL). Which calendar powers calendar tools for that agent (Nylas **or** GHL); tool enablement stays on the tool profile.
@@ -226,6 +226,9 @@ Default local DB credentials (see `.env.example`):
 | `LIVEKIT_API_KEY` | API + worker | Project API key |
 | `LIVEKIT_API_SECRET` | API + worker | Project API secret |
 | `LIVEKIT_AGENT_NAME` | API + worker | Explicit dispatch name (default `call-agent`) |
+| `LIVEKIT_PRICING_PLAN` | API | LiveKit list-price catalog: `build` \| `ship` (default) \| `scale`. Overage rates for personal call-cost analysis (no markup, ignores included monthly credits). |
+| `LIVEKIT_AGENT_DEPLOYED` | API | `true` only if the worker is a LiveKit Cloud hosted agent (charges $0.01/min agent-session). Default off — Railway self-hosted worker counts as WebRTC minutes instead. |
+| `LIVEKIT_SIP_VENDOR_USD_PER_MIN` | API | Optional SIP carrier estimate (Telnyx/Twilio) in USD/min. Default `0` = LiveKit charges only. |
 | `LIVEKIT_NUM_IDLE_PROCESSES` | worker | Pre-warmed job child processes (default `1` in code; min effective `1` — SDK treats `0` as unset and would restore multi-process default). Main RAM lever after cloud turn-detect + compiled `node` prod start. |
 | `WORKER_CALLBACK_SECRET` | API + worker | Shared secret for `POST /api/internal/calls/:id/complete` (`X-Worker-Secret`) |
 | `API_BASE_URL` | worker | Base URL for callbacks (e.g. `http://localhost:3000`) |
@@ -549,8 +552,10 @@ Worker health is “registered with LiveKit” in service logs, not a public HTM
 | POST | `/api/admin/calls/test` | admin JWT — web test: platform template + Meet token |
 | POST | `/api/admin/calls/outbound` | admin JWT — SIP outbound: room + dispatch + CreateSIPParticipant |
 | GET | `/api/admin/calls` | admin JWT — list recent calls (all orgs) |
-| GET | `/api/admin/calls/:id` | admin JWT — get call by id (includes transcript/usage when present) |
-| POST | `/api/internal/calls/:id/complete` | worker secret (`X-Worker-Secret`) — persist transcript/usage/status |
+| GET | `/api/admin/calls/:id` | admin JWT — get call by id (includes transcript/usage/`cost` when present) |
+| GET | `/api/admin/costs/summary` | admin JWT — LiveKit list-price totals (`from`/`to`/`organizationId`); no markup |
+| POST | `/api/admin/costs/recompute` | admin JWT — backfill `calls.cost` from stored usage + timestamps |
+| POST | `/api/internal/calls/:id/complete` | worker secret (`X-Worker-Secret`) — persist transcript/usage/status + cost snapshot |
 
 **User vs admin call/SIP notes:** Org user routes always scope by JWT `orgId` (never accept client `organizationId`). **Outbound** trunks: org users may create/link/update/delete local rows under `/api/users/sip-trunks/outbound` (same shape as admin; always `direction=outbound`). **Inbound** trunks + dispatch rules: draft then publish under `/api/users/sip-trunks/inbound` and dispatch-rule routes. Platform admin retains full `/api/admin/organizations/:orgId/sip-trunks` (any direction list + outbound create). Within-org roles (`org_admin` etc.) are stored but **not enforced** yet. User web test uses an assigned org agent (effective persona/tools/task); admin web test uses a platform template key/id. **`POST /api/users/calls`** enqueues pending rows + `call_batches`; the **API queue dialer** claims and dials under org settings. Use **`POST …/calls/outbound`** for immediate single dial (bypasses queue concurrency).
 ### Inbound save → publish flow
@@ -629,6 +634,7 @@ Test: `POST /api/admin/calls/test` accepts optional `task` + `context`. Org web 
 |--------|------|
 | `calls` | Domain: persist `calls`, resolve agents/tool profiles/task key, pack **runtime** job metadata, orchestrate web test + **outbound SIP dial** (immediate + queue-claimed), worker complete callback with optional **requeue** |
 | `queue` | Org queue settings, call batches, claim (`SKIP LOCKED`), retry policy, in-process **QueueDialerService**, live stats, user/admin queue controllers |
+| `price` | LiveKit **list-price** call cost (STT/LLM/TTS + WebRTC/SIP room). No markup. Catalog in `price.catalog.ts`; `PriceService` prices each worker-complete attempt onto `calls.cost` / `cost_usd`. Admin summary + recompute only — **not** org-user APIs |
 | `tools` | Tool profiles list/seed + org custom CRUD; resolve `enabledTools` ids for metadata |
 | `integration-endpoints` | Org CRM dial-in: preconfigured agent/task/trunk/queue + API key; public thin `POST …/calls` enqueue |
 | `organization-integrations` | Org BYO third-party keys (Nylas + GHL calendar); user CRUD + test; worker Nylas proxy via `CalendarToolsService` |
@@ -679,6 +685,7 @@ controller → service → repository → TypeORM entity → Postgres
 - `ghl` is an infrastructure adapter (`GhlService` + worker-secret calendar controller). Calendar tools resolve org GHL connections; get-demo CRM stays env. Not a repository-backed domain module.
 - `demo` is a thin public proxy (no repository): `DemoAbuseGuard` (origin + rate limits) → honeypot → GHL upsert (best-effort) → `ENDPOINT_URL` + `SPEEKO_API` → integration enqueue.
 - `queue` uses raw SQL for atomic claim (`FOR UPDATE SKIP LOCKED`) via TypeORM `DataSource`; settings/batches use repositories.
+- `price` is a catalog + calculator (`PriceService`). Inject it; do not inline LiveKit rates in `calls`. Worker complete appends one cost attempt (including requeue). Org-user call DTOs omit `cost`.
 
 ## Coding guidelines
 
@@ -686,7 +693,7 @@ controller → service → repository → TypeORM entity → Postgres
 2. Put LiveKit agent job work in `apps/worker` (tsx + `@livekit/agents`, not Nest webpack).
 3. Validate all inputs with `class-validator` DTOs; document with `@nestjs/swagger`.
 4. Never commit real secrets; use `.env` (gitignored) + `.env.example`.
-5. Prefer clear module boundaries: `auth`, `admins`, `organizations`, `users`, `agents`, `tools` (profiles), `integration-endpoints`, `organization-integrations` (Nylas + GHL calendar keys + worker Nylas proxy), `demo` (get-demo proxy), `sip-trunks`, `sip-dispatch-rules`, `calls`, `queue`, `livekit` (adapter), `email` (Plunk adapter), `ghl` (GoHighLevel adapter + worker GHL calendar proxy).
+5. Prefer clear module boundaries: `auth`, `admins`, `organizations`, `users`, `agents`, `tools` (profiles), `integration-endpoints`, `organization-integrations` (Nylas + GHL calendar keys + worker Nylas proxy), `demo` (get-demo proxy), `sip-trunks`, `sip-dispatch-rules`, `calls`, `queue`, `price` (LiveKit list-price cost analysis, no markup), `livekit` (adapter), `email` (Plunk adapter), `ghl` (GoHighLevel adapter + worker GHL calendar proxy).
 6. Persistence: one custom repository per entity; services own business logic only.
 7. When adding telephony (numbers, trunks, dispatch rules) or schema for calls/queue, update Erflow + this file in the same change set.
 8. **Update this AGENTS.md** when project conventions, scripts, schema ownership, or Railway deploy layout change.
@@ -705,6 +712,7 @@ controller → service → repository → TypeORM entity → Postgres
 21. All GoHighLevel CRM and calendar HTTP goes through `GhlService`; do not call `services.leadconnectorhq.com` from other modules. Treat upsert failures as non-fatal for get-demo. Never log `GHL_API_KEY` or `GHL_CALENDAR`. Never return existing GHL appointments to the agent (free slots only).
 22. **Add or update unit tests** when changing service business rules, guards, or security-sensitive paths (see **Testing**). Prefer service-level unit tests over full e2e unless the flow is HTTP-guard integration.
 23. **Call status writes go through `applyCallEvent` / `initializeCallStatus`** (`apps/api/src/calls/call-state-machine.ts`). Do not assign `call.status = …` in services. SQL claim/release must keep the same pending↔creating pair. `completed` requires worker `taskCompleted: true`; answered hangup without `complete_*` is `incomplete`.
+24. **Call cost analysis goes through `PriceService`** (published LiveKit list prices, `markup: 0`). Do not add Speeko margin. Do not expose `cost` on org-user call responses. Bump `PRICE_CATALOG_AS_OF` in `price.catalog.ts` when LiveKit rates change.
 
 ## Testing
 
@@ -726,6 +734,7 @@ npx jest --testPathPatterns=organization-integrations/test --no-coverage
 npx jest --testPathPatterns=agents/test --no-coverage
 npx jest --testPathPatterns=sip-trunks/test --no-coverage
 npx jest --testPathPatterns=sip-dispatch-rules/test --no-coverage
+npx jest --testPathPatterns=price/test --no-coverage
 
 # Watch / coverage
 npm run test:watch
@@ -779,9 +788,10 @@ Work **top-down by risk**: security → money/dial side effects → multi-tenant
 | P0 | `organizations` | **Done** | Create org, slug uniqueness/lowercase, name trim, `isActive` default, findById/Slug/IdOrSlug |
 | P1 | `integration-endpoints` | Todo | API key hash/prefix, rotate, public enqueue merge context, inactive key reject, never leak secrets |
 | P1 | `queue` | **Done** | Claim/retry classification, backoff, quiet hours, batch pause/cancel, stale dialing/ready sweeper (mock `DataSource` / time) |
-| P1 | `calls` | **Done** | Enqueue vs immediate outbound, metadata pack, complete + requeue, org scoping on list/get, **state machine** (`taskCompleted` → completed vs incomplete) |
+| P1 | `calls` | **Done** | Enqueue vs immediate outbound, metadata pack, complete + requeue, org scoping on list/get, **state machine** (`taskCompleted` → completed vs incomplete), cost snapshot on complete (append / fill / requeue-before-reset) |
 | P1 | `agents` / org agents | **Done** | Create/clone/slug collision, persona vs template isolation, hook null/empty/whitespace, calendar same-org FK, FK-blocked delete, voice/speakingRate/deliveryMode copy + template fallback |
 | P1 | `tools` (profiles) | Todo | Platform vs org custom, known tool ids, delete-if-unused, always include `endCall` |
+| P2 | `price` | **Done** | Gemma/Nova-3/Inworld list-price math, web vs SIP room lines, self-hosted vs Cloud agent session, 10s min, unknown models, attempt rollup, admin summary SQL, recompute skip/404 |
 | P2 | `sip-trunks` / `sip-dispatch-rules` | **Done** | Draft vs publish, password redaction, inbound LiveKit delete (404 ignore), dispatch metadata pack, LiveKit adapter mocked |
 | P2 | `organization-integrations` | **Done** | Secrets never returned (mapper + CRUD), Nylas + GHL create/test, calendar resolve/freeBusy matrix (Nylas mocked) |
 | P2 | `email` | **Done** | Soft-disable without key, never throws, Plunk `send` / `sendText`, never log API key |
@@ -828,6 +838,7 @@ Update the **Status** column when a module suite lands or expands.
 - Do not run the LiveKit worker via Nest webpack (`nest start worker`). Dev: `tsx apps/worker/src/main.ts`; prod: `node dist/apps/worker/main.js start` after `npm run build:worker`.
 - Do not expect full inbound call lifecycle (persisted `calls` row per ring) until that is wired; published trunks + dispatch rules only make LiveKit accept and route calls to the agent.
 - Do not invent a second design system — extend `packages/ui` (`@call-agent/ui`) for shared primitives; keep page layouts in `apps/web` (marketing) and `apps/portal` (ops).
+- Do not inline LiveKit STT/LLM/TTS/room rates in `calls` — use `PriceService` / `price.catalog.ts`. Do not treat cost snapshots as tenant invoices (no markup, admin analysis only).
 - Do not assume GitHub autodeploy — production is Railway CLI `railway up` from the monorepo root unless that is reconfigured. Do not redeploy every service for a single-app change; match the table under **Production deploy (Railway CLI)**.
 - Do not rely on TypeORM synchronize to drop removed tables in production — deploy code, then run explicit SQL when intentional.
 

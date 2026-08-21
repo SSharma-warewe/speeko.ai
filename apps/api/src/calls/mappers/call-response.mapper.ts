@@ -1,8 +1,11 @@
 import { Call, CallStatus, CallTaskStatus } from '../call.entity';
 import { CallResponseDto, TestCallResponseDto } from '../dto/call-response.dto';
 
-export function toCallResponse(call: Call): CallResponseDto {
-  return {
+export function toCallResponse(
+  call: Call,
+  options: { includeCost?: boolean } = {},
+): CallResponseDto {
+  const dto: CallResponseDto = {
     id: call.id,
     organizationId: call.organizationId,
     organizationAgentId: call.organizationAgentId,
@@ -42,6 +45,14 @@ export function toCallResponse(call: Call): CallResponseDto {
     createdAt: call.createdAt,
     updatedAt: call.updatedAt,
   };
+  if (options.includeCost) {
+    dto.cost = call.cost ?? null;
+  }
+  return dto;
+}
+
+export function toAdminCallResponse(call: Call): CallResponseDto {
+  return toCallResponse(call, { includeCost: true });
 }
 
 /**
@@ -84,9 +95,10 @@ export function toTestCallResponse(
     participantToken: string;
     meetUrl: string;
   },
+  options: { includeCost?: boolean } = {},
 ): TestCallResponseDto {
   return {
-    ...toCallResponse(call),
+    ...toCallResponse(call, options),
     agentKey: extras.agentKey,
     livekitUrl: extras.livekitUrl,
     participantToken: extras.participantToken,

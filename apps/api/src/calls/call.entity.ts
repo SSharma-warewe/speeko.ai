@@ -11,6 +11,7 @@ import {
 import { Agent, AgentDirection } from '../agents/agent.entity';
 import { OrganizationAgent } from '../agents/organization-agent.entity';
 import { Organization } from '../organizations/organization.entity';
+import type { CallCostSnapshot } from '../price/price.types';
 import { SipTrunk } from '../sip-trunks/sip-trunk.entity';
 
 /**
@@ -203,6 +204,28 @@ export class Call {
   /** Optional full LiveKit session report snapshot. */
   @Column({ name: 'session_report', type: 'jsonb', nullable: true })
   sessionReport!: Record<string, unknown> | null;
+
+  /**
+   * LiveKit list-price cost snapshot (no markup). Frozen at complete time.
+   * Retries append attempts so totalUsd is real spend across dials.
+   */
+  @Column({ type: 'jsonb', nullable: true })
+  cost!: CallCostSnapshot | null;
+
+  /** Denormalized cost.totalUsd for SUM (numeric; pg returns string without transformer). */
+  @Column({
+    name: 'cost_usd',
+    type: 'numeric',
+    precision: 12,
+    scale: 6,
+    nullable: true,
+    transformer: {
+      to: (value: number | null | undefined) => value ?? null,
+      from: (value: string | number | null) =>
+        value == null || value === '' ? null : Number(value),
+    },
+  })
+  costUsd!: number | null;
 
   @Column({ name: 'error_message', type: 'text', nullable: true })
   errorMessage!: string | null;
