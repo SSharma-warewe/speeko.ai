@@ -100,17 +100,17 @@ export function createCallsHarness() {
   const callsRepository = {
     create: jest.fn((data) => ({ ...data }) as Call),
     save: jest.fn(async (row: Call) => ({
+      ...row,
       id: row.id ?? CALL_ID,
       createdAt: row.createdAt ?? new Date('2024-06-01T00:00:00.000Z'),
       updatedAt: new Date('2024-06-01T00:00:00.000Z'),
-      ...row,
     })),
     saveMany: jest.fn(async (rows: Call[]) =>
       rows.map((row, i) => ({
-        id: row.id ?? `enqueued-${i + 1}`,
-        createdAt: new Date('2024-06-01T00:00:00.000Z'),
-        updatedAt: new Date('2024-06-01T00:00:00.000Z'),
         ...row,
+        id: row.id ?? `enqueued-${i + 1}`,
+        createdAt: row.createdAt ?? new Date('2024-06-01T00:00:00.000Z'),
+        updatedAt: new Date('2024-06-01T00:00:00.000Z'),
       })),
     ),
     findById: jest.fn(),
