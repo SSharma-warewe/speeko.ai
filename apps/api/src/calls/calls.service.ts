@@ -46,6 +46,7 @@ import {
 } from './call.entity';
 import { CallsRepository } from './calls.repository';
 import { CompleteCallDto } from './dto/complete-call.dto';
+import { EnsureInboundCallDto } from './dto/ensure-inbound-call.dto';
 import { CreateOutboundCallDto } from './dto/create-outbound-call.dto';
 import { CreateTestCallDto } from './dto/create-test-call.dto';
 import { CreateUserCallsBatchDto } from './dto/create-user-calls-batch.dto';
@@ -935,12 +936,16 @@ export class CallsService {
     message: string,
   ): Promise<Call> {
     call.errorMessage = message;
-    if (!call.organizationId) {
+    if (!this.shouldConsiderQueueRequeue(call)) {
       this.queueRetryService.markTerminalFailed(call, failureCode);
       if (call.roomName) {
         await this.livekit.deleteRoom(call.roomName).catch(() => undefined);
       }
-      return this.callsRepository.save(call);
+      const saved = await this.callsRepository.save(call);
+      if (saved.batchId) {
+        await this.callBatchesService.maybeMarkCompleted(saved.batchId);
+      }
+      return saved;
     }
 
     const settings = await this.queueSettingsService.getOrCreate(
@@ -1048,6 +1053,89 @@ export class CallsService {
     return e.sipStatusCode;
   }
 
+  /**
+   * Worker job start for inbound SIP. Upserts by LiveKit `roomName` so a
+   * unique callId exists for the existing complete callback. Dispatch-rule
+   * metadata is static (no per-ring callId).
+   */
+  async ensureInboundFromWorker(
+    dto: EnsureInboundCallDto,
+  ): Promise<CallResponseDto> {
+    const roomName = dto.roomName?.trim();
+    if (!roomName) {
+      throw new BadRequestException('roomName is required');
+    }
+
+    const existing = await this.callsRepository.findByRoomName(roomName);
+    if (existing) {
+      if (isTerminalCallStatus(existing.status)) {
+        return toAdminCallResponse(existing);
+      }
+      if (this.applyInboundSipDetails(existing, dto)) {
+        const saved = await this.callsRepository.save(existing);
+        return toAdminCallResponse(saved);
+      }
+      return toAdminCallResponse(existing);
+    }
+
+    const { organizationAgentId, agentId } =
+      await this.resolveInboundAgent(dto);
+    const sipTrunkId = await this.resolveInboundTrunkId(dto);
+    const fromNumber = this.trimOrNull(dto.fromNumber);
+    const toNumber = this.trimOrNull(dto.toNumber);
+    const participantIdentity =
+      this.trimOrNull(dto.participantIdentity) ?? fromNumber;
+    const taskKey = this.resolveTaskKey(dto.task, DEFAULT_TASK_KEY);
+    const now = new Date();
+
+    let call = this.callsRepository.create({
+      organizationId: dto.organizationId?.trim() || null,
+      organizationAgentId,
+      agentId,
+      sipTrunkId,
+      direction: AgentDirection.INBOUND,
+      medium: CallMedium.SIP,
+      roomName,
+      livekitDispatchId: null,
+      livekitAgentName: this.livekit.getAgentName(),
+      livekitSipCallId: this.trimOrNull(dto.livekitSipCallId),
+      participantIdentity,
+      fromNumber,
+      toNumber,
+      context: this.buildInboundContext(dto, fromNumber, toNumber),
+      taskKey,
+      taskResult: null,
+      transcript: null,
+      usage: null,
+      sessionReport: null,
+      cost: null,
+      costUsd: null,
+      errorMessage: null,
+      attemptCount: 1,
+      maxAttempts: 1,
+      nextAttemptAt: null,
+      batchId: null,
+      priority: 0,
+      lastFailureCode: null,
+      lastFailureAt: null,
+      dialStartedAt: now,
+      queueLockedAt: null,
+      startedAt: now,
+      answeredAt: null,
+      endedAt: null,
+    });
+    initializeCallStatus(call, CallLifecycleEvent.START_IMMEDIATE);
+    applyCallEvent(call, CallLifecycleEvent.DISPATCH, CallStatus.READY);
+
+    call = await this.callsRepository.save(call);
+    this.logger.log(
+      `Inbound SIP call ready id=${call.id} room=${roomName} ` +
+        `org=${call.organizationId ?? 'n/a'} orgAgent=${call.organizationAgentId ?? 'n/a'} ` +
+        `from=${fromNumber ?? 'n/a'} to=${toNumber ?? 'n/a'} task=${taskKey}`,
+    );
+    return toAdminCallResponse(call);
+  }
+
   async completeFromWorker(
     id: string,
     dto: CompleteCallDto,
@@ -1080,6 +1168,19 @@ export class CallsService {
       await this.priceAttemptSafe(call, 'fill');
       const saved = await this.callsRepository.save(call);
       return toAdminCallResponse(saved);
+    }
+
+    // Late callback after sweeper requeue (pending) or claim (creating) must
+    // not clobber nextAttemptAt / fail the next attempt. Terminal fill is above.
+    if (
+      call.status !== CallStatus.DIALING &&
+      call.status !== CallStatus.READY
+    ) {
+      this.logger.warn(
+        `Ignoring worker complete for call id=${call.id} status=${call.status} ` +
+          `(not dialing/ready; late callback after requeue or claim)`,
+      );
+      return toAdminCallResponse(call);
     }
 
     if (dto.transcript) {
@@ -1137,7 +1238,7 @@ export class CallsService {
     });
     call.endedAt = dto.endedAt ? this.parseDate(dto.endedAt) : new Date();
 
-    if (call.organizationId && call.maxAttempts > 1) {
+    if (this.shouldConsiderQueueRequeue(call)) {
       const settings = await this.queueSettingsService.getOrCreate(
         call.organizationId,
       );
@@ -1223,6 +1324,133 @@ export class CallsService {
         return `${id}:${status}`;
       })
       .join(',');
+  }
+
+  /** Outbound queue retries only. Inbound rings must never become pending dials. */
+  private shouldConsiderQueueRequeue(
+    call: Call,
+  ): call is Call & { organizationId: string } {
+    return (
+      !!call.organizationId &&
+      call.maxAttempts > 1 &&
+      call.direction !== AgentDirection.INBOUND
+    );
+  }
+
+  private trimOrNull(value?: string | null): string | null {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : null;
+  }
+
+  private applyInboundSipDetails(
+    call: Call,
+    dto: EnsureInboundCallDto,
+  ): boolean {
+    let dirty = false;
+    const fromNumber = this.trimOrNull(dto.fromNumber);
+    const toNumber = this.trimOrNull(dto.toNumber);
+    const identity = this.trimOrNull(dto.participantIdentity);
+    const sipCallId = this.trimOrNull(dto.livekitSipCallId);
+    if (!call.fromNumber && fromNumber) {
+      call.fromNumber = fromNumber;
+      dirty = true;
+    }
+    if (!call.toNumber && toNumber) {
+      call.toNumber = toNumber;
+      dirty = true;
+    }
+    if (!call.participantIdentity && (identity || fromNumber)) {
+      call.participantIdentity = identity ?? fromNumber;
+      dirty = true;
+    }
+    if (!call.livekitSipCallId && sipCallId) {
+      call.livekitSipCallId = sipCallId;
+      dirty = true;
+    }
+    return dirty;
+  }
+
+  private buildInboundContext(
+    dto: EnsureInboundCallDto,
+    fromNumber: string | null,
+    toNumber: string | null,
+  ): Record<string, unknown> | null {
+    const context: Record<string, unknown> = {
+      ...(dto.context && typeof dto.context === 'object' ? dto.context : {}),
+    };
+    if (fromNumber) {
+      context.fromNumber = fromNumber;
+      if (context.phoneNumber == null) {
+        context.phoneNumber = fromNumber;
+      }
+    }
+    if (toNumber) {
+      context.toNumber = toNumber;
+    }
+    return Object.keys(context).length > 0 ? context : null;
+  }
+
+  private async resolveInboundAgent(dto: EnsureInboundCallDto): Promise<{
+    organizationAgentId: string | null;
+    agentId: string | null;
+  }> {
+    const orgId = this.trimOrNull(dto.organizationId);
+    const orgAgentId = this.trimOrNull(dto.organizationAgentId);
+    if (orgId && orgAgentId) {
+      try {
+        const orgAgent =
+          await this.organizationAgentsService.getEntityWithTemplate(
+            orgId,
+            orgAgentId,
+          );
+        return {
+          organizationAgentId: orgAgent.id,
+          agentId: orgAgent.agentId ?? orgAgent.agent?.id ?? null,
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.warn(
+          `Inbound ensure: org agent ${orgAgentId} org=${orgId} unresolved: ${message}`,
+        );
+      }
+    }
+
+    const agentKey = this.trimOrNull(dto.agentKey);
+    if (agentKey) {
+      const template = await this.agentsService.findByKey(agentKey);
+      return { organizationAgentId: null, agentId: template?.id ?? null };
+    }
+    return { organizationAgentId: null, agentId: null };
+  }
+
+  private async resolveInboundTrunkId(
+    dto: EnsureInboundCallDto,
+  ): Promise<string | null> {
+    const livekitTrunkId = this.trimOrNull(dto.livekitTrunkId);
+    if (!livekitTrunkId) {
+      return null;
+    }
+    try {
+      const trunk =
+        await this.sipTrunksService.findByLivekitTrunkId(livekitTrunkId);
+      const orgId = this.trimOrNull(dto.organizationId);
+      if (!trunk) {
+        return null;
+      }
+      if (orgId && trunk.organizationId !== orgId) {
+        this.logger.warn(
+          `Inbound ensure: LiveKit trunk ${livekitTrunkId} belongs to another org`,
+        );
+        return null;
+      }
+      return trunk.id;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `Inbound ensure: trunk ${livekitTrunkId} unresolved: ${message}`,
+      );
+      return null;
+    }
   }
 
   async cancelPendingForOrg(

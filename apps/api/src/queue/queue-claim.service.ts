@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
+import { AgentDirection } from '../agents/agent.entity';
 import { Call, CallStatus } from '../calls/call.entity';
 import { CallBatchStatus } from './call-batch.entity';
 import { OrganizationQueueSettings } from './organization-queue-settings.entity';
@@ -20,9 +21,21 @@ export class QueueClaimService {
   async countInProgress(organizationId: string): Promise<number> {
     return this.callRepo.count({
       where: [
-        { organizationId, status: CallStatus.CREATING },
-        { organizationId, status: CallStatus.DIALING },
-        { organizationId, status: CallStatus.READY },
+        {
+          organizationId,
+          direction: AgentDirection.OUTBOUND,
+          status: CallStatus.CREATING,
+        },
+        {
+          organizationId,
+          direction: AgentDirection.OUTBOUND,
+          status: CallStatus.DIALING,
+        },
+        {
+          organizationId,
+          direction: AgentDirection.OUTBOUND,
+          status: CallStatus.READY,
+        },
       ],
     });
   }
@@ -40,11 +53,13 @@ export class QueueClaimService {
        FROM calls
        WHERE organization_id = $1
          AND id <> $2
-         AND status = ANY($3::text[])`,
+         AND status = ANY($3::text[])
+         AND direction = $4`,
       [
         organizationId,
         excludeCallId,
         [CallStatus.CREATING, CallStatus.DIALING, CallStatus.READY],
+        AgentDirection.OUTBOUND,
       ],
     );
     return Number(row[0]?.cnt ?? 0);
@@ -83,8 +98,9 @@ export class QueueClaimService {
       `SELECT COUNT(*)::int AS cnt
        FROM calls
        WHERE organization_id = $1
+         AND direction = $2
          AND dial_started_at >= NOW() - INTERVAL '1 minute'`,
-      [organizationId],
+      [organizationId, AgentDirection.OUTBOUND],
     );
     return Number(row[0]?.cnt ?? 0);
   }

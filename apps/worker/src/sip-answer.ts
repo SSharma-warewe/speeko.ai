@@ -26,6 +26,41 @@ export function sipCallStatus(
   return (participant.attributes?.['sip.callStatus'] ?? '').trim().toLowerCase();
 }
 
+export type SipParticipantInfo = {
+  identity: string;
+  fromNumber: string | null;
+  toNumber: string | null;
+  sipCallId: string | null;
+  livekitTrunkId: string | null;
+};
+
+function attr(
+  participant: SipAnswerParticipant,
+  ...keys: string[]
+): string | null {
+  const attrs = participant.attributes ?? {};
+  for (const key of keys) {
+    const value = attrs[key]?.trim();
+    if (value) {
+      return value;
+    }
+  }
+  return null;
+}
+
+/** Caller / dialed numbers and SIP ids from LiveKit participant attributes. */
+export function sipParticipantInfo(
+  participant: SipAnswerParticipant,
+): SipParticipantInfo {
+  return {
+    identity: participant.identity,
+    fromNumber: attr(participant, 'sip.phoneNumber'),
+    toNumber: attr(participant, 'sip.trunkPhoneNumber'),
+    sipCallId: attr(participant, 'sip.callID', 'sip.callId'),
+    livekitTrunkId: attr(participant, 'sip.trunkID', 'sip.trunkId'),
+  };
+}
+
 export function isSipAnswered(participant: SipAnswerParticipant): boolean {
   const status = sipCallStatus(participant);
   if (ANSWERED_STATUSES.has(status)) {

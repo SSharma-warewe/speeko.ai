@@ -9,6 +9,7 @@ import { WorkerSecretGuard } from '../auth/guards/worker-secret.guard';
 import { CallsService } from './calls.service';
 import { CallResponseDto } from './dto/call-response.dto';
 import { CompleteCallDto } from './dto/complete-call.dto';
+import { EnsureInboundCallDto } from './dto/ensure-inbound-call.dto';
 
 @ApiTags('internal-calls')
 @ApiHeader({
@@ -20,6 +21,16 @@ import { CompleteCallDto } from './dto/complete-call.dto';
 @Controller('internal/calls')
 export class InternalCallsController {
   constructor(private readonly callsService: CallsService) {}
+
+  @Post('inbound')
+  @ApiOperation({
+    summary:
+      'Worker job start: create or upsert a calls row for an inbound SIP ring (keyed by roomName)',
+  })
+  @ApiOkResponse({ type: CallResponseDto })
+  ensureInbound(@Body() dto: EnsureInboundCallDto): Promise<CallResponseDto> {
+    return this.callsService.ensureInboundFromWorker(dto);
+  }
 
   @Post(':id/complete')
   @ApiOperation({

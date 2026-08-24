@@ -132,7 +132,7 @@ export class UserCallsController {
     summary: 'List calls for the caller organization',
     description:
       'Filter by direction (inbound / outbound), lifecycle bucket (pending / in_progress / done), exact status, or batchId. ' +
-      'SIP inbound rings do not create call rows yet; inbound web tests and future inbound lifecycle rows appear when direction=inbound.',
+      'SIP inbound rings are upserted by the worker on job start (direction=inbound).',
   })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 50 })
   @ApiQuery({

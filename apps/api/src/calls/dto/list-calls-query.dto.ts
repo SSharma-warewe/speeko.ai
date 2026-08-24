@@ -41,8 +41,7 @@ export class ListCallsQueryDto {
   @ApiPropertyOptional({
     enum: AgentDirection,
     description:
-      'Filter by call direction (inbound | outbound). ' +
-      'Note: SIP inbound rings do not yet create call rows; only web tests / future inbound lifecycle rows appear as inbound.',
+      'Filter by call direction (inbound | outbound). SIP inbound rings appear after the worker upserts the call on job start.',
   })
   @IsOptional()
   @IsEnum(AgentDirection)

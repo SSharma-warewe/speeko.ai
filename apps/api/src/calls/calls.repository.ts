@@ -34,6 +34,10 @@ export class CallsRepository {
     return this.repo.findOne({ where: { id } });
   }
 
+  findByRoomName(roomName: string): Promise<Call | null> {
+    return this.repo.findOne({ where: { roomName } });
+  }
+
   findByIdAndOrganization(
     id: string,
     organizationId: string,

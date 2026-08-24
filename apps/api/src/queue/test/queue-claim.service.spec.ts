@@ -1,3 +1,4 @@
+import { AgentDirection } from '../../agents/agent.entity';
 import { Call, CallStatus } from '../../calls/call.entity';
 import { CallBatchStatus } from '../call-batch.entity';
 import { OrganizationQueueSettings } from '../organization-queue-settings.entity';
@@ -67,9 +68,21 @@ describe('QueueClaimService', () => {
     await expect(service.countInProgress(ORG_ID)).resolves.toBe(2);
     expect(callRepo.count).toHaveBeenCalledWith({
       where: [
-        { organizationId: ORG_ID, status: CallStatus.CREATING },
-        { organizationId: ORG_ID, status: CallStatus.DIALING },
-        { organizationId: ORG_ID, status: CallStatus.READY },
+        {
+          organizationId: ORG_ID,
+          direction: AgentDirection.OUTBOUND,
+          status: CallStatus.CREATING,
+        },
+        {
+          organizationId: ORG_ID,
+          direction: AgentDirection.OUTBOUND,
+          status: CallStatus.DIALING,
+        },
+        {
+          organizationId: ORG_ID,
+          direction: AgentDirection.OUTBOUND,
+          status: CallStatus.READY,
+        },
       ],
     });
   });
@@ -85,6 +98,7 @@ describe('QueueClaimService', () => {
         ORG_ID,
         CALL_ID,
         [CallStatus.CREATING, CallStatus.DIALING, CallStatus.READY],
+        AgentDirection.OUTBOUND,
       ],
     );
   });
@@ -92,6 +106,10 @@ describe('QueueClaimService', () => {
   it('3. countDialsLastMinute parses cnt from query result', async () => {
     dataSource.query.mockResolvedValue([{ cnt: 7 }]);
     await expect(service.countDialsLastMinute(ORG_ID)).resolves.toBe(7);
+    expect(dataSource.query).toHaveBeenCalledWith(
+      expect.stringContaining('direction'),
+      [ORG_ID, AgentDirection.OUTBOUND],
+    );
   });
 
   it('4. releaseClaimToPending returns true when rows affected', async () => {

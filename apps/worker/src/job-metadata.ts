@@ -19,6 +19,7 @@ export type AgentJobPrompt = {
 export type AgentJobMetadata = {
   callId?: string;
   organizationId?: string;
+  organizationAgentId?: string;
   agentKey: string;
   direction: string;
   /** `web` | `sip` when provided by the API. */
@@ -69,6 +70,7 @@ export function parseJobMetadata(raw: string | undefined | null): AgentJobMetada
     return {
       callId: undefined,
       organizationId: undefined,
+      organizationAgentId: undefined,
       agentKey: 'unknown',
       direction: 'inbound',
       medium: undefined,
@@ -116,6 +118,10 @@ export function parseJobMetadata(raw: string | undefined | null): AgentJobMetada
         typeof parsed.organizationId === 'string'
           ? parsed.organizationId
           : undefined,
+      organizationAgentId:
+        typeof parsed.organizationAgentId === 'string'
+          ? parsed.organizationAgentId
+          : undefined,
       agentKey: typeof parsed.agentKey === 'string' ? parsed.agentKey : 'unknown',
       direction:
         typeof parsed.direction === 'string' ? parsed.direction : 'inbound',
@@ -153,6 +159,7 @@ export function parseJobMetadata(raw: string | undefined | null): AgentJobMetada
     return {
       callId: undefined,
       organizationId: undefined,
+      organizationAgentId: undefined,
       agentKey: 'unknown',
       direction: 'inbound',
       medium: undefined,

@@ -515,6 +515,7 @@ describe('SipDispatchRulesService', () => {
         prompt: { systemPrompt: '' },
         enabledTools: ['endCall'],
       });
+      expect(meta.callId).toBeUndefined();
     });
 
     it('20. with org agent: packs persona, hooks, task, tools', async () => {
@@ -560,6 +561,7 @@ describe('SipDispatchRulesService', () => {
         speakingRate: 0.9,
         deliveryMode: 'CREATIVE',
       });
+      expect(meta.callId).toBeUndefined();
     });
 
     it('21. agentName falls back to livekit.getAgentName()', async () => {

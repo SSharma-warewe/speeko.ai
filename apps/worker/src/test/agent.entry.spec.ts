@@ -20,13 +20,14 @@ jest.mock('../call-callback', () => {
   return {
     ...actual,
     postCallComplete: jest.fn().mockResolvedValue(undefined),
+    postInboundEnsure: jest.fn().mockResolvedValue(undefined),
   };
 });
 
 import type { JobContext } from '@livekit/agents';
 import { runAgentJob } from '../agent';
 import { buildAgentRuntime } from '../builders/agent-builder';
-import { postCallComplete } from '../call-callback';
+import { postCallComplete, postInboundEnsure } from '../call-callback';
 import type { CompleteCallPayload } from '../call-callback';
 import type { AgentJobMetadata } from '../job-metadata';
 import { waitForSipAnswer } from '../sip-answer';
@@ -49,6 +50,9 @@ describe('runAgentJob', () => {
   >;
   const postCallCompleteMock = postCallComplete as jest.MockedFunction<
     typeof postCallComplete
+  >;
+  const postInboundEnsureMock = postInboundEnsure as jest.MockedFunction<
+    typeof postInboundEnsure
   >;
 
   type ShutdownCb = () => Promise<void> | void;
@@ -194,6 +198,7 @@ describe('runAgentJob', () => {
     });
     waitForSipAnswerMock.mockResolvedValue(undefined);
     postCallCompleteMock.mockResolvedValue(undefined);
+    postInboundEnsureMock.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -598,6 +603,93 @@ describe('runAgentJob', () => {
       expect(
         posts.filter((p) => p.callId !== 'call-05').every((p) => p.payload.status === 'completed'),
       ).toBe(true);
+    });
+  });
+
+  describe('9. Inbound SIP ensure', () => {
+    const INBOUND_ID = 'inbound-call-1';
+
+    function inboundMeta() {
+      return metadata({
+        callId: undefined,
+        organizationId: 'org-1',
+        organizationAgentId: 'oa-1',
+        agentKey: 'inbound',
+        direction: 'inbound',
+        medium: 'sip',
+        participantIdentity: undefined,
+      });
+    }
+
+    function inboundParticipant() {
+      return {
+        identity: PHONE,
+        attributes: {
+          'sip.callStatus': 'active',
+          'sip.phoneNumber': PHONE,
+          'sip.trunkPhoneNumber': '+18005550100',
+          'sip.callID': 'SC_1',
+          'sip.trunkID': 'ST_in_1',
+        },
+      };
+    }
+
+    it('ensures a call row then completes with that id', async () => {
+      postInboundEnsureMock.mockResolvedValue(INBOUND_ID);
+      const ctx = makeCtx(inboundMeta());
+      ctx.waitForParticipant.mockResolvedValue(inboundParticipant());
+
+      await runJob(ctx);
+
+      expect(postInboundEnsureMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          roomName: 'room-x',
+          organizationId: 'org-1',
+          organizationAgentId: 'oa-1',
+          agentKey: 'inbound',
+          fromNumber: PHONE,
+          toNumber: '+18005550100',
+          livekitSipCallId: 'SC_1',
+          livekitTrunkId: 'ST_in_1',
+        }),
+      );
+      expect(postCallCompleteMock).toHaveBeenCalledTimes(1);
+      expect(postCallCompleteMock.mock.calls[0][0]).toBe(INBOUND_ID);
+      expect(runtime.userData.callId).toBe(INBOUND_ID);
+    });
+
+    it('does not ensure when outbound already has callId', async () => {
+      const ctx = makeCtx(metadata({ medium: 'sip' }));
+
+      await runJob(ctx);
+
+      expect(postInboundEnsureMock).not.toHaveBeenCalled();
+      expect(postCallCompleteMock).toHaveBeenCalledWith(
+        CALL_ID,
+        expect.anything(),
+      );
+    });
+
+    it('unanswered inbound still ensures then POSTs failed/no_answer', async () => {
+      postInboundEnsureMock.mockResolvedValue(INBOUND_ID);
+      waitForSipAnswerMock.mockRejectedValue(
+        new Error('SIP callee hung up before answer (no answer)'),
+      );
+      const ctx = makeCtx(inboundMeta());
+      ctx.waitForParticipant.mockResolvedValue(inboundParticipant());
+
+      await runJob(ctx);
+
+      expect(postInboundEnsureMock).toHaveBeenCalled();
+      expect(runtime.session.start).not.toHaveBeenCalled();
+      expect(postCallCompleteMock).toHaveBeenCalledWith(
+        INBOUND_ID,
+        expect.objectContaining({
+          status: 'failed',
+          failureCode: 'no_answer',
+          taskCompleted: false,
+        }),
+      );
     });
   });
 });

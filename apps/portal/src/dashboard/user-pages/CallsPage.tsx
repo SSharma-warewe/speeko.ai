@@ -233,10 +233,11 @@ export default function UserCallsPage() {
           </div>
           <div className="ops-panel-body">
             <p className="ops-calls-inbound-copy">
-              LiveKit accepts inbound SIP rings, but they are not written as call
-              rows yet. Web tests with an inbound agent appear on the tape.
+              Published numbers land here when someone dials. Live sessions
+              show while the worker is in the room; hangup writes transcript
+              and cost like outbound.
             </p>
-            <Link to="/dashboard/sip" className="ops-calls-inbound-link">
+            <Link to="/dashboard/sip?tab=inbound" className="ops-calls-inbound-link">
               Inbound telephony →
             </Link>
           </div>
@@ -331,7 +332,7 @@ export default function UserCallsPage() {
               title={isInbound ? "No inbound calls" : "No outbound calls"}
               description={
                 isInbound
-                  ? "Publish inbound trunks under SIP / Telephony. Web tests with an inbound agent show up here."
+                  ? "When someone dials a published number, the session shows up here."
                   : "Place a dial on the left, or switch to Enqueue batch."
               }
             />

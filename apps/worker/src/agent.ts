@@ -2,14 +2,17 @@ import { type JobContext, defineAgent, voice } from '@livekit/agents';
 import { buildAgentRuntime } from './builders/agent-builder.js';
 import {
   postCallComplete,
+  postInboundEnsure,
   serializeTranscript,
   serializeUsage,
 } from './call-callback.js';
 import { parseJobMetadata } from './job-metadata.js';
 import { classifyShutdownComplete } from './shutdown-status.js';
 import {
+  type SipAnswerParticipant,
   type SipAnswerRoom,
   sipCallStatus,
+  sipParticipantInfo,
   waitForSipAnswer,
 } from './sip-answer.js';
 
@@ -31,12 +34,18 @@ export async function runAgentJob(ctx: JobContext): Promise<void> {
 
   let answeredAt: string | null = null;
   let failedEarly = false;
+  let callId = meta.callId;
+  let shutdownRegistered = false;
+  let sipParticipant: SipAnswerParticipant | undefined;
 
   const { session, agent, userData } = await buildAgentRuntime(meta);
 
-  // Register completion before work so hangups still persist usage/transcript/task result.
-  if (meta.callId) {
-    const callId = meta.callId;
+  const registerShutdownComplete = () => {
+    if (!callId || shutdownRegistered) {
+      return;
+    }
+    shutdownRegistered = true;
+    const completeCallId = callId;
     ctx.addShutdownCallback(async () => {
       if (failedEarly) {
         return;
@@ -58,7 +67,7 @@ export async function runAgentJob(ctx: JobContext): Promise<void> {
           taskResult: userData.taskResult,
           taskCompleted: userData.taskCompleted === true,
         });
-        await postCallComplete(callId, {
+        await postCallComplete(completeCallId, {
           status: shutdown.status,
           failureCode: shutdown.failureCode,
           errorMessage: shutdown.errorMessage,
@@ -72,7 +81,7 @@ export async function runAgentJob(ctx: JobContext): Promise<void> {
           toolEvents: userData.toolEvents ?? [],
         });
         console.log(
-          `[agent] tools used callId=${callId} completeStatus=${shutdown.status} ` +
+          `[agent] tools used callId=${completeCallId} completeStatus=${shutdown.status} ` +
             `count=${userData.toolEvents?.length ?? 0} ` +
             `${(userData.toolEvents ?? [])
               .map((e) => `${e.toolId}:${e.ok === false ? 'fail' : 'ok'}`)
@@ -83,7 +92,40 @@ export async function runAgentJob(ctx: JobContext): Promise<void> {
         console.error(`[agent] shutdown complete error: ${message}`);
       }
     });
-  }
+  };
+
+  const ensureInboundCall = async (
+    participant?: SipAnswerParticipant,
+  ): Promise<void> => {
+    if (callId) {
+      return;
+    }
+    if (meta.direction !== 'inbound' || meta.medium !== 'sip') {
+      return;
+    }
+    const info = participant ? sipParticipantInfo(participant) : null;
+    const ensuredId = await postInboundEnsure({
+      roomName,
+      organizationId: meta.organizationId,
+      organizationAgentId: meta.organizationAgentId,
+      agentKey: meta.agentKey,
+      task: meta.task,
+      fromNumber: info?.fromNumber,
+      toNumber: info?.toNumber,
+      participantIdentity: info?.identity ?? meta.participantIdentity,
+      livekitSipCallId: info?.sipCallId,
+      livekitTrunkId: info?.livekitTrunkId,
+    });
+    if (!ensuredId) {
+      console.warn(`[agent] inbound ensure returned no callId room=${roomName}`);
+      return;
+    }
+    callId = ensuredId;
+    userData.callId = ensuredId;
+    registerShutdownComplete();
+  };
+
+  registerShutdownComplete();
 
   try {
     await ctx.connect();
@@ -98,10 +140,14 @@ export async function runAgentJob(ctx: JobContext): Promise<void> {
         `[agent] waiting for SIP participant identity=${identity ?? '(any)'}`,
       );
       const participant = await ctx.waitForParticipant(identity);
+      sipParticipant = participant as SipAnswerParticipant;
       console.log(
         `[agent] SIP participant present room=${roomName} ` +
-          `sipStatus=${sipCallStatus(participant) || 'n/a'}`,
+          `sipStatus=${sipCallStatus(sipParticipant) || 'n/a'}`,
       );
+      // Persist the inbound ring as soon as the SIP party is in the room so
+      // unanswered hangup still has a callId for the existing complete path.
+      await ensureInboundCall(sipParticipant);
       // Participant join is ringing, not answer. Wait for sip.callStatus=active.
       await waitForSipAnswer({
         room: ctx.room as unknown as SipAnswerRoom,
@@ -124,8 +170,9 @@ export async function runAgentJob(ctx: JobContext): Promise<void> {
     const message = err instanceof Error ? err.message : String(err);
     const stage = waitForCallee && !answeredAt ? 'join/wait' : 'connect/session';
     console.error(`[agent] ${stage} failed room=${roomName}: ${message}`);
-    if (meta.callId) {
-      await postCallComplete(meta.callId, {
+    await ensureInboundCall(sipParticipant);
+    if (callId) {
+      await postCallComplete(callId, {
         status: 'failed',
         failureCode: stage === 'join/wait' ? 'no_answer' : 'agent_error',
         errorMessage: `Agent failed (${stage}): ${message}`,

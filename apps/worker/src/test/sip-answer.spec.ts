@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import {
   isSipAnswered,
   sipCallStatus,
+  sipParticipantInfo,
   waitForSipAnswer,
 } from '../sip-answer';
 
@@ -25,6 +26,26 @@ describe('sip-answer', () => {
   it('reads sip.callStatus', () => {
     expect(sipCallStatus(participant('+1', 'ringing'))).toBe('ringing');
     expect(sipCallStatus(participant('+1'))).toBe('');
+  });
+
+  it('reads SIP party attributes', () => {
+    expect(
+      sipParticipantInfo({
+        identity: '+1555',
+        attributes: {
+          'sip.phoneNumber': '+1555',
+          'sip.trunkPhoneNumber': '+1800',
+          'sip.callID': 'SC_1',
+          'sip.trunkID': 'ST_in',
+        },
+      }),
+    ).toEqual({
+      identity: '+1555',
+      fromNumber: '+1555',
+      toNumber: '+1800',
+      sipCallId: 'SC_1',
+      livekitTrunkId: 'ST_in',
+    });
   });
 
   it('active / automation count as answered', () => {

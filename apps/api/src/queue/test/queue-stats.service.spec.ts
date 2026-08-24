@@ -12,7 +12,10 @@ describe('QueueStatsService', () => {
     getOrCreate: jest.Mock;
     findAll: jest.Mock;
   };
-  let claimService: { countDialsLastMinute: jest.Mock };
+  let claimService: {
+    countDialsLastMinute: jest.Mock;
+    countInProgress: jest.Mock;
+  };
   let dialer: { getHealth: jest.Mock };
   let batchesRepo: { countByOrganizationAndStatus: jest.Mock };
   let service: QueueStatsService;
@@ -47,6 +50,7 @@ describe('QueueStatsService', () => {
     };
     claimService = {
       countDialsLastMinute: jest.fn().mockResolvedValue(2),
+      countInProgress: jest.fn().mockResolvedValue(3),
     };
     dialer = {
       getHealth: jest.fn(() => dialerHealth),
@@ -191,6 +195,9 @@ describe('QueueStatsService', () => {
 
     batchesRepo.countByOrganizationAndStatus.mockResolvedValue(0);
     claimService.countDialsLastMinute.mockResolvedValue(0);
+    claimService.countInProgress
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(1);
 
     const result = await service.adminSummary();
 
@@ -220,6 +227,7 @@ describe('QueueStatsService', () => {
       .mockResolvedValueOnce([{ avg: 0 }])
       .mockResolvedValueOnce([]);
     claimService.countDialsLastMinute.mockResolvedValue(0);
+    claimService.countInProgress.mockResolvedValue(0);
 
     const result = await service.forOrganization(ORG_ID);
     expect(result.queue.inProgress).toBe(0);

@@ -41,7 +41,7 @@ export default function CallsListPage() {
                     <th>Status</th>
                     <th>Medium</th>
                     <th>Direction</th>
-                    <th>To</th>
+                    <th>Party</th>
                     <th>Task</th>
                     <th className="ops-calls-cost-col">Cost</th>
                     <th>Created</th>
@@ -62,7 +62,11 @@ export default function CallsListPage() {
                       <td>
                         <StatusBadge status={c.direction} />
                       </td>
-                      <td className="ops-mono">{c.toNumber || "—"}</td>
+                      <td className="ops-mono">
+                        {c.direction === "inbound"
+                          ? c.fromNumber || c.participantIdentity || "—"
+                          : c.toNumber || c.participantIdentity || "—"}
+                      </td>
                       <td className="ops-mono">{c.taskKey || "—"}</td>
                       <td className="ops-calls-cost-col">
                         <CallCostCell

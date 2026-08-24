@@ -42,10 +42,7 @@ export class QueueStatsService {
     const pendingReadyNow = await this.countPendingReady(organizationId);
     const scheduledRetries = await this.countScheduledRetries(organizationId);
     const avgAttempt = await this.avgAttemptCount(organizationId);
-    const inProgress =
-      (counts[CallStatus.CREATING] ?? 0) +
-      (counts[CallStatus.DIALING] ?? 0) +
-      (counts[CallStatus.READY] ?? 0);
+    const inProgress = await this.claimService.countInProgress(organizationId);
     const dialsLastMinute =
       await this.claimService.countDialsLastMinute(organizationId);
     const runningBatches = await this.batchesRepo.countByOrganizationAndStatus(

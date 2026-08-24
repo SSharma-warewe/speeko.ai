@@ -102,13 +102,17 @@ describe('CallsService', () => {
     saveMany: jest.Mock;
     findById: jest.Mock;
     findByIdAndOrganization: jest.Mock;
+    findByRoomName: jest.Mock;
     findRecent: jest.Mock;
     findByOrganization: jest.Mock;
   };
   let agentsService: { findById: jest.Mock; findByKey: jest.Mock };
   let organizationAgentsService: { getEntityWithTemplate: jest.Mock };
   let toolProfilesService: { resolveEnabledToolIds: jest.Mock };
-  let sipTrunksService: { resolveOutboundForCall: jest.Mock };
+  let sipTrunksService: {
+    resolveOutboundForCall: jest.Mock;
+    findByLivekitTrunkId: jest.Mock;
+  };
   let priceService: {
     applyAttemptToCall: jest.Mock;
     fillCostIfMissing: jest.Mock;
@@ -229,6 +233,7 @@ describe('CallsService', () => {
       ),
       findById: jest.fn(),
       findByIdAndOrganization: jest.fn(),
+      findByRoomName: jest.fn(),
       findRecent: jest.fn(),
       findByOrganization: jest.fn(),
     };
@@ -250,6 +255,7 @@ describe('CallsService', () => {
 
     sipTrunksService = {
       resolveOutboundForCall: jest.fn().mockResolvedValue(trunk),
+      findByLivekitTrunkId: jest.fn().mockResolvedValue(null),
     };
 
     priceService = {
@@ -1055,6 +1061,73 @@ describe('CallsService', () => {
         service.completeFromWorker('missing', { status: 'completed' }),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
+
+    it('24f. pending + completed is a no-op (late callback after requeue)', async () => {
+      const nextAttemptAt = new Date('2024-06-01T04:00:00.000Z');
+      const call = makeCall({
+        id: CALL_ID,
+        status: CallStatus.PENDING,
+        nextAttemptAt,
+        queueLockedAt: null,
+        endedAt: null,
+      });
+      callsRepository.findById.mockResolvedValue(call);
+
+      const result = await service.completeFromWorker(CALL_ID, {
+        status: 'completed',
+        taskCompleted: true,
+        transcript: [{ role: 'user', content: 'late' }],
+        endedAt: '2024-06-01T03:00:00.000Z',
+      });
+
+      expect(result.status).toBe(CallStatus.PENDING);
+      expect(call.nextAttemptAt).toBe(nextAttemptAt);
+      expect(call.endedAt).toBeNull();
+      expect(call.transcript).toBeNull();
+      expect(callsRepository.save).not.toHaveBeenCalled();
+      expect(priceService.applyAttemptToCall).not.toHaveBeenCalled();
+      expect(priceService.fillCostIfMissing).not.toHaveBeenCalled();
+      expect(callBatchesService.maybeMarkCompleted).not.toHaveBeenCalled();
+    });
+
+    it('24g. pending + failed does not markTerminalFailed', async () => {
+      const nextAttemptAt = new Date('2024-06-01T04:00:00.000Z');
+      const call = makeCall({
+        id: CALL_ID,
+        status: CallStatus.PENDING,
+        nextAttemptAt,
+      });
+      callsRepository.findById.mockResolvedValue(call);
+
+      const result = await service.completeFromWorker(CALL_ID, {
+        status: 'failed',
+        failureCode: 'no_answer',
+      });
+
+      expect(result.status).toBe(CallStatus.PENDING);
+      expect(call.nextAttemptAt).toBe(nextAttemptAt);
+      expect(queueRetryService.markTerminalFailed).not.toHaveBeenCalled();
+      expect(queueRetryService.resetForRequeue).not.toHaveBeenCalled();
+      expect(queueRetryService.classifyFromWorker).not.toHaveBeenCalled();
+      expect(callsRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('24h. creating + completed is a no-op', async () => {
+      const call = makeCall({
+        id: CALL_ID,
+        status: CallStatus.CREATING,
+      });
+      callsRepository.findById.mockResolvedValue(call);
+
+      const result = await service.completeFromWorker(CALL_ID, {
+        status: 'completed',
+        taskCompleted: true,
+      });
+
+      expect(result.status).toBe(CallStatus.CREATING);
+      expect(callsRepository.save).not.toHaveBeenCalled();
+      expect(priceService.applyAttemptToCall).not.toHaveBeenCalled();
+    });
   });
 
   // ─── Org controls ─────────────────────────────────────────────────────────
@@ -1281,6 +1354,194 @@ describe('CallsService', () => {
 
       expect(n).toBe(0);
       expect(queueRetryService.markTerminalFailed).not.toHaveBeenCalled();
+    });
+
+    it('41. stale inbound ready terminal-fails and never requeues', async () => {
+      const stale = makeCall({
+        id: 'stale-in',
+        direction: AgentDirection.INBOUND,
+        status: CallStatus.READY,
+        maxAttempts: 3,
+        attemptCount: 1,
+        roomName: 'call-+1555_abc',
+      });
+      queueClaimService.findStaleInFlight.mockResolvedValue([
+        { id: 'stale-in' },
+      ]);
+      callsRepository.findById.mockResolvedValue(stale);
+      queueRetryService.decide.mockReturnValue({
+        action: 'requeue',
+        nextAttemptAt: new Date(),
+      });
+
+      const n = await service.reapStaleInFlight();
+
+      expect(n).toBe(1);
+      expect(queueRetryService.decide).not.toHaveBeenCalled();
+      expect(queueRetryService.resetForRequeue).not.toHaveBeenCalled();
+      expect(queueRetryService.markTerminalFailed).toHaveBeenCalledWith(
+        stale,
+        CallFailureCode.TIMEOUT,
+      );
+      expect(livekit.deleteRoom).toHaveBeenCalledWith('call-+1555_abc');
+    });
+  });
+
+  describe('ensureInboundFromWorker', () => {
+    const ROOM = 'call-+15551212_AbCd';
+    const inboundTemplate = {
+      ...template,
+      key: 'inbound',
+      direction: AgentDirection.INBOUND,
+    };
+    const inboundOrgAgent = {
+      ...orgAgent,
+      defaultTaskKey: 'confirm_appointment',
+      agent: inboundTemplate,
+    };
+    const inboundTrunk = {
+      id: 'in-trunk-id',
+      organizationId: ORG_ID,
+      livekitTrunkId: 'ST_in_1',
+    };
+
+    it('42. creates inbound SIP row as ready with maxAttempts=1', async () => {
+      callsRepository.findByRoomName.mockResolvedValue(null);
+      organizationAgentsService.getEntityWithTemplate.mockResolvedValue(
+        inboundOrgAgent,
+      );
+      sipTrunksService.findByLivekitTrunkId.mockResolvedValue(inboundTrunk);
+
+      const result = await service.ensureInboundFromWorker({
+        roomName: ROOM,
+        organizationId: ORG_ID,
+        organizationAgentId: ORG_AGENT_ID,
+        agentKey: 'inbound',
+        task: 'confirm_appointment',
+        fromNumber: '+15551212',
+        toNumber: '+18005550100',
+        participantIdentity: '+15551212',
+        livekitSipCallId: 'SC_1',
+        livekitTrunkId: 'ST_in_1',
+      });
+
+      expect(result.direction).toBe(AgentDirection.INBOUND);
+      expect(result.medium).toBe(CallMedium.SIP);
+      expect(result.status).toBe(CallStatus.READY);
+      expect(result.maxAttempts).toBe(1);
+      expect(result.roomName).toBe(ROOM);
+      expect(result.fromNumber).toBe('+15551212');
+      expect(result.toNumber).toBe('+18005550100');
+      expect(result.organizationAgentId).toBe(ORG_AGENT_ID);
+      expect(result.sipTrunkId).toBe('in-trunk-id');
+      expect(result.taskKey).toBe('confirm_appointment');
+      expect(callsRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          direction: AgentDirection.INBOUND,
+          medium: CallMedium.SIP,
+          maxAttempts: 1,
+          roomName: ROOM,
+        }),
+      );
+    });
+
+    it('43. upserts same roomName: fills blank numbers, does not duplicate', async () => {
+      const existing = makeCall({
+        id: CALL_ID,
+        direction: AgentDirection.INBOUND,
+        status: CallStatus.READY,
+        medium: CallMedium.SIP,
+        roomName: ROOM,
+        fromNumber: null,
+        toNumber: null,
+        participantIdentity: null,
+        livekitSipCallId: null,
+        maxAttempts: 1,
+      });
+      callsRepository.findByRoomName.mockResolvedValue(existing);
+
+      const result = await service.ensureInboundFromWorker({
+        roomName: ROOM,
+        fromNumber: '+15559999',
+        toNumber: '+18005550100',
+        participantIdentity: '+15559999',
+        livekitSipCallId: 'SC_2',
+      });
+
+      expect(callsRepository.create).not.toHaveBeenCalled();
+      expect(result.id).toBe(CALL_ID);
+      expect(existing.fromNumber).toBe('+15559999');
+      expect(existing.toNumber).toBe('+18005550100');
+      expect(existing.livekitSipCallId).toBe('SC_2');
+      expect(callsRepository.save).toHaveBeenCalled();
+    });
+
+    it('44. terminal row upsert is a no-op on status', async () => {
+      const existing = makeCall({
+        id: CALL_ID,
+        direction: AgentDirection.INBOUND,
+        status: CallStatus.COMPLETED,
+        roomName: ROOM,
+        fromNumber: '+15550000',
+      });
+      callsRepository.findByRoomName.mockResolvedValue(existing);
+
+      const result = await service.ensureInboundFromWorker({
+        roomName: ROOM,
+        fromNumber: '+1999',
+      });
+
+      expect(result.status).toBe(CallStatus.COMPLETED);
+      expect(existing.fromNumber).toBe('+15550000');
+      expect(callsRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('45. complete after ensure maps taskCompleted to completed', async () => {
+      const call = makeCall({
+        id: CALL_ID,
+        direction: AgentDirection.INBOUND,
+        status: CallStatus.READY,
+        medium: CallMedium.SIP,
+        maxAttempts: 1,
+        roomName: ROOM,
+      });
+      callsRepository.findById.mockResolvedValue(call);
+
+      const result = await service.completeFromWorker(CALL_ID, {
+        status: 'completed',
+        taskCompleted: true,
+      });
+
+      expect(result.status).toBe(CallStatus.COMPLETED);
+    });
+
+    it('46. inbound failed complete never requeues even if retry policy would', async () => {
+      const call = makeCall({
+        id: CALL_ID,
+        direction: AgentDirection.INBOUND,
+        status: CallStatus.READY,
+        maxAttempts: 3,
+        attemptCount: 1,
+        roomName: ROOM,
+      });
+      callsRepository.findById.mockResolvedValue(call);
+      queueRetryService.classifyFromWorker.mockReturnValue(
+        CallFailureCode.NO_ANSWER,
+      );
+      queueRetryService.decide.mockReturnValue({
+        action: 'requeue',
+        nextAttemptAt: new Date(),
+      });
+
+      const result = await service.completeFromWorker(CALL_ID, {
+        status: 'failed',
+        failureCode: 'no_answer',
+      });
+
+      expect(queueRetryService.decide).not.toHaveBeenCalled();
+      expect(queueRetryService.resetForRequeue).not.toHaveBeenCalled();
+      expect(queueRetryService.markTerminalFailed).toHaveBeenCalled();
+      expect(result.status).not.toBe(CallStatus.PENDING);
     });
   });
 });

@@ -9,6 +9,23 @@ describe('parseJobMetadata voice extras', () => {
     expect(meta.temperature).toBeNull();
   });
 
+  it('parses organizationAgentId from dispatch JSON', () => {
+    const meta = parseJobMetadata(
+      JSON.stringify({
+        organizationId: 'org-1',
+        organizationAgentId: 'oa-9',
+        agentKey: 'inbound',
+        direction: 'inbound',
+        task: 'general',
+        prompt: { systemPrompt: 'Hi' },
+        enabledTools: ['endCall'],
+      }),
+    );
+    expect(meta.organizationId).toBe('org-1');
+    expect(meta.organizationAgentId).toBe('oa-9');
+    expect(meta.callId).toBeUndefined();
+  });
+
   it('parses speakingRate and known deliveryMode', () => {
     const meta = parseJobMetadata(
       JSON.stringify({

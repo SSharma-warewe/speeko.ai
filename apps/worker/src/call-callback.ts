@@ -1,9 +1,32 @@
 /**
  * POST call completion (transcript / usage / task result / tool events) back to the Nest API.
  * No-ops when API_BASE_URL or WORKER_CALLBACK_SECRET is missing.
+ *
+ * Retries transient failures (5xx / 408 / 429 / network / abort) with a per-attempt
+ * timeout so a hung fetch cannot pin the LiveKit job process. Never throws — hangup
+ * and failedEarly callers still reach job shutdown after exhaustion.
  */
 
 import type { ToolEvent } from './tools/types.js';
+
+export const DEFAULT_COMPLETE_CALLBACK_TIMEOUT_MS = 8_000;
+export const DEFAULT_COMPLETE_CALLBACK_MAX_ATTEMPTS = 5;
+export const DEFAULT_COMPLETE_CALLBACK_BACKOFF_MS = 500;
+export const COMPLETE_CALLBACK_BACKOFF_CAP_MS = 4_000;
+
+export type InboundEnsurePayload = {
+  roomName: string;
+  organizationId?: string;
+  organizationAgentId?: string;
+  agentKey?: string;
+  task?: string;
+  fromNumber?: string | null;
+  toNumber?: string | null;
+  participantIdentity?: string | null;
+  livekitSipCallId?: string | null;
+  livekitTrunkId?: string | null;
+  context?: Record<string, unknown> | null;
+};
 
 export type CompleteCallPayload = {
   status: 'completed' | 'failed';
@@ -29,41 +52,199 @@ export type CompleteCallPayload = {
   toolEvents?: ToolEvent[] | null;
 };
 
-export async function postCallComplete(
-  callId: string,
-  payload: CompleteCallPayload,
-): Promise<void> {
-  const baseUrl = process.env.API_BASE_URL?.replace(/\/$/, '');
-  const secret = process.env.WORKER_CALLBACK_SECRET;
+export type PostCallCompleteDeps = {
+  fetch?: typeof fetch;
+  sleep?: (ms: number) => Promise<void>;
+  env?: NodeJS.ProcessEnv;
+  abortSignal?: (timeoutMs: number) => AbortSignal;
+};
+
+/** HTTP statuses that are worth retrying (timeout, rate-limit, server error). */
+export function isRetryableCompleteStatus(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500;
+}
+
+function parseEnvInt(
+  raw: string | undefined,
+  fallback: number,
+  min: number,
+): number {
+  if (raw === undefined || raw === '') {
+    return fallback;
+  }
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < min) {
+    return fallback;
+  }
+  return n;
+}
+
+function backoffMs(failedAttemptIndex: number, baseMs: number): number {
+  const exp = baseMs * Math.pow(2, failedAttemptIndex);
+  const capped = Math.min(COMPLETE_CALLBACK_BACKOFF_CAP_MS, exp);
+  const jitter = capped * (0.8 + Math.random() * 0.4);
+  return Math.max(0, Math.round(jitter));
+}
+
+function defaultSleep(ms: number): Promise<void> {
+  if (ms <= 0) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) {
+    const name = err.name ? `${err.name}: ` : '';
+    return `${name}${err.message}`;
+  }
+  return String(err);
+}
+
+type WorkerPostResult = {
+  ok: boolean;
+  status: number;
+  text: string;
+};
+
+async function postWorkerJson(
+  path: string,
+  payload: unknown,
+  label: string,
+  extraLog: string,
+  deps: PostCallCompleteDeps = {},
+): Promise<WorkerPostResult | null> {
+  const env = deps.env ?? process.env;
+  const baseUrl = env.API_BASE_URL?.replace(/\/$/, '');
+  const secret = env.WORKER_CALLBACK_SECRET;
+  const doFetch = deps.fetch ?? fetch;
+  const sleep = deps.sleep ?? defaultSleep;
+  const makeSignal = deps.abortSignal ?? ((ms: number) => AbortSignal.timeout(ms));
 
   if (!baseUrl || !secret) {
     console.warn(
-      `[agent] skip call complete callback (API_BASE_URL or WORKER_CALLBACK_SECRET unset) callId=${callId}`,
+      `[agent] skip ${label} (API_BASE_URL or WORKER_CALLBACK_SECRET unset) ${extraLog}`,
     );
-    return;
+    return null;
   }
 
-  const url = `${baseUrl}/api/internal/calls/${callId}/complete`;
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Worker-Secret': secret,
-      },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
+  const timeoutMs = parseEnvInt(
+    env.COMPLETE_CALLBACK_TIMEOUT_MS,
+    DEFAULT_COMPLETE_CALLBACK_TIMEOUT_MS,
+    1,
+  );
+  const maxAttempts = parseEnvInt(
+    env.COMPLETE_CALLBACK_MAX_ATTEMPTS,
+    DEFAULT_COMPLETE_CALLBACK_MAX_ATTEMPTS,
+    1,
+  );
+  const backoffBaseMs = parseEnvInt(
+    env.COMPLETE_CALLBACK_BACKOFF_MS,
+    DEFAULT_COMPLETE_CALLBACK_BACKOFF_MS,
+    0,
+  );
+
+  const url = `${baseUrl}${path}`;
+  const body = JSON.stringify(payload);
+  let lastReason = 'unknown';
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await doFetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Worker-Secret': secret,
+        },
+        body,
+        signal: makeSignal(timeoutMs),
+      });
       const text = await res.text().catch(() => '');
-      console.error(
-        `[agent] call complete failed status=${res.status} callId=${callId} body=${text.slice(0, 500)}`,
+      if (res.ok) {
+        console.log(
+          `[agent] ${label} ok ${extraLog}` +
+            (attempt > 1 ? ` attempts=${attempt}` : ''),
+        );
+        return { ok: true, status: res.status, text };
+      }
+      lastReason = `HTTP ${res.status}`;
+      const retryable = isRetryableCompleteStatus(res.status);
+      if (!retryable || attempt === maxAttempts) {
+        console.error(
+          `[agent] ${label} failed status=${res.status} ${extraLog} ` +
+            `attempt=${attempt}/${maxAttempts} body=${text.slice(0, 500)}`,
+        );
+        return { ok: false, status: res.status, text };
+      }
+      console.warn(
+        `[agent] ${label} retry attempt=${attempt + 1}/${maxAttempts} ` +
+          `${extraLog} reason=${lastReason} body=${text.slice(0, 200)}`,
       );
-      return;
+    } catch (err) {
+      lastReason = errorMessage(err);
+      if (attempt === maxAttempts) {
+        console.error(
+          `[agent] ${label} error ${extraLog} ` +
+            `attempt=${attempt}/${maxAttempts}: ${lastReason}`,
+        );
+        return null;
+      }
+      console.warn(
+        `[agent] ${label} retry attempt=${attempt + 1}/${maxAttempts} ` +
+          `${extraLog} reason=${lastReason}`,
+      );
     }
-    console.log(`[agent] call complete ok callId=${callId} status=${payload.status}`);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`[agent] call complete error callId=${callId}: ${message}`);
+    await sleep(backoffMs(attempt - 1, backoffBaseMs));
+  }
+  return null;
+}
+
+/**
+ * POST complete. Callers must not depend on throw-on-failure — this always
+ * resolves so failedEarly still reaches ctx.shutdown.
+ */
+export async function postCallComplete(
+  callId: string,
+  payload: CompleteCallPayload,
+  deps: PostCallCompleteDeps = {},
+): Promise<void> {
+  await postWorkerJson(
+    `/api/internal/calls/${callId}/complete`,
+    payload,
+    'call complete',
+    `callId=${callId} status=${payload.status}`,
+    deps,
+  );
+}
+
+/**
+ * Upsert an inbound SIP `calls` row so complete can use the existing
+ * `/internal/calls/:id/complete` path. Never throws.
+ */
+export async function postInboundEnsure(
+  payload: InboundEnsurePayload,
+  deps: PostCallCompleteDeps = {},
+): Promise<string | undefined> {
+  const result = await postWorkerJson(
+    '/api/internal/calls/inbound',
+    payload,
+    'inbound ensure',
+    `room=${payload.roomName}`,
+    deps,
+  );
+  if (!result?.ok || !result.text.trim()) {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse(result.text) as { id?: unknown };
+    return typeof parsed.id === 'string' && parsed.id.trim()
+      ? parsed.id.trim()
+      : undefined;
+  } catch {
+    console.warn(
+      `[agent] inbound ensure: response was not JSON with id room=${payload.roomName}`,
+    );
+    return undefined;
   }
 }
 
