@@ -18,7 +18,9 @@ import {
 } from '@nestjs/swagger';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CallsService } from './calls.service';
+import { CallDialService } from './services/call-dial.service';
+import { CallWebTestService } from './services/call-web-test.service';
+import { CallsService } from './services/calls.service';
 import { CallResponseDto, TestCallResponseDto } from './dto/call-response.dto';
 import { CreateOutboundCallDto } from './dto/create-outbound-call.dto';
 import { CreateTestCallDto } from './dto/create-test-call.dto';
@@ -29,7 +31,11 @@ import { ListCallsQueryDto } from './dto/list-calls-query.dto';
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin/calls')
 export class CallsController {
-  constructor(private readonly callsService: CallsService) {}
+  constructor(
+    private readonly callsService: CallsService,
+    private readonly callWebTest: CallWebTestService,
+    private readonly callDial: CallDialService,
+  ) {}
 
   @Post('test')
   @ApiOperation({
@@ -39,7 +45,7 @@ export class CallsController {
   })
   @ApiCreatedResponse({ type: TestCallResponseDto })
   createTestCall(@Body() dto: CreateTestCallDto): Promise<TestCallResponseDto> {
-    return this.callsService.createTestCall(dto);
+    return this.callWebTest.createTestCall(dto);
   }
 
   @Post('outbound')
@@ -52,7 +58,7 @@ export class CallsController {
   createOutbound(
     @Body() dto: CreateOutboundCallDto,
   ): Promise<CallResponseDto> {
-    return this.callsService.createOutboundCall(dto);
+    return this.callDial.createOutboundCall(dto);
   }
 
   @Get()

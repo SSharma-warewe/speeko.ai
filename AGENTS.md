@@ -637,7 +637,7 @@ Test: `POST /api/admin/calls/test` accepts optional `task` + `context`. Org web 
 
 | Module | Role |
 |--------|------|
-| `calls` | Domain: persist `calls`, resolve agents/tool profiles/task key, pack **runtime** job metadata, orchestrate web test + **outbound SIP dial** (immediate + queue-claimed), worker complete callback with optional **requeue** |
+| `calls` | Domain: persist `calls`, resolve agents/tool profiles/task key, pack **runtime** job metadata. Nest surface stays at module root (module, entity, repo, controllers). Split services in `calls/services/`: `CallWebTestService` (Meet test), `CallDialService` (enqueue + immediate/claimed SIP), `CallWorkerService` (inbound ensure + complete), `CallFailureService` (fail/requeue + stale reap), `CallsService` (tape list/get + cancel/retry/prioritize). Pure helpers in `calls/lib/` (state machine, row factory, phone, task key, job metadata, price wrapper). |
 | `queue` | Org queue settings, call batches, claim (`SKIP LOCKED`), retry policy, in-process **QueueDialerService**, live stats, user/admin queue controllers |
 | `price` | LiveKit **list-price** call cost (STT/LLM/TTS + WebRTC/SIP room). No markup. Catalog in `price.catalog.ts`; `PriceService` prices each worker-complete attempt onto `calls.cost` / `cost_usd`. Org-user summary is JWT-org scoped; admin summary + recompute |
 | `tools` | Tool profiles list/seed + org custom CRUD; resolve `enabledTools` ids for metadata |
@@ -717,7 +717,7 @@ controller → service → repository → TypeORM entity → Postgres
 20. All outbound email goes through `EmailService` (Plunk); do not call the Plunk API from other modules. Treat send failures as non-fatal for product flows.
 21. All GoHighLevel CRM and calendar HTTP goes through `GhlService`; do not call `services.leadconnectorhq.com` from other modules. Treat upsert failures as non-fatal for get-demo. Never log `GHL_API_KEY` or `GHL_CALENDAR`. Never return existing GHL appointments to the agent (free slots only).
 22. **Add or update unit tests** when changing service business rules, guards, or security-sensitive paths (see **Testing**). Prefer service-level unit tests over full e2e unless the flow is HTTP-guard integration.
-23. **Call status writes go through `applyCallEvent` / `initializeCallStatus`** (`apps/api/src/calls/call-state-machine.ts`). Do not assign `call.status = …` in services. SQL claim/release must keep the same pending↔creating pair. `completed` requires worker `taskCompleted: true`; answered hangup without `complete_*` is `incomplete`.
+23. **Call status writes go through `applyCallEvent` / `initializeCallStatus`** (`apps/api/src/calls/lib/call-state-machine.ts`). Do not assign `call.status = …` in services. SQL claim/release must keep the same pending↔creating pair. `completed` requires worker `taskCompleted: true`; answered hangup without `complete_*` is `incomplete`.
 24. **Call cost analysis goes through `PriceService`** (published LiveKit list prices, `markup: 0`). Do not add Speeko margin. Org-user cost APIs must scope by JWT `orgId` (never a client `organizationId`). Recompute stays admin-only. Bump `PRICE_CATALOG_AS_OF` in `price.catalog.ts` when LiveKit rates change.
 
 ## Testing

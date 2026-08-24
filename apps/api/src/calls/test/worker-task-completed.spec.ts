@@ -1,4 +1,4 @@
-import { workerReportedTaskCompleted } from '../worker-task-completed';
+import { workerReportedTaskCompleted } from '../lib/worker-task-completed';
 
 describe('workerReportedTaskCompleted', () => {
   it('true when the worker flag is set', () => {

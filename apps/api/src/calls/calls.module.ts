@@ -9,8 +9,12 @@ import { ToolsModule } from '../tools/tools.module';
 import { Call } from './call.entity';
 import { CallsController } from './calls.controller';
 import { CallsRepository } from './calls.repository';
-import { CallsService } from './calls.service';
 import { InternalCallsController } from './internal-calls.controller';
+import { CallDialService } from './services/call-dial.service';
+import { CallFailureService } from './services/call-failure.service';
+import { CallWebTestService } from './services/call-web-test.service';
+import { CallWorkerService } from './services/call-worker.service';
+import { CallsService } from './services/calls.service';
 import { UserCallsController } from './user-calls.controller';
 
 @Module({
@@ -24,7 +28,19 @@ import { UserCallsController } from './user-calls.controller';
     forwardRef(() => QueueModule),
   ],
   controllers: [CallsController, UserCallsController, InternalCallsController],
-  providers: [CallsRepository, CallsService],
-  exports: [CallsService, CallsRepository],
+  providers: [
+    CallsRepository,
+    CallsService,
+    CallWebTestService,
+    CallDialService,
+    CallWorkerService,
+    CallFailureService,
+  ],
+  exports: [
+    CallsService,
+    CallsRepository,
+    CallDialService,
+    CallFailureService,
+  ],
 })
 export class CallsModule {}

@@ -1,13 +1,14 @@
 import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Interval } from '@nestjs/schedule';
-import { CallsService } from '../calls/calls.service';
+import { CallDialService } from '../calls/services/call-dial.service';
+import { CallFailureService } from '../calls/services/call-failure.service';
 import { OrganizationQueueSettingsService } from './organization-queue-settings.service';
 import { QueueClaimService } from './queue-claim.service';
 import { QUEUE_DEFAULTS } from './queue.defaults';
 
 /**
- * In-process outbound dial queue. Claims pending rows and dials via CallsService.
+ * In-process outbound dial queue. Claims pending rows and dials via CallDialService.
  * LiveKit voice worker remains voice-only.
  */
 @Injectable()
@@ -22,8 +23,10 @@ export class QueueDialerService {
     private readonly config: ConfigService,
     private readonly settingsService: OrganizationQueueSettingsService,
     private readonly claimService: QueueClaimService,
-    @Inject(forwardRef(() => CallsService))
-    private readonly callsService: CallsService,
+    @Inject(forwardRef(() => CallDialService))
+    private readonly callDial: CallDialService,
+    @Inject(forwardRef(() => CallFailureService))
+    private readonly callFailure: CallFailureService,
   ) {}
 
   getHealth() {
@@ -49,7 +52,7 @@ export class QueueDialerService {
     try {
       // Global: free concurrency held by dialing/ready zombies (worker never completed).
       try {
-        await this.callsService.reapStaleInFlight();
+        await this.callFailure.reapStaleInFlight();
       } catch (err) {
         this.logger.error(
           `Stale in-flight reap failed: ${
@@ -123,7 +126,7 @@ export class QueueDialerService {
               this.logger.log(
                 `Dialing claimed call id=${call.id} to=${call.toNumber} attempt=${call.attemptCount}/${call.maxAttempts}`,
               );
-              await this.callsService.dialClaimedCall(call);
+              await this.callDial.dialClaimedCall(call);
             } catch (err) {
               this.logger.error(
                 `Dial claimed call failed id=${call.id}: ${

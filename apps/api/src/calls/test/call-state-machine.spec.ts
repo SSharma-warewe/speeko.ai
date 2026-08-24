@@ -6,7 +6,7 @@ import {
   initializeCallStatus,
   isAllowedCallTransition,
   isTerminalCallStatus,
-} from '../call-state-machine';
+} from '../lib/call-state-machine';
 import { CallStatus, CallTaskStatus } from '../call.entity';
 
 describe('call-state-machine', () => {

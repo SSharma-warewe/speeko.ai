@@ -1,8 +1,9 @@
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
+import { CallDialService } from '../../calls/services/call-dial.service';
+import { CallFailureService } from '../../calls/services/call-failure.service';
 import { Call, CallStatus } from '../../calls/call.entity';
-import { CallsService } from '../../calls/calls.service';
 import { OrganizationQueueSettings } from '../organization-queue-settings.entity';
 import { OrganizationQueueSettingsService } from '../organization-queue-settings.service';
 import { QueueClaimService } from '../queue-claim.service';
@@ -12,7 +13,7 @@ import { QUEUE_DEFAULTS } from '../queue.defaults';
 /**
  * Pure unit tests for QueueDialerService.
  * tick() is invoked directly (the @Interval decorator is never started).
- * ConfigService / settings / claim / CallsService are all mocks — no DB, HTTP, or SIP.
+ * ConfigService / settings / claim / dial / failure are all mocks — no DB, HTTP, or SIP.
  */
 describe('QueueDialerService', () => {
   const ORG_A = 'org-a';
@@ -37,9 +38,11 @@ describe('QueueDialerService', () => {
     countInProgressExcluding: jest.Mock;
     releaseClaimToPending: jest.Mock;
   };
-  let callsService: {
-    reapStaleInFlight: jest.Mock;
+  let callDial: {
     dialClaimedCall: jest.Mock;
+  };
+  let callFailure: {
+    reapStaleInFlight: jest.Mock;
   };
 
   function makeSettings(
@@ -107,9 +110,11 @@ describe('QueueDialerService', () => {
       countInProgressExcluding: jest.fn().mockResolvedValue(0),
       releaseClaimToPending: jest.fn().mockResolvedValue(true),
     };
-    callsService = {
-      reapStaleInFlight: jest.fn().mockResolvedValue(undefined),
+    callDial = {
       dialClaimedCall: jest.fn().mockResolvedValue(undefined),
+    };
+    callFailure = {
+      reapStaleInFlight: jest.fn().mockResolvedValue(undefined),
     };
 
     moduleRef = await Test.createTestingModule({
@@ -118,7 +123,8 @@ describe('QueueDialerService', () => {
         { provide: ConfigService, useValue: config },
         { provide: OrganizationQueueSettingsService, useValue: settingsService },
         { provide: QueueClaimService, useValue: claimService },
-        { provide: CallsService, useValue: callsService },
+        { provide: CallDialService, useValue: callDial },
+        { provide: CallFailureService, useValue: callFailure },
       ],
     }).compile();
 
@@ -141,10 +147,10 @@ describe('QueueDialerService', () => {
       await service.tick();
 
       expect(config.get).toHaveBeenCalledWith('QUEUE_DIALER_ENABLED');
-      expect(callsService.reapStaleInFlight).not.toHaveBeenCalled();
+      expect(callFailure.reapStaleInFlight).not.toHaveBeenCalled();
       expect(settingsService.findEnabledAndNotPaused).not.toHaveBeenCalled();
       expect(claimService.claimPending).not.toHaveBeenCalled();
-      expect(callsService.dialClaimedCall).not.toHaveBeenCalled();
+      expect(callDial.dialClaimedCall).not.toHaveBeenCalled();
     });
 
     it("returns immediately when QUEUE_DIALER_ENABLED is '0'", async () => {
@@ -152,7 +158,7 @@ describe('QueueDialerService', () => {
 
       await service.tick();
 
-      expect(callsService.reapStaleInFlight).not.toHaveBeenCalled();
+      expect(callFailure.reapStaleInFlight).not.toHaveBeenCalled();
       expect(settingsService.findEnabledAndNotPaused).not.toHaveBeenCalled();
       expect(claimService.claimPending).not.toHaveBeenCalled();
     });
@@ -167,7 +173,7 @@ describe('QueueDialerService', () => {
 
       await service.tick();
 
-      expect(callsService.reapStaleInFlight).not.toHaveBeenCalled();
+      expect(callFailure.reapStaleInFlight).not.toHaveBeenCalled();
       expect(settingsService.findEnabledAndNotPaused).not.toHaveBeenCalled();
       expect(claimService.claimPending).not.toHaveBeenCalled();
     });
@@ -177,15 +183,15 @@ describe('QueueDialerService', () => {
       const reapGate = new Promise<void>((resolve) => {
         releaseReap = resolve;
       });
-      callsService.reapStaleInFlight.mockImplementation(() => reapGate);
+      callFailure.reapStaleInFlight.mockImplementation(() => reapGate);
       settingsService.findEnabledAndNotPaused.mockResolvedValue([]);
 
       const first = service.tick();
-      await waitFor(() => callsService.reapStaleInFlight.mock.calls.length === 1);
+      await waitFor(() => callFailure.reapStaleInFlight.mock.calls.length === 1);
       expect(service.getHealth().ticking).toBe(true);
 
       await service.tick();
-      expect(callsService.reapStaleInFlight).toHaveBeenCalledTimes(1);
+      expect(callFailure.reapStaleInFlight).toHaveBeenCalledTimes(1);
       expect(settingsService.findEnabledAndNotPaused).not.toHaveBeenCalled();
 
       releaseReap();
@@ -211,7 +217,7 @@ describe('QueueDialerService', () => {
       expect(claimService.countInProgress).toHaveBeenCalledWith(ORG_A);
       expect(claimService.countDialsLastMinute).not.toHaveBeenCalled();
       expect(claimService.claimPending).not.toHaveBeenCalled();
-      expect(callsService.dialClaimedCall).not.toHaveBeenCalled();
+      expect(callDial.dialClaimedCall).not.toHaveBeenCalled();
     });
 
     it('never calls claimPending when maxDialsPerMinute is exhausted', async () => {
@@ -225,7 +231,7 @@ describe('QueueDialerService', () => {
 
       expect(claimService.countDialsLastMinute).toHaveBeenCalledWith(ORG_A);
       expect(claimService.claimPending).not.toHaveBeenCalled();
-      expect(callsService.dialClaimedCall).not.toHaveBeenCalled();
+      expect(callDial.dialClaimedCall).not.toHaveBeenCalled();
     });
 
     it('claims min(free slots, rate remaining, claimBatchSize)', async () => {
@@ -309,9 +315,9 @@ describe('QueueDialerService', () => {
 
       expect(claimService.reclaimStale).toHaveBeenCalledWith(ORG_A);
       expect(claimService.claimPending).toHaveBeenCalledWith(ORG_A, 2);
-      expect(callsService.dialClaimedCall).toHaveBeenCalledTimes(2);
-      expect(callsService.dialClaimedCall).toHaveBeenNthCalledWith(1, a);
-      expect(callsService.dialClaimedCall).toHaveBeenNthCalledWith(2, b);
+      expect(callDial.dialClaimedCall).toHaveBeenCalledTimes(2);
+      expect(callDial.dialClaimedCall).toHaveBeenNthCalledWith(1, a);
+      expect(callDial.dialClaimedCall).toHaveBeenNthCalledWith(2, b);
       expect(claimService.releaseClaimToPending).not.toHaveBeenCalled();
     });
   });
@@ -338,7 +344,7 @@ describe('QueueDialerService', () => {
         CALL_A,
       );
       expect(claimService.releaseClaimToPending).toHaveBeenCalledWith(CALL_A);
-      expect(callsService.dialClaimedCall).not.toHaveBeenCalled();
+      expect(callDial.dialClaimedCall).not.toHaveBeenCalled();
     });
 
     it('only defers the over-capacity call; later claimed calls can still dial', async () => {
@@ -360,8 +366,8 @@ describe('QueueDialerService', () => {
       expect(claimService.releaseClaimToPending).not.toHaveBeenCalledWith(
         CALL_B,
       );
-      expect(callsService.dialClaimedCall).toHaveBeenCalledTimes(1);
-      expect(callsService.dialClaimedCall).toHaveBeenCalledWith(b);
+      expect(callDial.dialClaimedCall).toHaveBeenCalledTimes(1);
+      expect(callDial.dialClaimedCall).toHaveBeenCalledWith(b);
     });
   });
 
@@ -400,7 +406,7 @@ describe('QueueDialerService', () => {
         expect.anything(),
       );
       expect(claimService.claimPending).toHaveBeenCalledWith(ORG_B, 2);
-      expect(callsService.dialClaimedCall).toHaveBeenCalledWith(callB);
+      expect(callDial.dialClaimedCall).toHaveBeenCalledWith(callB);
       expect(service.getHealth().lastError).toBeNull();
     });
 
@@ -415,17 +421,17 @@ describe('QueueDialerService', () => {
       claimService.countDialsLastMinute.mockResolvedValue(0);
       claimService.claimPending.mockResolvedValue([a, b, c]);
       claimService.countInProgressExcluding.mockResolvedValue(0);
-      callsService.dialClaimedCall
+      callDial.dialClaimedCall
         .mockResolvedValueOnce(undefined)
         .mockRejectedValueOnce(new Error('sip fail on B'))
         .mockResolvedValueOnce(undefined);
 
       await service.tick();
 
-      expect(callsService.dialClaimedCall).toHaveBeenCalledTimes(3);
-      expect(callsService.dialClaimedCall).toHaveBeenNthCalledWith(1, a);
-      expect(callsService.dialClaimedCall).toHaveBeenNthCalledWith(2, b);
-      expect(callsService.dialClaimedCall).toHaveBeenNthCalledWith(3, c);
+      expect(callDial.dialClaimedCall).toHaveBeenCalledTimes(3);
+      expect(callDial.dialClaimedCall).toHaveBeenNthCalledWith(1, a);
+      expect(callDial.dialClaimedCall).toHaveBeenNthCalledWith(2, b);
+      expect(callDial.dialClaimedCall).toHaveBeenNthCalledWith(3, c);
       expect(service.getHealth().lastError).toBeNull();
       expect(service.getHealth().lastClaimCount).toBe(3);
     });
@@ -575,7 +581,7 @@ describe('QueueDialerService', () => {
         },
       );
 
-      callsService.dialClaimedCall.mockImplementation(async (call: Call) => {
+      callDial.dialClaimedCall.mockImplementation(async (call: Call) => {
         await new Promise<void>((resolve) => {
           setTimeout(resolve, DIAL_DELAY_MS);
         });
@@ -651,7 +657,7 @@ describe('QueueDialerService', () => {
       });
       let enteredFirstDial = false;
 
-      callsService.dialClaimedCall.mockImplementation(async (call: Call) => {
+      callDial.dialClaimedCall.mockImplementation(async (call: Call) => {
         if (!enteredFirstDial) {
           enteredFirstDial = true;
           await firstDialHold;

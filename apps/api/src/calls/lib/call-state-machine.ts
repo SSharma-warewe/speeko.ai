@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { Call, CallStatus, CallTaskStatus } from './call.entity';
+import { Call, CallStatus, CallTaskStatus } from '../call.entity';
 
 /**
  * Call lifecycle events. Services apply an event; they do not assign

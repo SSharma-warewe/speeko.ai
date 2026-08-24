@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   applyCallEvent,
   CallLifecycleEvent,
-} from '../calls/call-state-machine';
+} from '../calls/lib/call-state-machine';
 import {
   Call,
   CallFailureCode,

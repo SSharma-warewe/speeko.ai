@@ -23,7 +23,9 @@ import type { AuthPrincipal } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserGuard } from '../auth/guards/user.guard';
 import { CallBucket, CallStatus } from './call.entity';
-import { CallsService } from './calls.service';
+import { CallDialService } from './services/call-dial.service';
+import { CallWebTestService } from './services/call-web-test.service';
+import { CallsService } from './services/calls.service';
 import {
   CallResponseDto,
   EnqueueCallsResponseDto,
@@ -39,7 +41,11 @@ import { ListCallsQueryDto } from './dto/list-calls-query.dto';
 @UseGuards(JwtAuthGuard, UserGuard)
 @Controller('users/calls')
 export class UserCallsController {
-  constructor(private readonly callsService: CallsService) {}
+  constructor(
+    private readonly callsService: CallsService,
+    private readonly callWebTest: CallWebTestService,
+    private readonly callDial: CallDialService,
+  ) {}
 
   @Post()
   @ApiOperation({
@@ -54,7 +60,7 @@ export class UserCallsController {
     @CurrentUser() principal: AuthPrincipal,
     @Body() dto: CreateUserCallsBatchDto,
   ): Promise<EnqueueCallsResponseDto> {
-    return this.callsService.enqueueCallsForOrg(this.orgIdFrom(principal), dto);
+    return this.callDial.enqueueCallsForOrg(this.orgIdFrom(principal), dto);
   }
 
   @Post(':id/cancel')
@@ -104,7 +110,7 @@ export class UserCallsController {
     @CurrentUser() principal: AuthPrincipal,
     @Body() dto: CreateUserOutboundCallDto,
   ): Promise<CallResponseDto> {
-    return this.callsService.createOutboundCallForOrg(
+    return this.callDial.createOutboundCallForOrg(
       this.orgIdFrom(principal),
       dto,
     );
@@ -121,7 +127,7 @@ export class UserCallsController {
     @CurrentUser() principal: AuthPrincipal,
     @Body() dto: CreateUserTestCallDto,
   ): Promise<TestCallResponseDto> {
-    return this.callsService.createOrgAgentTestCall(
+    return this.callWebTest.createOrgAgentTestCall(
       this.orgIdFrom(principal),
       dto,
     );

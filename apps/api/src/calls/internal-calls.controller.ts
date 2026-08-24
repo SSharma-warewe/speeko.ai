@@ -6,7 +6,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { WorkerSecretGuard } from '../auth/guards/worker-secret.guard';
-import { CallsService } from './calls.service';
+import { CallWorkerService } from './services/call-worker.service';
 import { CallResponseDto } from './dto/call-response.dto';
 import { CompleteCallDto } from './dto/complete-call.dto';
 import { EnsureInboundCallDto } from './dto/ensure-inbound-call.dto';
@@ -20,7 +20,7 @@ import { EnsureInboundCallDto } from './dto/ensure-inbound-call.dto';
 @UseGuards(WorkerSecretGuard)
 @Controller('internal/calls')
 export class InternalCallsController {
-  constructor(private readonly callsService: CallsService) {}
+  constructor(private readonly callWorker: CallWorkerService) {}
 
   @Post('inbound')
   @ApiOperation({
@@ -29,7 +29,7 @@ export class InternalCallsController {
   })
   @ApiOkResponse({ type: CallResponseDto })
   ensureInbound(@Body() dto: EnsureInboundCallDto): Promise<CallResponseDto> {
-    return this.callsService.ensureInboundFromWorker(dto);
+    return this.callWorker.ensureInboundFromWorker(dto);
   }
 
   @Post(':id/complete')
@@ -41,6 +41,6 @@ export class InternalCallsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CompleteCallDto,
   ): Promise<CallResponseDto> {
-    return this.callsService.completeFromWorker(id, dto);
+    return this.callWorker.completeFromWorker(id, dto);
   }
 }

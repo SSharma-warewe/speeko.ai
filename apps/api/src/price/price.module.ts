@@ -6,7 +6,7 @@ import { UserPriceController } from './user-price.controller';
 
 /**
  * LiveKit list-price cost analysis (no markup).
- * Calculator is used by CallsService on worker complete.
+ * Calculator is used by CallWorkerService / CallFailureService on worker complete.
  * HTTP: org-user summary (JWT org) + admin summary/backfill.
  */
 @Module({

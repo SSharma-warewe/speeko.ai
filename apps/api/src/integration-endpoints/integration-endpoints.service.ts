@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { orgAgentDefaultTaskKey } from '../agents/org-agent-task';
 import { OrganizationAgentsService } from '../agents/organization-agents.service';
-import { CallsService } from '../calls/calls.service';
+import { CallDialService } from '../calls/services/call-dial.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SipTrunksService } from '../sip-trunks/sip-trunks.service';
 import {
@@ -41,7 +41,7 @@ export class IntegrationEndpointsService {
     private readonly organizationsService: OrganizationsService,
     private readonly organizationAgentsService: OrganizationAgentsService,
     private readonly sipTrunksService: SipTrunksService,
-    private readonly callsService: CallsService,
+    private readonly callDial: CallDialService,
   ) {}
 
   async listForOrg(
@@ -239,7 +239,7 @@ export class IntegrationEndpointsService {
 
     const mergedContext = this.mergeContext(endpoint, dto);
 
-    const result = await this.callsService.enqueueCallsForOrg(
+    const result = await this.callDial.enqueueCallsForOrg(
       endpoint.organizationId,
       {
         organizationAgentId: endpoint.organizationAgentId,
