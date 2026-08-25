@@ -1,5 +1,8 @@
 import type { AgentJobMetadata } from '../job-metadata';
-import { buildOpeningInstructions } from '../builders/prompt-builder';
+import {
+  buildOpeningInstructions,
+  composeTaskInstructions,
+} from '../builders/prompt-builder';
 import { TaskRegistry } from '../tasks/registry';
 import { TASK_KEYS } from '../tasks/task-ids';
 import { buildInterviewBookingInstructions } from '../tasks/interview-booking.task';
@@ -73,6 +76,31 @@ describe('interview_booking task', () => {
       meta({ context: { durationMinutes: 45 } }),
     );
     expect(text).toMatch(/Default interview length is 45 minutes/);
+  });
+
+  it('composed task prompt keeps persona and identity-then-book workflow', () => {
+    const composed = composeTaskInstructions(
+      meta({
+        prompt: {
+          systemPrompt:
+            'You represent Warewe AI. Speeko.ai is our voice-agent product.',
+          onEnterInstructions: null,
+          onExitInstructions: null,
+        },
+        context: { customerName: 'Ada Lovelace', email: 'ada@example.com' },
+      }),
+      buildInterviewBookingInstructions(
+        meta({
+          context: { customerName: 'Ada Lovelace', email: 'ada@example.com' },
+        }),
+      ),
+    );
+
+    expect(composed).toMatch(/Speeko\.ai is our voice-agent product/);
+    expect(composed).toMatch(/PHASE 1 — IDENTITY/);
+    expect(composed).toMatch(/PHASE 2 — BOOK THE INTERVIEW/);
+    expect(composed).toMatch(/complete_interview_booking_task/);
+    expect(composed).toMatch(/Persona and company facts above stay in force/);
   });
 
   it('default opening confirms name before offering slots', () => {

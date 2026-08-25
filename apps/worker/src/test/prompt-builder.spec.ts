@@ -1,5 +1,8 @@
 import type { AgentJobMetadata } from '../job-metadata';
-import { buildClosingSpeech } from '../builders/prompt-builder';
+import {
+  buildClosingSpeech,
+  composeTaskInstructions,
+} from '../builders/prompt-builder';
 
 function meta(
   overrides: Partial<AgentJobMetadata> & {
@@ -57,5 +60,51 @@ describe('buildClosingSpeech', () => {
     );
     expect(spoken).not.toMatch(/^Say /);
     expect(spoken).not.toContain('instructions');
+  });
+});
+
+describe('composeTaskInstructions', () => {
+  it('copies persona, clock, and workflow into the task prompt', () => {
+    const text = composeTaskInstructions(
+      meta({
+        agentKey: 'inbound',
+        direction: 'inbound',
+        prompt: {
+          systemPrompt:
+            'You are the AI Receptionist for Warewe AI. Speeko.ai is our voice-agent product. AgentsHub.ai is our orchestration product.',
+          onEnterInstructions: null,
+          onExitInstructions: null,
+        },
+      }),
+      'Help the person with their request. Call complete_general_task when done.',
+    );
+
+    expect(text).toMatch(/AI Receptionist for Warewe AI/);
+    expect(text).toMatch(/Speeko\.ai is our voice-agent product/);
+    expect(text).toMatch(/AgentsHub\.ai is our orchestration product/);
+    expect(text).toMatch(/AUTHORITATIVE CLOCK/);
+    expect(text).toMatch(/=== WORKFLOW \(this call\) ===/);
+    expect(text).toMatch(/complete_general_task/);
+    expect(text).toMatch(/Persona and company facts above stay in force/);
+    expect(text).toMatch(/Do not invent facts/);
+  });
+
+  it('empty or whitespace workflow still returns persona', () => {
+    const personaMeta = meta({
+      prompt: {
+        systemPrompt: 'You are the AI Receptionist for Warewe AI.',
+        onEnterInstructions: null,
+        onExitInstructions: null,
+      },
+    });
+    expect(composeTaskInstructions(personaMeta, '')).toMatch(
+      /AI Receptionist for Warewe AI/,
+    );
+    expect(composeTaskInstructions(personaMeta, '   \n')).toMatch(
+      /AI Receptionist for Warewe AI/,
+    );
+    expect(composeTaskInstructions(personaMeta, '')).not.toMatch(
+      /=== WORKFLOW/,
+    );
   });
 });

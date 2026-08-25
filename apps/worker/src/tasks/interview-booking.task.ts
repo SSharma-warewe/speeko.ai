@@ -1,5 +1,6 @@
 import { llm, voice } from '@livekit/agents';
 import { z } from 'zod';
+import { composeTaskInstructions } from '../builders/prompt-builder.js';
 import type { AgentJobMetadata } from '../job-metadata.js';
 import { withToolRecording } from '../tools/tool-events.js';
 import {
@@ -91,7 +92,7 @@ export function buildInterviewBookingInstructions(
 
 /**
  * Workflow: confirm callee identity, then book an interview on the calendar.
- * Persona stays on the parent Agent system prompt. Calendar tools come from the profile.
+ * Persona is copied into task instructions. Calendar tools come from the profile.
  */
 export const createInterviewBookingTask: TaskFactory = ({
   meta,
@@ -103,7 +104,10 @@ export const createInterviewBookingTask: TaskFactory = ({
   const expectedName = displayNameFromContext(meta.context);
 
   const task = voice.AgentTask.create<InterviewBookingResult>({
-    instructions: buildInterviewBookingInstructions(meta),
+    instructions: composeTaskInstructions(
+      meta,
+      buildInterviewBookingInstructions(meta),
+    ),
     chatCtx,
     tools: [
       ...tools,

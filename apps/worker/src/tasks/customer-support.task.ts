@@ -1,5 +1,6 @@
 import { llm, voice } from '@livekit/agents';
 import { z } from 'zod';
+import { composeTaskInstructions } from '../builders/prompt-builder.js';
 import { withToolRecording } from '../tools/tool-events.js';
 import { formatContextForInstructions } from './context-format.js';
 import { markTaskFinished, nullishString } from './task-complete.js';
@@ -18,14 +19,17 @@ export const createCustomerSupportTask: TaskFactory = ({
   chatCtx,
 }) => {
   const task = voice.AgentTask.create<CustomerSupportResult>({
-    instructions: [
-      'Your objective is to help the customer with a support issue on this call.',
-      'Listen carefully, diagnose the issue, use tools when needed, and aim for resolution.',
-      'Escalate via transfer when appropriate. When done, call complete_support_task.',
-      'After complete_support_task succeeds, the system hangs up automatically — do not also call end_call.',
-      'If they say goodbye or ask to hang up before the issue is closed, call end_call.',
-      `Runtime context: ${formatContextForInstructions(meta.context)}`,
-    ].join(' '),
+    instructions: composeTaskInstructions(
+      meta,
+      [
+        'Your objective is to help the customer with a support issue on this call.',
+        'Listen carefully, diagnose the issue, use tools when needed, and aim for resolution.',
+        'Escalate via transfer when appropriate. When done, call complete_support_task.',
+        'After complete_support_task succeeds, the system hangs up automatically — do not also call end_call.',
+        'If they say goodbye or ask to hang up before the issue is closed, call end_call.',
+        `Runtime context: ${formatContextForInstructions(meta.context)}`,
+      ].join(' '),
+    ),
     chatCtx,
     tools: [
       ...tools,

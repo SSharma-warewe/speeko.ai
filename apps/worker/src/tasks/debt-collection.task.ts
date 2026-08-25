@@ -1,5 +1,6 @@
 import { llm, voice } from '@livekit/agents';
 import { z } from 'zod';
+import { composeTaskInstructions } from '../builders/prompt-builder.js';
 import { withToolRecording } from '../tools/tool-events.js';
 import { contextField, formatContextForInstructions } from './context-format.js';
 import { markTaskFinished, nullishString } from './task-complete.js';
@@ -28,19 +29,22 @@ export const createDebtCollectionTask: TaskFactory = ({
   const accountRef = contextField(meta.context, 'accountId', 'account_id', 'invoiceId');
 
   const task = voice.AgentTask.create<DebtCollectionResult>({
-    instructions: [
-      'Your objective is a compliant debt-collection / payment-reminder call.',
-      'Be professional, calm, and non-threatening. Follow applicable collection rules.',
-      amount ? `Outstanding amount in context: ${amount}.` : null,
-      accountRef ? `Account/invoice reference: ${accountRef}.` : null,
-      'Verify you are speaking with the right person before discussing balance details.',
-      'Offer payment options if available. When finished, call complete_collection_task.',
-      'After complete_collection_task succeeds, the system hangs up automatically — do not also call end_call.',
-      'If they refuse further contact or say goodbye early, call end_call (prefer completing with REFUSED first when possible).',
-      `Runtime context: ${formatContextForInstructions(meta.context)}`,
-    ]
-      .filter(Boolean)
-      .join(' '),
+    instructions: composeTaskInstructions(
+      meta,
+      [
+        'Your objective is a compliant debt-collection / payment-reminder call.',
+        'Be professional, calm, and non-threatening. Follow applicable collection rules.',
+        amount ? `Outstanding amount in context: ${amount}.` : null,
+        accountRef ? `Account/invoice reference: ${accountRef}.` : null,
+        'Verify you are speaking with the right person before discussing balance details.',
+        'Offer payment options if available. When finished, call complete_collection_task.',
+        'After complete_collection_task succeeds, the system hangs up automatically — do not also call end_call.',
+        'If they refuse further contact or say goodbye early, call end_call (prefer completing with REFUSED first when possible).',
+        `Runtime context: ${formatContextForInstructions(meta.context)}`,
+      ]
+        .filter(Boolean)
+        .join(' '),
+    ),
     chatCtx,
     tools: [
       ...tools,

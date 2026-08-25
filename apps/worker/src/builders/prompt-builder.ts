@@ -28,6 +28,28 @@ export function buildPersonaPrompt(meta: AgentJobMetadata): string {
   return parts.filter(Boolean).join('\n\n');
 }
 
+/**
+ * LiveKit `AgentTask.run()` replaces the parent agent. Copy persona into the
+ * task system prompt so company facts survive the handoff. Keep parent
+ * history `excludeInstructions: true` so this is not duplicated.
+ */
+export function composeTaskInstructions(
+  meta: AgentJobMetadata,
+  workflow: string,
+): string {
+  const persona = buildPersonaPrompt(meta);
+  const trimmed = workflow.trim();
+  if (!trimmed) {
+    return persona;
+  }
+  return [
+    persona,
+    '=== WORKFLOW (this call) ===',
+    trimmed,
+    'Persona and company facts above stay in force. Do not contradict them. Workflow is the objective for this call, not a new identity.',
+  ].join('\n\n');
+}
+
 export type CallClockSnapshot = {
   timeZone: string;
   now: Date;

@@ -1,5 +1,6 @@
 import { llm, voice } from '@livekit/agents';
 import { z } from 'zod';
+import { composeTaskInstructions } from '../builders/prompt-builder.js';
 import { withToolRecording } from '../tools/tool-events.js';
 import {
   contextField,
@@ -74,7 +75,7 @@ export const createDemoBookingTask: TaskFactory = ({
   const company = contextField(meta.context, 'company', 'companyName');
 
   const task = voice.AgentTask.create<DemoBookingResult>({
-    instructions: [
+    instructions: composeTaskInstructions(meta, [
       'Your objective is a two-phase outbound demo call.',
       name ? `The contact name is ${name}.` : null,
       company ? `Their company is ${company}.` : null,
@@ -106,6 +107,7 @@ export const createDemoBookingTask: TaskFactory = ({
     ]
       .filter((line) => line !== null)
       .join(' '),
+    ),
     chatCtx,
     tools: [
       ...tools,

@@ -1,5 +1,6 @@
 import { llm, voice } from '@livekit/agents';
 import { z } from 'zod';
+import { composeTaskInstructions } from '../builders/prompt-builder.js';
 import { withToolRecording } from '../tools/tool-events.js';
 import { formatContextForInstructions } from './context-format.js';
 import { markTaskFinished, nullishString } from './task-complete.js';
@@ -19,15 +20,18 @@ export const createLeadQualificationTask: TaskFactory = ({
   chatCtx,
 }) => {
   const task = voice.AgentTask.create<LeadQualificationResult>({
-    instructions: [
-      'Your objective is to qualify this lead on an outbound call.',
-      'Introduce the purpose briefly, confirm interest, and ask discovery questions relevant to the product or service.',
-      'Determine fit (budget, authority, need, timeline) without being pushy.',
-      'When qualification is complete, call complete_lead_task with the structured result.',
-      'After complete_lead_task succeeds, the system hangs up automatically — do not also call end_call.',
-      'If they say goodbye, decline, or ask to stop early, call end_call (prefer completing with DECLINED first when possible).',
-      `Runtime context: ${formatContextForInstructions(meta.context)}`,
-    ].join(' '),
+    instructions: composeTaskInstructions(
+      meta,
+      [
+        'Your objective is to qualify this lead on an outbound call.',
+        'Introduce the purpose briefly, confirm interest, and ask discovery questions relevant to the product or service.',
+        'Determine fit (budget, authority, need, timeline) without being pushy.',
+        'When qualification is complete, call complete_lead_task with the structured result.',
+        'After complete_lead_task succeeds, the system hangs up automatically — do not also call end_call.',
+        'If they say goodbye, decline, or ask to stop early, call end_call (prefer completing with DECLINED first when possible).',
+        `Runtime context: ${formatContextForInstructions(meta.context)}`,
+      ].join(' '),
+    ),
     chatCtx,
     tools: [
       ...tools,

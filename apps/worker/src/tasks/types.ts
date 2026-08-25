@@ -13,7 +13,8 @@ export type TaskFactoryContext = {
 
 /**
  * Build a LiveKit AgentTask for a business workflow.
- * Tasks own objective + completion conditions; persona stays on the parent Agent.
+ * Tasks own objective + completion conditions. Persona is copied into the
+ * task prompt via `composeTaskInstructions` (AgentTask replaces the parent).
  */
 export type TaskFactory = (
   ctx: TaskFactoryContext,
