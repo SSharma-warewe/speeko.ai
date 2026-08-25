@@ -3,7 +3,6 @@ import {
   ForbiddenException,
   Get,
   Param,
-  ParseUUIDPipe,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -16,11 +15,14 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthPrincipal } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserGuard } from '../auth/guards/user.guard';
+import { ParseResourceIdPipe } from '../common/parse-resource-id.pipe';
+import { ApiJwtErrors, ApiNotFoundError } from '../common/swagger/api-errors';
 import { SipTrunkResponseDto } from './dto/sip-trunk-response.dto';
 import { SipTrunksService } from './sip-trunks.service';
 
 @ApiTags('user-sip-trunks')
 @ApiBearerAuth('bearer')
+@ApiJwtErrors()
 @UseGuards(JwtAuthGuard, UserGuard)
 @Controller('users/sip-trunks')
 export class UserSipTrunksController {
@@ -46,9 +48,10 @@ export class UserSipTrunksController {
       'Any direction. For outbound writes use /users/sip-trunks/outbound; for inbound use /users/sip-trunks/inbound.',
   })
   @ApiOkResponse({ type: SipTrunkResponseDto })
+  @ApiNotFoundError('SIP trunk not found')
   getOne(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('SIP trunk')) id: string,
   ): Promise<SipTrunkResponseDto> {
     return this.sipTrunksService.getOne(this.orgIdFrom(principal), id);
   }

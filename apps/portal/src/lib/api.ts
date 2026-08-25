@@ -1,6 +1,8 @@
 import {
+  isErrorCode,
   KNOWN_TASK_KEYS,
   KNOWN_TOOL_IDS,
+  type ErrorCode,
 } from "@call-agent/contracts";
 import type {
   AdminProfile,
@@ -113,6 +115,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
+    public code?: ErrorCode,
   ) {
     super(message);
     this.name = "ApiError";
@@ -123,6 +126,13 @@ export class UnauthorizedError extends ApiError {
   constructor(message = "Session expired. Please log in again.") {
     super(message, 401);
     this.name = "UnauthorizedError";
+  }
+}
+
+export class NotFoundError extends ApiError {
+  constructor(message = "Not found", code?: ErrorCode) {
+    super(message, 404, code);
+    this.name = "NotFoundError";
   }
 }
 
@@ -157,6 +167,21 @@ function parseErrorMessage(body: unknown, fallback: string): string {
     return message.map(String).join(", ");
   }
   return fallback;
+}
+
+function parseErrorCode(body: unknown): ErrorCode | undefined {
+  if (!body || typeof body !== "object") return undefined;
+  const code = (body as { code?: unknown }).code;
+  return isErrorCode(code) ? code : undefined;
+}
+
+function throwForFailedResponse(status: number, body: unknown, fallback: string): never {
+  const message = parseErrorMessage(body, fallback);
+  const code = parseErrorCode(body);
+  if (status === 404) {
+    throw new NotFoundError(message, code);
+  }
+  throw new ApiError(message, status, code);
 }
 
 export function getStoredAdminToken(): string | null {
@@ -206,9 +231,10 @@ export async function adminLogin(
   }
 
   if (!res.ok) {
-    throw new ApiError(
-      parseErrorMessage(body, "Login failed. Check your credentials."),
+    throwForFailedResponse(
       res.status,
+      body,
+      "Login failed. Check your credentials.",
     );
   }
 
@@ -276,10 +302,7 @@ export async function adminFetch<T>(
   }
 
   if (!res.ok) {
-    throw new ApiError(
-      parseErrorMessage(body, `Request failed (${res.status})`),
-      res.status,
-    );
+    throwForFailedResponse(res.status, body, `Request failed (${res.status})`);
   }
 
   return body as T;
@@ -364,7 +387,7 @@ export async function publicJson<T>(
   }
 
   if (!res.ok) {
-    throw new ApiError(parseErrorMessage(parsed, fallbackError), res.status);
+    throwForFailedResponse(res.status, parsed, fallbackError);
   }
   return parsed as T;
 }
@@ -618,9 +641,10 @@ export async function userLogin(
   }
 
   if (!res.ok) {
-    throw new ApiError(
-      parseErrorMessage(body, "Login failed. Check org slug and credentials."),
+    throwForFailedResponse(
       res.status,
+      body,
+      "Login failed. Check org slug and credentials.",
     );
   }
 
@@ -688,10 +712,7 @@ export async function userFetch<T>(
   }
 
   if (!res.ok) {
-    throw new ApiError(
-      parseErrorMessage(body, `Request failed (${res.status})`),
-      res.status,
-    );
+    throwForFailedResponse(res.status, body, `Request failed (${res.status})`);
   }
 
   return body as T;

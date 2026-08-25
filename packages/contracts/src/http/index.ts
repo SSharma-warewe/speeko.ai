@@ -1,3 +1,10 @@
+export {
+  ErrorCode,
+  errorCodeFromStatus,
+  isErrorCode,
+} from './errors.js';
+export type { ErrorResponse } from './errors.js';
+
 export type {
   AdminProfile,
   ChangePasswordRequest,

@@ -33,6 +33,7 @@ import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import SetOrResetPasswordPage from "./pages/SetOrResetPasswordPage";
 import AdminAccountPage from "./dashboard/pages/AccountPage";
 import UserAccountPage from "./dashboard/user-pages/AccountPage";
+import { ResourceNotFound } from "./dashboard/components/ResourceNotFound";
 
 export default function App() {
   return (
@@ -80,6 +81,16 @@ export default function App() {
         <Route path="tool-profiles" element={<UserToolProfilesPage />} />
         <Route path="integrations" element={<UserIntegrationsPage />} />
         <Route path="account" element={<UserAccountPage />} />
+        <Route
+          path="*"
+          element={
+            <ResourceNotFound
+              kind="Page"
+              backTo="/dashboard"
+              backLabel="Overview"
+            />
+          }
+        />
       </Route>
 
       {/* Platform admin dashboard */}
@@ -100,6 +111,16 @@ export default function App() {
           <Route path="agents/:agentId" element={<OrgAgentDetailPage />} />
           <Route path="sip-trunks" element={<OrgSipTrunksPage />} />
           <Route path="queue" element={<OrgQueuePage />} />
+          <Route
+            path="*"
+            element={
+              <ResourceNotFound
+                kind="Page"
+                backTo="/admin-dashboard/organizations"
+                backLabel="Organizations"
+              />
+            }
+          />
         </Route>
         <Route path="agents" element={<AgentTemplatesPage />} />
         <Route path="agents/:id" element={<AgentTemplateDetailPage />} />
@@ -107,6 +128,16 @@ export default function App() {
         <Route path="calls" element={<CallsListPage />} />
         <Route path="calls/:id" element={<CallDetailPage />} />
         <Route path="account" element={<AdminAccountPage />} />
+        <Route
+          path="*"
+          element={
+            <ResourceNotFound
+              kind="Page"
+              backTo="/admin-dashboard"
+              backLabel="Overview"
+            />
+          }
+        />
       </Route>
 
       <Route path="/" element={<Navigate to="/login" replace />} />

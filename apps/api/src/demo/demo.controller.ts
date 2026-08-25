@@ -7,15 +7,14 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
-  ApiBadGatewayResponse,
-  ApiForbiddenResponse,
-  ApiOkResponse,
-  ApiOperation,
-  ApiServiceUnavailableResponse,
-  ApiTags,
-  ApiTooManyRequestsResponse,
-} from '@nestjs/swagger';
+  ApiBadGatewayError,
+  ApiBadRequestError,
+  ApiForbiddenError,
+  ApiTooManyRequestsError,
+  ApiUnavailableError,
+} from '../common/swagger/api-errors';
 import type { Request } from 'express';
 import { clientIp } from '../common/client-ip';
 import { DemoService } from './demo.service';
@@ -41,18 +40,13 @@ export class DemoController {
       'CRM failure does not fail the request.',
   })
   @ApiOkResponse({ type: RequestDemoResponseDto })
-  @ApiForbiddenResponse({
-    description: 'Origin not allowed (when CORS_ORIGIN is set)',
-  })
-  @ApiTooManyRequestsResponse({
-    description: 'Per-IP, per-phone, per-email, or global demo rate limit',
-  })
-  @ApiServiceUnavailableResponse({
-    description: 'ENDPOINT_URL or SPEEKO_API not set',
-  })
-  @ApiBadGatewayResponse({
-    description: 'Integration enqueue failed',
-  })
+  @ApiBadRequestError()
+  @ApiForbiddenError('Origin not allowed (when CORS_ORIGIN is set)')
+  @ApiTooManyRequestsError(
+    'Per-IP, per-phone, per-email, or global demo rate limit',
+  )
+  @ApiUnavailableError('ENDPOINT_URL or SPEEKO_API not set')
+  @ApiBadGatewayError('Integration enqueue failed')
   request(
     @Body() dto: RequestDemoDto,
     @Req() req: Request,

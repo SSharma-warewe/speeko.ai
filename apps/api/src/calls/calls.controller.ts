@@ -3,7 +3,6 @@ import {
   Controller,
   Get,
   Param,
-  ParseUUIDPipe,
   Post,
   Query,
   UseGuards,
@@ -18,6 +17,8 @@ import {
 } from '@nestjs/swagger';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ParseResourceIdPipe } from '../common/parse-resource-id.pipe';
+import { ApiJwtErrors, ApiNotFoundError } from '../common/swagger/api-errors';
 import { CallDialService } from './services/call-dial.service';
 import { CallWebTestService } from './services/call-web-test.service';
 import { CallsService } from './services/calls.service';
@@ -28,6 +29,7 @@ import { ListCallsQueryDto } from './dto/list-calls-query.dto';
 
 @ApiTags('calls')
 @ApiBearerAuth('bearer')
+@ApiJwtErrors()
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin/calls')
 export class CallsController {
@@ -72,7 +74,10 @@ export class CallsController {
   @Get(':id')
   @ApiOperation({ summary: 'Get a call by id' })
   @ApiOkResponse({ type: CallResponseDto })
-  findOne(@Param('id', ParseUUIDPipe) id: string): Promise<CallResponseDto> {
+  @ApiNotFoundError('Call not found')
+  findOne(
+    @Param('id', ParseResourceIdPipe('Call')) id: string,
+  ): Promise<CallResponseDto> {
     return this.callsService.findById(id);
   }
 }

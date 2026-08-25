@@ -78,4 +78,11 @@ export type {
   ToolEvent,
 } from './worker-callback.js';
 
+export {
+  ErrorCode,
+  errorCodeFromStatus,
+  isErrorCode,
+} from './http/errors.js';
+export type { ErrorResponse } from './http/errors.js';
+
 export type * from './http/index.js';

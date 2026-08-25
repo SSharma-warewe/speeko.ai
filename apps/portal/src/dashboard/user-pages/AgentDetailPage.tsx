@@ -26,6 +26,7 @@ import {
 import { useUserAuth } from "../../lib/auth";
 import { ErrorBlock } from "../components/ErrorBlock";
 import { LoadingBlock } from "../components/LoadingBlock";
+import { ResourceNotFound } from "../components/ResourceNotFound";
 import { StatusBadge } from "../components/StatusBadge";
 import { useUserAsync } from "../hooks/useAsync";
 
@@ -45,7 +46,7 @@ export default function UserAgentDetailPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const { logout } = useUserAuth();
-  const { data, error, loading, reload } = useUserAsync(async () => {
+  const { data, error, notFound, loading, reload } = useUserAsync(async () => {
     const [agent, profiles, integrations] = await Promise.all([
       getUserAgent(id),
       listUserToolProfiles(),
@@ -227,7 +228,17 @@ export default function UserAgentDetailPage() {
   };
 
   if (loading) return <LoadingBlock label="Loading agent" />;
-  if (error || !data) return <ErrorBlock message={error ?? "Not found"} onRetry={reload} />;
+  if (notFound || (!data && !error)) {
+    return (
+      <ResourceNotFound
+        kind="Agent"
+        id={id}
+        backTo="/dashboard/agents"
+        backLabel="All agents"
+      />
+    );
+  }
+  if (error || !data) return <ErrorBlock message={error ?? "Failed to load"} onRetry={reload} />;
 
   const { agent, profiles, integrations } = data;
   const calendarIntegrations = (integrations as OrganizationIntegration[]).filter(

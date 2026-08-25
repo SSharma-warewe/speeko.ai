@@ -2,6 +2,7 @@ import { NavLink, Outlet, useParams } from "react-router-dom";
 import { getOrganization } from "../../lib/api";
 import { ErrorBlock } from "../components/ErrorBlock";
 import { LoadingBlock } from "../components/LoadingBlock";
+import { ResourceNotFound } from "../components/ResourceNotFound";
 import { PageHeader } from "../components/PageHeader";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAsync } from "../hooks/useAsync";
@@ -16,14 +17,24 @@ const TABS = [
 
 export default function OrganizationDetailPage() {
   const { orgId = "" } = useParams();
-  const { data: org, error, loading, reload } = useAsync(
+  const { data: org, error, notFound, loading, reload } = useAsync(
     () => getOrganization(orgId),
     [orgId],
   );
 
   if (loading) return <LoadingBlock label="Loading organization" />;
+  if (notFound || (!org && !error)) {
+    return (
+      <ResourceNotFound
+        kind="Organization"
+        id={orgId}
+        backTo="/admin-dashboard/organizations"
+        backLabel="All organizations"
+      />
+    );
+  }
   if (error || !org) {
-    return <ErrorBlock message={error ?? "Organization not found"} onRetry={reload} />;
+    return <ErrorBlock message={error ?? "Failed to load"} onRetry={reload} />;
   }
 
   return (

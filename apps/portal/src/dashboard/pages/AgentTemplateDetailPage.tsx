@@ -18,6 +18,7 @@ import {
 import { useAdminAuth } from "../../lib/auth";
 import { ErrorBlock } from "../components/ErrorBlock";
 import { LoadingBlock } from "../components/LoadingBlock";
+import { ResourceNotFound } from "../components/ResourceNotFound";
 import { PageHeader } from "../components/PageHeader";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAsync } from "../hooks/useAsync";
@@ -25,7 +26,10 @@ import { useAsync } from "../hooks/useAsync";
 export default function AgentTemplateDetailPage() {
   const { id = "" } = useParams();
   const { logout } = useAdminAuth();
-  const { data, error, loading, reload } = useAsync(() => getAgentTemplate(id), [id]);
+  const { data, error, notFound, loading, reload } = useAsync(
+    () => getAgentTemplate(id),
+    [id],
+  );
 
   const [systemPrompt, setSystemPrompt] = useState("");
   const [onEnterInstructions, setOnEnterInstructions] = useState("");
@@ -98,7 +102,17 @@ export default function AgentTemplateDetailPage() {
   };
 
   if (loading) return <LoadingBlock label="Loading template" />;
-  if (error || !data) return <ErrorBlock message={error ?? "Not found"} onRetry={reload} />;
+  if (notFound || (!data && !error)) {
+    return (
+      <ResourceNotFound
+        kind="Template"
+        id={id}
+        backTo="/admin-dashboard/agents"
+        backLabel="All templates"
+      />
+    );
+  }
+  if (error || !data) return <ErrorBlock message={error ?? "Failed to load"} onRetry={reload} />;
 
   return (
     <div className="ops-stack">

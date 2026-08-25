@@ -7,7 +7,6 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseUUIDPipe,
   Patch,
   Post,
   UseGuards,
@@ -24,6 +23,12 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthPrincipal } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserGuard } from '../auth/guards/user.guard';
+import { ParseResourceIdPipe } from '../common/parse-resource-id.pipe';
+import {
+  ApiConflictError,
+  ApiJwtErrors,
+  ApiNotFoundError,
+} from '../common/swagger/api-errors';
 import { CreateSipDispatchRuleDto } from './dto/create-sip-dispatch-rule.dto';
 import { SipDispatchRuleResponseDto } from './dto/sip-dispatch-rule-response.dto';
 import { UpdateSipDispatchRuleDto } from './dto/update-sip-dispatch-rule.dto';
@@ -31,6 +36,7 @@ import { SipDispatchRulesService } from './sip-dispatch-rules.service';
 
 @ApiTags('user-sip-dispatch-rules')
 @ApiBearerAuth('bearer')
+@ApiJwtErrors()
 @UseGuards(JwtAuthGuard, UserGuard)
 @Controller('users/sip-dispatch-rules')
 export class UserSipDispatchRulesController {
@@ -52,9 +58,10 @@ export class UserSipDispatchRulesController {
   @Get(':id')
   @ApiOperation({ summary: 'Get one SIP dispatch rule for the caller organization' })
   @ApiOkResponse({ type: SipDispatchRuleResponseDto })
+  @ApiNotFoundError('Dispatch rule not found')
   getOne(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Dispatch rule')) id: string,
   ): Promise<SipDispatchRuleResponseDto> {
     return this.sipDispatchRulesService.getOne(this.orgIdFrom(principal), id);
   }
@@ -82,9 +89,10 @@ export class UserSipDispatchRulesController {
     description: 'Does not auto-sync to LiveKit after publish.',
   })
   @ApiOkResponse({ type: SipDispatchRuleResponseDto })
+  @ApiNotFoundError('Dispatch rule not found')
   update(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Dispatch rule')) id: string,
     @Body() dto: UpdateSipDispatchRuleDto,
   ): Promise<SipDispatchRuleResponseDto> {
     return this.sipDispatchRulesService.update(
@@ -101,23 +109,27 @@ export class UserSipDispatchRulesController {
     description: 'Local delete only; does not remove the LiveKit dispatch rule.',
   })
   @ApiNoContentResponse()
+  @ApiNotFoundError('Dispatch rule not found')
   async remove(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Dispatch rule')) id: string,
   ): Promise<void> {
     await this.sipDispatchRulesService.remove(this.orgIdFrom(principal), id);
   }
 
   @Post(':id/publish')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Publish a draft dispatch rule to LiveKit',
     description:
       'Calls CreateSIPDispatchRule. Linked inbound trunks must already be published. Returns 409 if already live.',
   })
   @ApiOkResponse({ type: SipDispatchRuleResponseDto })
+  @ApiNotFoundError('Dispatch rule not found')
+  @ApiConflictError('Dispatch rule is already live')
   publish(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Dispatch rule')) id: string,
   ): Promise<SipDispatchRuleResponseDto> {
     return this.sipDispatchRulesService.publish(this.orgIdFrom(principal), id);
   }

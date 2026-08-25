@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  HttpCode,
+  HttpStatus,
   Inject,
   Post,
   UseGuards,
@@ -17,6 +19,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthPrincipal } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserGuard } from '../auth/guards/user.guard';
+import { ApiJwtErrors } from '../common/swagger/api-errors';
 import { SipDispatchRulesService } from '../sip-dispatch-rules/sip-dispatch-rules.service';
 import { InboundPublishResultDto } from './dto/inbound-publish-result.dto';
 import { PublishInboundDto } from './dto/publish-inbound.dto';
@@ -24,6 +27,7 @@ import { SipTrunksService } from './sip-trunks.service';
 
 @ApiTags('user-inbound-publish')
 @ApiBearerAuth('bearer')
+@ApiJwtErrors()
 @UseGuards(JwtAuthGuard, UserGuard)
 @Controller('users/inbound')
 export class UserInboundPublishController {
@@ -34,6 +38,7 @@ export class UserInboundPublishController {
   ) {}
 
   @Post('publish')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Publish inbound SIP trunks and dispatch rules to LiveKit',
     description:

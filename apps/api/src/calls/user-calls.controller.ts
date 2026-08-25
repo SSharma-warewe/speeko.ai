@@ -3,8 +3,9 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
-  ParseUUIDPipe,
   Post,
   Query,
   UseGuards,
@@ -17,6 +18,8 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { ParseResourceIdPipe } from '../common/parse-resource-id.pipe';
+import { ApiJwtErrors, ApiNotFoundError } from '../common/swagger/api-errors';
 import { AgentDirection } from '../agents/agent.entity';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthPrincipal } from '../auth/auth.types';
@@ -38,6 +41,7 @@ import { ListCallsQueryDto } from './dto/list-calls-query.dto';
 
 @ApiTags('user-calls')
 @ApiBearerAuth('bearer')
+@ApiJwtErrors()
 @UseGuards(JwtAuthGuard, UserGuard)
 @Controller('users/calls')
 export class UserCallsController {
@@ -64,37 +68,43 @@ export class UserCallsController {
   }
 
   @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Cancel a pending queued call',
   })
   @ApiOkResponse({ type: CallResponseDto })
+  @ApiNotFoundError('Call not found')
   cancel(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Call')) id: string,
   ): Promise<CallResponseDto> {
     return this.callsService.cancelPendingForOrg(this.orgIdFrom(principal), id);
   }
 
   @Post(':id/retry')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Force retry soon (pending or failed with attempts left)',
   })
   @ApiOkResponse({ type: CallResponseDto })
+  @ApiNotFoundError('Call not found')
   retry(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Call')) id: string,
   ): Promise<CallResponseDto> {
     return this.callsService.retryNowForOrg(this.orgIdFrom(principal), id);
   }
 
   @Post(':id/prioritize')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Bump priority of a pending call (claimed sooner)',
   })
   @ApiOkResponse({ type: CallResponseDto })
+  @ApiNotFoundError('Call not found')
   prioritize(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Call')) id: string,
   ): Promise<CallResponseDto> {
     return this.callsService.prioritizeForOrg(this.orgIdFrom(principal), id);
   }
@@ -168,9 +178,10 @@ export class UserCallsController {
     summary: 'Get a call by id (caller organization only)',
   })
   @ApiOkResponse({ type: CallResponseDto })
+  @ApiNotFoundError('Call not found')
   findOne(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Call')) id: string,
   ): Promise<CallResponseDto> {
     return this.callsService.findByIdForOrganization(
       id,

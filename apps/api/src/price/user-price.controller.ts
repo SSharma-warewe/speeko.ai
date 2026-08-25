@@ -15,6 +15,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthPrincipal } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserGuard } from '../auth/guards/user.guard';
+import { ApiJwtErrors } from '../common/swagger/api-errors';
 import {
   CostSummaryResponseDto,
   UserCostSummaryQueryDto,
@@ -23,6 +24,7 @@ import { PriceService } from './price.service';
 
 @ApiTags('user-costs')
 @ApiBearerAuth('bearer')
+@ApiJwtErrors()
 @UseGuards(JwtAuthGuard, UserGuard)
 @Controller('users/costs')
 export class UserPriceController {

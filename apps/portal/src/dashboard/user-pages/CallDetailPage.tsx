@@ -13,12 +13,16 @@ import { useUserAuth } from "../../lib/auth";
 import { CallDetailView } from "../components/CallDetailView";
 import { ErrorBlock } from "../components/ErrorBlock";
 import { LoadingBlock } from "../components/LoadingBlock";
+import { ResourceNotFound } from "../components/ResourceNotFound";
 import { useUserAsync } from "../hooks/useAsync";
 
 export default function UserCallDetailPage() {
   const { id = "" } = useParams();
   const { logout } = useUserAuth();
-  const { data, error, loading, reload } = useUserAsync(() => getUserCall(id), [id]);
+  const { data, error, notFound, loading, reload } = useUserAsync(
+    () => getUserCall(id),
+    [id],
+  );
   const [busy, setBusy] = useState(false);
 
   const runAction = async (action: "cancel" | "retry" | "prioritize") => {
@@ -40,7 +44,17 @@ export default function UserCallDetailPage() {
   };
 
   if (loading) return <LoadingBlock label="Loading call" />;
-  if (error || !data) return <ErrorBlock message={error ?? "Not found"} onRetry={reload} />;
+  if (notFound || (!data && !error)) {
+    return (
+      <ResourceNotFound
+        kind="Call"
+        id={id}
+        backTo="/dashboard/calls"
+        backLabel="All calls"
+      />
+    );
+  }
+  if (error || !data) return <ErrorBlock message={error ?? "Failed to load"} onRetry={reload} />;
 
   const pending = data.status === "pending";
   const canRetry = pending || data.status === "failed";

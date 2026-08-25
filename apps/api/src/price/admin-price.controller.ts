@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -7,6 +16,7 @@ import {
 } from '@nestjs/swagger';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ApiJwtErrors, ApiNotFoundError } from '../common/swagger/api-errors';
 import {
   CostRecomputeDto,
   CostRecomputeResponseDto,
@@ -17,6 +27,7 @@ import { PriceService } from './price.service';
 
 @ApiTags('admin-costs')
 @ApiBearerAuth('bearer')
+@ApiJwtErrors()
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin/costs')
 export class AdminPriceController {
@@ -40,12 +51,14 @@ export class AdminPriceController {
   }
 
   @Post('recompute')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Backfill call cost snapshots from stored usage + timestamps',
     description:
       'Prices historical calls that have usage/endedAt but no cost. Default skips rows that already have a snapshot. Pass replace=true to overwrite (single attempt from current usage; does not invent extra retry attempts).',
   })
   @ApiOkResponse({ type: CostRecomputeResponseDto })
+  @ApiNotFoundError('Call not found')
   recompute(
     @Body() dto: CostRecomputeDto,
   ): Promise<CostRecomputeResponseDto> {

@@ -3,8 +3,9 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
-  ParseUUIDPipe,
   Patch,
   Post,
   UseGuards,
@@ -16,6 +17,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { AuthPrincipal } from '../auth/auth.types';
+import { ParseResourceIdPipe } from '../common/parse-resource-id.pipe';
+import { ApiJwtErrors, ApiNotFoundError } from '../common/swagger/api-errors';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserGuard } from '../auth/guards/user.guard';
@@ -30,6 +33,7 @@ import { QueueStatsService } from './queue-stats.service';
 
 @ApiTags('user-queue')
 @ApiBearerAuth('bearer')
+@ApiJwtErrors()
 @UseGuards(JwtAuthGuard, UserGuard)
 @Controller('users/queue')
 export class UserQueueController {
@@ -68,6 +72,7 @@ export class UserQueueController {
   }
 
   @Post('pause')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Pause org queue — no new dials' })
   @ApiOkResponse({ type: QueueSettingsResponseDto })
   async pause(
@@ -81,6 +86,7 @@ export class UserQueueController {
   }
 
   @Post('resume')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Resume org queue' })
   @ApiOkResponse({ type: QueueSettingsResponseDto })
   async resume(
@@ -118,41 +124,48 @@ export class UserQueueController {
   @Get('batches/:id')
   @ApiOperation({ summary: 'Get batch with per-status call counts' })
   @ApiOkResponse({ type: CallBatchResponseDto })
+  @ApiNotFoundError('Batch not found')
   getBatch(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Batch')) id: string,
   ): Promise<CallBatchResponseDto> {
     return this.batchesService.getForOrg(this.orgIdFrom(principal), id);
   }
 
   @Post('batches/:id/pause')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Pause a batch' })
   @ApiOkResponse({ type: CallBatchResponseDto })
+  @ApiNotFoundError('Batch not found')
   pauseBatch(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Batch')) id: string,
   ): Promise<CallBatchResponseDto> {
     return this.batchesService.pause(this.orgIdFrom(principal), id);
   }
 
   @Post('batches/:id/resume')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Resume a batch' })
   @ApiOkResponse({ type: CallBatchResponseDto })
+  @ApiNotFoundError('Batch not found')
   resumeBatch(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Batch')) id: string,
   ): Promise<CallBatchResponseDto> {
     return this.batchesService.resume(this.orgIdFrom(principal), id);
   }
 
   @Post('batches/:id/cancel')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Cancel a batch — pending calls become cancelled',
   })
   @ApiOkResponse({ type: CallBatchResponseDto })
+  @ApiNotFoundError('Batch not found')
   cancelBatch(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Batch')) id: string,
   ): Promise<CallBatchResponseDto> {
     return this.batchesService.cancel(this.orgIdFrom(principal), id);
   }

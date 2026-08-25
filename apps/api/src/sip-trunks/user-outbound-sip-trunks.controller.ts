@@ -7,7 +7,6 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseUUIDPipe,
   Patch,
   Post,
   UseGuards,
@@ -24,6 +23,12 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthPrincipal } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserGuard } from '../auth/guards/user.guard';
+import { ParseResourceIdPipe } from '../common/parse-resource-id.pipe';
+import {
+  ApiConflictError,
+  ApiJwtErrors,
+  ApiNotFoundError,
+} from '../common/swagger/api-errors';
 import { CreateSipTrunkDto } from './dto/create-sip-trunk.dto';
 import { SipTrunkResponseDto } from './dto/sip-trunk-response.dto';
 import { UpdateSipTrunkDto } from './dto/update-sip-trunk.dto';
@@ -36,6 +41,7 @@ import { SipTrunksService } from './sip-trunks.service';
  */
 @ApiTags('user-outbound-sip-trunks')
 @ApiBearerAuth('bearer')
+@ApiJwtErrors()
 @UseGuards(JwtAuthGuard, UserGuard)
 @Controller('users/sip-trunks/outbound')
 export class UserOutboundSipTrunksController {
@@ -59,9 +65,10 @@ export class UserOutboundSipTrunksController {
     summary: 'Get one outbound SIP trunk (password redacted)',
   })
   @ApiOkResponse({ type: SipTrunkResponseDto })
+  @ApiNotFoundError('SIP trunk not found')
   getOne(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('SIP trunk')) id: string,
   ): Promise<SipTrunkResponseDto> {
     return this.sipTrunksService.getOutboundOne(this.orgIdFrom(principal), id);
   }
@@ -73,6 +80,7 @@ export class UserOutboundSipTrunksController {
       'Pass livekitTrunkId to link an existing LiveKit outbound trunk, or providerAddress (+ optional auth) to provision a new one via LiveKit CreateSIPOutboundTrunk. Sets direction=outbound and status=live. auth_password is never returned.',
   })
   @ApiCreatedResponse({ type: SipTrunkResponseDto })
+  @ApiConflictError('Trunk already exists')
   create(
     @CurrentUser() principal: AuthPrincipal,
     @Body() dto: CreateSipTrunkDto,
@@ -90,9 +98,10 @@ export class UserOutboundSipTrunksController {
       'Updates local name/numbers/isActive/auth only. Does not re-provision or re-sync LiveKit trunk config.',
   })
   @ApiOkResponse({ type: SipTrunkResponseDto })
+  @ApiNotFoundError('SIP trunk not found')
   update(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('SIP trunk')) id: string,
     @Body() dto: UpdateSipTrunkDto,
   ): Promise<SipTrunkResponseDto> {
     return this.sipTrunksService.updateOutbound(
@@ -109,9 +118,10 @@ export class UserOutboundSipTrunksController {
     description: 'Local delete only; does not remove the LiveKit trunk.',
   })
   @ApiNoContentResponse()
+  @ApiNotFoundError('SIP trunk not found')
   async remove(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('SIP trunk')) id: string,
   ): Promise<void> {
     await this.sipTrunksService.removeOutbound(this.orgIdFrom(principal), id);
   }

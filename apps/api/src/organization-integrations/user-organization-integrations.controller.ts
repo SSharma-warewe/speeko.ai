@@ -7,7 +7,6 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseUUIDPipe,
   Patch,
   Post,
   UseGuards,
@@ -24,6 +23,8 @@ import type { AuthPrincipal } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserGuard } from '../auth/guards/user.guard';
+import { ParseResourceIdPipe } from '../common/parse-resource-id.pipe';
+import { ApiJwtErrors, ApiNotFoundError } from '../common/swagger/api-errors';
 import { CreateOrganizationIntegrationDto } from './dto/create-organization-integration.dto';
 import {
   OrganizationIntegrationResponseDto,
@@ -36,6 +37,7 @@ import { OrganizationIntegrationsService } from './organization-integrations.ser
 
 @ApiTags('user-integrations')
 @ApiBearerAuth('bearer')
+@ApiJwtErrors()
 @UseGuards(JwtAuthGuard, UserGuard)
 @Controller('users/integrations')
 export class UserOrganizationIntegrationsController {
@@ -99,9 +101,10 @@ export class UserOrganizationIntegrationsController {
   @Get(':id')
   @ApiOperation({ summary: 'Get one integration (no secret)' })
   @ApiOkResponse({ type: OrganizationIntegrationResponseDto })
+  @ApiNotFoundError('Integration not found')
   getOne(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Integration')) id: string,
   ): Promise<OrganizationIntegrationResponseDto> {
     return this.organizationIntegrationsService.getOneForOrg(
       this.orgIdFrom(principal),
@@ -112,9 +115,10 @@ export class UserOrganizationIntegrationsController {
   @Patch(':id')
   @ApiOperation({ summary: 'Update integration fields (optional new API key)' })
   @ApiOkResponse({ type: OrganizationIntegrationResponseDto })
+  @ApiNotFoundError('Integration not found')
   update(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Integration')) id: string,
     @Body() dto: UpdateOrganizationIntegrationDto,
   ): Promise<OrganizationIntegrationResponseDto> {
     return this.organizationIntegrationsService.updateForOrg(
@@ -132,9 +136,10 @@ export class UserOrganizationIntegrationsController {
       'Agents linked via calendar_integration_id are set to null (FK SET NULL).',
   })
   @ApiNoContentResponse()
+  @ApiNotFoundError('Integration not found')
   async remove(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Integration')) id: string,
   ): Promise<void> {
     await this.organizationIntegrationsService.removeForOrg(
       this.orgIdFrom(principal),
@@ -143,13 +148,15 @@ export class UserOrganizationIntegrationsController {
   }
 
   @Post(':id/test')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Smoke-test Nylas or GoHighLevel credentials (list calendars)',
   })
   @ApiOkResponse({ type: OrganizationIntegrationTestResponseDto })
+  @ApiNotFoundError('Integration not found')
   test(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Integration')) id: string,
   ): Promise<OrganizationIntegrationTestResponseDto> {
     return this.organizationIntegrationsService.testConnection(
       this.orgIdFrom(principal),

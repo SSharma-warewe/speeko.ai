@@ -6,7 +6,6 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseUUIDPipe,
   Patch,
   Post,
   UseGuards,
@@ -21,6 +20,12 @@ import {
 } from '@nestjs/swagger';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ParseResourceIdPipe } from '../common/parse-resource-id.pipe';
+import {
+  ApiConflictError,
+  ApiJwtErrors,
+  ApiNotFoundError,
+} from '../common/swagger/api-errors';
 import { CreateToolProfileDto } from './dto/create-tool-profile.dto';
 import { ToolProfileResponseDto } from './dto/tool-profile-response.dto';
 import { UpdateToolProfileDto } from './dto/update-tool-profile.dto';
@@ -28,6 +33,7 @@ import { ToolProfilesService } from './tool-profiles.service';
 
 @ApiTags('tool-profiles')
 @ApiBearerAuth('bearer')
+@ApiJwtErrors()
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin/tool-profiles')
 export class ToolProfilesController {
@@ -53,7 +59,8 @@ export class ToolProfilesController {
   @Get(':id')
   @ApiOperation({ summary: 'Get one tool profile by id' })
   @ApiOkResponse({ type: ToolProfileResponseDto })
-  getOne(@Param('id', ParseUUIDPipe) id: string) {
+  @ApiNotFoundError('Tool profile not found')
+  getOne(@Param('id', ParseResourceIdPipe('Tool profile')) id: string) {
     return this.toolProfilesService.getResponse(id);
   }
 
@@ -64,6 +71,7 @@ export class ToolProfilesController {
       'Adds a catalog capability bundle (organization_id null). endCall is always included. Orgs can select these when assigning agents.',
   })
   @ApiCreatedResponse({ type: ToolProfileResponseDto })
+  @ApiConflictError('Profile key already exists')
   create(@Body() dto: CreateToolProfileDto) {
     return this.toolProfilesService.createForPlatform(dto);
   }
@@ -74,8 +82,9 @@ export class ToolProfilesController {
     description: 'Org-owned profiles cannot be edited here.',
   })
   @ApiOkResponse({ type: ToolProfileResponseDto })
+  @ApiNotFoundError('Tool profile not found')
   update(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Tool profile')) id: string,
     @Body() dto: UpdateToolProfileDto,
   ) {
     return this.toolProfilesService.updateForPlatform(id, dto);
@@ -89,7 +98,9 @@ export class ToolProfilesController {
       'Fails if organization agents or platform agent templates still reference it.',
   })
   @ApiNoContentResponse()
-  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+  @ApiNotFoundError('Tool profile not found')
+  @ApiConflictError('Profile is still used by agents')
+  async remove(@Param('id', ParseResourceIdPipe('Tool profile')) id: string): Promise<void> {
     await this.toolProfilesService.removeForPlatform(id);
   }
 }

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { UnauthorizedError } from "../../lib/api";
+import { NotFoundError, UnauthorizedError } from "../../lib/api";
 import { useAdminAuth, useUserAuth } from "../../lib/auth";
 
 type State<T> = {
   data: T | null;
   error: string | null;
+  notFound: boolean;
   loading: boolean;
   reload: () => void;
 };
@@ -16,6 +17,7 @@ function useAsyncWithLogout<T>(
 ): State<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
 
@@ -25,6 +27,7 @@ function useAsyncWithLogout<T>(
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setNotFound(false);
 
     loader()
       .then((result) => {
@@ -39,6 +42,12 @@ function useAsyncWithLogout<T>(
           logout();
           return;
         }
+        if (err instanceof NotFoundError) {
+          setNotFound(true);
+          setError(err.message);
+          setLoading(false);
+          return;
+        }
         setError(err instanceof Error ? err.message : "Something went wrong");
         setLoading(false);
       });
@@ -49,7 +58,7 @@ function useAsyncWithLogout<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tick, logout, ...deps]);
 
-  return { data, error, loading, reload };
+  return { data, error, notFound, loading, reload };
 }
 
 /** Admin-dashboard data loader (401 → admin logout). */

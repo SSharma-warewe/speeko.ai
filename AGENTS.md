@@ -170,6 +170,25 @@ Known tool ids: `endCall`, `booking`, `cancelBooking`, `transferCall`, `lookupCu
 - **Get-demo abuse limits:** `POST /api/demo/request` uses `DemoAbuseGuard`. When `CORS_ORIGIN` is set, `Origin` (or `Referer` origin) must match that allowlist (403). Then in-process fixed windows: IP (default 5 / 15 min), phone (1 / hour), email (2 / hour), global (30 / hour). Over limit → **429**. Hidden honeypot field `website`: if filled, API returns `{ ok: true }` without GHL or enqueue. Counters are **per API process**. Country / team size / calls-per-day / integrations are allowlisted to the marketing form.
 - **Integration API keys** are separate from JWT: one secret per `integration_endpoints` row (`ca_live_…`), hashed with SHA-256. Full key returned only on create/rotate. Public CRM routes authenticate with Bearer or `X-Api-Key`, not org-user login.
 
+### HTTP error responses
+
+Every error goes through `HttpExceptionFilter` and returns:
+
+```json
+{
+  "statusCode": 404,
+  "error": "Not Found",
+  "code": "NOT_FOUND",
+  "message": "Call not found"
+}
+```
+
+`code` is from `@call-agent/contracts` `ErrorCode` (`VALIDATION_FAILED` \| `UNAUTHORIZED` \| `FORBIDDEN` \| `NOT_FOUND` \| `CONFLICT` \| `RATE_LIMITED` \| `BAD_GATEWAY` \| `UNAVAILABLE` \| `INTERNAL`). Swagger documents these with `ErrorResponseDto` (`ApiJwtErrors` / `ApiNotFoundError` / `ApiConflictError` / …).
+
+**Path ids:** `ParseResourceIdPipe('Call')` (not bare `ParseUUIDPipe`). A non-UUID in `/calls/:id` is **404** `Call not found`, not 400 `Validation failed (uuid is expected)`. Request-body validation stays **400**. Portal detail pages render `ResourceNotFound` on 404; unknown dashboard routes do the same (do not bounce logged-in users to `/login`).
+
+**POST status:** Nest POST defaults to 201. Use `@HttpCode(200)` + `@ApiOkResponse` for actions (login, pause, worker complete). Keep 201 + `@ApiCreatedResponse` for real creates.
+
 ### Seeded admin
 
 On API boot, if `ADMIN_EMAIL` does not exist in `admins`, create it from env (`ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME`). Do not overwrite an existing admin password.
@@ -702,7 +721,7 @@ controller → service → repository → TypeORM entity → Postgres
 
 1. Put HTTP surface area only in `apps/api`.
 2. Put LiveKit agent job work in `apps/worker` (tsx + `@livekit/agents`, not Nest webpack).
-3. Validate all inputs with `class-validator` DTOs; document with `@nestjs/swagger`.
+3. Validate all inputs with `class-validator` DTOs; document with `@nestjs/swagger`. Success **and** error HTTP codes belong on the route (`ApiJwtErrors`, `ApiNotFoundError`, `ApiConflictError`, …) using `ErrorResponseDto`.
 4. Never commit real secrets; use `.env` (gitignored) + `.env.example`.
 5. Prefer clear module boundaries: `auth`, `admins`, `organizations`, `users`, `agents`, `tools` (profiles), `integration-endpoints`, `organization-integrations` (Nylas + GHL calendar keys + worker Nylas proxy), `demo` (get-demo proxy), `sip-trunks`, `sip-dispatch-rules`, `calls`, `queue`, `price` (LiveKit list-price cost analysis, no markup), `livekit` (adapter), `email` (Plunk adapter), `ghl` (GoHighLevel adapter + worker GHL calendar proxy).
 6. Persistence: one custom repository per entity; services own business logic only.
@@ -725,6 +744,7 @@ controller → service → repository → TypeORM entity → Postgres
 23. **Call status writes go through `applyCallEvent` / `initializeCallStatus`** (`apps/api/src/calls/lib/call-state-machine.ts`). Do not assign `call.status = …` in services. SQL claim/release must keep the same pending↔creating pair. `completed` requires worker `taskCompleted: true`; answered hangup without `complete_*` is `incomplete`.
 24. **Call cost analysis goes through `PriceService`** (published LiveKit list prices, `markup: 0`). Do not add Speeko margin. Org-user cost APIs must scope by JWT `orgId` (never a client `organizationId`). Recompute stays admin-only. Bump `PRICE_CATALOG_AS_OF` in `price.catalog.ts` when LiveKit rates change.
 25. **Shared wire types and catalogs live in `packages/contracts` (`@call-agent/contracts`).** Add a new tool id, task key, call status, failure code, delivery mode, or job-metadata field there first. API Nest DTO **classes** stay in `apps/api` (class-validator / Swagger); they import enums/consts from the package. Portal and worker import the same types — do not copy catalogs into `apps/portal/src/lib/api.ts` or worker `tool-ids.ts`. Build with `npm run build:contracts` (also run by `build:api` / `build:worker`). Vite apps alias the package to source.
+26. **HTTP errors use one JSON shape** (`statusCode`, `error`, `code`, `message`) from `HttpExceptionFilter`. Path-param UUIDs use `ParseResourceIdPipe(resource)` so invalid ids are **404**, not 400. Do not assign `res.status` ad hoc; throw Nest HTTP exceptions. Portal resource pages must show `ResourceNotFound` on 404, not `ErrorBlock` + Retry.
 
 ## Testing
 
@@ -747,6 +767,7 @@ npx jest --testPathPatterns=agents/test --no-coverage
 npx jest --testPathPatterns=sip-trunks/test --no-coverage
 npx jest --testPathPatterns=sip-dispatch-rules/test --no-coverage
 npx jest --testPathPatterns=price/test --no-coverage
+npx jest --testPathPatterns=common/test --no-coverage
 
 # Watch / coverage
 npm run test:watch
@@ -798,6 +819,7 @@ Work **top-down by risk**: security → money/dial side effects → multi-tenant
 | P0 | `demo` | **Done** | Config gate (503), body shaping, `fetch` proxy, 401/403 vs generic 502, GHL upsert before enqueue (CRM fail does not block dial), honeypot short-circuit, origin + IP/phone/email/global rate limits |
 | P0 | `users` | **Done** | Create user, org scope, password hash, unique email per org, toSafeUser redaction |
 | P0 | `organizations` | **Done** | Create org, slug uniqueness/lowercase, name trim, `isActive` default, findById/Slug/IdOrSlug |
+| P0 | `common` (HTTP errors) | **Done** | Exception filter body (`code` + `statusCode`), unknown throws do not leak, `ParseResourceIdPipe` 404 on non-UUID path ids |
 | P1 | `integration-endpoints` | Todo | API key hash/prefix, rotate, public enqueue merge context, inactive key reject, never leak secrets |
 | P1 | `queue` | **Done** | Claim/retry classification, backoff, quiet hours, batch pause/cancel, stale dialing/ready sweeper (mock `DataSource` / time), outbound-only in-progress / dial-rate counts (inbound rings do not occupy dial slots) |
 | P1 | `calls` | **Done** | Enqueue vs immediate outbound, metadata pack, complete + requeue, org scoping on list/get, **state machine** (`taskCompleted` → completed vs incomplete), cost snapshot on complete (append / fill / requeue-before-reset), late complete on pending/creating ignored, **inbound SIP ensure** (upsert by room, never requeue, stale inbound terminal-fail) |

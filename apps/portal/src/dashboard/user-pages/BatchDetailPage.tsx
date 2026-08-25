@@ -15,13 +15,17 @@ import { ErrorBlock } from "../components/ErrorBlock";
 import { KpiCard } from "../components/KpiCard";
 import { LoadingBlock } from "../components/LoadingBlock";
 import { PageHeader } from "../components/PageHeader";
+import { ResourceNotFound } from "../components/ResourceNotFound";
 import { StatusBadge } from "../components/StatusBadge";
 import { useUserAsync } from "../hooks/useAsync";
 
 export default function UserBatchDetailPage() {
   const { id = "" } = useParams();
   const { logout } = useUserAuth();
-  const { data, error, loading, reload } = useUserAsync(() => getUserBatch(id), [id]);
+  const { data, error, notFound, loading, reload } = useUserAsync(
+    () => getUserBatch(id),
+    [id],
+  );
   const [busy, setBusy] = useState(false);
 
   const runAction = async (action: "pause" | "resume" | "cancel") => {
@@ -49,7 +53,17 @@ export default function UserBatchDetailPage() {
   };
 
   if (loading) return <LoadingBlock label="Loading batch" />;
-  if (error || !data) return <ErrorBlock message={error ?? "Not found"} onRetry={reload} />;
+  if (notFound || (!data && !error)) {
+    return (
+      <ResourceNotFound
+        kind="Batch"
+        id={id}
+        backTo="/dashboard/batches"
+        backLabel="All batches"
+      />
+    );
+  }
+  if (error || !data) return <ErrorBlock message={error ?? "Failed to load"} onRetry={reload} />;
 
   const stats = data.stats;
 

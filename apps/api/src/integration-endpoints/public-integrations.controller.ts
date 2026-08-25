@@ -6,12 +6,14 @@ import {
   ApiSecurity,
   ApiTags,
 } from '@nestjs/swagger';
+import { ApiIntegrationErrors } from '../common/swagger/api-errors';
 import { PublicEnqueueCallDto } from './dto/public-enqueue-call.dto';
 import { PublicEnqueueResponseDto } from './dto/public-enqueue-response.dto';
 import { IntegrationEndpointsService } from './integration-endpoints.service';
 
 @ApiTags('integrations')
 @ApiSecurity('integrationApiKey')
+@ApiIntegrationErrors()
 @Controller('integrations')
 export class PublicIntegrationsController {
   constructor(

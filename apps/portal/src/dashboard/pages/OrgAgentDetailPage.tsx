@@ -21,6 +21,7 @@ import {
 import { useAdminAuth } from "../../lib/auth";
 import { ErrorBlock } from "../components/ErrorBlock";
 import { LoadingBlock } from "../components/LoadingBlock";
+import { ResourceNotFound } from "../components/ResourceNotFound";
 import { PageHeader } from "../components/PageHeader";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAsync } from "../hooks/useAsync";
@@ -29,7 +30,7 @@ export default function OrgAgentDetailPage() {
   const { orgId = "", agentId = "" } = useParams();
   const navigate = useNavigate();
   const { logout } = useAdminAuth();
-  const { data, error, loading, reload } = useAsync(
+  const { data, error, notFound, loading, reload } = useAsync(
     () => getOrgAgent(orgId, agentId),
     [orgId, agentId],
   );
@@ -167,7 +168,17 @@ export default function OrgAgentDetailPage() {
   };
 
   if (loading) return <LoadingBlock label="Loading agent" />;
-  if (error || !data) return <ErrorBlock message={error ?? "Not found"} onRetry={reload} />;
+  if (notFound || (!data && !error)) {
+    return (
+      <ResourceNotFound
+        kind="Agent"
+        id={agentId}
+        backTo={`/admin-dashboard/organizations/${orgId}/agents`}
+        backLabel="All agents"
+      />
+    );
+  }
+  if (error || !data) return <ErrorBlock message={error ?? "Failed to load"} onRetry={reload} />;
 
   return (
     <div className="ops-stack">

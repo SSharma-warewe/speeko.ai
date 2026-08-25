@@ -1033,6 +1033,59 @@
   letter-spacing: -0.02em;
 }
 
+.ops-missing {
+  max-width: 36rem;
+  margin: 2.5rem auto 0;
+  padding: 0 0.25rem;
+}
+
+.ops-missing-eyebrow {
+  margin: 0 0 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ops-amber-ink);
+}
+
+.ops-missing-title {
+  margin: 0 0 0.85rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.55rem, 3vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.ops-missing-id {
+  margin: 0 0 0.85rem;
+  padding: 0.45rem 0.65rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  color: var(--ops-muted);
+  background: var(--ops-amber);
+  border: 1px dashed var(--ops-line-strong);
+  overflow-wrap: anywhere;
+}
+
+.ops-missing-copy {
+  margin: 0 0 1.25rem;
+  color: var(--ops-muted);
+  font-size: 0.95rem;
+  max-width: 38ch;
+}
+
+.ops-missing-back {
+  color: inherit;
+  font-size: 0.9rem;
+  text-decoration: none;
+  border-bottom: 1px solid var(--ops-line-strong);
+}
+
+.ops-missing-back:hover {
+  border-bottom-color: var(--ops-ink);
+}
+
 /* Forms — fixed columns, shared control rhythm */
 .ops-form-shell {
   width: 100%;

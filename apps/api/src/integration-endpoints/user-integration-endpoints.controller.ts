@@ -7,7 +7,6 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseUUIDPipe,
   Patch,
   Post,
   UseGuards,
@@ -24,6 +23,8 @@ import type { AuthPrincipal } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserGuard } from '../auth/guards/user.guard';
+import { ParseResourceIdPipe } from '../common/parse-resource-id.pipe';
+import { ApiJwtErrors, ApiNotFoundError } from '../common/swagger/api-errors';
 import { CreateIntegrationEndpointDto } from './dto/create-integration-endpoint.dto';
 import {
   IntegrationEndpointResponseDto,
@@ -34,6 +35,7 @@ import { IntegrationEndpointsService } from './integration-endpoints.service';
 
 @ApiTags('user-integration-endpoints')
 @ApiBearerAuth('bearer')
+@ApiJwtErrors()
 @UseGuards(JwtAuthGuard, UserGuard)
 @Controller('users/integration-endpoints')
 export class UserIntegrationEndpointsController {
@@ -79,9 +81,10 @@ export class UserIntegrationEndpointsController {
   @Get(':id')
   @ApiOperation({ summary: 'Get one integration endpoint (no secret)' })
   @ApiOkResponse({ type: IntegrationEndpointResponseDto })
+  @ApiNotFoundError('Integration not found')
   getOne(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Integration')) id: string,
   ): Promise<IntegrationEndpointResponseDto> {
     return this.integrationEndpointsService.getOneForOrg(
       this.orgIdFrom(principal),
@@ -94,9 +97,10 @@ export class UserIntegrationEndpointsController {
     summary: 'Update endpoint config (agent, task, queue, default context, active)',
   })
   @ApiOkResponse({ type: IntegrationEndpointResponseDto })
+  @ApiNotFoundError('Integration not found')
   update(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Integration')) id: string,
     @Body() dto: UpdateIntegrationEndpointDto,
   ): Promise<IntegrationEndpointResponseDto> {
     return this.integrationEndpointsService.updateForOrg(
@@ -107,13 +111,15 @@ export class UserIntegrationEndpointsController {
   }
 
   @Post(':id/rotate-key')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Rotate API key (returns new key once; invalidates the old key)',
   })
   @ApiOkResponse({ type: IntegrationEndpointSecretResponseDto })
+  @ApiNotFoundError('Integration not found')
   rotateKey(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Integration')) id: string,
   ): Promise<IntegrationEndpointSecretResponseDto> {
     return this.integrationEndpointsService.rotateKeyForOrg(
       this.orgIdFrom(principal),
@@ -125,9 +131,10 @@ export class UserIntegrationEndpointsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete integration endpoint (revokes access)' })
   @ApiNoContentResponse()
+  @ApiNotFoundError('Integration not found')
   async remove(
     @CurrentUser() principal: AuthPrincipal,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseResourceIdPipe('Integration')) id: string,
   ): Promise<void> {
     await this.integrationEndpointsService.deleteForOrg(
       this.orgIdFrom(principal),
