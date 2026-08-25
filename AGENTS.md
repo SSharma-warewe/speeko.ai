@@ -10,18 +10,18 @@ Multi-tenant inbound/outbound **call agent platform**:
 |-----|------|------|
 | API | `apps/api` | NestJS HTTP API, JWT auth, Swagger UI, calls domain + LiveKit adapter |
 | Worker | `apps/worker` | LiveKit Agents server (`@livekit/agents`) for inbound/outbound voice |
-| Web (marketing) | `apps/web` | Public marketing Vite + React SPA (`/`, `/get-demo`, `/solutions/*`) |
+| Web (marketing) | `apps/web` | Public marketing Vite + React SPA (`/`, `/get-demo`, `/solutions`, `/solutions/customer-service`, `/solutions/marketing-sales`) |
 | Portal | `apps/portal` | Authenticated Vite + React SPA (login + org/admin dashboards) |
 | UI kit | `packages/ui` | Reusable design-system primitives (`@call-agent/ui`) — buttons, forms, badges, motion |
 | Contracts | `packages/contracts` | Shared wire types + catalogs (`@call-agent/contracts`) imported by API, worker, portal, and web |
 
 Stack: NestJS monorepo, TypeORM, PostgreSQL, JWT Bearer auth, Swagger, LiveKit Agents + Inference, two Vite React frontends.
 
-**UI:** Marketing is `apps/web`; ops/admin portal is `apps/portal` (both use `@call-agent/ui`). Swagger (`/docs`) + LiveKit Meet remain for API/call testing. Typical deploy: marketing on the public host, portal on an app host (same path URLs). Cross-links via `VITE_PORTAL_URL` / `VITE_MARKETING_URL`.
+**UI:** Marketing is `apps/web`; ops/admin portal is `apps/portal` (both use `@call-agent/ui`). Swagger (`/docs`) + LiveKit Meet remain for API/call testing. Typical deploy: marketing on the public host, portal on an app host (same path URLs). Cross-links via `VITE_PORTAL_URL` / `VITE_MARKETING_URL`. Solution pages (`/solutions`, `/solutions/customer-service`, `/solutions/marketing-sales`) catalog worker tools, custom tool profiles, and what those stacks can finish. Unknown `/solutions/*` redirects to `/solutions`.
 
 | Surface | App | URL | Auth |
 |---------|-----|-----|------|
-| Marketing site | `apps/web` | `/`, `/get-demo`, `/solutions/*` | public |
+| Marketing site | `apps/web` | `/`, `/get-demo`, `/solutions`, `/solutions/customer-service`, `/solutions/marketing-sales` | public |
 | Org-user ops desk | `apps/portal` | `/login` → `/dashboard` | `POST /api/auth/login` (email + password + org slug) |
 | Platform admin | `apps/portal` | `/admin-login` → `/admin-dashboard` | `POST /api/auth/admin/login` |
 

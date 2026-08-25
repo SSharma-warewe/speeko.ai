@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import * as THREE from "three";
-import WAVES from "vanta/dist/vanta.waves.min";
+import { useMemo, useState } from "react";
 import { Button, Eyebrow, LiveDot, WaveIndicator } from "@call-agent/ui";
 import IntegrationsBubble from "../components/IntegrationsBubble";
+import MarketingFooter from "../components/MarketingFooter";
+import MarketingNav from "../components/MarketingNav";
+import WavesHero from "../components/WavesHero";
 import "./LandingPage.css";
 
 type DemoView = "overview" | "history" | "stats";
@@ -102,35 +102,6 @@ const HISTORY_FILTERS: { id: DemoHistoryFilter; label: string }[] = [
 export default function LandingPage() {
   const [demoView, setDemoView] = useState<DemoView>("overview");
   const [historyFilter, setHistoryFilter] = useState<DemoHistoryFilter>("all");
-  const heroRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = heroRef.current;
-    if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
-    const effect = WAVES({
-      el,
-      THREE,
-      mouseControls: true,
-      touchControls: true,
-      gyroControls: false,
-      minHeight: 200.0,
-      minWidth: 200.0,
-      scale: 1.0,
-      scaleMobile: 1.0,
-      color: 0x24290f,
-      shininess: 30.0,
-      waveHeight: 15.0,
-      waveSpeed: 1.0,
-      zoom: 1.0,
-      backgroundAlpha: 1.0,
-    });
-
-    return () => {
-      effect.destroy();
-    };
-  }, []);
 
   const filteredHistory = useMemo(() => {
     if (historyFilter === "all") return DEMO_HISTORY;
@@ -154,115 +125,25 @@ export default function LandingPage() {
 
   return (
     <div className="lp-root" style={{ background: "#f0eee9", minHeight: "100vh", fontFamily: "var(--font-body)" }}>
-      {/* NAV + HERO (full viewport) — Vanta waves background */}
-      <div ref={heroRef} className="lp-hero-shell">
-      <nav
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "26px 56px",
-          background: "transparent",
-          flexShrink: 0,
-        }}
-      >
-        <Link
-          to="/"
-          style={{
-            fontFamily: "var(--font-display)",
-            fontWeight: 700,
-            fontSize: 22,
-            letterSpacing: "-0.02em",
-            color: "#ffffff",
-            textDecoration: "none",
-          }}
-        >
-          Speeko
-        </Link>
-        <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
-          <div className="lp-solutions">
-            <Link to="/solutions" className="lp-nav-link">
-              Solutions
-            </Link>
-            <div className="lp-mega" role="menu">
-              <Link to="/solutions/customer-service" className="lp-mega-col" role="menuitem">
-                <span className="lp-mega-title">Customer Service</span>
-                <span className="lp-mega-sub">24×7 appointments & inbound resolution</span>
-              </Link>
-              <Link to="/solutions/marketing-sales" className="lp-mega-col" role="menuitem">
-                <span className="lp-mega-title">Marketing & Sales</span>
-                <span className="lp-mega-sub">Lead gen, outreach & retention</span>
-              </Link>
-            </div>
+      <WavesHero>
+        <MarketingNav />
+        <div className="lp-hero-content">
+          <p className="lp-hero-eyebrow">Inbound + outbound voice agents</p>
+          <h1 className="lp-hero-title">Voice agents that pick up the phone for you.</h1>
+          <p className="lp-hero-lead">
+            Speeko places and answers calls for appointment confirmations and lead outreach — with live
+            transcripts, real-time outcomes, and zero missed follow-ups.
+          </p>
+          <div className="lp-hero-actions">
+            <Button as="a" href="/get-demo" variant="cta" size="lg" shine showArrow>
+              Get a demo
+            </Button>
+            <Button as="a" href="#how" variant="ghostOnDark" size="lg">
+              See how it works
+            </Button>
           </div>
-          <a href="#how" className="lp-nav-link">
-            How it works
-          </a>
-          <a href="#integrations" className="lp-nav-link">
-            Integrations
-          </a>
-          <a href="#demo" className="lp-nav-link">
-            Dashboard
-          </a>
-          <a href="#faq" className="lp-nav-link">
-            FAQ
-          </a>
-          <Link to="/get-demo" className="lp-nav-cta">
-            Get a demo
-          </Link>
         </div>
-      </nav>
-
-      {/* HERO (Dark) — fills remaining viewport under nav */}
-      <div className="lp-hero-content">
-        <p
-          style={{
-            margin: "0 0 18px",
-            fontSize: 12,
-            fontWeight: 600,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: "#fde68a",
-          }}
-        >
-          Inbound + outbound voice agents
-        </p>
-        <h1
-          style={{
-            margin: "0 auto 22px",
-            maxWidth: 820,
-            fontFamily: "var(--font-display)",
-            fontWeight: 700,
-            fontSize: 56,
-            lineHeight: 1.06,
-            letterSpacing: "-0.02em",
-            color: "#ffffff",
-          }}
-        >
-          Voice agents that pick up the phone for you.
-        </h1>
-        <p
-          style={{
-            margin: "0 auto 36px",
-            maxWidth: 600,
-            fontSize: 17,
-            lineHeight: 1.6,
-            color: "rgba(255,255,255,.68)",
-          }}
-        >
-          Speeko places and answers calls for appointment confirmations and lead outreach — with live
-          transcripts, real-time outcomes, and zero missed follow-ups.
-        </p>
-        <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
-          <Button as="a" href="/get-demo" variant="cta" size="lg" shine showArrow>
-            Get a demo
-          </Button>
-          <Button as="a" href="#how" variant="ghostOnDark" size="lg">
-            See how it works
-          </Button>
-        </div>
-      </div>
-      </div>
+      </WavesHero>
 
       {/* DEMO DASHBOARD — mirrors real confirmation overview */}
       <section id="demo" className="lp-demo" aria-labelledby="lp-demo-heading">
@@ -846,43 +727,7 @@ export default function LandingPage() {
         </Button>
       </section>
 
-      {/* FOOTER */}
-      <footer className="lp-footer">
-        <div className="lp-footer-top">
-          <div className="lp-footer-brand">
-            <Link to="/" className="lp-footer-logo">
-              Speeko
-            </Link>
-            <p className="lp-footer-tagline">
-              Voice agents that place and answer calls — with live transcripts, real outcomes,
-              and a dashboard your team actually uses.
-            </p>
-          </div>
-          <div className="lp-footer-cols">
-            <div className="lp-footer-col">
-              <p className="lp-footer-col-title">Product</p>
-              <Link to="/solutions">Solutions</Link>
-              <a href="#how">How it works</a>
-              <a href="#integrations">Integrations</a>
-              <a href="#demo">Dashboard</a>
-              <a href="#faq">FAQ</a>
-            </div>
-            <div className="lp-footer-col">
-              <p className="lp-footer-col-title">Get started</p>
-              <Link to="/get-demo">Get a demo</Link>
-            </div>
-            <div className="lp-footer-col">
-              <p className="lp-footer-col-title">Legal</p>
-              <a href="#privacy">Privacy</a>
-              <a href="#terms">Terms</a>
-            </div>
-          </div>
-        </div>
-        <div className="lp-footer-bottom">
-          <span>© {new Date().getFullYear()} Speeko. All rights reserved.</span>
-          <span className="lp-footer-meta">Inbound + outbound · Built for clinics &amp; teams</span>
-        </div>
-      </footer>
-</div>
+      <MarketingFooter />
+    </div>
   );
 }

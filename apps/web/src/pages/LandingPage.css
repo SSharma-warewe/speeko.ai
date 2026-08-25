@@ -1,3 +1,4 @@
+@import "../styles/marketing-chrome.css";
 
 /* Hide document scrollbar on landing (scroll still works) */
 html:has(.lp-root),
@@ -33,12 +34,13 @@ body:has(.lp-root)::-webkit-scrollbar {
 .lp-hero-shell canvas {
   z-index: 0 !important;
 }
-.lp-hero-shell > nav,
+.lp-hero-shell > nav {
+  position: relative;
+  z-index: 2;
+}
 .lp-hero-content {
   position: relative;
   z-index: 1;
-}
-.lp-hero-content {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -47,6 +49,44 @@ body:has(.lp-root)::-webkit-scrollbar {
   padding: 48px 56px 72px;
   text-align: center;
   animation: cw-rise 0.5s ease both;
+}
+.lp-hero-shell.is-compact {
+  min-height: 72vh;
+}
+.lp-hero-shell.is-compact .lp-hero-content {
+  padding: 36px 56px 56px;
+  justify-content: flex-end;
+}
+.lp-hero-eyebrow {
+  margin: 0 0 18px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fde68a;
+}
+.lp-hero-title {
+  margin: 0 auto 22px;
+  max-width: 820px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(36px, 5.4vw, 56px);
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+.lp-hero-lead {
+  margin: 0 auto 36px;
+  max-width: 600px;
+  font-size: 17px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.68);
+}
+.lp-hero-actions {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 @keyframes cw-rise {
@@ -93,102 +133,6 @@ body:has(.lp-root)::-webkit-scrollbar {
   font-size: 15.5px;
   line-height: 1.65;
   color: #525252;
-}
-
-/* Nav links — underline grows in */
-.lp-nav-link {
-  position: relative;
-  font-size: 14px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.72);
-  text-decoration: none;
-  transition: color 0.2s ease;
-}
-.lp-nav-link::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  bottom: -4px;
-  width: 100%;
-  height: 1.5px;
-  background: #fde68a;
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.22s ease;
-}
-.lp-nav-link:hover {
-  color: #ffffff;
-}
-.lp-nav-link:hover::after {
-  transform: scaleX(1);
-}
-
-.lp-solutions {
-  position: relative;
-  padding-bottom: 12px;
-  margin-bottom: -12px;
-}
-.lp-mega {
-  display: none;
-  position: absolute;
-  top: calc(100% + 2px);
-  left: 50%;
-  transform: translateX(-50%);
-  min-width: 440px;
-  padding: 12px;
-  border-radius: 14px;
-  background: #141414;
-  border: 1px solid rgba(255,255,255,.1);
-  box-shadow: 0 28px 56px rgba(0,0,0,.5);
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  z-index: 50;
-}
-.lp-solutions:hover .lp-mega,
-.lp-solutions:focus-within .lp-mega {
-  display: grid;
-}
-.lp-mega-col {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 16px;
-  border-radius: 10px;
-  text-decoration: none;
-  transition: background 0.15s ease;
-}
-.lp-mega-col:hover {
-  background: rgba(255,255,255,.06);
-}
-.lp-mega-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #ffffff;
-}
-.lp-mega-sub {
-  font-size: 12px;
-  line-height: 1.45;
-  color: rgba(255,255,255,.48);
-}
-
-/* Nav pill CTA */
-.lp-nav-cta {
-  font-size: 14px;
-  font-weight: 600;
-  color: #0a0a0a;
-  background: #fde68a;
-  padding: 10px 20px;
-  border-radius: 8px;
-  text-decoration: none;
-  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
-}
-.lp-nav-cta:hover {
-  transform: translateY(-1px);
-  background: #fef08a;
-  box-shadow: 0 6px 16px rgba(253, 230, 138, 0.28);
-}
-.lp-nav-cta:active {
-  transform: translateY(0) scale(0.98);
 }
 
 /* Primary hero CTA — shine + lift + arrow */
@@ -1275,94 +1219,15 @@ body:has(.lp-root)::-webkit-scrollbar {
   transform: translateY(0) scale(0.98);
 }
 
-/* ── Footer ── */
-.lp-footer {
-  background: #0a0a0a;
-  color: rgba(255, 255, 255, 0.65);
-  padding: 56px 56px 28px;
-}
-.lp-footer-top {
-  max-width: 1120px;
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: 1.3fr 1.7fr;
-  gap: 48px;
-  padding-bottom: 40px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-.lp-footer-logo {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 22px;
-  letter-spacing: -0.02em;
-  color: #ffffff;
-  text-decoration: none;
-}
-.lp-footer-tagline {
-  margin: 14px 0 0;
-  max-width: 36ch;
-  font-size: 13.5px;
-  line-height: 1.6;
-  color: rgba(255, 255, 255, 0.5);
-}
-.lp-footer-cols {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-}
-.lp-footer-col {
-  display: grid;
-  gap: 10px;
-  align-content: start;
-}
-.lp-footer-col-title {
-  margin: 0 0 4px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #fde68a;
-}
-.lp-footer-col a,
-.lp-footer-btn {
-  font-size: 13.5px;
-  color: rgba(255, 255, 255, 0.58);
-  text-decoration: none;
-  background: none;
-  border: none;
-  padding: 0;
-  text-align: left;
-  cursor: pointer;
-  font: inherit;
-  transition: color 0.15s ease;
-}
-.lp-footer-col a:hover,
-.lp-footer-btn:hover {
-  color: #ffffff;
-}
-.lp-footer-bottom {
-  max-width: 1120px;
-  margin: 0 auto;
-  padding-top: 22px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-  font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.38);
-}
-.lp-footer-meta {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.02em;
-}
-
 @media (max-width: 960px) {
+  .lp-hero-content,
+  .lp-hero-shell.is-compact .lp-hero-content {
+    padding-left: 28px;
+    padding-right: 28px;
+  }
   .lp-demo,
   .lp-faq-section,
-  .lp-cta,
-  .lp-footer {
+  .lp-cta {
     padding-left: 28px;
     padding-right: 28px;
   }
@@ -1379,10 +1244,6 @@ body:has(.lp-root)::-webkit-scrollbar {
   }
   .lp-faq-aside {
     position: static;
-  }
-  .lp-footer-top {
-    grid-template-columns: 1fr;
-    gap: 32px;
   }
   .lp-demo-kpis,
   .lp-demo-stats-summary {
@@ -1432,9 +1293,6 @@ body:has(.lp-root)::-webkit-scrollbar {
     width: 100%;
     justify-content: space-between;
   }
-  .lp-footer-cols {
-    grid-template-columns: 1fr 1fr;
-  }
   .lp-faq-body-wrap {
     padding-left: 20px;
   }
@@ -1444,7 +1302,6 @@ body:has(.lp-root)::-webkit-scrollbar {
   .lp-btn-primary,
   .lp-btn-ghost,
   .lp-btn-dark,
-  .lp-nav-cta,
   .lp-card,
   .lp-faq,
   .lp-btn-arrow,
