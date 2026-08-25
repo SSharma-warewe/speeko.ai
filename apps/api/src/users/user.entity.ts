@@ -9,13 +9,10 @@ import {
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
+import { UserRole } from '@call-agent/contracts';
 import { Organization } from '../organizations/organization.entity';
 
-export enum UserRole {
-  ORG_ADMIN = 'org_admin',
-  AGENT = 'agent',
-  SUPERVISOR = 'supervisor',
-}
+export { UserRole };
 
 @Entity({ name: 'users' })
 @Unique('uq_users_org_email', ['organizationId', 'email'])

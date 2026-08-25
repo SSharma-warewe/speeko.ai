@@ -8,16 +8,12 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { CallBatchStatus } from '@call-agent/contracts';
 import { OrganizationAgent } from '../agents/organization-agent.entity';
 import { Organization } from '../organizations/organization.entity';
 import { SipTrunk } from '../sip-trunks/sip-trunk.entity';
 
-export enum CallBatchStatus {
-  RUNNING = 'running',
-  PAUSED = 'paused',
-  CANCELLED = 'cancelled',
-  COMPLETED = 'completed',
-}
+export { CallBatchStatus };
 
 /**
  * Bulk enqueue group with pause/cancel and optional concurrency overrides.

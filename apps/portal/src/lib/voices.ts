@@ -1,5 +1,6 @@
-export const DELIVERY_MODES = ["STABLE", "BALANCED", "CREATIVE"] as const;
-export type DeliveryMode = (typeof DELIVERY_MODES)[number];
+import { DELIVERY_MODES, type DeliveryMode } from "@call-agent/contracts";
+
+export { DELIVERY_MODES, type DeliveryMode };
 
 export type AgentVoiceOption = {
   /** null = worker pin (Ashley). */

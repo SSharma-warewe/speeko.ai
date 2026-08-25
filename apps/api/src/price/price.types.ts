@@ -1,61 +1,19 @@
-/** LiveKit Cloud plan used to pick list (overage) rates. */
-export type PricingPlan = 'build' | 'ship' | 'scale';
+import type {
+  CallCostAttempt,
+  CallCostLine,
+  CallCostSnapshot,
+  CostLineKey,
+  CostUnit,
+  PricingPlan,
+} from '@call-agent/contracts';
 
-export type CostLineKey =
-  | 'llm'
-  | 'stt'
-  | 'tts'
-  | 'webrtc'
-  | 'sip'
-  | 'agent_session'
-  | 'krisp'
-  | 'sip_vendor'
-  | 'eot';
-
-export type CostUnit =
-  | 'tokens_in'
-  | 'tokens_cached'
-  | 'tokens_out'
-  | 'minutes'
-  | 'characters'
-  | 'requests';
-
-export type CallCostLine = {
-  key: CostLineKey;
-  label: string;
-  model?: string | null;
-  quantity: number;
-  unit: CostUnit;
-  /**
-   * Catalog rate for one "price unit":
-   * - minutes → USD per minute
-   * - tokens_* → USD per 1M tokens
-   * - characters → USD per 1M characters
-   * - requests → USD per request (usually 0)
-   */
-  unitPriceUsd: number;
-  amountUsd: number;
-  notes?: string;
-};
-
-export type CallCostAttempt = {
-  attempt: number;
-  billedMinutes: number;
-  totalUsd: number;
-  lines: CallCostLine[];
-  unknownModels: string[];
-};
-
-export type CallCostSnapshot = {
-  currency: 'USD';
-  markup: 0;
-  plan: PricingPlan;
-  catalogAsOf: string;
-  totalUsd: number;
-  billedMinutes: number;
-  unknownModels: string[];
-  lines: CallCostLine[];
-  attempts: CallCostAttempt[];
+export type {
+  CallCostAttempt,
+  CallCostLine,
+  CallCostSnapshot,
+  CostLineKey,
+  CostUnit,
+  PricingPlan,
 };
 
 export type PriceAttemptInput = {

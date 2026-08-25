@@ -6,9 +6,11 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build api && npm run build:worker",
-    "build:api": "nest build api",
-    "build:worker": "tsc -p apps/worker/tsconfig.app.json && node apps/worker/write-dist-package.mjs",
+    "build": "npm run build:contracts && nest build api && npm run build:worker",
+    "build:contracts": "tsc -p packages/contracts/tsconfig.json",
+    "typecheck:contracts": "tsc -p packages/contracts/tsconfig.json --noEmit",
+    "build:api": "npm run build:contracts && nest build api",
+    "build:worker": "npm run build:contracts && tsc -p apps/worker/tsconfig.app.json && node apps/worker/write-dist-package.mjs",
     "format": "prettier --write \"apps/**/*.ts\"",
     "start": "nest start api",
     "start:api": "nest start api",
@@ -24,13 +26,14 @@
     "build:portal": "npm run build --prefix apps/portal",
     "typecheck:web": "npm run typecheck --prefix apps/web",
     "typecheck:portal": "npm run typecheck --prefix apps/portal",
-    "lint": "eslint \"{apps,libs}/**/*.ts\" --fix",
+    "lint": "eslint \"{apps,libs,packages}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:e2e": "jest --config ./apps/api/test/jest-e2e.json"
   },
   "dependencies": {
+    "@call-agent/contracts": "file:packages/contracts",
     "@livekit/agents": "^1.6.1",
     "@livekit/protocol": "^1.50.4",
     "@nestjs/common": "^11.0.1",
@@ -55,6 +58,7 @@
     "rxjs": "^7.8.1",
     "tsx": "^4.23.7",
     "typeorm": "^0.3.25",
+    "webpack-node-externals": "^3.0.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
@@ -117,6 +121,8 @@
     "coverageDirectory": "./coverage",
     "testEnvironment": "node",
     "moduleNameMapper": {
+      "^@call-agent/contracts$": "<rootDir>/packages/contracts/src/index.ts",
+      "^@call-agent/contracts/(.*)$": "<rootDir>/packages/contracts/src/$1",
       "^(\\.{1,2}/.*)\\.js$": "$1"
     },
     "roots": [

@@ -13,7 +13,7 @@ import { orgAgentDefaultTaskKey } from '../../agents/org-agent-task';
 import { resolveVoiceRuntime } from '../../agents/voice-settings';
 import { LivekitService } from '../../livekit/livekit.service';
 import { ToolProfilesService } from '../../tools/tool-profiles.service';
-import { AgentJobMetadata } from '../lib/agent-job-metadata';
+import type { AgentJobMetadata } from '@call-agent/contracts';
 import { newCallRow } from '../lib/call-row';
 import {
   applyCallEvent,
@@ -164,6 +164,7 @@ export class CallWebTestService {
       const metadata: AgentJobMetadata = {
         callId: call.id,
         ...(organizationId ? { organizationId } : {}),
+        ...(organizationAgentId ? { organizationAgentId } : {}),
         agentKey,
         direction,
         medium: CallMedium.WEB,

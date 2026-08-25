@@ -4,7 +4,8 @@
     "declaration": false,
     "sourceMap": false,
     "rootDir": "src",
-    "outDir": "../../dist/apps/worker"
+    "outDir": "../../dist/apps/worker",
+    "paths": {}
   },
   "include": ["src/**/*"],
   "exclude": [

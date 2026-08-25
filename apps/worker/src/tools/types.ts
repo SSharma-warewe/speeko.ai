@@ -1,18 +1,7 @@
 import type { ToolContextEntry } from '@livekit/agents';
-import type { AgentJobMetadata } from '../job-metadata.js';
+import type { AgentJobMetadata, ToolEvent } from '@call-agent/contracts';
 
-/** One worker tool invocation during a call (persisted via complete → sessionReport). */
-export type ToolEvent = {
-  at: string;
-  toolId: string;
-  args?: unknown;
-  /** Sanitized tool return value (size-capped). */
-  result?: unknown;
-  ok?: boolean;
-  error?: string;
-  summary?: string;
-  durationMs?: number;
-};
+export type { ToolEvent };
 
 export type SessionUserData = {
   callId?: string;

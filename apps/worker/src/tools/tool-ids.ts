@@ -1,20 +1,7 @@
-/** Stable tool IDs shared with API tool_profile_tools.tool_id. */
-export const TOOL_IDS = {
-  endCall: 'endCall',
-  booking: 'booking',
-  cancelBooking: 'cancelBooking',
-  transferCall: 'transferCall',
-  lookupCustomer: 'lookupCustomer',
-  confirmAppointment: 'confirmAppointment',
-  checkCalendarAvailability: 'checkCalendarAvailability',
-  listCalendarEvents: 'listCalendarEvents',
-  createCalendarEvent: 'createCalendarEvent',
-  cancelCalendarEvent: 'cancelCalendarEvent',
-  /** Org GHL calendar (linked organization_integrations provider=ghl) */
-  checkGhlFreeSlots: 'checkGhlFreeSlots',
-  lookupGhlContact: 'lookupGhlContact',
-  upsertGhlContact: 'upsertGhlContact',
-  scheduleGhlMeeting: 'scheduleGhlMeeting',
-} as const;
-
-export type ToolId = (typeof TOOL_IDS)[keyof typeof TOOL_IDS];
+/** Stable tool IDs — owned by @call-agent/contracts. */
+export {
+  KNOWN_TOOL_IDS,
+  TOOL_IDS,
+  isKnownToolId,
+} from '@call-agent/contracts';
+export type { KnownToolId as ToolId } from '@call-agent/contracts';

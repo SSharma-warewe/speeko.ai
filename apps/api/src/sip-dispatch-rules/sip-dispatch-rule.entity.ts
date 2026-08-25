@@ -8,14 +8,11 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { SipDispatchRuleType } from '@call-agent/contracts';
 import { OrganizationAgent } from '../agents/organization-agent.entity';
 import { Organization } from '../organizations/organization.entity';
 
-export enum SipDispatchRuleType {
-  INDIVIDUAL = 'individual',
-  DIRECT = 'direct',
-  CALLEE = 'callee',
-}
+export { SipDispatchRuleType };
 
 @Entity({ name: 'sip_dispatch_rules' })
 @Index('idx_sip_dispatch_rules_organization_id', ['organizationId'])

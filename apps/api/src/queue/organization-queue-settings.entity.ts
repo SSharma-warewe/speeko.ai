@@ -7,16 +7,14 @@ import {
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { QueueBackoffStrategy } from '@call-agent/contracts';
 import { Organization } from '../organizations/organization.entity';
 import {
   CallFailureCode,
   DEFAULT_RETRY_ON,
 } from '../calls/call.entity';
 
-export enum QueueBackoffStrategy {
-  FIXED = 'fixed',
-  EXPONENTIAL = 'exponential',
-}
+export { QueueBackoffStrategy };
 
 /**
  * Per-org outbound dial queue configuration (1:1 with organizations).

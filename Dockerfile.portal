@@ -2,7 +2,7 @@
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 
-# UI kit (source imported via Vite alias)
+# UI kit + contracts (source imported via Vite alias)
 COPY packages/ui/package.json packages/ui/package-lock.json ./packages/ui/
 RUN cd packages/ui && npm ci --legacy-peer-deps
 
@@ -10,6 +10,7 @@ COPY apps/portal/package.json apps/portal/package-lock.json ./apps/portal/
 RUN cd apps/portal && npm ci --legacy-peer-deps
 
 COPY packages/ui ./packages/ui
+COPY packages/contracts ./packages/contracts
 COPY apps/portal ./apps/portal
 
 # Injected at build time (Railway service variables)

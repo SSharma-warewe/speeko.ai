@@ -1,21 +1,15 @@
+import {
+  DEMO_CALLS_PER_DAY,
+  DEMO_COUNTRIES,
+  DEMO_DIRECTIONS,
+  DEMO_INTEGRATION_OPTIONS,
+  DEMO_TEAM_SIZES,
+} from "@call-agent/contracts";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import "./GetDemoPage.css";
 
-/** Keep in sync with apps/api/src/demo/demo-form.constants.ts */
-const COUNTRIES = [
-  "United States",
-  "United Kingdom",
-  "Canada",
-  "Australia",
-  "Germany",
-  "France",
-  "India",
-  "Singapore",
-  "United Arab Emirates",
-  "Netherlands",
-  "Other",
-] as const;
+const COUNTRIES = DEMO_COUNTRIES;
 
 /** ITU calling codes for the allowlisted countries. `Other` has no fixed code. */
 const COUNTRY_DIAL_CODES: Record<(typeof COUNTRIES)[number], string | null> = {
@@ -99,25 +93,17 @@ function applyCountryDialCode(phone: string, country: string): string {
   return rest ? `${code} ${rest}` : `${code} `;
 }
 
-const TEAM_SIZES = ["1–10", "11–50", "51–200", "201–1000", "1000+"] as const;
+const TEAM_SIZES = DEMO_TEAM_SIZES;
 
-const CALLS_PER_DAY = ["Under 50", "50–200", "200–1000", "1000+"] as const;
+const CALLS_PER_DAY = DEMO_CALLS_PER_DAY;
 
 const DIRECTIONS = [
-  { id: "outbound", label: "Outbound" },
-  { id: "inbound", label: "Inbound" },
-  { id: "both", label: "Both" },
+  { id: DEMO_DIRECTIONS[0], label: "Outbound" },
+  { id: DEMO_DIRECTIONS[1], label: "Inbound" },
+  { id: DEMO_DIRECTIONS[2], label: "Both" },
 ] as const;
 
-const INTEGRATION_OPTIONS = [
-  "Google Calendar",
-  "Outlook",
-  "Salesforce",
-  "HubSpot",
-  "Zendesk",
-  "Custom / API",
-  "Not sure yet",
-] as const;
+const INTEGRATION_OPTIONS = DEMO_INTEGRATION_OPTIONS;
 
 type Direction = (typeof DIRECTIONS)[number]["id"];
 

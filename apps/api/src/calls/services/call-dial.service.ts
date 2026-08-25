@@ -18,7 +18,7 @@ import { OrganizationQueueSettingsService } from '../../queue/organization-queue
 import { QueueRetryService } from '../../queue/queue-retry.service';
 import { SipTrunksService } from '../../sip-trunks/sip-trunks.service';
 import { ToolProfilesService } from '../../tools/tool-profiles.service';
-import { AgentJobMetadata } from '../lib/agent-job-metadata';
+import type { AgentJobMetadata } from '@call-agent/contracts';
 import { CallFailureService } from './call-failure.service';
 import { pickFromNumber, resolveToNumber } from '../lib/call-phone';
 import { newCallRow } from '../lib/call-row';
@@ -544,6 +544,7 @@ export class CallDialService {
     return {
       callId: call.id,
       organizationId: orgAgent.organizationId,
+      organizationAgentId: orgAgent.id,
       agentKey: template.key,
       direction: AgentDirection.OUTBOUND,
       medium: CallMedium.SIP,

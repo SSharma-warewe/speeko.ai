@@ -1,20 +1,27 @@
-export const DELIVERY_MODES = ['STABLE', 'BALANCED', 'CREATIVE'] as const;
-export type DeliveryMode = (typeof DELIVERY_MODES)[number];
+import {
+  DELIVERY_MODES,
+  isDeliveryMode,
+  type DeliveryMode,
+} from '@call-agent/contracts';
+
+export { DELIVERY_MODES, isDeliveryMode };
+export type { DeliveryMode };
 
 export type VoiceRuntime = {
   voice: string | null;
   model: string | null;
   temperature: number | null;
   speakingRate: number | null;
-  deliveryMode: string | null;
+  deliveryMode: DeliveryMode | null;
 };
 
-export function isDeliveryMode(value: unknown): value is DeliveryMode {
-  return (
-    typeof value === 'string' &&
-    (DELIVERY_MODES as readonly string[]).includes(value)
-  );
-}
+type VoiceRuntimeInput = Partial<{
+  voice: string | null;
+  model: string | null;
+  temperature: number | null;
+  speakingRate: number | null;
+  deliveryMode: string | null;
+}>;
 
 /** Empty / whitespace voice → null so the worker pin applies. */
 export function normalizeVoice(value: string | null | undefined): string | null {
@@ -33,14 +40,16 @@ export function normalizeDeliveryMode(
 }
 
 export function resolveVoiceRuntime(
-  org?: Partial<VoiceRuntime> | null,
-  template?: Partial<VoiceRuntime> | null,
+  org?: VoiceRuntimeInput | null,
+  template?: VoiceRuntimeInput | null,
 ): VoiceRuntime {
   return {
     voice: org?.voice ?? template?.voice ?? null,
     model: org?.model ?? template?.model ?? null,
     temperature: org?.temperature ?? template?.temperature ?? null,
     speakingRate: org?.speakingRate ?? template?.speakingRate ?? null,
-    deliveryMode: org?.deliveryMode ?? template?.deliveryMode ?? null,
+    deliveryMode: normalizeDeliveryMode(
+      org?.deliveryMode ?? template?.deliveryMode ?? null,
+    ),
   };
 }

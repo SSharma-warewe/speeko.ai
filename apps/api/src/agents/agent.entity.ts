@@ -8,13 +8,11 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { AgentDirection } from '@call-agent/contracts';
 import { ToolProfile } from '../tools/tool-profile.entity';
 import { OrganizationAgent } from './organization-agent.entity';
 
-export enum AgentDirection {
-  INBOUND = 'inbound',
-  OUTBOUND = 'outbound',
-}
+export { AgentDirection };
 
 /**
  * Platform AI agent **template** (persona + defaults).

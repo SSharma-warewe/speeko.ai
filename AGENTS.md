@@ -13,6 +13,7 @@ Multi-tenant inbound/outbound **call agent platform**:
 | Web (marketing) | `apps/web` | Public marketing Vite + React SPA (`/`, `/get-demo`, `/solutions/*`) |
 | Portal | `apps/portal` | Authenticated Vite + React SPA (login + org/admin dashboards) |
 | UI kit | `packages/ui` | Reusable design-system primitives (`@call-agent/ui`) — buttons, forms, badges, motion |
+| Contracts | `packages/contracts` | Shared wire types + catalogs (`@call-agent/contracts`) imported by API, worker, portal, and web |
 
 Stack: NestJS monorepo, TypeORM, PostgreSQL, JWT Bearer auth, Swagger, LiveKit Agents + Inference, two Vite React frontends.
 
@@ -194,6 +195,7 @@ cp .env.example .env   # fill LIVEKIT_* from LiveKit Cloud project settings
 
 # 3. Install & run API + LiveKit worker (two terminals)
 npm install
+npm run build:contracts   # ESM emit for the worker; Vite aliases source
 npm run start:api:dev
 npm run start:worker:dev
 
@@ -604,10 +606,13 @@ Agent APIs return persona + capability profile (not JSON tool schemas):
 
 ### Job metadata shape (API → worker)
 
+Canonical TypeScript type: `AgentJobMetadata` in `@call-agent/contracts`. Inbound SIP dispatch omits `callId` (static at publish) and includes `organizationAgentId`.
+
 ```json
 {
   "callId": "...",
   "organizationId": "...",
+  "organizationAgentId": "...",
   "agentKey": "outbound",
   "direction": "outbound",
   "medium": "sip",
@@ -637,7 +642,7 @@ Test: `POST /api/admin/calls/test` accepts optional `task` + `context`. Org web 
 
 | Module | Role |
 |--------|------|
-| `calls` | Domain: persist `calls`, resolve agents/tool profiles/task key, pack **runtime** job metadata. Nest surface stays at module root (module, entity, repo, controllers). Split services in `calls/services/`: `CallWebTestService` (Meet test), `CallDialService` (enqueue + immediate/claimed SIP), `CallWorkerService` (inbound ensure + complete), `CallFailureService` (fail/requeue + stale reap), `CallsService` (tape list/get + cancel/retry/prioritize). Pure helpers in `calls/lib/` (state machine, row factory, phone, task key, job metadata, price wrapper). |
+| `calls` | Domain: persist `calls`, resolve agents/tool profiles/task key, pack **runtime** job metadata. Nest surface stays at module root (module, entity, repo, controllers). Split services in `calls/services/`: `CallWebTestService` (Meet test), `CallDialService` (enqueue + immediate/claimed SIP), `CallWorkerService` (inbound ensure + complete), `CallFailureService` (fail/requeue + stale reap), `CallsService` (tape list/get + cancel/retry/prioritize). Pure helpers in `calls/lib/` (state machine, row factory, phone, task key, price wrapper). Job metadata type lives in `@call-agent/contracts`. |
 | `queue` | Org queue settings, call batches, claim (`SKIP LOCKED`), retry policy, in-process **QueueDialerService**, live stats, user/admin queue controllers |
 | `price` | LiveKit **list-price** call cost (STT/LLM/TTS + WebRTC/SIP room). No markup. Catalog in `price.catalog.ts`; `PriceService` prices each worker-complete attempt onto `calls.cost` / `cost_usd`. Org-user summary is JWT-org scoped; admin summary + recompute |
 | `tools` | Tool profiles list/seed + org custom CRUD; resolve `enabledTools` ids for metadata |
@@ -719,6 +724,7 @@ controller → service → repository → TypeORM entity → Postgres
 22. **Add or update unit tests** when changing service business rules, guards, or security-sensitive paths (see **Testing**). Prefer service-level unit tests over full e2e unless the flow is HTTP-guard integration.
 23. **Call status writes go through `applyCallEvent` / `initializeCallStatus`** (`apps/api/src/calls/lib/call-state-machine.ts`). Do not assign `call.status = …` in services. SQL claim/release must keep the same pending↔creating pair. `completed` requires worker `taskCompleted: true`; answered hangup without `complete_*` is `incomplete`.
 24. **Call cost analysis goes through `PriceService`** (published LiveKit list prices, `markup: 0`). Do not add Speeko margin. Org-user cost APIs must scope by JWT `orgId` (never a client `organizationId`). Recompute stays admin-only. Bump `PRICE_CATALOG_AS_OF` in `price.catalog.ts` when LiveKit rates change.
+25. **Shared wire types and catalogs live in `packages/contracts` (`@call-agent/contracts`).** Add a new tool id, task key, call status, failure code, delivery mode, or job-metadata field there first. API Nest DTO **classes** stay in `apps/api` (class-validator / Swagger); they import enums/consts from the package. Portal and worker import the same types — do not copy catalogs into `apps/portal/src/lib/api.ts` or worker `tool-ids.ts`. Build with `npm run build:contracts` (also run by `build:api` / `build:worker`). Vite apps alias the package to source.
 
 ## Testing
 
@@ -844,6 +850,7 @@ Update the **Status** column when a module suite lands or expands.
 - Do not run the LiveKit worker via Nest webpack (`nest start worker`). Dev: `tsx apps/worker/src/main.ts`; prod: `node dist/apps/worker/main.js start` after `npm run build:worker`.
 - Do not pack a unique `callId` into SIP dispatch-rule metadata (it is static at publish). Inbound rings upsert via `POST /api/internal/calls/inbound` on the first worker job, then reuse `POST /api/internal/calls/:id/complete`. Do not requeue inbound rows through the outbound dialer.
 - Do not invent a second design system — extend `packages/ui` (`@call-agent/ui`) for shared primitives; keep page layouts in `apps/web` (marketing) and `apps/portal` (ops).
+- Do not duplicate tool ids, task keys, call statuses, or job metadata in portal/API/worker — change `@call-agent/contracts` first.
 - Do not inline LiveKit STT/LLM/TTS/room rates in `calls` — use `PriceService` / `price.catalog.ts`. Do not treat cost snapshots as tenant invoices (no markup).
 - Do not assume GitHub autodeploy — production is Railway CLI `railway up` from the monorepo root unless that is reconfigured. Do not redeploy every service for a single-app change; match the table under **Production deploy (Railway CLI)**.
 - Do not rely on TypeORM synchronize to drop removed tables in production — deploy code, then run explicit SQL when intentional.

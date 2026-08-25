@@ -1,52 +1,12 @@
 /**
- * Tool IDs known to the LiveKit worker ToolRegistry.
- * API stores these strings on tool_profile_tools; worker resolves implementations.
- * Never put executable code or JSON tool schemas in the database.
+ * Tool IDs and task keys — owned by @call-agent/contracts.
+ * API re-exports so existing module imports keep working.
  */
-export const KNOWN_TOOL_IDS = [
-  'endCall',
-  'booking',
-  'cancelBooking',
-  'transferCall',
-  'lookupCustomer',
-  'confirmAppointment',
-  /** Nylas calendar — requires agent calendarIntegrationId */
-  'checkCalendarAvailability',
-  'listCalendarEvents',
-  'createCalendarEvent',
-  'cancelCalendarEvent',
-  /** Org GHL calendar — requires agent calendarIntegrationId (provider=ghl) */
-  'checkGhlFreeSlots',
-  'lookupGhlContact',
-  'upsertGhlContact',
-  'scheduleGhlMeeting',
-] as const;
-
-export type KnownToolId = (typeof KNOWN_TOOL_IDS)[number];
-
-export function isKnownToolId(id: string): id is KnownToolId {
-  return (KNOWN_TOOL_IDS as readonly string[]).includes(id);
-}
-
-/**
- * LiveKit Task keys registered in the worker TaskRegistry.
- * Metadata carries only the key; worker instantiates the task class.
- */
-export const KNOWN_TASK_KEYS = [
-  'general',
-  'confirm_appointment',
-  'lead_qualification',
-  'customer_support',
-  'survey',
-  'debt_collection',
-  'demo_booking',
-  'interview_booking',
-] as const;
-
-export type KnownTaskKey = (typeof KNOWN_TASK_KEYS)[number];
-
-export function isKnownTaskKey(key: string): key is KnownTaskKey {
-  return (KNOWN_TASK_KEYS as readonly string[]).includes(key);
-}
-
-export const DEFAULT_TASK_KEY: KnownTaskKey = 'general';
+export {
+  DEFAULT_TASK_KEY,
+  isKnownTaskKey,
+  isKnownToolId,
+  KNOWN_TASK_KEYS,
+  KNOWN_TOOL_IDS,
+} from '@call-agent/contracts';
+export type { KnownTaskKey, KnownToolId } from '@call-agent/contracts';

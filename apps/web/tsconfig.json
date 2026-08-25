@@ -21,6 +21,7 @@
     "paths": {
       "@call-agent/ui": ["../../packages/ui/src/index.ts"],
       "@call-agent/ui/*": ["../../packages/ui/src/*"],
+      "@call-agent/contracts": ["../../packages/contracts/src/index.ts"],
       "react": ["./node_modules/@types/react/index.d.ts"],
       "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime.d.ts"],
       "react-dom": ["./node_modules/@types/react-dom/index.d.ts"]

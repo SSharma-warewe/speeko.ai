@@ -1,15 +1,8 @@
-/** Stable task keys shared with API metadata.task / organization_agents.default_task_key. */
-export const TASK_KEYS = {
-  general: 'general',
-  confirmAppointment: 'confirm_appointment',
-  leadQualification: 'lead_qualification',
-  customerSupport: 'customer_support',
-  survey: 'survey',
-  debtCollection: 'debt_collection',
-  /** Schedule a demo (calendar), then short product discovery questions. */
-  demoBooking: 'demo_booking',
-  /** Confirm callee name, then book an interview with whatever calendar tools are enabled. */
-  interviewBooking: 'interview_booking',
-} as const;
-
-export type TaskKey = (typeof TASK_KEYS)[keyof typeof TASK_KEYS];
+/** Stable task keys — owned by @call-agent/contracts. */
+export {
+  DEFAULT_TASK_KEY,
+  KNOWN_TASK_KEYS,
+  TASK_KEYS,
+  isKnownTaskKey,
+} from '@call-agent/contracts';
+export type { KnownTaskKey as TaskKey } from '@call-agent/contracts';

@@ -8,12 +8,10 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { SipTrunkDirection } from '@call-agent/contracts';
 import { Organization } from '../organizations/organization.entity';
 
-export enum SipTrunkDirection {
-  OUTBOUND = 'outbound',
-  INBOUND = 'inbound',
-}
+export { SipTrunkDirection };
 
 @Entity({ name: 'sip_trunks' })
 @Index('idx_sip_trunks_organization_id', ['organizationId'])

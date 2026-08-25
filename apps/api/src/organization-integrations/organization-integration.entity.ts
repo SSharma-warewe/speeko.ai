@@ -8,14 +8,11 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { IntegrationProvider } from '@call-agent/contracts';
 import { Organization } from '../organizations/organization.entity';
 import { User } from '../users/user.entity';
 
-/** Supported third-party integration providers. */
-export enum IntegrationProvider {
-  NYLAS = 'nylas',
-  GHL = 'ghl',
-}
+export { IntegrationProvider };
 
 /**
  * Org-owned third-party credentials (e.g. Nylas calendar).

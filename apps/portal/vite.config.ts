@@ -24,6 +24,13 @@ export default defineConfig({
         replacement: path.resolve(monorepoRoot, "packages/ui/src/index.ts"),
       },
       {
+        find: "@call-agent/contracts",
+        replacement: path.resolve(
+          monorepoRoot,
+          "packages/contracts/src/index.ts",
+        ),
+      },
+      {
         find: "react",
         replacement: path.resolve(__dirname, "node_modules/react"),
       },

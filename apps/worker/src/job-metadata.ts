@@ -1,45 +1,11 @@
-export type AgentJobPrompt = {
-  systemPrompt: string;
-  /**
-   * LiveKit onEnter generateReply instructions.
-   * undefined/null = built-in default; empty string = skip opening speech.
-   */
-  onEnterInstructions?: string | null;
-  /**
-   * Spoken closing line for LiveKit onExit (`session.say`).
-   * undefined/null = built-in default; empty string = skip closing speech.
-   */
-  onExitInstructions?: string | null;
-};
+import {
+  AgentDirection,
+  CallMedium,
+  isDeliveryMode,
+  type AgentJobMetadata,
+} from '@call-agent/contracts';
 
-/**
- * Runtime-only dispatch metadata. No executable code.
- * Persona = prompt.systemPrompt; hooks = onEnter/onExit; workflow = task; capabilities = enabledTools.
- */
-export type AgentJobMetadata = {
-  callId?: string;
-  organizationId?: string;
-  organizationAgentId?: string;
-  agentKey: string;
-  direction: string;
-  /** `web` | `sip` when provided by the API. */
-  medium?: string;
-  /** LiveKit TaskRegistry key. */
-  task: string;
-  prompt: AgentJobPrompt;
-  /** Worker ToolRegistry ids. */
-  enabledTools: string[];
-  /** Free-form runtime context (CRM fields, booking details, etc.). */
-  context?: Record<string, unknown>;
-  participantIdentity?: string;
-  voice?: string | null;
-  model?: string | null;
-  temperature?: number | null;
-  /** Inworld TTS speaking_rate (0.5–1.5). */
-  speakingRate?: number | null;
-  /** Inworld TTS-2 delivery_mode. */
-  deliveryMode?: 'STABLE' | 'BALANCED' | 'CREATIVE' | null;
-};
+export type { AgentJobMetadata, AgentJobPrompt } from '@call-agent/contracts';
 
 const FALLBACK_SYSTEM = [
   'You are a helpful voice call agent representing the company.',
@@ -47,13 +13,17 @@ const FALLBACK_SYSTEM = [
   'Follow company policies and never invent facts.',
 ].join(' ');
 
-function parseDeliveryMode(
-  value: unknown,
-): AgentJobMetadata['deliveryMode'] {
-  if (value === 'STABLE' || value === 'BALANCED' || value === 'CREATIVE') {
+function parseDirection(value: unknown): AgentDirection {
+  return value === AgentDirection.OUTBOUND
+    ? AgentDirection.OUTBOUND
+    : AgentDirection.INBOUND;
+}
+
+function parseMedium(value: unknown): CallMedium | undefined {
+  if (value === CallMedium.WEB || value === CallMedium.SIP) {
     return value;
   }
-  return null;
+  return undefined;
 }
 
 function parseHookField(
@@ -72,7 +42,7 @@ export function parseJobMetadata(raw: string | undefined | null): AgentJobMetada
       organizationId: undefined,
       organizationAgentId: undefined,
       agentKey: 'unknown',
-      direction: 'inbound',
+      direction: AgentDirection.INBOUND,
       medium: undefined,
       task: 'general',
       prompt: {
@@ -123,9 +93,8 @@ export function parseJobMetadata(raw: string | undefined | null): AgentJobMetada
           ? parsed.organizationAgentId
           : undefined,
       agentKey: typeof parsed.agentKey === 'string' ? parsed.agentKey : 'unknown',
-      direction:
-        typeof parsed.direction === 'string' ? parsed.direction : 'inbound',
-      medium: typeof parsed.medium === 'string' ? parsed.medium : undefined,
+      direction: parseDirection(parsed.direction),
+      medium: parseMedium(parsed.medium),
       task:
         typeof parsed.task === 'string' && parsed.task.trim()
           ? parsed.task.trim()
@@ -153,7 +122,9 @@ export function parseJobMetadata(raw: string | undefined | null): AgentJobMetada
         !Number.isNaN(parsed.speakingRate)
           ? parsed.speakingRate
           : null,
-      deliveryMode: parseDeliveryMode(parsed.deliveryMode),
+      deliveryMode: isDeliveryMode(parsed.deliveryMode)
+        ? parsed.deliveryMode
+        : null,
     };
   } catch {
     return {
@@ -161,7 +132,7 @@ export function parseJobMetadata(raw: string | undefined | null): AgentJobMetada
       organizationId: undefined,
       organizationAgentId: undefined,
       agentKey: 'unknown',
-      direction: 'inbound',
+      direction: AgentDirection.INBOUND,
       medium: undefined,
       task: 'general',
       prompt: {

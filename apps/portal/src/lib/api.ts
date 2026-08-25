@@ -1,19 +1,113 @@
+import {
+  KNOWN_TASK_KEYS,
+  KNOWN_TOOL_IDS,
+} from "@call-agent/contracts";
+import type {
+  AdminProfile,
+  AdminQueueStats,
+  Agent,
+  AgentPrompt,
+  AssignOrganizationAgentRequest,
+  CallBatch,
+  CallCostLine,
+  CallCostSnapshot,
+  CallRecord,
+  ChangePasswordRequest,
+  CloneOrganizationAgentRequest,
+  CostSummary,
+  CreateInboundSipTrunkRequest,
+  CreateIntegrationEndpointRequest,
+  CreateOrgUserRequest,
+  CreateOrganizationIntegrationRequest,
+  CreateOrganizationRequest,
+  CreateOutboundSipTrunkRequest,
+  CreateSipDispatchRuleRequest,
+  CreateToolProfileRequest,
+  CreateUserOutboundCallRequest,
+  CreateUserTestCallRequest,
+  EnqueueCallsRequest,
+  EnqueueCallsResponse,
+  GhlCalendarOption,
+  InboundPublishResult,
+  IntegrationEndpoint,
+  IntegrationEndpointSecret,
+  IntegrationProvider,
+  KnownToolId,
+  KnownToolsResponse,
+  ListCallsQuery,
+  OrgQueueStats,
+  OrgUser,
+  Organization,
+  OrganizationIntegration,
+  OrganizationIntegrationTestResponse,
+  PreviewGhlCalendarsRequest,
+  PreviewGhlCalendarsResponse,
+  PublishInboundRequest,
+  PublishResourceResult,
+  QueueSettings,
+  ResetAdminPasswordRequest,
+  ResetUserPasswordRequest,
+  SetPasswordRequest,
+  SipDispatchRule,
+  SipDispatchRuleType,
+  SipTrunk,
+  TestCallResponse,
+  TokenResponse,
+  ToolProfile,
+  UpdateAgentTemplateRequest,
+  UpdateInboundSipTrunkRequest,
+  UpdateIntegrationEndpointRequest,
+  UpdateOrganizationAgentRequest,
+  UpdateOrganizationIntegrationRequest,
+  UpdateOutboundSipTrunkRequest,
+  UpdateProfileRequest,
+  UpdateQueueSettingsRequest,
+  UpdateSipDispatchRuleRequest,
+  UpdateToolProfileRequest,
+  UserCallBucket,
+  UserProfile,
+} from "@call-agent/contracts";
+
 const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
 
 export const ADMIN_TOKEN_KEY = "callagent_admin_token";
 export const USER_TOKEN_KEY = "callagent_user_token";
 
 /** Known LiveKit task keys for dropdowns */
-export const TASK_KEYS = [
-  "general",
-  "confirm_appointment",
-  "lead_qualification",
-  "customer_support",
-  "survey",
-  "debt_collection",
-  "demo_booking",
-  "interview_booking",
-] as const;
+export const TASK_KEYS = KNOWN_TASK_KEYS;
+export { KNOWN_TOOL_IDS };
+export type {
+  AdminProfile,
+  AdminQueueStats,
+  Agent,
+  AgentPrompt,
+  CallBatch,
+  CallCostLine,
+  CallCostSnapshot,
+  CallRecord,
+  CostSummary,
+  EnqueueCallsResponse,
+  GhlCalendarOption,
+  InboundPublishResult,
+  IntegrationEndpoint,
+  IntegrationEndpointSecret,
+  IntegrationProvider,
+  KnownToolId,
+  OrgQueueStats,
+  OrgUser,
+  Organization,
+  OrganizationIntegration,
+  PublishResourceResult,
+  QueueSettings,
+  SipDispatchRule,
+  SipDispatchRuleType,
+  SipTrunk,
+  TestCallResponse,
+  TokenResponse,
+  ToolProfile,
+  UserCallBucket,
+  UserProfile,
+};
 
 export class ApiError extends Error {
   constructor(
@@ -31,116 +125,6 @@ export class UnauthorizedError extends ApiError {
     this.name = "UnauthorizedError";
   }
 }
-
-export interface TokenResponse {
-  access_token: string;
-  token_type: string;
-  expires_in: string;
-}
-
-export interface AdminProfile {
-  id: string;
-  email: string;
-  name: string | null;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-  typ?: "admin";
-}
-
-export interface UserProfile {
-  id: string;
-  email: string;
-  name: string | null;
-  role: "org_admin" | "agent" | "supervisor";
-  isActive: boolean;
-  organization: {
-    id: string;
-    name?: string;
-    slug?: string;
-  };
-  createdAt?: string;
-  updatedAt?: string;
-  typ?: "user";
-}
-
-export interface Organization {
-  id: string;
-  name: string;
-  slug: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface OrgUser {
-  id: string;
-  organizationId: string;
-  email: string;
-  name: string | null;
-  role: "org_admin" | "agent" | "supervisor";
-  isActive: boolean;
-  hasPassword?: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface AgentPrompt {
-  systemPrompt: string;
-  /** null = built-in default; empty string = skip speech. */
-  onEnterInstructions?: string | null;
-  /** null = built-in default; empty string = skip speech. */
-  onExitInstructions?: string | null;
-}
-
-export interface Agent {
-  id: string;
-  /** Platform template key (lineage). Prefer `slug` for org agent identity. */
-  key: string;
-  /** Display name (org-owned for organization agents). */
-  name: string;
-  /** Unique-per-org slug for organization agents. */
-  slug?: string;
-  direction: "inbound" | "outbound";
-  description: string | null;
-  isActive: boolean;
-  prompt: AgentPrompt;
-  /** Inbound org agents + templates: default workflow. Outbound org agents: null. */
-  defaultTaskKey: string | null;
-  toolProfileId: string | null;
-  /** Linked Nylas (org) calendar integration for calendar tools. */
-  calendarIntegrationId?: string | null;
-  enabledTools: string[];
-  voice: string | null;
-  model: string | null;
-  temperature: number | null;
-  speakingRate?: number | null;
-  deliveryMode?: string | null;
-  organizationId?: string;
-  agentId?: string;
-  /** Platform template key on org agents (same as `key`). */
-  templateKey?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/** Worker ToolRegistry ids (mirror apps/api/src/tools/known-tools.ts). */
-export const KNOWN_TOOL_IDS = [
-  "endCall",
-  "booking",
-  "cancelBooking",
-  "transferCall",
-  "lookupCustomer",
-  "confirmAppointment",
-  "checkCalendarAvailability",
-  "listCalendarEvents",
-  "createCalendarEvent",
-  "cancelCalendarEvent",
-  "checkGhlFreeSlots",
-  "lookupGhlContact",
-  "upsertGhlContact",
-  "scheduleGhlMeeting",
-] as const;
 
 /** Optional short labels for tool profile UI. */
 export const TOOL_ID_HINTS: Record<string, string> = {
@@ -164,382 +148,6 @@ export const TOOL_ID_HINTS: Record<string, string> = {
   scheduleGhlMeeting:
     "GHL book a meeting — requires agent GHL calendar link and a GHL contact id (from lookupGhlContact, upsertGhlContact, or call context). Never pass a phone as contactId.",
 };
-
-export type IntegrationProvider = "nylas" | "ghl";
-
-export interface OrganizationIntegration {
-  id: string;
-  organizationId: string;
-  provider: IntegrationProvider;
-  name: string;
-  apiKeyPrefix: string;
-  grantId: string | null;
-  locationId: string | null;
-  calendarId: string;
-  apiUri: string;
-  email: string | null;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export type KnownToolId = (typeof KNOWN_TOOL_IDS)[number];
-
-export interface ToolProfile {
-  id: string;
-  key: string;
-  name: string;
-  description: string | null;
-  organizationId?: string | null;
-  isPlatform?: boolean;
-  toolIds: string[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface SipTrunk {
-  id: string;
-  organizationId: string;
-  name: string;
-  direction: "inbound" | "outbound";
-  providerAddress: string | null;
-  authUsername: string | null;
-  numbers: string[];
-  allowedNumbers: string[];
-  allowedAddresses: string[];
-  krispEnabled: boolean;
-  livekitTrunkId: string | null;
-  status: "draft" | "live";
-  isActive: boolean;
-  publishedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export type SipDispatchRuleType = "individual" | "direct" | "callee";
-
-export interface SipDispatchRule {
-  id: string;
-  organizationId: string;
-  name: string;
-  ruleType: SipDispatchRuleType;
-  roomPrefix: string | null;
-  roomName: string | null;
-  pin: string | null;
-  randomize: boolean;
-  sipTrunkIds: string[];
-  hidePhoneNumber: boolean;
-  attributes: Record<string, string> | null;
-  metadata: string | null;
-  organizationAgentId: string | null;
-  agentName: string | null;
-  livekitDispatchRuleId: string | null;
-  status: "draft" | "live";
-  isActive: boolean;
-  publishedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface PublishResourceResult {
-  id: string;
-  outcome: "published" | "skipped" | "failed";
-  message?: string;
-  livekitId?: string | null;
-}
-
-export interface InboundPublishResult {
-  trunks: PublishResourceResult[];
-  dispatchRules: PublishResourceResult[];
-  publishedTrunks?: SipTrunk[];
-  publishedDispatchRules?: SipDispatchRule[];
-}
-
-export interface CallRecord {
-  id: string;
-  organizationId: string | null;
-  organizationAgentId: string | null;
-  agentId: string | null;
-  sipTrunkId: string | null;
-  batchId?: string | null;
-  direction: "inbound" | "outbound";
-  status: string;
-  medium: "web" | "sip";
-  roomName: string | null;
-  participantIdentity: string | null;
-  fromNumber: string | null;
-  toNumber: string | null;
-  context?: Record<string, unknown> | null;
-  taskKey: string | null;
-  taskResult: Record<string, unknown> | null;
-  /** pending until the session ends; completed only if complete_* ran */
-  taskStatus?: "pending" | "completed" | "incomplete";
-  transcript: Array<{
-    role: string;
-    content: string;
-    createdAt?: string | number | null;
-  }> | null;
-  usage: Record<string, unknown> | null;
-  /** LiveKit session report; may include toolEvents from worker complete. */
-  sessionReport?: Record<string, unknown> | null;
-  /**
-   * Worker tool invocations (derived from sessionReport.toolEvents on the API).
-   * Prefer this over digging into sessionReport in the portal.
-   */
-  toolEvents?: Array<{
-    at?: string;
-    toolId?: string;
-    ok?: boolean;
-    error?: string;
-    summary?: string;
-    durationMs?: number;
-    args?: unknown;
-    result?: unknown;
-    [key: string]: unknown;
-  }> | null;
-  errorMessage: string | null;
-  attemptCount: number;
-  maxAttempts: number;
-  priority?: number;
-  lastFailureCode: string | null;
-  lastFailureAt?: string | null;
-  createdAt: string;
-  updatedAt: string;
-  startedAt?: string | null;
-  answeredAt?: string | null;
-  endedAt?: string | null;
-  /** LiveKit list-price snapshot (no markup). Null until the worker completes. */
-  cost?: CallCostSnapshot | null;
-}
-
-export type CostLineKey =
-  | "llm"
-  | "stt"
-  | "tts"
-  | "webrtc"
-  | "sip"
-  | "agent_session"
-  | "krisp"
-  | "sip_vendor"
-  | "eot"
-  | string;
-
-export type CostUnit =
-  | "tokens_in"
-  | "tokens_cached"
-  | "tokens_out"
-  | "minutes"
-  | "characters"
-  | "requests"
-  | string;
-
-export interface CallCostLine {
-  key: CostLineKey;
-  label: string;
-  model?: string | null;
-  quantity: number;
-  unit: CostUnit;
-  unitPriceUsd: number;
-  amountUsd: number;
-  notes?: string;
-}
-
-export interface CallCostAttempt {
-  attempt: number;
-  billedMinutes: number;
-  totalUsd: number;
-  lines: CallCostLine[];
-  unknownModels: string[];
-}
-
-export interface CallCostSnapshot {
-  currency: "USD";
-  markup: 0;
-  plan: string;
-  catalogAsOf: string;
-  totalUsd: number;
-  billedMinutes: number;
-  unknownModels: string[];
-  lines: CallCostLine[];
-  attempts: CallCostAttempt[];
-}
-
-export interface CostSummaryByKey {
-  key: string;
-  amountUsd: number;
-}
-
-export interface CostSummaryDaily {
-  date: string;
-  callCount: number;
-  totalUsd: number;
-}
-
-export interface CostSummary {
-  currency: "USD";
-  markup: 0;
-  plan: string;
-  catalogAsOf: string;
-  from: string;
-  to: string;
-  organizationId: string | null;
-  callCount: number;
-  unpricedCount: number;
-  totalUsd: number;
-  avgUsd: number;
-  billedMinutes: number;
-  byKey: CostSummaryByKey[];
-  daily: CostSummaryDaily[];
-}
-
-export interface TestCallResponse extends CallRecord {
-  agentKey: string;
-  livekitUrl: string;
-  participantToken: string;
-  meetUrl: string;
-}
-
-export interface EnqueueCallsResponse {
-  batchId: string;
-  count: number;
-  calls: CallRecord[];
-}
-
-/** Preconfigured CRM dial-in endpoint (org user management). */
-export interface IntegrationEndpoint {
-  id: string;
-  organizationId: string;
-  name: string;
-  publicId: string;
-  organizationAgentId: string;
-  taskKey: string;
-  sipTrunkId: string | null;
-  maxAttempts: number | null;
-  priority: number;
-  maxConcurrent: number | null;
-  defaultContext: Record<string, unknown> | null;
-  isActive: boolean;
-  keyPrefix: string;
-  endpointPath: string;
-  lastUsedAt: string | null;
-  createdByUserId: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/** Create / rotate response — full apiKey only once. */
-export interface IntegrationEndpointSecret extends IntegrationEndpoint {
-  apiKey: string;
-}
-
-export interface CallBatch {
-  id: string;
-  organizationId: string;
-  status: "running" | "paused" | "cancelled" | "completed";
-  organizationAgentId: string | null;
-  sipTrunkId: string | null;
-  taskKey: string | null;
-  maxAttempts: number | null;
-  maxConcurrent: number | null;
-  priority: number;
-  totalCount: number;
-  pausedAt: string | null;
-  cancelledAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-  stats?: {
-    pending: number;
-    creating: number;
-    dialing: number;
-    ready: number;
-    completed: number;
-    incomplete?: number;
-    failed: number;
-    cancelled: number;
-  };
-}
-
-export interface QueueSettings {
-  organizationId: string;
-  enabled: boolean;
-  paused: boolean;
-  maxConcurrent: number;
-  maxDialsPerMinute: number;
-  defaultMaxAttempts: number;
-  backoffStrategy: "fixed" | "exponential";
-  backoffBaseSeconds: number;
-  backoffMaxSeconds: number;
-  retryOn: string[];
-  quietHoursEnabled: boolean;
-  quietHoursStart: string | null;
-  quietHoursEnd: string | null;
-  quietHoursTimezone: string;
-  claimBatchSize: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface OrgQueueStats {
-  organizationId: string;
-  queue: {
-    enabled: boolean;
-    paused: boolean;
-    maxConcurrent: number;
-    maxDialsPerMinute: number;
-    inProgress: number;
-    availableSlots: number;
-    dialsLastMinute: number;
-  };
-  counts: {
-    pending: number;
-    pendingReadyNow: number;
-    creating: number;
-    dialing: number;
-    ready: number;
-    completed: number;
-    incomplete?: number;
-    failed: number;
-    cancelled: number;
-  };
-  retries: { scheduled: number; avgAttemptCount: number };
-  batches: { running: number; paused: number };
-  dialer: {
-    globalEnabled: boolean;
-    lastTickAt: string | null;
-    lastClaimCount: number;
-    lastError: string | null;
-  };
-  daily: Array<{
-    date: string;
-    total: number;
-    completed: number;
-    incomplete?: number;
-    failed: number;
-    cancelled: number;
-  }>;
-  asOf: string;
-}
-
-export interface AdminQueueStats {
-  totals: {
-    pending: number;
-    inProgress: number;
-    completed: number;
-    incomplete?: number;
-    failed: number;
-    cancelled: number;
-    orgsEnabled: number;
-    orgsPaused: number;
-  };
-  dialer: {
-    globalEnabled: boolean;
-    lastTickAt: string | null;
-    lastClaimCount: number;
-    lastError: string | null;
-  };
-  organizations: OrgQueueStats[];
-  asOf: string;
-}
 
 function parseErrorMessage(body: unknown, fallback: string): string {
   if (!body || typeof body !== "object") return fallback;
@@ -687,7 +295,7 @@ export const listOrganizations = () =>
 export const getOrganization = (id: string) =>
   adminFetch<Organization>(`/admin/organizations/${id}`);
 
-export const createOrganization = (data: { name: string; slug: string }) =>
+export const createOrganization = (data: CreateOrganizationRequest) =>
   adminFetch<Organization>("/admin/organizations", {
     method: "POST",
     body: data,
@@ -697,14 +305,7 @@ export const createOrganization = (data: { name: string; slug: string }) =>
 export const listOrgUsers = (orgId: string) =>
   adminFetch<OrgUser[]>(`/admin/organizations/${orgId}/users`);
 
-export const createOrgUser = (
-  orgId: string,
-  data: {
-    email: string;
-    name?: string;
-    role?: OrgUser["role"];
-  },
-) =>
+export const createOrgUser = (orgId: string, data: CreateOrgUserRequest) =>
   adminFetch<OrgUser>(`/admin/organizations/${orgId}/users`, {
     method: "POST",
     body: data,
@@ -715,31 +316,25 @@ export const resendOrgUserInvite = (orgId: string, userId: string) =>
     method: "POST",
   });
 
-export const changeAdminPassword = (data: {
-  currentPassword: string;
-  newPassword: string;
-}) =>
+export const changeAdminPassword = (data: ChangePasswordRequest) =>
   adminFetch<{ ok: true }>("/auth/admin/password", {
     method: "POST",
     body: data,
   });
 
-export const changeUserPassword = (data: {
-  currentPassword: string;
-  newPassword: string;
-}) =>
+export const changeUserPassword = (data: ChangePasswordRequest) =>
   userFetch<{ ok: true }>("/auth/password", {
     method: "POST",
     body: data,
   });
 
-export const updateUserProfile = (data: { name: string }) =>
+export const updateUserProfile = (data: UpdateProfileRequest) =>
   userFetch<UserProfile>("/auth/me", {
     method: "PATCH",
     body: data,
   });
 
-export const updateAdminProfile = (data: { name: string }) =>
+export const updateAdminProfile = (data: UpdateProfileRequest) =>
   adminFetch<AdminProfile>("/auth/admin/me", {
     method: "PATCH",
     body: data,
@@ -788,31 +383,17 @@ export const forgotAdminPassword = (email: string) =>
     "Could not send reset email.",
   );
 
-export const setUserPassword = (data: {
-  email: string;
-  organizationSlug: string;
-  token: string;
-  newPassword: string;
-}) =>
+export const setUserPassword = (data: SetPasswordRequest) =>
   publicJson<{ ok: true }>("/auth/set-password", data, "Could not set password.");
 
-export const resetUserPassword = (data: {
-  email: string;
-  organizationSlug: string;
-  token: string;
-  newPassword: string;
-}) =>
+export const resetUserPassword = (data: ResetUserPasswordRequest) =>
   publicJson<{ ok: true }>(
     "/auth/reset-password",
     data,
     "Could not reset password.",
   );
 
-export const resetAdminPassword = (data: {
-  email: string;
-  token: string;
-  newPassword: string;
-}) =>
+export const resetAdminPassword = (data: ResetAdminPasswordRequest) =>
   publicJson<{ ok: true }>(
     "/auth/admin/reset-password",
     data,
@@ -827,19 +408,7 @@ export const getAgentTemplate = (id: string) =>
 
 export const updateAgentTemplate = (
   id: string,
-  data: {
-    systemPrompt?: string;
-    onEnterInstructions?: string | null;
-    onExitInstructions?: string | null;
-    defaultTaskKey?: string;
-    defaultToolProfileId?: string;
-    voice?: string | null;
-    model?: string | null;
-    temperature?: number | null;
-    speakingRate?: number | null;
-    deliveryMode?: string | null;
-    isActive?: boolean;
-  },
+  data: UpdateAgentTemplateRequest,
 ) =>
   adminFetch<Agent>(`/admin/agents/${id}`, {
     method: "PATCH",
@@ -855,13 +424,7 @@ export const getOrgAgent = (orgId: string, id: string) =>
 
 export const assignOrgAgent = (
   orgId: string,
-  data: {
-    agentId: string;
-    name?: string;
-    slug?: string;
-    toolProfileId?: string;
-    defaultTaskKey?: string;
-  },
+  data: AssignOrganizationAgentRequest,
 ) =>
   adminFetch<Agent>(`/admin/organizations/${orgId}/agents`, {
     method: "POST",
@@ -871,7 +434,7 @@ export const assignOrgAgent = (
 export const cloneOrgAgent = (
   orgId: string,
   id: string,
-  data: { name: string; slug?: string },
+  data: CloneOrganizationAgentRequest,
 ) =>
   adminFetch<Agent>(`/admin/organizations/${orgId}/agents/${id}/clone`, {
     method: "POST",
@@ -881,21 +444,7 @@ export const cloneOrgAgent = (
 export const updateOrgAgent = (
   orgId: string,
   id: string,
-  data: {
-    name?: string;
-    slug?: string;
-    systemPrompt?: string;
-    onEnterInstructions?: string | null;
-    onExitInstructions?: string | null;
-    toolProfileId?: string;
-    defaultTaskKey?: string | null;
-    voice?: string | null;
-    model?: string | null;
-    temperature?: number | null;
-    speakingRate?: number | null;
-    deliveryMode?: string | null;
-    isActive?: boolean;
-  },
+  data: UpdateOrganizationAgentRequest,
 ) =>
   adminFetch<Agent>(`/admin/organizations/${orgId}/agents/${id}`, {
     method: "PATCH",
@@ -916,16 +465,7 @@ export const getSipTrunk = (orgId: string, id: string) =>
 
 export const createSipTrunk = (
   orgId: string,
-  data: {
-    name: string;
-    numbers: string[];
-    livekitTrunkId?: string;
-    providerAddress?: string;
-    authUsername?: string;
-    authPassword?: string;
-    isActive?: boolean;
-    destinationCountry?: string;
-  },
+  data: CreateOutboundSipTrunkRequest,
 ) =>
   adminFetch<SipTrunk>(`/admin/organizations/${orgId}/sip-trunks`, {
     method: "POST",
@@ -935,13 +475,7 @@ export const createSipTrunk = (
 export const updateSipTrunk = (
   orgId: string,
   id: string,
-  data: {
-    name?: string;
-    numbers?: string[];
-    isActive?: boolean;
-    authUsername?: string;
-    authPassword?: string;
-  },
+  data: UpdateOutboundSipTrunkRequest,
 ) =>
   adminFetch<SipTrunk>(`/admin/organizations/${orgId}/sip-trunks/${id}`, {
     method: "PATCH",
@@ -963,12 +497,7 @@ export const listOrgToolProfiles = (orgId: string) =>
 export const getToolProfile = (id: string) =>
   adminFetch<ToolProfile>(`/admin/tool-profiles/${id}`);
 
-export const createToolProfile = (data: {
-  name: string;
-  key?: string;
-  description?: string | null;
-  toolIds: string[];
-}) =>
+export const createToolProfile = (data: CreateToolProfileRequest) =>
   adminFetch<ToolProfile>("/admin/tool-profiles", {
     method: "POST",
     body: data,
@@ -976,11 +505,7 @@ export const createToolProfile = (data: {
 
 export const updateToolProfile = (
   id: string,
-  data: {
-    name?: string;
-    description?: string | null;
-    toolIds?: string[];
-  },
+  data: UpdateToolProfileRequest,
 ) =>
   adminFetch<ToolProfile>(`/admin/tool-profiles/${id}`, {
     method: "PATCH",
@@ -1021,25 +546,7 @@ export const getOrgQueueSettings = (orgId: string) =>
 
 export const updateOrgQueueSettings = (
   orgId: string,
-  data: Partial<
-    Pick<
-      QueueSettings,
-      | "enabled"
-      | "paused"
-      | "maxConcurrent"
-      | "maxDialsPerMinute"
-      | "defaultMaxAttempts"
-      | "backoffStrategy"
-      | "backoffBaseSeconds"
-      | "backoffMaxSeconds"
-      | "retryOn"
-      | "quietHoursEnabled"
-      | "quietHoursStart"
-      | "quietHoursEnd"
-      | "quietHoursTimezone"
-      | "claimBatchSize"
-    >
-  >,
+  data: UpdateQueueSettingsRequest,
 ) =>
   adminFetch<QueueSettings>(`/admin/organizations/${orgId}/queue/settings`, {
     method: "PATCH",
@@ -1202,13 +709,7 @@ export const listUserAgentTemplates = () =>
 export const getUserAgent = (id: string) =>
   userFetch<Agent>(`/users/agents/${id}`);
 
-export const createUserAgent = (data: {
-  agentId: string;
-  name?: string;
-  slug?: string;
-  toolProfileId?: string;
-  defaultTaskKey?: string;
-}) =>
+export const createUserAgent = (data: AssignOrganizationAgentRequest) =>
   userFetch<Agent>("/users/agents", {
     method: "POST",
     body: data,
@@ -1216,7 +717,7 @@ export const createUserAgent = (data: {
 
 export const cloneUserAgent = (
   id: string,
-  data: { name: string; slug?: string },
+  data: CloneOrganizationAgentRequest,
 ) =>
   userFetch<Agent>(`/users/agents/${id}/clone`, {
     method: "POST",
@@ -1225,22 +726,7 @@ export const cloneUserAgent = (
 
 export const updateUserAgent = (
   id: string,
-  data: {
-    name?: string;
-    slug?: string;
-    systemPrompt?: string;
-    onEnterInstructions?: string | null;
-    onExitInstructions?: string | null;
-    toolProfileId?: string;
-    calendarIntegrationId?: string | null;
-    defaultTaskKey?: string | null;
-    voice?: string | null;
-    model?: string | null;
-    temperature?: number | null;
-    speakingRate?: number | null;
-    deliveryMode?: string | null;
-    isActive?: boolean;
-  },
+  data: UpdateOrganizationAgentRequest,
 ) =>
   userFetch<Agent>(`/users/agents/${id}`, {
     method: "PATCH",
@@ -1254,16 +740,9 @@ export const deleteUserAgent = (id: string) =>
 export const listUserOrgIntegrations = () =>
   userFetch<OrganizationIntegration[]>("/users/integrations");
 
-export const createUserOrgIntegration = (data: {
-  name: string;
-  provider?: IntegrationProvider;
-  apiKey: string;
-  grantId?: string;
-  locationId?: string;
-  calendarId?: string;
-  apiUri?: string;
-  email?: string;
-}) =>
+export const createUserOrgIntegration = (
+  data: CreateOrganizationIntegrationRequest,
+) =>
   userFetch<OrganizationIntegration>("/users/integrations", {
     method: "POST",
     body: data,
@@ -1271,16 +750,7 @@ export const createUserOrgIntegration = (data: {
 
 export const updateUserOrgIntegration = (
   id: string,
-  data: {
-    name?: string;
-    apiKey?: string;
-    grantId?: string;
-    locationId?: string;
-    calendarId?: string;
-    apiUri?: string;
-    email?: string | null;
-    isActive?: boolean;
-  },
+  data: UpdateOrganizationIntegrationRequest,
 ) =>
   userFetch<OrganizationIntegration>(`/users/integrations/${id}`, {
     method: "PATCH",
@@ -1290,26 +760,15 @@ export const updateUserOrgIntegration = (
 export const deleteUserOrgIntegration = (id: string) =>
   userFetch<void>(`/users/integrations/${id}`, { method: "DELETE" });
 
-export type GhlCalendarOption = { id: string; name?: string };
-
 export const testUserOrgIntegration = (id: string) =>
-  userFetch<{
-    ok: boolean;
-    message?: string;
-    calendarIds?: string[];
-    calendars?: GhlCalendarOption[];
-  }>(`/users/integrations/${id}/test`, { method: "POST" });
+  userFetch<OrganizationIntegrationTestResponse>(
+    `/users/integrations/${id}/test`,
+    { method: "POST" },
+  );
 
 /** Unsaved GHL v3 PIT + location → GET /calendars/?locationId= */
-export const previewGhlCalendars = (data: {
-  apiKey: string;
-  locationId: string;
-}) =>
-  userFetch<{
-    ok: boolean;
-    message?: string;
-    calendars?: GhlCalendarOption[];
-  }>("/users/integrations/ghl/calendars", {
+export const previewGhlCalendars = (data: PreviewGhlCalendarsRequest) =>
+  userFetch<PreviewGhlCalendarsResponse>("/users/integrations/ghl/calendars", {
     method: "POST",
     body: data,
   });
@@ -1322,14 +781,9 @@ export const getUserToolProfile = (id: string) =>
   userFetch<ToolProfile>(`/users/tool-profiles/${id}`);
 
 export const listUserKnownTools = () =>
-  userFetch<{ toolIds: string[] }>("/users/tool-profiles/known-tools");
+  userFetch<KnownToolsResponse>("/users/tool-profiles/known-tools");
 
-export const createUserToolProfile = (data: {
-  name: string;
-  key?: string;
-  description?: string | null;
-  toolIds: string[];
-}) =>
+export const createUserToolProfile = (data: CreateToolProfileRequest) =>
   userFetch<ToolProfile>("/users/tool-profiles", {
     method: "POST",
     body: data,
@@ -1337,11 +791,7 @@ export const createUserToolProfile = (data: {
 
 export const updateUserToolProfile = (
   id: string,
-  data: {
-    name?: string;
-    description?: string | null;
-    toolIds?: string[];
-  },
+  data: UpdateToolProfileRequest,
 ) =>
   userFetch<ToolProfile>(`/users/tool-profiles/${id}`, {
     method: "PATCH",
@@ -1355,27 +805,7 @@ export const deleteUserToolProfile = (id: string) =>
 export const getUserQueueSettings = () =>
   userFetch<QueueSettings>("/users/queue/settings");
 
-export const updateUserQueueSettings = (
-  data: Partial<
-    Pick<
-      QueueSettings,
-      | "enabled"
-      | "paused"
-      | "maxConcurrent"
-      | "maxDialsPerMinute"
-      | "defaultMaxAttempts"
-      | "backoffStrategy"
-      | "backoffBaseSeconds"
-      | "backoffMaxSeconds"
-      | "retryOn"
-      | "quietHoursEnabled"
-      | "quietHoursStart"
-      | "quietHoursEnd"
-      | "quietHoursTimezone"
-      | "claimBatchSize"
-    >
-  >,
-) =>
+export const updateUserQueueSettings = (data: UpdateQueueSettingsRequest) =>
   userFetch<QueueSettings>("/users/queue/settings", {
     method: "PATCH",
     body: data,
@@ -1406,15 +836,7 @@ export const cancelUserBatch = (id: string) =>
   userFetch<CallBatch>(`/users/queue/batches/${id}/cancel`, { method: "POST" });
 
 /* ── User calls ── */
-export type UserCallBucket = "pending" | "in_progress" | "done";
-
-export const listUserCalls = (params?: {
-  limit?: number;
-  bucket?: UserCallBucket;
-  status?: string;
-  batchId?: string;
-  direction?: "inbound" | "outbound";
-}) => {
+export const listUserCalls = (params?: ListCallsQuery) => {
   const q = new URLSearchParams();
   if (params?.limit != null) q.set("limit", String(params.limit));
   if (params?.bucket) q.set("bucket", params.bucket);
@@ -1436,38 +858,19 @@ export const getUserCostSummary = (opts?: { from?: string; to?: string }) => {
   return userFetch<CostSummary>(`/users/costs/summary${qs ? `?${qs}` : ""}`);
 };
 
-export const enqueueUserCalls = (data: {
-  organizationAgentId: string;
-  calls: Array<{ context: Record<string, unknown>; toNumber?: string }>;
-  task?: string;
-  sipTrunkId?: string;
-  maxAttempts?: number;
-  priority?: number;
-  maxConcurrent?: number;
-}) =>
+export const enqueueUserCalls = (data: EnqueueCallsRequest) =>
   userFetch<EnqueueCallsResponse>("/users/calls", {
     method: "POST",
     body: data,
   });
 
-export const createUserOutboundCall = (data: {
-  organizationAgentId: string;
-  context: Record<string, unknown>;
-  task?: string;
-  toNumber?: string;
-  sipTrunkId?: string;
-  waitUntilAnswered?: boolean;
-}) =>
+export const createUserOutboundCall = (data: CreateUserOutboundCallRequest) =>
   userFetch<CallRecord>("/users/calls/outbound", {
     method: "POST",
     body: data,
   });
 
-export const createUserTestCall = (data: {
-  organizationAgentId: string;
-  task?: string;
-  context?: Record<string, unknown>;
-}) =>
+export const createUserTestCall = (data: CreateUserTestCallRequest) =>
   userFetch<TestCallResponse>("/users/calls/test", {
     method: "POST",
     body: data,
@@ -1489,16 +892,7 @@ export const listUserOutboundTrunks = () =>
 export const getUserOutboundTrunk = (id: string) =>
   userFetch<SipTrunk>(`/users/sip-trunks/outbound/${id}`);
 
-export const createUserOutboundTrunk = (data: {
-  name: string;
-  numbers: string[];
-  livekitTrunkId?: string;
-  providerAddress?: string;
-  authUsername?: string;
-  authPassword?: string;
-  isActive?: boolean;
-  destinationCountry?: string;
-}) =>
+export const createUserOutboundTrunk = (data: CreateOutboundSipTrunkRequest) =>
   userFetch<SipTrunk>("/users/sip-trunks/outbound", {
     method: "POST",
     body: data,
@@ -1506,13 +900,7 @@ export const createUserOutboundTrunk = (data: {
 
 export const updateUserOutboundTrunk = (
   id: string,
-  data: {
-    name?: string;
-    numbers?: string[];
-    isActive?: boolean;
-    authUsername?: string;
-    authPassword?: string;
-  },
+  data: UpdateOutboundSipTrunkRequest,
 ) =>
   userFetch<SipTrunk>(`/users/sip-trunks/outbound/${id}`, {
     method: "PATCH",
@@ -1529,17 +917,7 @@ export const listUserInboundTrunks = () =>
 export const getUserInboundTrunk = (id: string) =>
   userFetch<SipTrunk>(`/users/sip-trunks/inbound/${id}`);
 
-export const createUserInboundTrunk = (data: {
-  name: string;
-  numbers: string[];
-  allowedNumbers?: string[];
-  allowedAddresses?: string[];
-  authUsername?: string;
-  authPassword?: string;
-  krispEnabled?: boolean;
-  isActive?: boolean;
-  livekitTrunkId?: string;
-}) =>
+export const createUserInboundTrunk = (data: CreateInboundSipTrunkRequest) =>
   userFetch<SipTrunk>("/users/sip-trunks/inbound", {
     method: "POST",
     body: data,
@@ -1547,16 +925,7 @@ export const createUserInboundTrunk = (data: {
 
 export const updateUserInboundTrunk = (
   id: string,
-  data: {
-    name?: string;
-    numbers?: string[];
-    allowedNumbers?: string[];
-    allowedAddresses?: string[];
-    authUsername?: string;
-    authPassword?: string;
-    krispEnabled?: boolean;
-    isActive?: boolean;
-  },
+  data: UpdateInboundSipTrunkRequest,
 ) =>
   userFetch<SipTrunk>(`/users/sip-trunks/inbound/${id}`, {
     method: "PATCH",
@@ -1578,19 +947,7 @@ export const listUserDispatchRules = () =>
 export const getUserDispatchRule = (id: string) =>
   userFetch<SipDispatchRule>(`/users/sip-dispatch-rules/${id}`);
 
-export const createUserDispatchRule = (data: {
-  name: string;
-  ruleType?: SipDispatchRuleType;
-  roomPrefix?: string;
-  roomName?: string;
-  pin?: string;
-  randomize?: boolean;
-  sipTrunkIds?: string[];
-  hidePhoneNumber?: boolean;
-  organizationAgentId?: string;
-  agentName?: string;
-  isActive?: boolean;
-}) =>
+export const createUserDispatchRule = (data: CreateSipDispatchRuleRequest) =>
   userFetch<SipDispatchRule>("/users/sip-dispatch-rules", {
     method: "POST",
     body: data,
@@ -1598,19 +955,7 @@ export const createUserDispatchRule = (data: {
 
 export const updateUserDispatchRule = (
   id: string,
-  data: {
-    name?: string;
-    ruleType?: SipDispatchRuleType;
-    roomPrefix?: string | null;
-    roomName?: string | null;
-    pin?: string | null;
-    randomize?: boolean;
-    sipTrunkIds?: string[];
-    hidePhoneNumber?: boolean;
-    organizationAgentId?: string | null;
-    agentName?: string | null;
-    isActive?: boolean;
-  },
+  data: UpdateSipDispatchRuleRequest,
 ) =>
   userFetch<SipDispatchRule>(`/users/sip-dispatch-rules/${id}`, {
     method: "PATCH",
@@ -1626,10 +971,7 @@ export const publishUserDispatchRule = (id: string) =>
   });
 
 /** Publish draft inbound trunks then dispatch rules (omit ids = all drafts). */
-export const publishUserInbound = (data?: {
-  sipTrunkIds?: string[];
-  dispatchRuleIds?: string[];
-}) =>
+export const publishUserInbound = (data?: PublishInboundRequest) =>
   userFetch<InboundPublishResult>("/users/inbound/publish", {
     method: "POST",
     body: data ?? {},
@@ -1642,16 +984,9 @@ export const listUserIntegrationEndpoints = () =>
 export const getUserIntegrationEndpoint = (id: string) =>
   userFetch<IntegrationEndpoint>(`/users/integration-endpoints/${id}`);
 
-export const createUserIntegrationEndpoint = (data: {
-  name: string;
-  organizationAgentId: string;
-  task?: string;
-  sipTrunkId?: string;
-  maxAttempts?: number;
-  priority?: number;
-  maxConcurrent?: number;
-  defaultContext?: Record<string, unknown>;
-}) =>
+export const createUserIntegrationEndpoint = (
+  data: CreateIntegrationEndpointRequest,
+) =>
   userFetch<IntegrationEndpointSecret>("/users/integration-endpoints", {
     method: "POST",
     body: data,
@@ -1659,17 +994,7 @@ export const createUserIntegrationEndpoint = (data: {
 
 export const updateUserIntegrationEndpoint = (
   id: string,
-  data: {
-    name?: string;
-    organizationAgentId?: string;
-    task?: string;
-    sipTrunkId?: string | null;
-    maxAttempts?: number | null;
-    priority?: number;
-    maxConcurrent?: number | null;
-    defaultContext?: Record<string, unknown> | null;
-    isActive?: boolean;
-  },
+  data: UpdateIntegrationEndpointRequest,
 ) =>
   userFetch<IntegrationEndpoint>(`/users/integration-endpoints/${id}`, {
     method: "PATCH",

@@ -8,90 +8,32 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import {
+  CALL_BUCKET_STATUSES,
+  CallBucket,
+  CallFailureCode,
+  CallMedium,
+  CallStatus,
+  CallTaskStatus,
+  DEFAULT_RETRY_ON,
+} from '@call-agent/contracts';
+import type { CallTranscriptItem } from '@call-agent/contracts';
 import { Agent, AgentDirection } from '../agents/agent.entity';
 import { OrganizationAgent } from '../agents/organization-agent.entity';
 import { Organization } from '../organizations/organization.entity';
 import type { CallCostSnapshot } from '../price/price.types';
 import { SipTrunk } from '../sip-trunks/sip-trunk.entity';
 
-/**
- * Detailed call lifecycle. Buckets for listing:
- * - pending: PENDING
- * - in_progress: CREATING | DIALING | READY
- * - done: COMPLETED | INCOMPLETE | FAILED | CANCELLED
- *
- * `completed` = session ended AND the LiveKit task called complete_*.
- * `incomplete` = live conversation ended without task.complete().
- * `failed` = never had a successful conversation (no answer / SIP / timeout).
- */
-export enum CallStatus {
-  PENDING = 'pending',
-  CREATING = 'creating',
-  DIALING = 'dialing',
-  READY = 'ready',
-  FAILED = 'failed',
-  COMPLETED = 'completed',
-  INCOMPLETE = 'incomplete',
-  CANCELLED = 'cancelled',
-}
-
-/** Workflow flag — do not infer from task_result JSON. */
-export enum CallTaskStatus {
-  PENDING = 'pending',
-  COMPLETED = 'completed',
-  INCOMPLETE = 'incomplete',
-}
-
-export enum CallBucket {
-  PENDING = 'pending',
-  IN_PROGRESS = 'in_progress',
-  DONE = 'done',
-}
-
-export const CALL_BUCKET_STATUSES: Record<CallBucket, CallStatus[]> = {
-  [CallBucket.PENDING]: [CallStatus.PENDING],
-  [CallBucket.IN_PROGRESS]: [
-    CallStatus.CREATING,
-    CallStatus.DIALING,
-    CallStatus.READY,
-  ],
-  [CallBucket.DONE]: [
-    CallStatus.COMPLETED,
-    CallStatus.INCOMPLETE,
-    CallStatus.FAILED,
-    CallStatus.CANCELLED,
-  ],
+export {
+  CALL_BUCKET_STATUSES,
+  CallBucket,
+  CallFailureCode,
+  CallMedium,
+  CallStatus,
+  CallTaskStatus,
+  DEFAULT_RETRY_ON,
 };
-
-export enum CallMedium {
-  WEB = 'web',
-  SIP = 'sip',
-}
-
-/** Dial / session failure classification for queue retry policy. */
-export enum CallFailureCode {
-  NO_ANSWER = 'no_answer',
-  BUSY = 'busy',
-  SIP_ERROR = 'sip_error',
-  TIMEOUT = 'timeout',
-  AGENT_ERROR = 'agent_error',
-  CANCELLED = 'cancelled',
-  UNKNOWN = 'unknown',
-}
-
-export const DEFAULT_RETRY_ON: CallFailureCode[] = [
-  CallFailureCode.NO_ANSWER,
-  CallFailureCode.BUSY,
-  CallFailureCode.TIMEOUT,
-  CallFailureCode.SIP_ERROR,
-];
-
-export type CallTranscriptItem = {
-  role: string;
-  content: string;
-  createdAt?: string | number | null;
-  id?: string;
-};
+export type { CallTranscriptItem };
 
 export type CallUsageSnapshot = {
   models?: unknown[];

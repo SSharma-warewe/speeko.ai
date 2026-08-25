@@ -7,6 +7,9 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
+import type { AgentJobMetadata } from '@call-agent/contracts';
+import { AgentDirection } from '../agents/agent.entity';
+import { CallMedium } from '../calls/call.entity';
 import { orgAgentDefaultTaskKey } from '../agents/org-agent-task';
 import { OrganizationAgentsService } from '../agents/organization-agents.service';
 import { resolveVoiceRuntime } from '../agents/voice-settings';
@@ -376,15 +379,16 @@ export class SipDispatchRulesService {
   ): Promise<string | undefined> {
     if (!row.organizationAgentId) {
       // Minimal metadata so the worker still starts with fallbacks.
-      return JSON.stringify({
+      const fallback: AgentJobMetadata = {
         organizationId,
-        direction: 'inbound',
-        medium: 'sip',
+        direction: AgentDirection.INBOUND,
+        medium: CallMedium.SIP,
         agentKey: 'inbound',
         task: DEFAULT_TASK_KEY,
         prompt: { systemPrompt: '' },
         enabledTools: ['endCall'],
-      });
+      };
+      return JSON.stringify(fallback);
     }
 
     const orgAgent =
@@ -405,12 +409,12 @@ export class SipDispatchRulesService {
         orgAgent.toolProfileId,
       );
 
-    return JSON.stringify({
+    const metadata: AgentJobMetadata = {
       organizationId,
       organizationAgentId: orgAgent.id,
       agentKey: template.key,
-      direction: 'inbound',
-      medium: 'sip',
+      direction: AgentDirection.INBOUND,
+      medium: CallMedium.SIP,
       task: taskKey,
       prompt: {
         systemPrompt: orgAgent.systemPrompt,
@@ -419,7 +423,8 @@ export class SipDispatchRulesService {
       },
       enabledTools,
       ...resolveVoiceRuntime(orgAgent, template),
-    });
+    };
+    return JSON.stringify(metadata);
   }
 
   private async assertInboundTrunks(

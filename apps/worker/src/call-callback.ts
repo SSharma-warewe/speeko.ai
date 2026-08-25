@@ -7,6 +7,10 @@
  * and failedEarly callers still reach job shutdown after exhaustion.
  */
 
+import type {
+  CompleteCallPayload,
+  InboundEnsurePayload,
+} from '@call-agent/contracts';
 import type { ToolEvent } from './tools/types.js';
 
 export const DEFAULT_COMPLETE_CALLBACK_TIMEOUT_MS = 8_000;
@@ -14,43 +18,7 @@ export const DEFAULT_COMPLETE_CALLBACK_MAX_ATTEMPTS = 5;
 export const DEFAULT_COMPLETE_CALLBACK_BACKOFF_MS = 500;
 export const COMPLETE_CALLBACK_BACKOFF_CAP_MS = 4_000;
 
-export type InboundEnsurePayload = {
-  roomName: string;
-  organizationId?: string;
-  organizationAgentId?: string;
-  agentKey?: string;
-  task?: string;
-  fromNumber?: string | null;
-  toNumber?: string | null;
-  participantIdentity?: string | null;
-  livekitSipCallId?: string | null;
-  livekitTrunkId?: string | null;
-  context?: Record<string, unknown> | null;
-};
-
-export type CompleteCallPayload = {
-  status: 'completed' | 'failed';
-  errorMessage?: string | null;
-  failureCode?: string | null;
-  answeredAt?: string | null;
-  endedAt?: string | null;
-  transcript?: Array<{
-    role: string;
-    content: string;
-    createdAt?: string | number | null;
-    id?: string;
-  }> | null;
-  usage?: Record<string, unknown> | null;
-  sessionReport?: Record<string, unknown> | null;
-  taskResult?: Record<string, unknown> | null;
-  /**
-   * True only when the LiveKit task called complete_* (task.run() resolved).
-   * API maps completed+true → completed, completed+false → incomplete.
-   */
-  taskCompleted?: boolean;
-  /** Tool invocations during the call (merged into sessionReport on API). */
-  toolEvents?: ToolEvent[] | null;
-};
+export type { CompleteCallPayload, InboundEnsurePayload, ToolEvent };
 
 export type PostCallCompleteDeps = {
   fetch?: typeof fetch;
