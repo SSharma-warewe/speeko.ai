@@ -23,8 +23,11 @@ import {
 export async function runAgentJob(ctx: JobContext): Promise<void> {
   const meta = parseJobMetadata(ctx.job.metadata);
   const roomName = ctx.job.room?.name ?? 'unknown';
-  // API places SIP; wait only for SIP legs (web tests join as Meet participant).
-  const waitForCallee = meta.medium === 'sip';
+  // Web tests join as Meet. SIP: wait for the party, then only outbound waits
+  // for the PSTN callee to answer. Inbound ringing becomes active only after
+  // the agent publishes audio (session.start) — waiting first is a deadlock.
+  const isSip = meta.medium === 'sip';
+  const waitForCallee = isSip && meta.direction === 'outbound';
 
   console.log(
     `[agent] job start room=${roomName} callId=${meta.callId ?? 'n/a'} ` +
@@ -133,34 +136,47 @@ export async function runAgentJob(ctx: JobContext): Promise<void> {
       `[agent] connected room=${roomName} agentKey=${meta.agentKey} task=${meta.task}`,
     );
 
-    // API dials SIP; worker waits for the callee before becoming active (task onEnter greets).
-    if (waitForCallee) {
+    // SIP party joins while still ringing. Outbound: wait until the callee
+    // answers before greeting. Inbound: we are the callee — start the session
+    // so LiveKit can 200 OK (sip.callStatus stays ringing until remote audio).
+    if (isSip) {
       const identity = meta.participantIdentity;
       console.log(
         `[agent] waiting for SIP participant identity=${identity ?? '(any)'}`,
       );
       const participant = await ctx.waitForParticipant(identity);
       sipParticipant = participant as SipAnswerParticipant;
+      const status = sipCallStatus(sipParticipant) || 'n/a';
       console.log(
-        `[agent] SIP participant present room=${roomName} ` +
-          `sipStatus=${sipCallStatus(sipParticipant) || 'n/a'}`,
+        `[agent] SIP participant present room=${roomName} sipStatus=${status}`,
       );
       // Persist the inbound ring as soon as the SIP party is in the room so
       // unanswered hangup still has a callId for the existing complete path.
       await ensureInboundCall(sipParticipant);
-      // Participant join is ringing, not answer. Wait for sip.callStatus=active.
-      await waitForSipAnswer({
-        room: ctx.room as unknown as SipAnswerRoom,
-        participant,
-      });
-      answeredAt = new Date().toISOString();
-      console.log(`[agent] callee answered room=${roomName}`);
+      if (status === 'hangup') {
+        throw new Error('SIP callee hung up before answer (no answer)');
+      }
+      if (waitForCallee) {
+        await waitForSipAnswer({
+          room: ctx.room as unknown as SipAnswerRoom,
+          participant,
+        });
+        answeredAt = new Date().toISOString();
+        console.log(`[agent] callee answered room=${roomName}`);
+      } else {
+        console.log(
+          `[agent] inbound pickup room=${roomName} sipStatus=${status} (skip waitForSipAnswer)`,
+        );
+      }
     }
 
     await session.start({
       agent,
       room: ctx.room,
     });
+    if (isSip && meta.direction === 'inbound' && !answeredAt) {
+      answeredAt = new Date().toISOString();
+    }
 
     session.on(voice.AgentSessionEventTypes.Close, () => {
       console.log(`[agent] session closed room=${roomName}`);
@@ -168,7 +184,9 @@ export async function runAgentJob(ctx: JobContext): Promise<void> {
   } catch (err) {
     failedEarly = true;
     const message = err instanceof Error ? err.message : String(err);
-    const stage = waitForCallee && !answeredAt ? 'join/wait' : 'connect/session';
+    const unanswered =
+      !answeredAt && (waitForCallee || /no answer/i.test(message));
+    const stage = unanswered ? 'join/wait' : 'connect/session';
     console.error(`[agent] ${stage} failed room=${roomName}: ${message}`);
     await ensureInboundCall(sipParticipant);
     if (callId) {

@@ -240,6 +240,30 @@ describe('runAgentJob', () => {
       expect(waitForSipAnswerMock).toHaveBeenCalledTimes(1);
       expect(runtime.session.start).toHaveBeenCalledTimes(1);
     });
+
+    it('inbound SIP waits for the caller then starts without waitForSipAnswer', async () => {
+      const ctx = makeCtx(
+        metadata({
+          callId: undefined,
+          agentKey: 'inbound',
+          direction: 'inbound',
+          medium: 'sip',
+          participantIdentity: undefined,
+        }),
+      );
+      ctx.waitForParticipant.mockResolvedValue({
+        identity: PHONE,
+        attributes: { 'sip.callStatus': 'ringing' },
+      });
+      postInboundEnsureMock.mockResolvedValue('inbound-call-1');
+
+      await runJob(ctx);
+
+      expect(ctx.waitForParticipant).toHaveBeenCalled();
+      expect(waitForSipAnswerMock).not.toHaveBeenCalled();
+      expect(postInboundEnsureMock).toHaveBeenCalled();
+      expect(runtime.session.start).toHaveBeenCalledTimes(1);
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -672,15 +696,19 @@ describe('runAgentJob', () => {
 
     it('unanswered inbound still ensures then POSTs failed/no_answer', async () => {
       postInboundEnsureMock.mockResolvedValue(INBOUND_ID);
-      waitForSipAnswerMock.mockRejectedValue(
-        new Error('SIP callee hung up before answer (no answer)'),
-      );
       const ctx = makeCtx(inboundMeta());
-      ctx.waitForParticipant.mockResolvedValue(inboundParticipant());
+      ctx.waitForParticipant.mockResolvedValue({
+        ...inboundParticipant(),
+        attributes: {
+          ...inboundParticipant().attributes,
+          'sip.callStatus': 'hangup',
+        },
+      });
 
       await runJob(ctx);
 
       expect(postInboundEnsureMock).toHaveBeenCalled();
+      expect(waitForSipAnswerMock).not.toHaveBeenCalled();
       expect(runtime.session.start).not.toHaveBeenCalled();
       expect(postCallCompleteMock).toHaveBeenCalledWith(
         INBOUND_ID,
