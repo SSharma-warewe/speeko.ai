@@ -56,6 +56,7 @@ Wrap product UI in `.ca-ui` when you want base focus/typography helpers:
 | `Alert` | Error / success / info / warn banners |
 | `Eyebrow` | Uppercase section label |
 | `Spinner` | Loading spinner |
+| `Skeleton` | Placeholder bone (line / block / circle / pill) with shimmer |
 | `WaveIndicator` | Live-call audio bars |
 | `LiveDot` | Pulsing live indicator (+ badge) |
 

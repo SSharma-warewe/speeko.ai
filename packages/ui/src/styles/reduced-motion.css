@@ -9,7 +9,8 @@
   .ca-btn--pulse,
   .ca-live-dot__core,
   .ca-live-dot__core::after,
-  .ca-wave-indicator span {
+  .ca-wave-indicator span,
+  .ca-skeleton::after {
     animation: none !important;
   }
 

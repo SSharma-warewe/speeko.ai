@@ -2601,11 +2601,51 @@
   overflow: auto;
 }
 
-.ops-calls-loading {
-  margin: 0;
-  padding: 0.85rem 1rem;
-  font-size: 0.8rem;
-  color: var(--ops-faint);
+.ops-calls-skel-party {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.ops-calls-skel-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.ops-calls-skel-cost {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.28rem;
+}
+
+.ops-calls-skel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.ops-calls-table tbody tr.is-skel {
+  pointer-events: none;
+}
+
+.ops-calls-table tbody tr.is-skel:hover td {
+  background: transparent;
+}
+
+.ops-calls-stat.is-skel {
+  pointer-events: none;
+  cursor: default;
+  gap: 0.22rem;
+}
+
+.ops-calls-stat.is-skel:hover {
+  border-color: var(--ops-line);
+  background: #fff;
+  color: inherit;
 }
 
 .ops-calls-table {

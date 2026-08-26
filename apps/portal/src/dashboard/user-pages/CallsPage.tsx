@@ -16,6 +16,11 @@ import { useUserAuth } from "../../lib/auth";
 import { formatRelative, formatUsd, shortId } from "../../lib/format";
 import { CallComposer, type ComposeMode } from "../components/CallComposer";
 import { CallCostCell } from "../components/CallCostCell";
+import {
+  CallsCountsSkeleton,
+  CallsLedgerSkeleton,
+  CallsTapeSkeleton,
+} from "../components/CallsTapeSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorBlock } from "../components/ErrorBlock";
 import { StatusBadge } from "../components/StatusBadge";
@@ -186,6 +191,8 @@ export default function UserCallsPage() {
                   : "list price"}
               </span>
             </div>
+          ) : costsState.loading ? (
+            <CallsLedgerSkeleton />
           ) : null}
           <Button
             type="button"
@@ -302,6 +309,8 @@ export default function UserCallsPage() {
                 </button>
               </li>
             </ul>
+          ) : statsState.loading ? (
+            <CallsCountsSkeleton />
           ) : (
             <span className="ops-faint">Queue stats…</span>
           )}
@@ -326,7 +335,7 @@ export default function UserCallsPage() {
           {callsState.error ? (
             <ErrorBlock message={callsState.error} onRetry={callsState.reload} />
           ) : callsState.loading && !callsState.data ? (
-            <p className="ops-calls-loading">Loading calls…</p>
+            <CallsTapeSkeleton inbound={isInbound} />
           ) : calls.length === 0 ? (
             <EmptyState
               title={isInbound ? "No inbound calls" : "No outbound calls"}

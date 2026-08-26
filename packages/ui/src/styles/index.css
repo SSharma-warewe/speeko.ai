@@ -16,6 +16,7 @@
 @import "../components/Chip/Chip.css";
 @import "../components/SegmentedControl/SegmentedControl.css";
 @import "../components/Spinner/Spinner.css";
+@import "../components/Skeleton/Skeleton.css";
 @import "../components/WaveIndicator/WaveIndicator.css";
 @import "../components/LiveDot/LiveDot.css";
 @import "../components/Alert/Alert.css";

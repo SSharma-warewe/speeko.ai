@@ -32,6 +32,11 @@ export {
 
 export { Spinner, type SpinnerProps, type SpinnerSize } from "./components/Spinner";
 export {
+  Skeleton,
+  type SkeletonProps,
+  type SkeletonVariant,
+} from "./components/Skeleton";
+export {
   WaveIndicator,
   type WaveIndicatorProps,
 } from "./components/WaveIndicator";
