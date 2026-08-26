@@ -138,7 +138,7 @@ export default function LandingPage() {
             <Button as="a" href="/get-demo" variant="cta" size="lg" shine showArrow>
               Get a demo
             </Button>
-            <Button as="a" href="#how" variant="ghostOnDark" size="lg">
+            <Button as="a" href="/how-it-works" variant="ghostOnDark" size="lg">
               See how it works
             </Button>
           </div>
@@ -652,6 +652,10 @@ export default function LandingPage() {
             </ol>
           </div>
         </div>
+
+        <p className="lp-how-more">
+          <a href="/how-it-works">Walk the setup — number, agents, tools, live →</a>
+        </p>
       </div>
 
       {/* AGENT INTEGRATIONS (Bubble UI) */}

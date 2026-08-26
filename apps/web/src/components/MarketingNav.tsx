@@ -18,6 +18,7 @@ export default function MarketingNav() {
   const onHome = pathname === "/";
   const hash = (id: string) => (onHome ? `#${id}` : `/#${id}`);
   const onSolutions = pathname === "/solutions" || pathname.startsWith("/solutions/");
+  const onHow = pathname === "/how-it-works";
 
   return (
     <nav className="lp-nav" aria-label="Primary">
@@ -43,14 +44,11 @@ export default function MarketingNav() {
             ))}
           </div>
         </div>
-        <a href={hash("how")} className="lp-nav-link">
+        <Link to="/how-it-works" className={`lp-nav-link${onHow ? " is-active" : ""}`}>
           How it works
-        </a>
+        </Link>
         <a href={hash("integrations")} className="lp-nav-link">
           Integrations
-        </a>
-        <a href={hash("demo")} className="lp-nav-link">
-          Dashboard
         </a>
         <a href={hash("faq")} className="lp-nav-link">
           FAQ

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import GetDemoPage from "./pages/GetDemoPage";
+import HowItWorksPage from "./pages/HowItWorksPage";
 import LandingPage from "./pages/LandingPage";
 import SolutionPage from "./pages/SolutionPage";
 import SolutionsIndexPage from "./pages/SolutionsIndexPage";
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/get-demo" element={<GetDemoPage />} />
         <Route path="/signup" element={<Navigate to="/get-demo" replace />} />
+        <Route path="/how-it-works" element={<HowItWorksPage />} />
         <Route path="/solutions" element={<SolutionsIndexPage />} />
         <Route
           path="/solutions/customer-service"
