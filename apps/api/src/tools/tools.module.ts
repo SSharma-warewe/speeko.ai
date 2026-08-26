@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { OrganizationsModule } from '../organizations/organizations.module';
 import { AdminOrgToolProfilesController } from './admin-org-tool-profiles.controller';
+import { AdminOrgToolsController } from './admin-org-tools.controller';
 import { ToolProfileSeedService } from './tool-profile-seed.service';
 import { ToolProfileTool } from './tool-profile-tool.entity';
 import { ToolProfile } from './tool-profile.entity';
@@ -10,11 +12,15 @@ import { ToolProfilesService } from './tool-profiles.service';
 import { UserToolProfilesController } from './user-tool-profiles.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ToolProfile, ToolProfileTool])],
+  imports: [
+    TypeOrmModule.forFeature([ToolProfile, ToolProfileTool]),
+    OrganizationsModule,
+  ],
   controllers: [
     ToolProfilesController,
     UserToolProfilesController,
     AdminOrgToolProfilesController,
+    AdminOrgToolsController,
   ],
   providers: [
     ToolProfilesRepository,

@@ -4,8 +4,8 @@ import {
   ApiError,
   createUserToolProfile,
   deleteUserToolProfile,
-  KNOWN_TOOL_IDS,
   TOOL_ID_HINTS,
+  listUserKnownTools,
   listUserToolProfiles,
   UnauthorizedError,
   updateUserToolProfile,
@@ -60,24 +60,17 @@ const TOOL_GROUPS: { label: string; ids: readonly string[] }[] = [
   },
 ];
 
-function groupedToolIds(): string[] {
-  const seen = new Set<string>();
-  const ordered: string[] = [];
+function groupCatalog(catalog: string[]): { label: string; ids: string[] }[] {
+  const remaining = new Set(catalog);
+  const groups: { label: string; ids: string[] }[] = [];
   for (const group of TOOL_GROUPS) {
-    for (const id of group.ids) {
-      if (!seen.has(id)) {
-        seen.add(id);
-        ordered.push(id);
-      }
-    }
+    const ids = group.ids.filter((id) => remaining.has(id));
+    for (const id of ids) remaining.delete(id);
+    if (ids.length > 0) groups.push({ label: group.label, ids });
   }
-  for (const id of KNOWN_TOOL_IDS) {
-    if (!seen.has(id)) {
-      seen.add(id);
-      ordered.push(id);
-    }
-  }
-  return ordered;
+  const leftover = catalog.filter((id) => remaining.has(id));
+  if (leftover.length > 0) groups.push({ label: "Other", ids: leftover });
+  return groups;
 }
 
 function isCustom(p: ToolProfile): boolean {
@@ -103,10 +96,13 @@ function ToolPills({ ids }: { ids?: string[] }) {
 
 export default function UserToolProfilesPage() {
   const { logout } = useUserAuth();
-  const { data, error, loading, reload } = useUserAsync(
-    () => listUserToolProfiles(),
-    [],
-  );
+  const { data, error, loading, reload } = useUserAsync(async () => {
+    const [profiles, known] = await Promise.all([
+      listUserToolProfiles(),
+      listUserKnownTools(),
+    ]);
+    return { profiles, knownToolIds: known.toolIds };
+  }, []);
 
   const [scope, setScope] = useState<ScopeFilter>("all");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -133,8 +129,12 @@ export default function UserToolProfilesPage() {
     setName(p.name);
     setKey(p.key);
     setDescription(p.description || "");
+    const allowed = new Set(data?.knownToolIds ?? ["endCall"]);
+    const fromProfile = (p.toolIds ?? []).filter((id) => allowed.has(id));
     setSelectedTools(
-      p.toolIds?.length ? [...new Set(["endCall", ...p.toolIds])] : ["endCall"],
+      fromProfile.length
+        ? [...new Set(["endCall", ...fromProfile])]
+        : ["endCall"],
     );
     setFormError(null);
     setActionMsg(null);
@@ -157,7 +157,13 @@ export default function UserToolProfilesPage() {
       setFormError("Name is required.");
       return;
     }
-    const toolIds = [...new Set(["endCall", ...selectedTools])];
+    const allowed = new Set(data?.knownToolIds ?? ["endCall"]);
+    const toolIds = [
+      ...new Set([
+        "endCall",
+        ...selectedTools.filter((id) => allowed.has(id)),
+      ]),
+    ];
     setSubmitting(true);
     try {
       if (editingId) {
@@ -219,7 +225,7 @@ export default function UserToolProfilesPage() {
     }
   };
 
-  const profiles = data ?? [];
+  const profiles = data?.profiles ?? [];
   const custom = profiles.filter(isCustom);
   const platform = profiles.filter((p) => !isCustom(p));
   const visible = useMemo(() => {
@@ -231,14 +237,10 @@ export default function UserToolProfilesPage() {
   if (loading && !data) return <LoadingBlock label="Loading tool profiles" />;
   if (error) return <ErrorBlock message={error} onRetry={reload} />;
 
-  const groupedIds = groupedToolIds();
-  const leftover = groupedIds.filter(
-    (id) => !TOOL_GROUPS.some((g) => g.ids.includes(id)),
-  );
-  const groups =
-    leftover.length > 0
-      ? [...TOOL_GROUPS, { label: "Other", ids: leftover }]
-      : TOOL_GROUPS;
+  const catalog = data?.knownToolIds?.length
+    ? data.knownToolIds
+    : ["endCall"];
+  const groups = groupCatalog(catalog);
 
   return (
     <div className="ops-desk">

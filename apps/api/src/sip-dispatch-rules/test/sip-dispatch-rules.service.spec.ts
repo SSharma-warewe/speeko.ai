@@ -537,6 +537,7 @@ describe('SipDispatchRulesService', () => {
       ).toHaveBeenCalledWith(ORG_ID, ORG_AGENT_ID);
       expect(toolProfilesService.resolveEnabledToolIds).toHaveBeenCalledWith(
         'profile-1',
+        ORG_ID,
       );
 
       const call = livekit.createSipDispatchRule.mock.calls[0][0];

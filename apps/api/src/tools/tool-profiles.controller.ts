@@ -27,6 +27,7 @@ import {
   ApiNotFoundError,
 } from '../common/swagger/api-errors';
 import { CreateToolProfileDto } from './dto/create-tool-profile.dto';
+import { KnownToolsResponseDto } from './dto/known-tools-response.dto';
 import { ToolProfileResponseDto } from './dto/tool-profile-response.dto';
 import { UpdateToolProfileDto } from './dto/update-tool-profile.dto';
 import { ToolProfilesService } from './tool-profiles.service';
@@ -51,8 +52,9 @@ export class ToolProfilesController {
   }
 
   @Get('known-tools')
-  @ApiOperation({ summary: 'List known worker tool ids' })
-  knownTools() {
+  @ApiOperation({ summary: 'List known worker tool ids (full registry)' })
+  @ApiOkResponse({ type: KnownToolsResponseDto })
+  knownTools(): KnownToolsResponseDto {
     return { toolIds: this.toolProfilesService.knownToolIds() };
   }
 

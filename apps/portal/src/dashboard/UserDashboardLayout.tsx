@@ -38,7 +38,7 @@ const NAV: { section: string; items: readonly NavItem[] }[] = [
       {
         to: "/dashboard/tool-profiles",
         label: "Tool profiles",
-        desc: "Capability catalog",
+        desc: "Assigned capabilities",
       },
       {
         to: "/dashboard/integrations",

@@ -24,6 +24,7 @@ export class OrganizationsService {
       name: dto.name.trim(),
       slug,
       isActive: true,
+      allowedToolIds: ['endCall'],
     });
     // Queue settings are lazy-created on first queue API access / enqueue.
     return this.organizationsRepository.save(org);
@@ -51,5 +52,9 @@ export class OrganizationsService {
       return byId;
     }
     return this.findBySlug(idOrSlug);
+  }
+
+  async save(org: Organization): Promise<Organization> {
+    return this.organizationsRepository.save(org);
   }
 }

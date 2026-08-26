@@ -25,7 +25,7 @@ Stack: NestJS monorepo, TypeORM, PostgreSQL, JWT Bearer auth, Swagger, LiveKit A
 | Org-user ops desk | `apps/portal` | `/login` → `/dashboard` | `POST /api/auth/login` (email + password + org slug) |
 | Platform admin | `apps/portal` | `/admin-login` → `/admin-dashboard` | `POST /api/auth/admin/login` |
 
-Org dashboard focuses on **running agents** (enqueue, dial now, queue, batches, SIP outbound, agent persona/test, **integrations** for CRM API keys) and **LiveKit list-price cost** on the calls tape / call dossier (no markup, not an invoice). Admin dashboard focuses on **tenants** (orgs, members, assign agents, platform templates) plus the same cost snapshot platform-wide.
+Org dashboard focuses on **running agents** (enqueue, dial now, queue, batches, SIP outbound, agent persona/test, **integrations** for CRM API keys) and **LiveKit list-price cost** on the calls tape / call dossier (no markup, not an invoice). Admin dashboard focuses on **tenants** (orgs, members, assign agents, **assign tools**, platform templates) plus the same cost snapshot platform-wide.
 
 ## Data model (Erflow)
 
@@ -63,6 +63,7 @@ organizations
 ├── sip_dispatch_rules                 (inbound routing drafts → LiveKit SDR_… ids)
 ├── integration_endpoints              (CRM dial-in: preconfigured agent/task/queue + API key)
 ├── organization_integrations          (org BYO third-party keys; Nylas + GoHighLevel calendar)
+├── allowed_tool_ids                   (JSONB worker tool allowlist; `null` = existing tenant keeps full catalog, new orgs `["endCall"]`)
 └── phone_numbers                      (planned)
 
 tool_profiles                  (capability bundles: platform seeds + org-owned customs)
@@ -72,10 +73,10 @@ tool_profiles                  (capability bundles: platform seeds + org-owned c
 ### Schema (current)
 
 - `admins` — platform super-admins (separate from org users)
-- `organizations` — tenants (hub)
+- `organizations` — tenants (hub). **`allowed_tool_ids` JSONB** is the admin-assigned worker tool allowlist. **`null` = pre-allowlist tenant** (full worker catalog — existing orgs on deploy). **New orgs store `["endCall"]`**. After an admin PATCH the set is explicit; `endCall` always kept. Org users may only put assigned ids on custom profiles. Runtime `enabledTools` is profile ∩ allowlist (`null` allowlist does not strip tools).
 - `users` — org members (`organization_id` FK, unique `(organization_id, email)`). `password_hash` is **nullable** until the member sets a password from the invite email. Optional stored `role` (`org_admin` | `agent` | `supervisor`) is **not enforced** yet; any org user may use org-scoped user APIs.
 - `password_reset_tokens` — hashed invite / reset tokens (`kind` `user` \| `admin`, `purpose` `invite` \| `reset`). Raw token is emailed once; only SHA-256 is stored. Unused siblings are invalidated on re-issue, set, change, or reset.
-- `tool_profiles` — named capability bundles (`key`, `name`, optional `organization_id`). Platform seeds (`organization_id` null): `default`, `outbound`. Org users may create **custom** profiles (pick known worker tool ids; `endCall` always included) and select them on agents.
+- `tool_profiles` — named capability bundles (`key`, `name`, optional `organization_id`). Platform seeds (`organization_id` null): `default`, `outbound`. Org users may create **custom** profiles from the **org allowlist** (not the full worker registry; `endCall` always included) and select them on agents.
 - `tool_profile_tools` — rows of `tool_id` strings (worker registry ids, e.g. `endCall`, `booking`). **Not** JSON tool schemas.
 - `agents` — **platform AI agent templates** (seeded: `inbound`, `outbound`). **Persona** via `system_prompt` (identity, tone, policies). Optional LiveKit hook instructions: `on_enter_instructions` / `on_exit_instructions` (`null` = worker default, empty string = silent). Also: `default_task_key`, `default_tool_profile_id`, optional `voice` / `model` / `temperature` (LLM), `speaking_rate` (Inworld TTS 0.5–1.5), `delivery_mode` (`STABLE` \| `BALANCED` \| `CREATIVE`). Not the same as user role `agent`.
 - `organization_agents` — org-owned **named** agent configs: FK to org + platform template (`agent_id`); display `name` + unique-per-org `slug`; effective persona `system_prompt`, optional `on_enter_instructions` / `on_exit_instructions`, `tool_profile_id`, optional `voice` / `model` / `temperature` / `speaking_rate` / `delivery_mode`. **`default_task_key` is inbound-only (required)** — packed into SIP dispatch metadata. Outbound configs store `null`; task is chosen on the call, batch, or integration endpoint (fallback: platform template → `general`). Unique `(organization_id, slug)` — **not** unique on template, so an org may have many inbound/outbound configs (different prompts/hooks/tools). Create/clone copies template or source config (outbound clone clears task). Org null voice fields fall back to the template at response/metadata time.
@@ -131,7 +132,7 @@ Aligned with LiveKit’s separation of **Instructions**, **Tasks**, **Tools**, a
 | **Persona** | `agents.system_prompt` / `organization_agents.system_prompt` → metadata `prompt.systemPrompt` | Who the agent is, company, tone, policies, safety. **No** call-specific workflow steps. Portal edits this only. Worker `buildPersonaPrompt` **appends** a platform runtime layer (voice rules, direction, **current date/time/day** from the worker clock, safety) that is **not** in the portal. LiveKit `AgentTask.run()` **replaces** the parent agent, so tasks copy this via `composeTaskInstructions` (persona + workflow). Do not rely on the parent prompt surviving the handoff. |
 | **Call open / close** | `on_enter_instructions` / `on_exit_instructions` → metadata `prompt.onEnterInstructions` / `onExitInstructions` | LiveKit parent **Agent** hooks: `onEnter` → `session.generateReply({ instructions })`; `onExit` → `session.say(text)` (verbatim, no second LLM turn). `null` = built-in default; `""` = skip speech. Tasks do **not** own opening speech. |
 | **Workflow** | Worker `TaskRegistry` (LiveKit `AgentTask`) selected by metadata `task` | Objective, completion conditions, structured result (e.g. appointment CONFIRMED). **Inbound:** org agent `default_task_key` (required). **Outbound:** call / integration `task` (not on the agent). |
-| **Capabilities** | Worker `ToolRegistry` hard-coded implementations; enabled by `tool_profiles` → metadata `enabledTools` | Executable actions (`endCall`, `booking`, …). Orgs create/select profiles of tool **ids** (not implementations). |
+| **Capabilities** | Worker `ToolRegistry` hard-coded implementations; enabled by `tool_profiles` → metadata `enabledTools`, **intersected with `organizations.allowed_tool_ids`** | Executable actions (`endCall`, `booking`, …). Admin assigns which ids an org may use. New orgs: `endCall` only. Existing orgs stay `null` (full catalog) until an admin saves Tools. Orgs create/select profiles of those **ids** (not implementations). |
 | **Runtime context** | Call request `context` + ids in metadata | CRM fields, bookingId, phoneNumber, etc. Never executable code. |
 
 **Worker stays stateless** — never queries Postgres. API packs metadata; worker builds runtime via builders:
@@ -493,10 +494,10 @@ Worker health is “registered with LiveKit” in service logs, not a public HTM
 | PATCH | `/api/users/agents/:id` | user JWT — update name/slug, system prompt, onEnter/onExit, inbound task (required) / profile / active. Outbound PATCH must not send `defaultTaskKey` |
 | DELETE | `/api/users/agents/:id` | user JWT — delete org agent config (blocked if referenced by integrations / dispatch rules) |
 | GET | `/api/users/tool-profiles` | user JWT — list tool profiles (platform + own org custom) |
-| GET | `/api/users/tool-profiles/known-tools` | user JWT — known worker tool ids for profile create |
+| GET | `/api/users/tool-profiles/known-tools` | user JWT — org allowlist (admin-assigned; `null` row = full catalog, new orgs `endCall` only) for profile create |
 | GET | `/api/users/tool-profiles/:id` | user JWT — get one tool profile (platform or own org) |
-| POST | `/api/users/tool-profiles` | user JWT — create custom org profile (`name`, optional `key`, `toolIds`) |
-| PATCH | `/api/users/tool-profiles/:id` | user JWT — update own custom profile (not platform seeds) |
+| POST | `/api/users/tool-profiles` | user JWT — create custom org profile (`name`, optional `key`, `toolIds` ⊆ allowlist) |
+| PATCH | `/api/users/tool-profiles/:id` | user JWT — update own custom profile (not platform seeds; `toolIds` ⊆ allowlist) |
 | DELETE | `/api/users/tool-profiles/:id` | user JWT — delete own custom profile if unused by agents |
 | GET | `/api/users/integration-endpoints` | user JWT — list CRM dial endpoints (no secrets) |
 | POST | `/api/users/integration-endpoints` | user JWT — create endpoint; returns full `apiKey` once + `endpointPath` |
@@ -526,6 +527,8 @@ Worker health is “registered with LiveKit” in service logs, not a public HTM
 | PATCH | `/api/admin/tool-profiles/:id` | admin JWT — update platform profile |
 | DELETE | `/api/admin/tool-profiles/:id` | admin JWT — delete platform profile if unused by agents/templates |
 | GET | `/api/admin/organizations/:orgId/tool-profiles` | admin JWT — platform + that org’s custom profiles (for assign) |
+| GET | `/api/admin/organizations/:orgId/tools` | admin JWT — org worker-tool allowlist (`{ toolIds }`; `null` row returns the full registry so existing tenants keep tools) |
+| PATCH | `/api/admin/organizations/:orgId/tools` | admin JWT — replace allowlist; unknown ids 400; `endCall` always included |
 | GET | `/api/users/sip-trunks` | user JWT — list all SIP trunks for caller's org (password redacted) |
 | GET | `/api/users/sip-trunks/:id` | user JWT — get one SIP trunk for caller's org |
 | GET | `/api/users/sip-trunks/outbound` | user JWT — list outbound trunks |
@@ -664,7 +667,7 @@ Test: `POST /api/admin/calls/test` accepts optional `task` + `context`. Org web 
 | `calls` | Domain: persist `calls`, resolve agents/tool profiles/task key, pack **runtime** job metadata. Nest surface stays at module root (module, entity, repo, controllers). Split services in `calls/services/`: `CallWebTestService` (Meet test), `CallDialService` (enqueue + immediate/claimed SIP), `CallWorkerService` (inbound ensure + complete), `CallFailureService` (fail/requeue + stale reap), `CallsService` (tape list/get + cancel/retry/prioritize). Pure helpers in `calls/lib/` (state machine, row factory, phone, task key, price wrapper). Job metadata type lives in `@call-agent/contracts`. |
 | `queue` | Org queue settings, call batches, claim (`SKIP LOCKED`), retry policy, in-process **QueueDialerService**, live stats, user/admin queue controllers |
 | `price` | LiveKit **list-price** call cost (STT/LLM/TTS + WebRTC/SIP room). No markup. Catalog in `price.catalog.ts`; `PriceService` prices each worker-complete attempt onto `calls.cost` / `cost_usd`. Org-user summary is JWT-org scoped; admin summary + recompute |
-| `tools` | Tool profiles list/seed + org custom CRUD; resolve `enabledTools` ids for metadata |
+| `tools` | Tool profiles list/seed + org custom CRUD; org tool allowlist (`organizations.allowed_tool_ids`); resolve `enabledTools` ids for metadata (profile ∩ allowlist when org-scoped) |
 | `integration-endpoints` | Org CRM dial-in: preconfigured agent/task/trunk/queue + API key; public thin `POST …/calls` enqueue |
 | `organization-integrations` | Org BYO third-party keys (Nylas + GHL calendar); user CRUD + test; worker Nylas proxy via `CalendarToolsService` |
 | `sip-trunks` | Org SIP trunk CRUD: admin outbound; **user outbound** create/link/update/delete; user inbound draft + publish; combined inbound publish orchestrator |
@@ -732,7 +735,7 @@ controller → service → repository → TypeORM entity → Postgres
 11. Keep LiveKit SDK usage inside `livekit/`; calls, sip-trunks, and sip-dispatch-rules orchestrate via `LivekitService`.
 12. **API owns outbound SIP dial** (`CreateSIPParticipant`) **and the outbound dial queue**; worker stays voice-only + inbound-ensure + complete callback.
 13. Never return SIP `auth_password`, integration `key_hash` / full API keys (except once on create/rotate), or `organization_integrations.api_key` in API responses.
-14. **System prompts = persona only**; workflows live in LiveKit Tasks; tools are worker registry code enabled by tool profiles.
+14. **System prompts = persona only**; workflows live in LiveKit Tasks; tools are worker registry code enabled by tool profiles. **Org users only enable tools the admin assigned** (`organizations.allowed_tool_ids`). New orgs get `["endCall"]`. **Existing orgs stay `null` on deploy** (full catalog) until an admin saves the Tools tab. Pack `enabledTools` through `resolveEnabledToolIds(profileId, organizationId)` so job metadata is the allowlist ∩ profile (`null` does not strip). Do not hardcode the full worker catalog in the org portal — fetch `GET /users/tool-profiles/known-tools`.
 15. Metadata is the single runtime config source for the worker — no DB access from the worker.
 16. Never put executable code or full JSON tool schemas in metadata / Postgres tool profiles (ids only).
 17. Inbound config is **draft-then-publish**: local rows first; LiveKit ids set only on publish (409 if already live). **Inbound trunk delete** removes the LiveKit trunk when live, then the local row (not-found on LiveKit is ignored). Outbound trunk delete and dispatch-rule delete remain local-only unless updated.
@@ -818,13 +821,13 @@ Work **top-down by risk**: security → money/dial side effects → multi-tenant
 | P0 | `admins` | **Done** | Email normalize, findById/email, create defaults (`isActive`, name) |
 | P0 | `demo` | **Done** | Config gate (503), body shaping, `fetch` proxy, 401/403 vs generic 502, GHL upsert before enqueue (CRM fail does not block dial), honeypot short-circuit, origin + IP/phone/email/global rate limits |
 | P0 | `users` | **Done** | Create user, org scope, password hash, unique email per org, toSafeUser redaction |
-| P0 | `organizations` | **Done** | Create org, slug uniqueness/lowercase, name trim, `isActive` default, findById/Slug/IdOrSlug |
+| P0 | `organizations` | **Done** | Create org, slug uniqueness/lowercase, name trim, `isActive` default, `allowedToolIds: ['endCall']` seed, findById/Slug/IdOrSlug |
 | P0 | `common` (HTTP errors) | **Done** | Exception filter body (`code` + `statusCode`), unknown throws do not leak, `ParseResourceIdPipe` 404 on non-UUID path ids |
 | P1 | `integration-endpoints` | Todo | API key hash/prefix, rotate, public enqueue merge context, inactive key reject, never leak secrets |
 | P1 | `queue` | **Done** | Claim/retry classification, backoff, quiet hours, batch pause/cancel, stale dialing/ready sweeper (mock `DataSource` / time), outbound-only in-progress / dial-rate counts (inbound rings do not occupy dial slots) |
 | P1 | `calls` | **Done** | Enqueue vs immediate outbound, metadata pack, complete + requeue, org scoping on list/get, **state machine** (`taskCompleted` → completed vs incomplete), cost snapshot on complete (append / fill / requeue-before-reset), late complete on pending/creating ignored, **inbound SIP ensure** (upsert by room, never requeue, stale inbound terminal-fail) |
 | P1 | `agents` / org agents | **Done** | Create/clone/slug collision, persona vs template isolation, hook null/empty/whitespace, calendar same-org FK, FK-blocked delete, voice/speakingRate/deliveryMode copy + template fallback |
-| P1 | `tools` (profiles) | Todo | Platform vs org custom, known tool ids, delete-if-unused, always include `endCall` |
+| P1 | `tools` (profiles) | **Partial** | Org allowlist lazy-repair / replace / unknown-id reject; org custom create blocked when tool not assigned; `resolveEnabledToolIds` intersects with org allowlist (platform templates unfiltered); org A vs B isolation. Remaining: platform vs org custom CRUD, delete-if-unused |
 | P2 | `price` | **Done** | Gemma/Nova-3/Inworld list-price math, web vs SIP room lines, self-hosted vs Cloud agent session, 10s min, unknown models, attempt rollup, admin summary SQL, recompute skip/404, org-user summary JWT-org scoped |
 | P2 | `sip-trunks` / `sip-dispatch-rules` | **Done** | Draft vs publish, password redaction, inbound LiveKit delete (404 ignore), dispatch metadata pack, LiveKit adapter mocked |
 | P2 | `organization-integrations` | **Done** | Secrets never returned (mapper + CRUD), Nylas + GHL create/test, calendar resolve/freeBusy matrix (Nylas mocked) |
@@ -867,6 +870,7 @@ Update the **Status** column when a module suite lands or expands.
 - Do not encode workflow steps (“call John…”, “ask these questions…”) in the system prompt — use a Task.
 - Do not mark a call `completed` just because the session ended. `completed` means `task.complete()` ran. Conversation-without-task is `incomplete`. Do not retry `incomplete` through the dial queue.
 - Do not load tool implementations from the database — only tool **ids** via profiles.
+- Do not let org users pick worker tools the admin has not assigned. Do not pack unassigned tools into org job metadata (intersect with `allowed_tool_ids`). Do not hardcode `KNOWN_TOOL_IDS` as the org-user profile catalog.
 - Do not let the worker query Postgres.
 - Do not add a product UI until endpoints are solid in Swagger (unless explicitly requested).
 - Do not run the LiveKit worker via Nest webpack (`nest start worker`). Dev: `tsx apps/worker/src/main.ts`; prod: `node dist/apps/worker/main.js start` after `npm run build:worker`.

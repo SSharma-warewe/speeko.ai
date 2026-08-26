@@ -518,6 +518,7 @@ describe('OrganizationAgentsService', () => {
       expect(result.templateKey).toBe('inbound');
       expect(toolProfilesService.resolveEnabledToolIds).toHaveBeenCalledWith(
         saved.toolProfileId,
+        ORG_ID,
       );
     });
   });
@@ -975,10 +976,12 @@ describe('OrganizationAgentsService', () => {
       expect(toolProfilesService.resolveEnabledToolIds).toHaveBeenNthCalledWith(
         1,
         'p1',
+        ORG_ID,
       );
       expect(toolProfilesService.resolveEnabledToolIds).toHaveBeenNthCalledWith(
         2,
         'p2',
+        ORG_ID,
       );
     });
 

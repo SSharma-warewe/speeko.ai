@@ -100,6 +100,7 @@ export class CallWebTestService {
     );
     const enabledTools = await this.toolProfilesService.resolveEnabledToolIds(
       orgAgent.toolProfileId ?? template.defaultToolProfileId,
+      organizationId,
     );
 
     return this.runWebTest({

@@ -26,6 +26,19 @@ export class Organization {
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive!: boolean;
 
+  /**
+   * Worker tool ids this org may put on profiles / receive at runtime.
+   * `null` = pre-allowlist tenant (full worker catalog) so existing orgs
+   * keep current tools on deploy. New orgs store `["endCall"]`.
+   * After an admin PATCH the set is explicit; endCall is always kept.
+   */
+  @Column({
+    name: 'allowed_tool_ids',
+    type: 'jsonb',
+    nullable: true,
+  })
+  allowedToolIds!: string[] | null;
+
   @OneToMany(() => User, (user) => user.organization)
   users!: User[];
 

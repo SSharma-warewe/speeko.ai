@@ -407,6 +407,7 @@ export class SipDispatchRulesService {
     const enabledTools =
       await this.toolProfilesService.resolveEnabledToolIds(
         orgAgent.toolProfileId,
+        organizationId,
       );
 
     const metadata: AgentJobMetadata = {

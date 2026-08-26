@@ -30,6 +30,7 @@ import {
   ApiNotFoundError,
 } from '../common/swagger/api-errors';
 import { CreateToolProfileDto } from './dto/create-tool-profile.dto';
+import { KnownToolsResponseDto } from './dto/known-tools-response.dto';
 import { ToolProfileResponseDto } from './dto/tool-profile-response.dto';
 import { UpdateToolProfileDto } from './dto/update-tool-profile.dto';
 import { ToolProfilesService } from './tool-profiles.service';
@@ -44,18 +45,19 @@ export class UserToolProfilesController {
 
   @Get('known-tools')
   @ApiOperation({
-    summary: 'List known worker tool ids that can be added to a profile',
+    summary: 'List worker tool ids assigned to the caller organization',
+    description:
+      'Admin-granted allowlist. New orgs: endCall only. Existing orgs with a null allowlist keep the full worker catalog until an admin saves Tools.',
   })
-  @ApiOkResponse({
-    schema: {
-      type: 'object',
-      properties: {
-        toolIds: { type: 'array', items: { type: 'string' } },
-      },
-    },
-  })
-  knownTools() {
-    return { toolIds: this.toolProfilesService.knownToolIds() };
+  @ApiOkResponse({ type: KnownToolsResponseDto })
+  async knownTools(
+    @CurrentUser() principal: AuthPrincipal,
+  ): Promise<KnownToolsResponseDto> {
+    return {
+      toolIds: await this.toolProfilesService.listAssignedToolIds(
+        this.orgIdFrom(principal),
+      ),
+    };
   }
 
   @Get()
@@ -89,7 +91,7 @@ export class UserToolProfilesController {
   @ApiOperation({
     summary: 'Create a custom tool profile for the caller organization',
     description:
-      'Pick known worker tool ids. endCall is always included. Implementations stay in the worker.',
+      'Pick tool ids from the org allowlist (admin-assigned). endCall is always included. Implementations stay in the worker.',
   })
   @ApiCreatedResponse({ type: ToolProfileResponseDto })
   @ApiConflictError('Profile key already exists')

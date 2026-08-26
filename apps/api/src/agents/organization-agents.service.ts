@@ -61,6 +61,7 @@ export class OrganizationAgentsService {
   private async toResponse(row: OrganizationAgent) {
     const tools = await this.toolProfilesService.resolveEnabledToolIds(
       row.toolProfileId,
+      row.organizationId,
     );
     return toOrganizationAgentResponse(row, tools);
   }

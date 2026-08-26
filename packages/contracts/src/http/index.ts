@@ -36,7 +36,9 @@ export type {
 export type {
   CreateToolProfileRequest,
   KnownToolsResponse,
+  OrganizationToolsResponse,
   ToolProfile,
+  UpdateOrganizationToolsRequest,
   UpdateToolProfileRequest,
 } from './tools.js';
 

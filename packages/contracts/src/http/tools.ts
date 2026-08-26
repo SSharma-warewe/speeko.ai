@@ -14,6 +14,13 @@ export type KnownToolsResponse = {
   toolIds: string[];
 };
 
+/** Admin GET/PATCH /admin/organizations/:orgId/tools */
+export type OrganizationToolsResponse = KnownToolsResponse;
+
+export type UpdateOrganizationToolsRequest = {
+  toolIds: string[];
+};
+
 export type CreateToolProfileRequest = {
   name: string;
   key?: string;

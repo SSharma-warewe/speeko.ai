@@ -37,6 +37,8 @@ import type {
   KnownToolId,
   KnownToolsResponse,
   ListCallsQuery,
+  OrganizationToolsResponse,
+  UpdateOrganizationToolsRequest,
   OrgQueueStats,
   OrgUser,
   Organization,
@@ -516,6 +518,23 @@ export const listToolProfiles = () =>
 
 export const listOrgToolProfiles = (orgId: string) =>
   adminFetch<ToolProfile[]>(`/admin/organizations/${orgId}/tool-profiles`);
+
+export const listAdminKnownTools = () =>
+  adminFetch<KnownToolsResponse>("/admin/tool-profiles/known-tools");
+
+export const getOrgAssignedTools = (orgId: string) =>
+  adminFetch<OrganizationToolsResponse>(
+    `/admin/organizations/${orgId}/tools`,
+  );
+
+export const updateOrgAssignedTools = (
+  orgId: string,
+  data: UpdateOrganizationToolsRequest,
+) =>
+  adminFetch<OrganizationToolsResponse>(
+    `/admin/organizations/${orgId}/tools`,
+    { method: "PATCH", body: data },
+  );
 
 export const getToolProfile = (id: string) =>
   adminFetch<ToolProfile>(`/admin/tool-profiles/${id}`);

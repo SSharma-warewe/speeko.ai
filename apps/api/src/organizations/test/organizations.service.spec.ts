@@ -109,6 +109,14 @@ describe('OrganizationsService', () => {
       );
     });
 
+    it('5b. seeds allowedToolIds to endCall only', async () => {
+      await service.create(baseDto);
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ allowedToolIds: ['endCall'] }),
+      );
+    });
+
     it('6. creates then saves and returns the saved organization', async () => {
       const result = await service.create(baseDto);
 

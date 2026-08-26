@@ -5,6 +5,7 @@ import {
   createToolProfile,
   deleteToolProfile,
   KNOWN_TOOL_IDS,
+  listAdminKnownTools,
   listToolProfiles,
   UnauthorizedError,
   updateToolProfile,
@@ -23,7 +24,13 @@ function formatTools(p: ToolProfile): string {
 
 export default function ToolProfilesPage() {
   const { logout } = useAdminAuth();
-  const { data, error, loading, reload } = useAsync(listToolProfiles, []);
+  const { data, error, loading, reload } = useAsync(async () => {
+    const [profiles, known] = await Promise.all([
+      listToolProfiles(),
+      listAdminKnownTools(),
+    ]);
+    return { profiles, knownToolIds: known.toolIds };
+  }, []);
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -146,7 +153,9 @@ export default function ToolProfilesPage() {
   if (loading) return <LoadingBlock label="Loading tool profiles" />;
   if (error) return <ErrorBlock message={error} onRetry={reload} />;
 
-  const profiles = data ?? [];
+  const profiles = data?.profiles ?? [];
+  const catalog =
+    data?.knownToolIds?.length ? data.knownToolIds : [...KNOWN_TOOL_IDS];
 
   return (
     <div>
@@ -216,7 +225,7 @@ export default function ToolProfilesPage() {
               hint="endCall is always included. Only known worker registry ids."
             >
               <div id="admin-tp-tools" className="ops-check-row" role="group">
-                {KNOWN_TOOL_IDS.map((toolId) => {
+                {catalog.map((toolId) => {
                   const locked = toolId === "endCall";
                   const checked = locked || selectedTools.includes(toolId);
                   return (

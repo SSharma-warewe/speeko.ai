@@ -11,6 +11,7 @@ const TABS = [
   { to: ".", end: true, label: "Overview" },
   { to: "users", label: "Users" },
   { to: "agents", label: "Agents" },
+  { to: "tools", label: "Tools" },
   { to: "sip-trunks", label: "SIP trunks" },
   { to: "queue", label: "Queue" },
 ] as const;
@@ -42,7 +43,7 @@ export default function OrganizationDetailPage() {
       <PageHeader
         eyebrow="Organization"
         title={org.name}
-        description={`Slug ${org.slug} · Manage members, agents, SIP, and dial queue for this tenant.`}
+        description={`Slug ${org.slug} · Manage members, agents, tools, SIP, and dial queue for this tenant.`}
         actions={
           <StatusBadge
             status={org.isActive ? "active" : "inactive"}

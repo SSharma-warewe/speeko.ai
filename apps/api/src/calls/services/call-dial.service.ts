@@ -226,6 +226,7 @@ export class CallDialService {
     );
     const enabledTools = await this.toolProfilesService.resolveEnabledToolIds(
       orgAgent.toolProfileId ?? template.defaultToolProfileId,
+      dto.organizationId,
     );
 
     const toNumber = resolveToNumber(dto, this.defaultCountryCode());
@@ -343,6 +344,7 @@ export class CallDialService {
       );
     const enabledTools = await this.toolProfilesService.resolveEnabledToolIds(
       orgAgent.toolProfileId ?? template.defaultToolProfileId,
+      call.organizationId,
     );
 
     const trunk = await this.sipTrunksService.resolveOutboundForCall(

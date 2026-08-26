@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { OrganizationsService } from '../organizations/organizations.service';
 import { isKnownToolId, KNOWN_TOOL_IDS } from './known-tools';
 import { CreateToolProfileDto } from './dto/create-tool-profile.dto';
 import { UpdateToolProfileDto } from './dto/update-tool-profile.dto';
@@ -25,7 +26,10 @@ export type ToolProfileResponse = {
 
 @Injectable()
 export class ToolProfilesService {
-  constructor(private readonly repo: ToolProfilesRepository) {}
+  constructor(
+    private readonly repo: ToolProfilesRepository,
+    private readonly organizationsService: OrganizationsService,
+  ) {}
 
   async findById(id: string): Promise<ToolProfile> {
     const row = await this.repo.findById(id);
@@ -82,25 +86,84 @@ export class ToolProfilesService {
     return toToolProfileResponse(row);
   }
 
-  /** Resolve enabled tool ids for a profile (empty if profile missing). */
+  /**
+   * Resolve enabled tool ids for a profile.
+   * When `organizationId` is set, intersect with that org's allowlist.
+   * `allowed_tool_ids = null` means a pre-allowlist tenant (full catalog).
+   */
   async resolveEnabledToolIds(
     profileId: string | null | undefined,
+    organizationId?: string | null,
   ): Promise<string[]> {
+    let ids: string[];
     if (!profileId) {
-      return ['endCall'];
+      ids = ['endCall'];
+    } else {
+      ids = await this.repo.listToolIds(profileId);
+      if (ids.length === 0) {
+        ids = ['endCall'];
+      }
     }
-    const ids = await this.repo.listToolIds(profileId);
-    return ids.length > 0 ? ids : ['endCall'];
+    if (!organizationId) {
+      return ids;
+    }
+    const allowed = new Set(await this.listAssignedToolIds(organizationId));
+    const filtered = ids.filter((id) => allowed.has(id)).sort();
+    return filtered.length > 0 ? filtered : ['endCall'];
   }
 
   knownToolIds(): string[] {
     return [...KNOWN_TOOL_IDS];
   }
 
+  /**
+   * Worker tool ids this org may enable.
+   * `null` keep the full registry (existing tenants). Empty array is
+   * repaired to `endCall` and persisted. New orgs store `["endCall"]`.
+   */
+  async listAssignedToolIds(organizationId: string): Promise<string[]> {
+    const org = await this.organizationsService.findById(organizationId);
+    if (org.allowedToolIds == null) {
+      return this.knownToolIds();
+    }
+    const repaired = repairAssignedToolIds(org.allowedToolIds);
+    if (!sameToolIds(org.allowedToolIds, repaired)) {
+      org.allowedToolIds = repaired;
+      await this.organizationsService.save(org);
+    }
+    return repaired;
+  }
+
+  async replaceAssignedToolIds(
+    organizationId: string,
+    toolIds: string[],
+  ): Promise<string[]> {
+    const org = await this.organizationsService.findById(organizationId);
+    const next = normalizeToolIds(toolIds);
+    org.allowedToolIds = next;
+    await this.organizationsService.save(org);
+    return next;
+  }
+
+  async assertToolsAllowed(
+    organizationId: string,
+    toolIds: string[],
+  ): Promise<void> {
+    const allowed = new Set(await this.listAssignedToolIds(organizationId));
+    const extra = toolIds.filter((id) => !allowed.has(id));
+    if (extra.length > 0) {
+      throw new BadRequestException(
+        `Tool id(s) not assigned to this organization: ${extra.join(', ')}`,
+      );
+    }
+  }
+
   async createForOrganization(
     organizationId: string,
     dto: CreateToolProfileDto,
   ): Promise<ToolProfileResponse> {
+    const toolIds = normalizeToolIds(dto.toolIds);
+    await this.assertToolsAllowed(organizationId, toolIds);
     return this.createProfile(dto, organizationId);
   }
 
@@ -117,6 +180,12 @@ export class ToolProfilesService {
     dto: UpdateToolProfileDto,
   ): Promise<ToolProfileResponse> {
     const row = await this.requireOrgOwned(organizationId, id);
+    if (dto.toolIds !== undefined) {
+      await this.assertToolsAllowed(
+        organizationId,
+        normalizeToolIds(dto.toolIds),
+      );
+    }
     return this.applyUpdate(row, dto);
   }
 
@@ -305,6 +374,38 @@ export function normalizeToolIds(raw: string[]): string[] {
   const set = new Set(raw.filter(isKnownToolId));
   set.add('endCall');
   return [...set].sort();
+}
+
+/**
+ * Effective allowlist for an org row.
+ * `null`/`undefined` = grandfathered full worker catalog (do not treat as endCall).
+ * Stored arrays: known ids only, always include endCall, sorted.
+ */
+export function effectiveAssignedToolIds(
+  raw: string[] | null | undefined,
+): string[] {
+  if (raw == null) {
+    return [...KNOWN_TOOL_IDS];
+  }
+  return repairAssignedToolIds(raw);
+}
+
+/** Stored allowlist: known ids only, always include endCall, sorted. */
+export function repairAssignedToolIds(raw: string[]): string[] {
+  const set = new Set(raw.filter(isKnownToolId));
+  set.add('endCall');
+  return [...set].sort();
+}
+
+function sameToolIds(
+  raw: string[] | null | undefined,
+  next: string[],
+): boolean {
+  if (!raw || raw.length !== next.length) {
+    return false;
+  }
+  const a = [...raw].sort();
+  return a.every((id, i) => id === next[i]);
 }
 
 export function slugifyKey(name: string): string {

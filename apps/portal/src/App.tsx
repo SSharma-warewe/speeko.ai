@@ -10,6 +10,7 @@ import OrgUsersPage from "./dashboard/pages/OrgUsersPage";
 import OrgAgentsPage from "./dashboard/pages/OrgAgentsPage";
 import OrgAgentDetailPage from "./dashboard/pages/OrgAgentDetailPage";
 import OrgSipTrunksPage from "./dashboard/pages/OrgSipTrunksPage";
+import OrgToolsPage from "./dashboard/pages/OrgToolsPage";
 import OrgQueuePage from "./dashboard/pages/OrgQueuePage";
 import AgentTemplatesPage from "./dashboard/pages/AgentTemplatesPage";
 import AgentTemplateDetailPage from "./dashboard/pages/AgentTemplateDetailPage";
@@ -109,6 +110,7 @@ export default function App() {
           <Route path="users" element={<OrgUsersPage />} />
           <Route path="agents" element={<OrgAgentsPage />} />
           <Route path="agents/:agentId" element={<OrgAgentDetailPage />} />
+          <Route path="tools" element={<OrgToolsPage />} />
           <Route path="sip-trunks" element={<OrgSipTrunksPage />} />
           <Route path="queue" element={<OrgQueuePage />} />
           <Route
