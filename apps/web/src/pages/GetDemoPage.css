@@ -379,12 +379,21 @@
           flex-shrink: 0;
         }
 
+        .gd-card-title-phone,
+        .gd-card-lead-phone {
+          display: none;
+        }
+
         .gd-card-lead {
           margin: 0 0 16px;
           font-size: 13px;
           line-height: 1.5;
           color: #525252;
           flex-shrink: 0;
+        }
+
+        .gd-submit-wrap {
+          margin-top: 4px;
         }
 
         .gd-form {
@@ -744,59 +753,110 @@
           }
 
           .gd-mobile-bar {
-            display: block;
+            display: flex;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            height: 52px;
+            padding: 0 var(--mkt-pad);
             background: #0a0a0a;
             color: #fff;
-            padding: 22px var(--mkt-pad) 28px;
           }
 
           .gd-mobile-bar .gd-logo {
-            display: inline-block;
-            margin-bottom: 22px;
-          }
-
-          .gd-mobile-bar .gd-headline {
+            font-size: 18px;
             margin: 0;
-            font-size: clamp(22px, 5.4vw, 30px);
-            max-width: 22ch;
           }
 
           .gd-right {
             height: auto;
             min-height: 0;
             overflow: visible;
-            padding: 20px var(--mkt-pad) 32px;
-            align-items: flex-start;
+            padding: 16px var(--mkt-pad) 20px;
+            align-items: stretch;
           }
 
           .gd-card {
-            padding: 18px 18px 16px;
+            max-width: none;
             max-height: none;
             overflow: visible;
+            padding: 4px 0 0;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            animation: none;
+          }
+
+          .gd-card-eyebrow,
+          .gd-card-title-desk,
+          .gd-card-lead-desk {
+            display: none;
+          }
+
+          .gd-card-title-phone {
+            display: inline;
+          }
+
+          .gd-card-lead-phone {
+            display: block;
+          }
+
+          .gd-card-title {
+            font-size: 26px;
+            margin-bottom: 4px;
+          }
+
+          .gd-card-lead {
+            margin-bottom: 14px;
           }
 
           .gd-form {
             flex: none;
             overflow: visible;
+            gap: 8px;
+            padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+          }
+
+          .gd-field input,
+          .gd-field select {
+            min-height: 44px;
+            padding: 8px 11px;
           }
 
           .gd-row {
             grid-template-columns: 1fr 1fr;
-          }
-        }
-
-        @media (max-width: 719px) {
-          .gd-row {
-            grid-template-columns: 1fr;
+            gap: 8px;
           }
 
           .gd-segment-btn {
             min-height: 44px;
             padding: 10px 6px;
           }
+
+          .gd-submit-wrap {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 10;
+            margin: 0;
+            padding: 12px var(--mkt-pad) calc(12px + env(safe-area-inset-bottom, 0px));
+            background: #f0eee9;
+            border-top: 1px solid #e5e5e5;
+            box-shadow: 0 -8px 24px rgba(10, 10, 10, 0.04);
+          }
+
+          .gd-submit {
+            margin-top: 0;
+            box-shadow:
+              0 1px 0 rgba(255, 255, 255, 0.4) inset,
+              0 8px 20px rgba(202, 138, 4, 0.28);
+          }
         }
 
-        @media (max-height: 820px) {
+        @media (min-width: 961px) and (max-height: 820px) {
           .gd-left-copy {
             margin-top: 24px;
           }
@@ -837,7 +897,7 @@
           }
         }
 
-        @media (max-height: 700px) {
+        @media (min-width: 961px) and (max-height: 700px) {
           .gd-card-lead {
             display: none;
           }

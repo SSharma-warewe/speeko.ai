@@ -358,8 +358,6 @@ export default function GetDemoPage() {
         <Link to="/" className="gd-logo">
           Speeko
         </Link>
-        <p className="gd-eyebrow">Product demo</p>
-        <h1 className="gd-headline">See voice agents handle real calls — live.</h1>
       </header>
       <div className="gd-left">
         <div className="gd-left-glow" />
@@ -386,9 +384,15 @@ export default function GetDemoPage() {
       <div className="gd-right">
         <div className="gd-card">
           <p className="gd-card-eyebrow">Request a demo</p>
-          <h2 className="gd-card-title">Get a personalized walkthrough</h2>
-          <p className="gd-card-lead">
+          <h2 className="gd-card-title">
+            <span className="gd-card-title-desk">Get a personalized walkthrough</span>
+            <span className="gd-card-title-phone">Get a demo</span>
+          </h2>
+          <p className="gd-card-lead gd-card-lead-desk">
             Tell us about your team — we&apos;ll tailor the demo to your volume and stack.
+          </p>
+          <p className="gd-card-lead gd-card-lead-phone">
+            We&apos;ll call the number you give us.
           </p>
 
           {submitted ? (
@@ -458,20 +462,6 @@ export default function GetDemoPage() {
 
                 <div className="gd-row">
                   <label className="gd-field">
-                    <span>Phone number</span>
-                    <input
-                      type="tel"
-                      autoComplete="tel"
-                      value={form.phone}
-                      onChange={(e) => setField("phone", e.target.value)}
-                      placeholder={
-                        PHONE_PLACEHOLDERS[
-                          form.country as (typeof COUNTRIES)[number]
-                        ] ?? "+1 555 010 2000"
-                      }
-                    />
-                  </label>
-                  <label className="gd-field">
                     <span>Country</span>
                     <select
                       value={form.country}
@@ -495,6 +485,20 @@ export default function GetDemoPage() {
                         );
                       })}
                     </select>
+                  </label>
+                  <label className="gd-field">
+                    <span>Phone number</span>
+                    <input
+                      type="tel"
+                      autoComplete="tel"
+                      value={form.phone}
+                      onChange={(e) => setField("phone", e.target.value)}
+                      placeholder={
+                        PHONE_PLACEHOLDERS[
+                          form.country as (typeof COUNTRIES)[number]
+                        ] ?? "+1 555 010 2000"
+                      }
+                    />
                   </label>
                 </div>
 
@@ -569,16 +573,18 @@ export default function GetDemoPage() {
                   </div>
                 </fieldset>
 
-            <button type="submit" className="gd-submit" disabled={submitting}>
-              <span className="gd-submit-label">
-                {submitting ? "Submitting…" : "Get demo"}
-              </span>
-              {!submitting && (
-                <span className="gd-submit-arrow" aria-hidden>
-                  →
+            <div className="gd-submit-wrap">
+              <button type="submit" className="gd-submit" disabled={submitting}>
+                <span className="gd-submit-label">
+                  {submitting ? "Submitting…" : "Get demo"}
                 </span>
-              )}
-            </button>
+                {!submitting && (
+                  <span className="gd-submit-arrow" aria-hidden>
+                    →
+                  </span>
+                )}
+              </button>
+            </div>
           </form>
           )}
         </div>
