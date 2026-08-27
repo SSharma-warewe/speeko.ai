@@ -1,13 +1,19 @@
 /* Shared marketing nav + footer only. Page sections stay in each surface's CSS. */
 
 .lp-nav {
+  position: relative;
+  z-index: 40;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 26px 56px;
+  padding: 26px var(--mkt-pad);
   background: transparent;
   flex-shrink: 0;
+  flex-wrap: nowrap;
   gap: 20px;
+}
+.lp-nav.is-open {
+  background: #0a0a0a;
 }
 .lp-logo {
   font-family: var(--font-display);
@@ -118,10 +124,15 @@
   transform: translateY(0) scale(0.98);
 }
 
+.lp-nav-toggle,
+.lp-nav-overlay {
+  display: none;
+}
+
 .lp-footer {
   background: #0a0a0a;
   color: rgba(255, 255, 255, 0.65);
-  padding: 56px 56px 28px;
+  padding: 56px var(--mkt-pad) 28px;
 }
 .lp-footer-top {
   max-width: 1120px;
@@ -200,18 +211,12 @@
   letter-spacing: 0.02em;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1079px) {
   .lp-nav {
-    padding: 20px 28px;
+    padding: 20px var(--mkt-pad);
   }
   .lp-nav-links {
     gap: 16px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-  }
-  .lp-footer {
-    padding-left: 28px;
-    padding-right: 28px;
   }
   .lp-footer-top {
     grid-template-columns: 1fr;
@@ -219,24 +224,154 @@
   }
 }
 
-@media (max-width: 720px) {
-  .lp-nav {
-    flex-wrap: wrap;
+@media (max-width: 719px) {
+  body.lp-nav-lock {
+    overflow: hidden;
+  }
+
+  .lp-nav-toggle {
+    display: grid;
+    place-items: center;
+    position: relative;
+    z-index: 51;
+    width: 44px;
+    height: 44px;
+    margin-left: auto;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    cursor: pointer;
+  }
+  .lp-nav-toggle:focus-visible {
+    outline: 2px solid #fde68a;
+    outline-offset: 2px;
+  }
+  .lp-nav-toggle-bars,
+  .lp-nav-toggle-bars::before,
+  .lp-nav-toggle-bars::after {
+    display: block;
+    width: 16px;
+    height: 1.5px;
+    background: #ffffff;
+    border-radius: 1px;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+  .lp-nav-toggle-bars {
+    position: relative;
+  }
+  .lp-nav-toggle-bars::before,
+  .lp-nav-toggle-bars::after {
+    content: "";
+    position: absolute;
+    left: 0;
+  }
+  .lp-nav-toggle-bars::before {
+    top: -5px;
+  }
+  .lp-nav-toggle-bars::after {
+    top: 5px;
+  }
+  .lp-nav.is-open .lp-nav-toggle-bars {
+    background: transparent;
+  }
+  .lp-nav.is-open .lp-nav-toggle-bars::before {
+    top: 0;
+    transform: rotate(45deg);
+  }
+  .lp-nav.is-open .lp-nav-toggle-bars::after {
+    top: 0;
+    transform: rotate(-45deg);
+  }
+
+  .lp-nav-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    border: 0;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.55);
+    cursor: pointer;
+  }
+
+  .lp-nav-links {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 8px var(--mkt-pad) 20px;
+    background: #141414;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
+  }
+  .lp-nav.is-open .lp-nav-links {
+    display: flex;
+  }
+  .lp-nav-link {
+    padding: 12px 0;
+    font-size: 16px;
+  }
+  .lp-nav-link::after {
+    display: none;
+  }
+  .lp-solutions {
+    padding-bottom: 0;
+    margin-bottom: 0;
   }
   .lp-mega {
-    min-width: min(440px, calc(100vw - 40px));
+    display: grid;
+    position: static;
     left: auto;
-    right: 0;
     transform: none;
+    min-width: 0;
+    width: 100%;
+    margin: 4px 0 8px;
+    padding: 0;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    box-shadow: none;
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .lp-solutions:hover .lp-mega,
+  .lp-solutions:focus-within .lp-mega {
+    display: grid;
+  }
+  .lp-mega-col {
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .lp-nav-cta {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    text-align: center;
+    padding: 14px 20px;
+    box-sizing: border-box;
   }
   .lp-footer-cols {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+  .lp-footer-bottom {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .lp-nav-cta,
-  .lp-nav-link::after {
+  .lp-nav-link::after,
+  .lp-nav-toggle-bars,
+  .lp-nav-toggle-bars::before,
+  .lp-nav-toggle-bars::after {
     transition: none !important;
   }
 }

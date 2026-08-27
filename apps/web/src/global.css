@@ -1,4 +1,20 @@
 /* App shell reset — full-bleed layout (no browser default margin/border gap) */
+:root {
+  --mkt-pad: 56px;
+}
+
+@media (max-width: 1079px) {
+  :root {
+    --mkt-pad: 28px;
+  }
+}
+
+@media (max-width: 719px) {
+  :root {
+    --mkt-pad: 16px;
+  }
+}
+
 html,
 body,
 #root {

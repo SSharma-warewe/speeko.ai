@@ -26,13 +26,18 @@ body:has(.lp-root)::-webkit-scrollbar {
 .lp-hero-shell {
   position: relative;
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   background: #0a0a0a;
   overflow: hidden;
 }
 .lp-hero-shell canvas {
+  position: absolute !important;
+  inset: 0;
   z-index: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
 }
 .lp-hero-shell > nav {
   position: relative;
@@ -46,7 +51,7 @@ body:has(.lp-root)::-webkit-scrollbar {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px 56px 72px;
+  padding: 48px var(--mkt-pad) 72px;
   text-align: center;
   animation: cw-rise 0.5s ease both;
 }
@@ -54,7 +59,7 @@ body:has(.lp-root)::-webkit-scrollbar {
   min-height: 72vh;
 }
 .lp-hero-shell.is-compact .lp-hero-content {
-  padding: 36px 56px 56px;
+  padding: 36px var(--mkt-pad) 56px;
   justify-content: flex-end;
 }
 .lp-hero-eyebrow {
@@ -227,7 +232,7 @@ body:has(.lp-root)::-webkit-scrollbar {
 
 /* ── Demo dashboard (matches real shell) ── */
 .lp-demo {
-  padding: 80px 56px 88px;
+  padding: 80px var(--mkt-pad) 88px;
   background: #ffffff;
   border-top: 1px solid #e5e5e5;
 }
@@ -307,6 +312,7 @@ body:has(.lp-root)::-webkit-scrollbar {
     0 24px 60px -24px rgba(10, 10, 10, 0.18),
     0 8px 20px -12px rgba(10, 10, 10, 0.1);
   overflow: hidden;
+  overflow-x: clip;
 }
 .lp-demo-chrome {
   display: grid;
@@ -345,6 +351,9 @@ body:has(.lp-root)::-webkit-scrollbar {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.lp-demo-url-short {
+  display: none;
 }
 .lp-demo-live-chip {
   display: inline-flex;
@@ -495,6 +504,9 @@ body:has(.lp-root)::-webkit-scrollbar {
 .lp-demo-hint strong {
   color: #0a0a0a;
   font-weight: 600;
+}
+.lp-demo-hint-phone {
+  display: none;
 }
 .lp-demo-page-header {
   margin-bottom: 1.15rem;
@@ -1035,7 +1047,7 @@ body:has(.lp-root)::-webkit-scrollbar {
 
 /* ── FAQ ── */
 .lp-faq-section {
-  padding: 88px 56px;
+  padding: 88px var(--mkt-pad);
   background:
     linear-gradient(180deg, #f7f5f1 0%, #fafafa 40%, #ffffff 100%);
 }
@@ -1178,7 +1190,7 @@ body:has(.lp-root)::-webkit-scrollbar {
 
 /* ── CTA (original centered yellow band) ── */
 .lp-cta {
-  padding: 64px 56px;
+  padding: 64px var(--mkt-pad);
   background: #fde68a;
   text-align: center;
 }
@@ -1219,31 +1231,141 @@ body:has(.lp-root)::-webkit-scrollbar {
   transform: translateY(0) scale(0.98);
 }
 
-@media (max-width: 960px) {
-  .lp-hero-content,
-  .lp-hero-shell.is-compact .lp-hero-content {
-    padding-left: 28px;
-    padding-right: 28px;
-  }
-  .lp-demo,
-  .lp-faq-section,
-  .lp-cta {
-    padding-left: 28px;
-    padding-right: 28px;
-  }
+.lp-how {
+  padding: 72px var(--mkt-pad);
+  background: #ffffff;
+}
+.lp-how .lp-section-title {
+  margin-bottom: 44px;
+  max-width: 640px;
+}
+.lp-how-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+.lp-how-card {
+  padding: 28px 30px;
+  border-radius: 12px;
+  background: #fafafa;
+}
+.lp-how-dir {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #1e3a5f;
+  background: #eef2f7;
+  border: 1px solid #cbd8e6;
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-bottom: 14px;
+}
+.lp-how-card h3 {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: #0a0a0a;
+}
+.lp-how-card > p {
+  margin: 0 0 18px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #525252;
+}
+.lp-how-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+.lp-how-steps li {
+  display: flex;
+  gap: 10px;
+  font-size: 13.5px;
+  color: #525252;
+}
+.lp-how-steps span {
+  font-weight: 700;
+  color: #0a0a0a;
+  font-variant-numeric: tabular-nums;
+}
+.lp-how-more {
+  margin: 28px 0 0;
+}
+.lp-how-more a {
+  font-size: 14px;
+  font-weight: 600;
+  color: #854d0e;
+  text-decoration: none;
+}
+.lp-how-more a:hover {
+  text-decoration: underline;
+}
+
+.lp-integrations {
+  padding: 0 var(--mkt-pad) 80px;
+  background: #ffffff;
+}
+.lp-integrations-title {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-size: clamp(26px, 3.2vw, 32px);
+  font-weight: 700;
+  color: #0a0a0a;
+}
+.lp-integrations-lead {
+  margin: 0 0 28px;
+  max-width: 560px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #525252;
+}
+.lp-integrations-stage {
+  border-radius: 20px;
+  border: 1px solid #e5e5e5;
+  background: radial-gradient(ellipse at center, #fafafa 0%, #ffffff 70%);
+  overflow: hidden;
+}
+.lp-integrations-canvas {
+  width: 100%;
+  height: 460px;
+  border-radius: 20px;
+}
+.lp-integrations-hint {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: #a3a3a3;
+}
+
+@media (max-width: 1079px) {
   .lp-demo-header {
     grid-template-columns: 1fr;
     gap: 20px;
   }
   .lp-demo-pills {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  .lp-faq-layout {
-    grid-template-columns: 1fr;
-    gap: 28px;
+  .lp-demo-pill-btn {
+    padding: 12px 12px 10px;
+    min-height: 44px;
   }
-  .lp-faq-aside {
-    position: static;
+  .lp-demo-shell {
+    grid-template-columns: 168px 1fr;
+    min-height: 0;
+  }
+  .lp-demo-back {
+    display: none;
+  }
+  .lp-demo-side-link {
+    min-height: 44px;
+    justify-content: center;
+  }
+  .lp-demo-side-link-desc {
+    display: none;
   }
   .lp-demo-kpis,
   .lp-demo-stats-summary {
@@ -1252,37 +1374,90 @@ body:has(.lp-root)::-webkit-scrollbar {
   .lp-demo-columns {
     grid-template-columns: 1fr;
   }
-}
-
-@media (max-width: 720px) {
-  .lp-demo-shell {
+  .lp-how-grid {
     grid-template-columns: 1fr;
   }
+  .lp-faq-layout {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+  .lp-faq-aside {
+    position: static;
+  }
+}
+
+@media (max-width: 719px) {
+  .lp-hero-shell {
+    min-height: 100svh;
+    min-height: 100dvh;
+  }
+  .lp-hero-lead {
+    font-size: 15.5px;
+    margin-bottom: 28px;
+  }
+  .lp-hero-actions a {
+    min-width: min(100%, 280px);
+  }
+  .lp-demo {
+    padding-top: 56px;
+    padding-bottom: 64px;
+  }
+  .lp-demo-header .lp-section-title {
+    max-width: none;
+  }
+  .lp-demo-pills {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .lp-demo-pill-btn {
+    align-content: center;
+    justify-items: center;
+    text-align: center;
+    padding: 10px 8px;
+    min-height: 44px;
+  }
+  .lp-demo-pill-btn strong {
+    white-space: normal;
+    font-size: 12px;
+  }
+  .lp-demo-pill-btn span {
+    display: none;
+  }
   .lp-demo-sidebar {
-    border-right: none;
-    border-bottom: 1px solid #e5e5e5;
-    padding-bottom: 0.75rem;
-  }
-  .lp-demo-side-nav {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-  }
-  .lp-demo-side-link {
-    flex: 1 1 0;
-    min-width: 0;
-  }
-  .lp-demo-side-link-desc {
     display: none;
   }
-  .lp-demo-side-foot {
-    display: none;
+  .lp-demo-shell {
+    grid-template-columns: 1fr;
+    min-height: 0;
   }
   .lp-demo-chrome {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
+    padding: 8px 12px;
   }
-  .lp-demo-chrome .lp-demo-live-chip {
+  .lp-demo-url-full {
     display: none;
+  }
+  .lp-demo-url-short {
+    display: inline;
+  }
+  .lp-demo-content {
+    padding: 1.15rem 1rem 1.25rem;
+  }
+  .lp-demo-page-header {
+    margin-bottom: 0.9rem;
+  }
+  .lp-demo-page-header h3 {
+    font-size: 1.15rem;
+  }
+  .lp-demo-page-header p {
+    font-size: 0.8rem;
+  }
+  .lp-demo-kpi {
+    padding: 0.75rem 0.7rem;
+  }
+  .lp-demo-kpi-value {
+    font-size: 1.25rem;
   }
   .lp-demo-call-card {
     flex-direction: column;
@@ -1293,24 +1468,74 @@ body:has(.lp-root)::-webkit-scrollbar {
     width: 100%;
     justify-content: space-between;
   }
-  .lp-faq-body-wrap {
-    padding-left: 20px;
+  .lp-demo-join-btn {
+    flex: 1;
+    text-align: center;
   }
-}
-
-.lp-how-more {
-  margin: 28px 0 0;
-}
-
-.lp-how-more a {
-  font-size: 14px;
-  font-weight: 600;
-  color: #854d0e;
-  text-decoration: none;
-}
-
-.lp-how-more a:hover {
-  text-decoration: underline;
+  .lp-demo-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    margin-left: -0.15rem;
+    margin-right: -0.15rem;
+    padding: 0 0.15rem 4px;
+  }
+  .lp-demo-filters::-webkit-scrollbar {
+    display: none;
+  }
+  .lp-demo-filter {
+    flex: 0 0 auto;
+    min-height: 44px;
+    scroll-snap-align: start;
+  }
+  .lp-demo-history-top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+  }
+  .lp-demo-pipeline-legend {
+    grid-template-columns: 1fr;
+  }
+  .lp-demo-outcome-row {
+    grid-template-columns: 72px 1fr 28px;
+  }
+  .lp-demo-hint-desk {
+    display: none;
+  }
+  .lp-demo-hint-phone {
+    display: inline;
+  }
+  .lp-how {
+    padding-top: 56px;
+    padding-bottom: 56px;
+  }
+  .lp-how-card {
+    padding: 22px 20px;
+  }
+  .lp-integrations {
+    padding-bottom: 56px;
+  }
+  .lp-integrations-canvas {
+    height: 320px;
+  }
+  .lp-faq-section {
+    padding-top: 56px;
+    padding-bottom: 56px;
+  }
+  .lp-faq-summary {
+    padding: 14px 14px;
+    gap: 10px;
+  }
+  .lp-faq-body-wrap {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .lp-cta h2 {
+    font-size: clamp(24px, 6vw, 30px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

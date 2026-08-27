@@ -64,7 +64,7 @@ html:has(.hiw-page) {
   gap: 8px 28px;
   max-width: 1080px;
   margin: 0 auto;
-  padding: 8px 40px 0;
+  padding: 8px var(--mkt-pad) 0;
   align-items: start;
 }
 
@@ -556,10 +556,10 @@ html:has(.hiw-page) {
   text-decoration: underline;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1079px) {
   .hiw-stage {
     grid-template-columns: 1fr;
-    padding: 0 20px;
+    padding: 0 var(--mkt-pad);
   }
 
   .hiw-rail {
@@ -584,15 +584,10 @@ html:has(.hiw-page) {
     gap: 4px;
   }
 
-  .hiw-page .sol-wrap {
-    padding-left: 20px;
-    padding-right: 20px;
-  }
-
   .hiw-mast-chips {
     display: flex;
     flex-wrap: wrap;
-    max-width: calc(100vw - 40px);
+    max-width: 100%;
   }
 
   .hiw-mast-chips a {

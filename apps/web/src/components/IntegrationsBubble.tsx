@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import BubbleUI from "react-bubble-ui";
 import "react-bubble-ui/dist/index.css";
 
@@ -300,20 +300,17 @@ const INTEGRATIONS: Integration[] = [
   },
 ];
 
-const bubbleOptions = {
-  size: 140,
-  minSize: 28,
-  gutter: 12,
-  provideProps: true,
-  numCols: 5,
-  fringeWidth: 120,
-  yRadius: 140,
-  xRadius: 200,
-  cornerRadius: 80,
-  showGuides: false,
-  compact: true,
-  gravitation: 5,
-};
+function usePhoneLayout() {
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 719px)");
+    const apply = () => setPhone(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
+  return phone;
+}
 
 interface BubbleChildProps {
   bubbleSize?: number;
@@ -378,84 +375,48 @@ function IntegrationBubble({ bubbleSize = 140, integration }: BubbleChildProps) 
 }
 
 export default function IntegrationsBubble() {
+  const phone = usePhoneLayout();
   const children = INTEGRATIONS.map((integration) => (
     <IntegrationBubble key={integration.id} integration={integration} />
   ));
+  const options = useMemo(
+    () => ({
+      size: phone ? 110 : 140,
+      minSize: 28,
+      gutter: phone ? 8 : 12,
+      provideProps: true,
+      numCols: phone ? 4 : 5,
+      fringeWidth: phone ? 72 : 120,
+      yRadius: phone ? 110 : 140,
+      xRadius: phone ? 140 : 200,
+      cornerRadius: phone ? 48 : 80,
+      showGuides: false,
+      compact: true,
+      gravitation: 5,
+    }),
+    [phone],
+  );
 
   return (
-    <div
-      id="integrations"
-      style={{
-        padding: "0 56px 80px",
-        background: "#ffffff",
-      }}
-    >
-      <p
-        style={{
-          margin: "0 0 8px",
-          fontSize: 12,
-          fontWeight: 600,
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          color: "#737373",
-        }}
-      >
-        Integrations
-      </p>
-      <h2
-        style={{
-          margin: "0 0 10px",
-          fontFamily: "var(--font-display)",
-          fontSize: 32,
-          fontWeight: 700,
-          color: "#0a0a0a",
-        }}
-      >
-        Agent integrations
-      </h2>
-      <p
-        style={{
-          margin: "0 0 28px",
-          maxWidth: 560,
-          fontSize: 15,
-          lineHeight: 1.6,
-          color: "#525252",
-        }}
-      >
+    <div id="integrations" className="lp-integrations">
+      <p className="lp-eyebrow">Integrations</p>
+      <h2 className="lp-integrations-title">Agent integrations</h2>
+      <p className="lp-integrations-lead">
         Connect calendars, CRMs, messaging, and social channels so your voice
         agents book, update, and follow up where your business already works.
       </p>
 
-      <div
-        style={{
-          borderRadius: 20,
-          border: "1px solid #e5e5e5",
-          background:
-            "radial-gradient(ellipse at center, #fafafa 0%, #ffffff 70%)",
-          overflow: "hidden",
-        }}
-      >
+      <div className="lp-integrations-stage">
         <BubbleUI
-          className="speeko-bubble-ui"
-          options={bubbleOptions}
-          style={{
-            width: "100%",
-            height: 460,
-            borderRadius: 20,
-          }}
+          className="speeko-bubble-ui lp-integrations-canvas"
+          options={options}
+          style={{ width: "100%", height: phone ? 320 : 460, borderRadius: 20 }}
         >
           {children}
         </BubbleUI>
       </div>
 
-      <p
-        style={{
-          margin: "14px 0 0",
-          textAlign: "center",
-          fontSize: 12,
-          color: "#a3a3a3",
-        }}
-      >
+      <p className="lp-integrations-hint">
         Drag to explore · Google Calendar, CRM, social, messaging & more
       </p>
     </div>

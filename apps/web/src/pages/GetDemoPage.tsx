@@ -118,8 +118,6 @@ interface FormState {
   callsPerDay: string;
   direction: Direction | "";
   integrations: string[];
-  /** Honeypot — must stay empty. */
-  website: string;
 }
 
 const initialForm: FormState = {
@@ -133,7 +131,6 @@ const initialForm: FormState = {
   callsPerDay: "",
   direction: "",
   integrations: [],
-  website: "",
 };
 
 /** Basic email shape check (mirrors server IsEmail intent for UX). */
@@ -309,7 +306,6 @@ export default function GetDemoPage() {
           callsPerDay: form.callsPerDay,
           direction: form.direction,
           integrations: form.integrations,
-          website: form.website,
         }),
       });
 
@@ -358,6 +354,13 @@ export default function GetDemoPage() {
 
   return (
     <div className="gd-page">
+      <header className="gd-mobile-bar">
+        <Link to="/" className="gd-logo">
+          Speeko
+        </Link>
+        <p className="gd-eyebrow">Product demo</p>
+        <h1 className="gd-headline">See voice agents handle real calls — live.</h1>
+      </header>
       <div className="gd-left">
         <div className="gd-left-glow" />
         <div className="gd-left-grain" />
@@ -401,19 +404,6 @@ export default function GetDemoPage() {
             </div>
           ) : (
           <form className="gd-form" onSubmit={handleSubmit} noValidate>
-                <div className="gd-hp" aria-hidden="true">
-                  <label>
-                    Company website
-                    <input
-                      type="text"
-                      name="website"
-                      tabIndex={-1}
-                      autoComplete="off"
-                      value={form.website}
-                      onChange={(e) => setField("website", e.target.value)}
-                    />
-                  </label>
-                </div>
                 {error && (
                   <div className="gd-error" role="alert">
                     {error}

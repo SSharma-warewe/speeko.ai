@@ -192,12 +192,15 @@ export default function LandingPage() {
                 <span />
               </div>
               <div className="lp-demo-url">
-                localhost:5173 / agents / appointment-confirmation
-                {demoView === "history"
-                  ? " · history"
-                  : demoView === "stats"
-                    ? " · stats"
-                    : ""}
+                <span className="lp-demo-url-full">
+                  localhost:5173 / agents / appointment-confirmation
+                  {demoView === "history"
+                    ? " · history"
+                    : demoView === "stats"
+                      ? " · stats"
+                      : ""}
+                </span>
+                <span className="lp-demo-url-short">speeko.ai</span>
               </div>
               <span className="lp-demo-live-chip">
                 <LiveDot />
@@ -536,127 +539,74 @@ export default function LandingPage() {
             </div>
           </div>
           <p className="lp-demo-hint">
-            Click <strong>Overview</strong>, <strong>Call history</strong>, or{" "}
-            <strong>Agent stats</strong> in the sidebar to explore the demo.
+            <span className="lp-demo-hint-desk">
+              Click <strong>Overview</strong>, <strong>Call history</strong>, or{" "}
+              <strong>Agent stats</strong> in the sidebar to explore the demo.
+            </span>
+            <span className="lp-demo-hint-phone">
+              Tap <strong>Overview</strong>, <strong>Call history</strong>, or{" "}
+              <strong>Agent stats</strong>.
+            </span>
           </p>
         </div>
       </section>
 
-      {/* HOW IT WORKS */}
-      <div id="how" style={{ padding: "72px 56px", background: "#ffffff" }}>
-        <p
-          style={{
-            margin: "0 0 8px",
-            fontSize: 12,
-            fontWeight: 600,
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            color: "#737373",
-          }}
-        >
-          How it works
-        </p>
-        <h2
-          style={{
-            margin: "0 0 44px",
-            fontFamily: "var(--font-display)",
-            fontSize: 32,
-            fontWeight: 700,
-            color: "#0a0a0a",
-            maxWidth: 640,
-          }}
-        >
+      <section id="how" className="lp-how" aria-labelledby="lp-how-heading">
+        <p className="lp-eyebrow">How it works</p>
+        <h2 id="lp-how-heading" className="lp-section-title">
           One platform, two directions of calling.
         </h2>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-          {/* Outbound */}
-          <div className="lp-card" style={{ padding: "28px 30px", borderRadius: 12, background: "#fafafa" }}>
-            <span
-              style={{
-                display: "inline-block",
-                fontSize: 11,
-                fontWeight: 600,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                color: "#1e3a5f",
-                background: "#eef2f7",
-                border: "1px solid #cbd8e6",
-                padding: "4px 10px",
-                borderRadius: 999,
-                marginBottom: 14,
-              }}
-            >
-              Outbound
-            </span>
-            <h3 style={{ margin: "0 0 8px", fontFamily: "var(--font-display)", fontSize: 20, color: "#0a0a0a" }}>
-              Your agent calls them
-            </h3>
-            <p style={{ margin: "0 0 18px", fontSize: 14, lineHeight: 1.6, color: "#525252" }}>
+        <div className="lp-how-grid">
+          <article className="lp-card lp-how-card">
+            <span className="lp-how-dir">Outbound</span>
+            <h3>Your agent calls them</h3>
+            <p>
               Example: a clinic needs to confirm tomorrow’s appointments. The system queues each patient and the
               AI agent dials out — so staff don’t have to work a phone list by hand.
             </p>
-            <ol style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 10 }}>
+            <ol className="lp-how-steps">
               {[
                 "You add people or jobs to an outbound queue",
                 "The agent dials each number automatically",
                 "It runs your script (confirm, book, follow up, etc.)",
                 "Outcome + transcript land on your dashboard",
               ].map((step, idx) => (
-                <li key={idx} style={{ display: "flex", gap: 10, fontSize: 13.5, color: "#525252" }}>
-                  <span style={{ fontWeight: 700, color: "#0a0a0a" }}>{String(idx + 1).padStart(2, "0")}</span>
+                <li key={step}>
+                  <span>{String(idx + 1).padStart(2, "0")}</span>
                   {step}
                 </li>
               ))}
             </ol>
-          </div>
+          </article>
 
-          {/* Inbound */}
-          <div className="lp-card" style={{ padding: "28px 30px", borderRadius: 12, background: "#fafafa" }}>
-            <span
-              style={{
-                display: "inline-block",
-                fontSize: 11,
-                fontWeight: 600,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                color: "#1e3a5f",
-                background: "#eef2f7",
-                border: "1px solid #cbd8e6",
-                padding: "4px 10px",
-                borderRadius: 999,
-                marginBottom: 14,
-              }}
-            >
-              Inbound
-            </span>
-            <h3 style={{ margin: "0 0 8px", fontFamily: "var(--font-display)", fontSize: 20, color: "#0a0a0a" }}>
-              They call your agent
-            </h3>
-            <p style={{ margin: "0 0 18px", fontSize: 14, lineHeight: 1.6, color: "#525252" }}>
+          <article className="lp-card lp-how-card">
+            <span className="lp-how-dir">Inbound</span>
+            <h3>They call your agent</h3>
+            <p>
               Example: a patient calls the clinic number. The AI answers immediately, greets them, and helps book
               a new visit — no hold music, no missed after-hours calls.
             </p>
-            <ol style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 10 }}>
+            <ol className="lp-how-steps">
               {[
                 "Someone dials your number (or starts a demo call)",
                 "The agent answers and greets the caller",
                 "It handles the request (e.g. book an appointment)",
                 "Call log + result sync to your dashboard",
               ].map((step, idx) => (
-                <li key={idx} style={{ display: "flex", gap: 10, fontSize: 13.5, color: "#525252" }}>
-                  <span style={{ fontWeight: 700, color: "#0a0a0a" }}>{String(idx + 1).padStart(2, "0")}</span>
+                <li key={step}>
+                  <span>{String(idx + 1).padStart(2, "0")}</span>
                   {step}
                 </li>
               ))}
             </ol>
-          </div>
+          </article>
         </div>
 
         <p className="lp-how-more">
           <a href="/how-it-works">Walk the setup — number, agents, tools, live →</a>
         </p>
-      </div>
+      </section>
 
       {/* AGENT INTEGRATIONS (Bubble UI) */}
       <IntegrationsBubble />

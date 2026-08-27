@@ -41,7 +41,7 @@ body:has(.sol-page)::-webkit-scrollbar {
 .sol-wrap {
   max-width: 1080px;
   margin: 0 auto;
-  padding: 0 40px;
+  padding: 0 var(--mkt-pad);
 }
 
 .sol-kicker {
@@ -698,23 +698,27 @@ body:has(.sol-page)::-webkit-scrollbar {
   color: var(--sol-muted);
 }
 
-@media (max-width: 960px) {
-  .sol-wrap {
-    padding: 0 24px;
+@media (max-width: 1079px) {
+  .sol-band-head--row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
   }
-  .sol-band-head--row,
-  .sol-mast,
+  .sol-band-head--row .sol-lead {
+    max-width: 52ch;
+  }
   .sol-composer,
   .sol-composer.is-compact,
-  .sol-play-layout,
+  .sol-detail,
+  .sol-inventory {
+    grid-template-columns: 1fr;
+  }
   .sol-bento,
   .sol-bento--lanes,
   .sol-bento--help,
   .sol-bento--fit,
-  .sol-bento--kit,
-  .sol-detail,
-  .sol-inventory {
-    grid-template-columns: 1fr;
+  .sol-bento--kit {
+    grid-template-columns: 1fr 1fr;
   }
   .sol-inventory {
     grid-template-rows: auto auto auto;
@@ -731,9 +735,11 @@ body:has(.sol-page)::-webkit-scrollbar {
   .sol-bento-tile.is-default,
   .sol-bento-tile.is-outbound,
   .sol-bento-tile.is-after-hours,
-  .sol-bento-tile.is-demo-setter,
-  .sol-bento-tile.is-compose {
+  .sol-bento-tile.is-demo-setter {
     grid-column: auto;
+  }
+  .sol-bento-tile.is-compose {
+    grid-column: 1 / -1;
   }
   .sol-detail-top {
     grid-row: auto;
@@ -741,6 +747,63 @@ body:has(.sol-page)::-webkit-scrollbar {
   .sol-beats li {
     grid-template-columns: 1fr;
     gap: 4px;
+  }
+}
+
+@media (max-width: 719px) {
+  .sol-wrap {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .sol-mast {
+    padding-top: 28px;
+  }
+  .sol-mast h1,
+  .sol-band-head h2,
+  .sol-close h2,
+  .sol-cross h2 {
+    max-width: none;
+  }
+  .sol-bento,
+  .sol-bento--lanes,
+  .sol-bento--help,
+  .sol-bento--fit,
+  .sol-bento--kit {
+    grid-template-columns: 1fr;
+  }
+  .sol-bento-tile.is-compose {
+    grid-column: auto;
+  }
+  .sol-play-layout {
+    grid-template-columns: 1fr;
+  }
+  .sol-play-tabs {
+    display: flex;
+    overflow-x: auto;
+    gap: 8px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+  .sol-play-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .sol-play-tab {
+    flex: 0 0 auto;
+    min-width: 168px;
+    min-height: 44px;
+  }
+  .sol-play-tab span {
+    display: none;
+  }
+  .sol-play-panel {
+    min-height: 0;
+    padding: 20px 18px 18px;
+  }
+  .sol-cross {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 

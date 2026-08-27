@@ -8,6 +8,10 @@
           color: #0a0a0a;
         }
 
+        .gd-mobile-bar {
+          display: none;
+        }
+
         .gd-left {
           position: relative;
           background: #0a0a0a;
@@ -396,15 +400,6 @@
           padding-right: 2px;
         }
 
-        .gd-hp {
-          position: absolute;
-          left: -10000px;
-          top: auto;
-          width: 1px;
-          height: 1px;
-          overflow: hidden;
-        }
-
         .gd-error {
           font-size: 13px;
           color: #991b1b;
@@ -748,12 +743,30 @@
             display: none;
           }
 
+          .gd-mobile-bar {
+            display: block;
+            background: #0a0a0a;
+            color: #fff;
+            padding: 22px var(--mkt-pad) 28px;
+          }
+
+          .gd-mobile-bar .gd-logo {
+            display: inline-block;
+            margin-bottom: 22px;
+          }
+
+          .gd-mobile-bar .gd-headline {
+            margin: 0;
+            font-size: clamp(22px, 5.4vw, 30px);
+            max-width: 22ch;
+          }
+
           .gd-right {
             height: auto;
-            min-height: 100dvh;
-            overflow: hidden;
-            padding: 20px 16px;
-            align-items: center;
+            min-height: 0;
+            overflow: visible;
+            padding: 20px var(--mkt-pad) 32px;
+            align-items: flex-start;
           }
 
           .gd-card {
@@ -769,6 +782,17 @@
 
           .gd-row {
             grid-template-columns: 1fr 1fr;
+          }
+        }
+
+        @media (max-width: 719px) {
+          .gd-row {
+            grid-template-columns: 1fr;
+          }
+
+          .gd-segment-btn {
+            min-height: 44px;
+            padding: 10px 6px;
           }
         }
 
