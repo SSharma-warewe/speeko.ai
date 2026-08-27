@@ -216,7 +216,7 @@ export class GhlService {
 
     const firstName = input.firstName?.trim() ?? '';
     const lastName = input.lastName?.trim() ?? '';
-    const email = input.email?.trim().toLowerCase() ?? '';
+    const email = usableContactEmail(input.email);
     const phone = input.phone?.trim() ?? '';
     const companyName = input.company?.trim() ?? '';
 
@@ -625,7 +625,22 @@ function upsertContactErrorMessage(status: number): string {
   if (status === 400) {
     return 'Bad request. Check the location (sub-account) id and contact fields.';
   }
+  if (status === 422) {
+    return 'GoHighLevel rejected the contact fields (often an invalid email). Use a real email or the call phone only.';
+  }
   return 'Could not create or update the GoHighLevel contact. Check that the Private Integration Token includes contacts.write.';
+}
+
+/** GHL 422s on values like "Unknown". Phone-only upsert is fine. */
+function usableContactEmail(value?: string): string {
+  const email = value?.trim().toLowerCase() ?? '';
+  if (!email) return '';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return '';
+  const local = email.slice(0, email.indexOf('@'));
+  if (/^(unknown|n\/a|na|none|null|undefined|test|user|email|caller)$/i.test(local)) {
+    return '';
+  }
+  return email;
 }
 
 function lookupContactErrorMessage(status: number): string {

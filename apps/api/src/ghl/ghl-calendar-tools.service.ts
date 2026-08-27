@@ -539,13 +539,13 @@ export function resolveIdentity(
   company?: string;
 } {
   const email =
-    dto.participantEmail?.trim() ||
-    contextField(context, 'email', 'participantEmail');
+    usableGhlEmail(dto.participantEmail) ||
+    usableGhlEmail(contextField(context, 'email', 'participantEmail'));
   const phone =
-    dto.phone?.trim() ||
+    usableIdentityToken(dto.phone) ||
     contextField(context, 'phone', 'phoneNumber', 'toNumber');
   const full =
-    dto.participantName?.trim() ||
+    usableIdentityToken(dto.participantName) ||
     contextField(
       context,
       'name',
@@ -554,19 +554,42 @@ export function resolveIdentity(
       'patientName',
     );
   const first =
-    dto.firstName?.trim() ||
+    usableIdentityToken(dto.firstName) ||
     contextField(context, 'firstName', 'first_name') ||
     (full ? full.split(/\s+/)[0] : undefined);
   const lastFromFull = full?.split(/\s+/).slice(1).join(' ') || undefined;
   const last =
-    dto.lastName?.trim() ||
+    usableIdentityToken(dto.lastName) ||
     contextField(context, 'lastName', 'last_name') ||
     lastFromFull;
   const name =
     full || (first && last ? `${first} ${last}` : first || last);
   const company =
-    dto.company?.trim() || contextField(context, 'company', 'companyName');
+    usableIdentityToken(dto.company) ||
+    contextField(context, 'company', 'companyName');
   return { firstName: first, lastName: last, name, email, phone, company };
+}
+
+/** Drop LLM placeholders like "Unknown" that GHL rejects as invalid emails. */
+export function usableGhlEmail(value?: string): string | undefined {
+  const email = value?.trim().toLowerCase();
+  if (!email) return undefined;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return undefined;
+  const local = email.slice(0, email.indexOf('@'));
+  if (isPlaceholderIdentity(local)) return undefined;
+  return email;
+}
+
+function usableIdentityToken(value?: string): string | undefined {
+  const token = value?.trim();
+  if (!token || isPlaceholderIdentity(token)) return undefined;
+  return token;
+}
+
+function isPlaceholderIdentity(value: string): boolean {
+  return /^(unknown|n\/a|na|none|null|undefined|test|user|email|caller)$/i.test(
+    value.trim(),
+  );
 }
 
 export function mergeGhlContactContext(

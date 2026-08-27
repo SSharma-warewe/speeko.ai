@@ -4,7 +4,6 @@ import {
   HttpCode,
   HttpStatus,
   Post,
-  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -15,8 +14,6 @@ import {
   ApiTooManyRequestsError,
   ApiUnavailableError,
 } from '../common/swagger/api-errors';
-import type { Request } from 'express';
-import { clientIp } from '../common/client-ip';
 import { DemoService } from './demo.service';
 import { RequestDemoDto } from './dto/request-demo.dto';
 import { RequestDemoResponseDto } from './dto/request-demo-response.dto';
@@ -47,10 +44,7 @@ export class DemoController {
   )
   @ApiUnavailableError('ENDPOINT_URL or SPEEKO_API not set')
   @ApiBadGatewayError('Integration enqueue failed')
-  request(
-    @Body() dto: RequestDemoDto,
-    @Req() req: Request,
-  ): Promise<RequestDemoResponseDto> {
-    return this.demoService.requestDemo(dto, clientIp(req));
+  request(@Body() dto: RequestDemoDto): Promise<RequestDemoResponseDto> {
+    return this.demoService.requestDemo(dto);
   }
 }

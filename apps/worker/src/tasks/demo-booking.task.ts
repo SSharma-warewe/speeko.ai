@@ -39,11 +39,11 @@ function bookingToolLines(enabledTools: string[]): string[] {
     const lines: string[] = [];
     if (ids.has('lookupGhlContact')) {
       lines.push(
-        '- Before booking, call lookup_ghl_contact with their email or phone (SIP phoneNumber is enough if they have no email). If found=false, call upsert_ghl_contact with name, email, and phone. Do not invent an email. Never pass a phone as a contact id.',
+        '- If context already has ghlContactId, skip lookup/upsert and book with that id. Otherwise call lookup_ghl_contact with their email or phone (SIP phoneNumber is enough if they have no email). If found=false, call upsert_ghl_contact with name, email, and phone. Do not invent an email or name. Never pass a phone as a contact id.',
       );
     } else if (ids.has('upsertGhlContact')) {
       lines.push(
-        '- Before booking, call upsert_ghl_contact with their name, email, and phone (email or phone required) so GoHighLevel has a contact id. SIP phoneNumber is enough if they have no email. Do not invent an email.',
+        '- If context already has ghlContactId (typical after get-demo CRM save), skip upsert and book with that id. Otherwise call upsert_ghl_contact with their name, email, and phone (email or phone required). SIP phoneNumber is enough if they have no email. Do not invent an email or name (never pass Unknown / n/a).',
       );
     }
     lines.push(

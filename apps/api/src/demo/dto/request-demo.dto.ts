@@ -1,4 +1,4 @@
-import { ApiHideProperty, ApiProperty } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -6,7 +6,6 @@ import {
   IsArray,
   IsEmail,
   IsIn,
-  IsOptional,
   IsString,
   Matches,
   MaxLength,
@@ -107,11 +106,4 @@ export class RequestDemoDto {
   @ArrayMaxSize(DEMO_INTEGRATION_OPTIONS.length)
   @IsIn(DEMO_INTEGRATION_OPTIONS, { each: true })
   integrations!: (typeof DEMO_INTEGRATION_OPTIONS)[number][];
-
-  /** Hidden honeypot. Humans leave empty; bots that fill it get a fake success. */
-  @ApiHideProperty()
-  @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  website?: string;
 }

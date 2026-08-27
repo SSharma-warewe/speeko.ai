@@ -3,13 +3,55 @@ import { OrganizationAgentsService } from '../../agents/organization-agents.serv
 import { CallsRepository } from '../../calls/calls.repository';
 import { IntegrationProvider } from '../../organization-integrations/organization-integration.entity';
 import { OrganizationIntegrationsService } from '../../organization-integrations/organization-integrations.service';
-import { GhlCalendarToolsService } from '../ghl-calendar-tools.service';
+import {
+  GhlCalendarToolsService,
+  resolveIdentity,
+} from '../ghl-calendar-tools.service';
 import { GhlService } from '../ghl.service';
 import {
   expandShortWindowToLocalDays,
   mapGhlFreeSlots,
   parseTimeToUnix,
 } from '../ghl-time';
+
+describe('resolveIdentity', () => {
+  it('drops placeholder emails/names and falls back to context', () => {
+    expect(
+      resolveIdentity(
+        {
+          firstName: 'Unknown',
+          lastName: 'Unknown',
+          participantName: 'Unknown',
+          participantEmail: 'Unknown',
+          company: 'Unknown',
+        },
+        {
+          email: 'ada@example.com',
+          firstName: 'Ada',
+          lastName: 'Lovelace',
+          phoneNumber: '+15550102000',
+          company: 'Acme',
+        },
+      ),
+    ).toEqual({
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      name: 'Ada Lovelace',
+      email: 'ada@example.com',
+      phone: '+15550102000',
+      company: 'Acme',
+    });
+  });
+
+  it('keeps a real email from the DTO', () => {
+    expect(
+      resolveIdentity(
+        { participantEmail: '  Ada@Example.com ' },
+        { email: 'old@example.com' },
+      ),
+    ).toMatchObject({ email: 'ada@example.com' });
+  });
+});
 
 describe('mapGhlFreeSlots', () => {
   it('maps live date→slots shape and drops traceId', () => {
@@ -203,6 +245,31 @@ describe('GhlService calendar', () => {
     expect(init.method).toBe('GET');
   });
 
+  it('omits placeholder emails like Unknown and upserts by phone', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ new: true, contact: { id: 'ct_phone' } }),
+    );
+    const service = makeService();
+    await expect(
+      service.upsertContact({
+        email: 'Unknown',
+        phone: '+15550102000',
+        firstName: 'Ada',
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      contactId: 'ct_phone',
+      created: true,
+    });
+
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
+      locationId,
+      source: 'Speeko Voice Agent',
+      firstName: 'Ada',
+      phone: '+15550102000',
+    });
+  });
+
   it('upserts a contact without tags using the contacts PIT', async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({ new: true, contact: { id: 'ct_9' } }),
@@ -287,12 +354,24 @@ describe('GhlService calendar', () => {
       ok: false,
       error: 'ghl upsert 401',
     });
-    if (!result.ok) {
-      expect(result.message).toMatch(/contacts.write/);
-    }
+    expect(result.message).toMatch(/contacts.write/);
     const joined = warn.mock.calls.map((c) => String(c[0])).join('\n');
     expect(joined).not.toContain(apiKey);
     expect(joined).not.toMatch(/Bearer /i);
+  });
+
+  it('maps 422 contact upsert to invalid-fields, not contacts.write', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ message: 'Unprocessable Entity' }, 422),
+    );
+    const service = makeService();
+    const result = await service.upsertContact({ email: 'ada@example.com' });
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'ghl upsert 422',
+    });
+    expect(result.message).toMatch(/invalid email/i);
+    expect(result.message).not.toMatch(/contacts.write/);
   });
 
   it('POSTs appointment with calendar PIT and no ignoreFreeSlotValidation', async () => {
@@ -933,6 +1012,41 @@ describe('GhlCalendarToolsService', () => {
       firstName: 'Ada',
       lastName: 'Lovelace',
     });
+  });
+
+  it('drops invented Unknown identity and uses call context instead', async () => {
+    stubLinkedGhl({
+      email: 'ada@example.com',
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      phoneNumber: '+15550109999',
+      company: 'Acme',
+    });
+    ghl.upsertContact.mockResolvedValue({
+      ok: true,
+      contactId: 'ct_ctx',
+      created: false,
+    });
+
+    const res = await service.upsertContact(CALL_ID, {
+      firstName: 'Unknown',
+      lastName: 'Unknown',
+      participantName: 'Unknown',
+      participantEmail: 'Unknown',
+      company: 'Unknown',
+    });
+    expect(res.ok).toBe(true);
+    expect(ghl.upsertContact).toHaveBeenCalledWith(
+      {
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+        email: 'ada@example.com',
+        phone: '+15550109999',
+        company: 'Acme',
+        notes: undefined,
+      },
+      { token: GHL_CREDS.token, locationId: GHL_CREDS.locationId },
+    );
   });
 
   it('fills phone from call context when the DTO omits it', async () => {

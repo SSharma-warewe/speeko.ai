@@ -168,7 +168,7 @@ Known tool ids: `endCall`, `booking`, `cancelBooking`, `transferCall`, `lookupCu
 - Tokens: Bearer access JWT only (no refresh/session store yet).
 - **Live revalidation:** after signature/expiry checks, `JwtStrategy` reloads admin/user from Postgres on every authenticated request. Reject if admin/user is missing or `isActive=false`. For users, also reject if the org is missing or `organization.isActive=false`. Principal `orgId` / `role` / `email` / `name` come from the DB row (not stale JWT claims). `/me` profile endpoints re-check the same rules.
 - **Login rate limits:** `POST /api/auth/login` and `POST /api/auth/admin/login` use an in-process fixed window keyed by `route + client IP + email` (`LoginRateLimitGuard`). Defaults: 10 attempts / 60s (`AUTH_LOGIN_MAX_ATTEMPTS`, `AUTH_LOGIN_WINDOW_MS`). Counters are **per API process** (not shared across Railway replicas). API sets Express `trust proxy` so `X-Forwarded-For` yields the real client IP behind a reverse proxy. Over limit → **429**.
-- **Get-demo abuse limits:** `POST /api/demo/request` uses `DemoAbuseGuard`. When `CORS_ORIGIN` is set, `Origin` (or `Referer` origin) must match that allowlist (403). Then in-process fixed windows: IP (default 5 / 15 min), phone (1 / hour), email (2 / hour), global (30 / hour). Over limit → **429**. Hidden honeypot field `website`: if filled, API returns `{ ok: true }` without GHL or enqueue. Counters are **per API process**. Country / team size / calls-per-day / integrations are allowlisted to the marketing form.
+- **Get-demo abuse limits:** `POST /api/demo/request` uses `DemoAbuseGuard`. When `CORS_ORIGIN` is set, `Origin` (or `Referer` origin) must match that allowlist (403). Then in-process fixed windows: IP (default 5 / 15 min), phone (1 / hour), email (2 / hour), global (30 / hour). Over limit → **429**. Counters are **per API process**. Country / team size / calls-per-day / integrations are allowlisted to the marketing form.
 - **Integration API keys** are separate from JWT: one secret per `integration_endpoints` row (`ca_live_…`), hashed with SHA-256. Full key returned only on create/rotate. Public CRM routes authenticate with Bearer or `X-Api-Key`, not org-user login.
 
 ### HTTP error responses
@@ -400,7 +400,7 @@ Do **not** redeploy every service by default — match the surface you changed.
 
 ```
 Web form → POST /api/demo/request → DemoAbuseGuard (origin + rate limits)
-  → API DemoService (honeypot short-circuit if `website` filled)
+  → API DemoService
   1. GhlService.upsertLead (best-effort contact in GoHighLevel)
   2. POST ENDPOINT_URL + Bearer SPEEKO_API
   → integration enqueue → queue dialer → agent SIP call
@@ -468,7 +468,7 @@ Worker health is “registered with LiveKit” in service logs, not a public HTM
 | POST | `/api/auth/reset-password` | public — complete user reset |
 | POST | `/api/auth/admin/forgot-password` | public — always `{ ok: true }` |
 | POST | `/api/auth/admin/reset-password` | public — complete admin reset |
-| POST | `/api/demo/request` | public — marketing get-demo; `DemoAbuseGuard` (origin + rate limits); honeypot; best-effort GHL contact upsert, then proxy to `ENDPOINT_URL` with `SPEEKO_API` (integration enqueue → queue dial) |
+| POST | `/api/demo/request` | public — marketing get-demo; `DemoAbuseGuard` (origin + rate limits); best-effort GHL contact upsert, then proxy to `ENDPOINT_URL` with `SPEEKO_API` (integration enqueue → queue dial) |
 | POST | `/api/admin/organizations` | admin JWT |
 | GET | `/api/admin/organizations` | admin JWT |
 | GET | `/api/admin/organizations/:id` | admin JWT |
@@ -716,7 +716,7 @@ controller → service → repository → TypeORM entity → Postgres
 - `livekit` is an infrastructure adapter (service only), not a repository-backed domain module.
 - `email` is an infrastructure adapter (global `EmailService` only), not a repository-backed domain module. Uses Plunk `POST /v1/send`.
 - `ghl` is an infrastructure adapter (`GhlService` + worker-secret calendar controller). Calendar tools resolve org GHL connections; get-demo CRM stays env. Not a repository-backed domain module.
-- `demo` is a thin public proxy (no repository): `DemoAbuseGuard` (origin + rate limits) → honeypot → GHL upsert (best-effort) → `ENDPOINT_URL` + `SPEEKO_API` → integration enqueue.
+- `demo` is a thin public proxy (no repository): `DemoAbuseGuard` (origin + rate limits) → GHL upsert (best-effort) → `ENDPOINT_URL` + `SPEEKO_API` → integration enqueue.
 - `queue` uses raw SQL for atomic claim (`FOR UPDATE SKIP LOCKED`) via TypeORM `DataSource`; settings/batches use repositories.
 - `price` is a catalog + calculator (`PriceService`). Inject it; do not inline LiveKit rates in `calls`. Worker complete appends one cost attempt (including requeue). Call DTOs include `cost` (`null` until priced). Portal shows the snapshot on the org calls tape / dossier and admin all-calls / overview. `GET /api/users/costs/summary` is JWT-org only; `POST /api/admin/costs/recompute` stays admin.
 
@@ -819,7 +819,7 @@ Work **top-down by risk**: security → money/dial side effects → multi-tenant
 |----------|--------|--------|----------------|
 | P0 | `auth` | **Done** | Login isolation, inactive admin/user/org, JWT live revalidation, Admin/User/WorkerSecret guards, login rate limit, protected routes, self-service display-name PATCH |
 | P0 | `admins` | **Done** | Email normalize, findById/email, create defaults (`isActive`, name) |
-| P0 | `demo` | **Done** | Config gate (503), body shaping, `fetch` proxy, 401/403 vs generic 502, GHL upsert before enqueue (CRM fail does not block dial), honeypot short-circuit, origin + IP/phone/email/global rate limits |
+| P0 | `demo` | **Done** | Config gate (503), body shaping, `fetch` proxy, 401/403 vs generic 502, GHL upsert before enqueue (CRM fail does not block dial), origin + IP/phone/email/global rate limits |
 | P0 | `users` | **Done** | Create user, org scope, password hash, unique email per org, toSafeUser redaction |
 | P0 | `organizations` | **Done** | Create org, slug uniqueness/lowercase, name trim, `isActive` default, `allowedToolIds: ['endCall']` seed, findById/Slug/IdOrSlug |
 | P0 | `common` (HTTP errors) | **Done** | Exception filter body (`code` + `statusCode`), unknown throws do not leak, `ParseResourceIdPipe` 404 on non-UUID path ids |
