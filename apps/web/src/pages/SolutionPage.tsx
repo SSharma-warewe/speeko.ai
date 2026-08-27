@@ -5,7 +5,6 @@ import MarketingFooter from "../components/MarketingFooter";
 import MarketingNav from "../components/MarketingNav";
 import { ProfileComposer, ToolIdChain } from "../components/ToolBench";
 import { LANES, TOOL_BY_ID, toolChip, type SolutionSlug } from "../data/solutions";
-import { useDocumentTitle } from "../lib/document-title";
 import "./Solutions.css";
 
 export default function SolutionPage({ slug }: { slug: SolutionSlug }) {
@@ -16,8 +15,6 @@ export default function SolutionPage({ slug }: { slug: SolutionSlug }) {
   useEffect(() => {
     setPlayId(LANES[slug].playbooks[0].id);
   }, [slug]);
-
-  useDocumentTitle(lane.documentTitle);
 
   return (
     <div className="sol-page">

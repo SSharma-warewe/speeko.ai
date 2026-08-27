@@ -5,12 +5,10 @@ import MarketingFooter from "../components/MarketingFooter";
 import MarketingNav from "../components/MarketingNav";
 import { ToolIdChain } from "../components/ToolBench";
 import { HOW_DOORS, HOW_PROFILE_IDS, HOW_STEPS, type HowStepId } from "../data/how-it-works";
-import { useDocumentTitle } from "../lib/document-title";
 import "./Solutions.css";
 import "./HowItWorks.css";
 
 export default function HowItWorksPage() {
-  useDocumentTitle("How it works — Speeko");
   const [active, setActive] = useState<HowStepId>(HOW_STEPS[0].id);
 
   useEffect(() => {

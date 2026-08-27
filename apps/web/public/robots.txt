@@ -1,0 +1,6 @@
+# https://speeko.ai/robots.txt
+
+User-agent: *
+Allow: /
+
+Sitemap: https://speeko.ai/sitemap.xml

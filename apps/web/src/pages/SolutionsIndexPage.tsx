@@ -10,12 +10,9 @@ import {
   LANES,
   PROFILE_EXAMPLES,
 } from "../data/solutions";
-import { useDocumentTitle } from "../lib/document-title";
 import "./Solutions.css";
 
 export default function SolutionsIndexPage() {
-  useDocumentTitle("Solutions — Speeko");
-
   return (
     <div className="sol-page">
       <div className="sol-bar">

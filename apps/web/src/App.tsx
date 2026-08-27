@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { usePageMeta } from "./lib/page-meta";
 import GetDemoPage from "./pages/GetDemoPage";
 import HowItWorksPage from "./pages/HowItWorksPage";
 import LandingPage from "./pages/LandingPage";
@@ -14,10 +15,17 @@ function ScrollToTop() {
   return null;
 }
 
+function PageMeta() {
+  const { pathname } = useLocation();
+  usePageMeta(pathname);
+  return null;
+}
+
 export default function App() {
   return (
     <>
       <ScrollToTop />
+      <PageMeta />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/get-demo" element={<GetDemoPage />} />
