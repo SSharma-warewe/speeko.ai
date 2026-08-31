@@ -6,6 +6,7 @@ import HowItWorksPage from "./pages/HowItWorksPage";
 import LandingPage from "./pages/LandingPage";
 import SolutionPage from "./pages/SolutionPage";
 import SolutionsIndexPage from "./pages/SolutionsIndexPage";
+import VoicePage from "./pages/VoicePage";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/get-demo" element={<GetDemoPage />} />
         <Route path="/signup" element={<Navigate to="/get-demo" replace />} />
         <Route path="/how-it-works" element={<HowItWorksPage />} />
+        <Route path="/voice" element={<VoicePage />} />
         <Route path="/solutions" element={<SolutionsIndexPage />} />
         <Route
           path="/solutions/customer-service"

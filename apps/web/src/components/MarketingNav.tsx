@@ -22,6 +22,7 @@ export default function MarketingNav() {
   const hash = (id: string) => (onHome ? `#${id}` : `/#${id}`);
   const onSolutions = pathname === "/solutions" || pathname.startsWith("/solutions/");
   const onHow = pathname === "/how-it-works";
+  const onVoice = pathname === "/voice";
 
   useEffect(() => {
     setOpen(false);
@@ -106,9 +107,13 @@ export default function MarketingNav() {
         >
           How it works
         </Link>
-        <a href={hash("integrations")} className="lp-nav-link" onClick={close}>
-          Integrations
-        </a>
+        <Link
+          to="/voice"
+          className={`lp-nav-link${onVoice ? " is-active" : ""}`}
+          onClick={close}
+        >
+          Voice
+        </Link>
         <a href={hash("faq")} className="lp-nav-link" onClick={close}>
           FAQ
         </a>

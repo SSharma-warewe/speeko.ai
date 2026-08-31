@@ -103,7 +103,9 @@ export default function HowItWorksPage() {
                   {step.id === "tools" ? (
                     <p className="hiw-tools-note">
                       The catalog of verbs lives on{" "}
-                      <Link to="/solutions">Solutions</Link>.
+                      <Link to="/solutions">Solutions</Link>. Talent, pace, and
+                      delivery are on{" "}
+                      <Link to="/voice">Voice</Link>.
                     </p>
                   ) : null}
                 </div>

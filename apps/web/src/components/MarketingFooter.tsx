@@ -20,7 +20,7 @@ export default function MarketingFooter() {
             <Link to="/solutions/customer-service">Customer Service</Link>
             <Link to="/solutions/marketing-sales">Marketing &amp; Sales</Link>
             <Link to="/how-it-works">How it works</Link>
-            <a href="/#integrations">Integrations</a>
+            <Link to="/voice">Voice</Link>
             <a href="/#faq">FAQ</a>
           </div>
           <div className="lp-footer-col">

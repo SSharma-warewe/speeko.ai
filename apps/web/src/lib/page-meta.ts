@@ -23,6 +23,11 @@ export const PAGE_META: Record<string, PageMeta> = {
     description:
       "Bring a virtual number from Telnyx, Twilio, or your SIP carrier. Name the agents, switch on tools, and take a persona live — no code.",
   },
+  "/voice": {
+    title: "Voice that people stay on — Speeko",
+    description:
+      "Speeko agents use neural speech you pick on the agent — talent, pace, delivery — so the first second does not sound like an IVR.",
+  },
   "/solutions": {
     title: "Solutions — Speeko",
     description:

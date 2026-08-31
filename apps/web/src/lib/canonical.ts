@@ -7,6 +7,7 @@ const CANONICAL_PATHS = new Set([
   "/",
   "/get-demo",
   "/how-it-works",
+  "/voice",
   "/solutions",
   "/solutions/customer-service",
   "/solutions/marketing-sales",
