@@ -151,7 +151,7 @@ export async function* iterateOpenRouterPcm(input: {
   input: string;
   abortSignal?: AbortSignal;
   fetchImpl?: typeof fetch;
-}): AsyncGenerator<Uint8Array, void, unknown> {
+}): AsyncGenerator<Uint8Array<ArrayBuffer>, void, unknown> {
   if (input.abortSignal?.aborted) return;
 
   const fetchImpl = input.fetchImpl ?? fetch;
@@ -203,7 +203,7 @@ export async function* iterateOpenRouterPcm(input: {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        if (value && value.byteLength > 0) yield value;
+        if (value && value.byteLength > 0) yield copyBytes(value);
       }
     } catch (err) {
       if (isAbortError(err) || input.abortSignal?.aborted) return;
@@ -242,8 +242,17 @@ export async function synthesizeOpenRouterPcm(input: {
   return copy;
 }
 
-function concatBytes(left: Uint8Array, right: Uint8Array): Uint8Array {
-  if (right.byteLength === 0) return left;
+function copyBytes(src: Uint8Array): Uint8Array<ArrayBuffer> {
+  const out = new Uint8Array(src.byteLength);
+  out.set(src);
+  return out;
+}
+
+function concatBytes(
+  left: Uint8Array,
+  right: Uint8Array,
+): Uint8Array<ArrayBuffer> {
+  if (right.byteLength === 0) return copyBytes(left);
   const out = new Uint8Array(left.byteLength + right.byteLength);
   if (left.byteLength > 0) out.set(left, 0);
   out.set(right, left.byteLength);
