@@ -37,6 +37,7 @@ export default function AgentTemplateDetailPage() {
   const [silentStart, setSilentStart] = useState(false);
   const [silentEnd, setSilentEnd] = useState(false);
   const [isActive, setIsActive] = useState(true);
+  const [ttsModel, setTtsModel] = useState<string | null>(null);
   const [voice, setVoice] = useState<string | null>(null);
   const [speakingRate, setSpeakingRate] = useState(DEFAULT_SPEAKING_RATE);
   const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>(
@@ -57,6 +58,7 @@ export default function AgentTemplateDetailPage() {
       setOnEnterInstructions(enter && enter !== "" ? enter : "");
       setOnExitInstructions(exit && exit !== "" ? exit : "");
       setIsActive(data.isActive);
+      setTtsModel(data.ttsModel ?? null);
       setVoice(data.voice ?? null);
       setSpeakingRate(data.speakingRate ?? DEFAULT_SPEAKING_RATE);
       setDeliveryMode(parseDeliveryMode(data.deliveryMode));
@@ -83,6 +85,7 @@ export default function AgentTemplateDetailPage() {
             ? onExitInstructions.trim()
             : null,
         isActive,
+        ttsModel,
         voice,
         speakingRate,
         deliveryMode,
@@ -203,12 +206,14 @@ export default function AgentTemplateDetailPage() {
             </label>
             <AgentVoiceRack
               compact
+              ttsModel={ttsModel}
               voice={voice}
               speakingRate={speakingRate}
               deliveryMode={deliveryMode}
               temperature={temperature}
               disabled={submitting}
               onChange={(next) => {
+                if (next.ttsModel !== undefined) setTtsModel(next.ttsModel);
                 if (next.voice !== undefined) setVoice(next.voice);
                 if (next.speakingRate !== undefined) setSpeakingRate(next.speakingRate);
                 if (next.deliveryMode !== undefined) setDeliveryMode(next.deliveryMode);

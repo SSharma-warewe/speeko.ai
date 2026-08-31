@@ -111,6 +111,16 @@ export class UpdateOrganizationAgentDto {
   @MaxLength(100)
   model?: string | null;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'TTS catalog id. null = template / worker default (Inworld). Switching models requires a voice from that catalog.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  ttsModel?: string | null;
+
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsNumber()

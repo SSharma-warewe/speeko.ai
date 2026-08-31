@@ -21,7 +21,7 @@ import {
   OUTBOUND_NO_DEFAULT_TASK,
   storedDefaultTaskKey,
 } from './org-agent-task';
-import { normalizeDeliveryMode, normalizeVoice } from './voice-settings';
+import { applyVoicePatch } from './voice-settings';
 import { OrganizationAgent } from './organization-agent.entity';
 import { OrganizationAgentsRepository } from './organization-agents.repository';
 import { nextAvailableSlug, slugify } from './slug.util';
@@ -180,6 +180,7 @@ export class OrganizationAgentsService {
       ),
       voice: template.voice,
       model: template.model,
+      ttsModel: template.ttsModel,
       temperature: template.temperature,
       speakingRate: template.speakingRate,
       deliveryMode: template.deliveryMode,
@@ -227,6 +228,7 @@ export class OrganizationAgentsService {
       ),
       voice: source.voice,
       model: source.model,
+      ttsModel: source.ttsModel,
       temperature: source.temperature,
       speakingRate: source.speakingRate,
       deliveryMode: source.deliveryMode,
@@ -294,21 +296,7 @@ export class OrganizationAgentsService {
       }
       row.defaultTaskKey = key;
     }
-    if (dto.voice !== undefined) {
-      row.voice = normalizeVoice(dto.voice);
-    }
-    if (dto.model !== undefined) {
-      row.model = dto.model;
-    }
-    if (dto.temperature !== undefined) {
-      row.temperature = dto.temperature;
-    }
-    if (dto.speakingRate !== undefined) {
-      row.speakingRate = dto.speakingRate;
-    }
-    if (dto.deliveryMode !== undefined) {
-      row.deliveryMode = normalizeDeliveryMode(dto.deliveryMode);
-    }
+    applyVoicePatch(row, dto, row.agent?.ttsModel ?? null);
     if (dto.isActive !== undefined) {
       row.isActive = dto.isActive;
     }

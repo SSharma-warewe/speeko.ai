@@ -46,6 +46,26 @@ describe('parseJobMetadata voice extras', () => {
     expect(meta.deliveryMode).toBe('CREATIVE');
   });
 
+  it('parses ttsModel', () => {
+    const meta = parseJobMetadata(
+      JSON.stringify({
+        agentKey: 'outbound',
+        direction: 'outbound',
+        task: 'general',
+        prompt: { systemPrompt: 'Hi' },
+        enabledTools: ['endCall'],
+        ttsModel: 'google/gemini-3.1-flash-tts-preview',
+        voice: 'Kore',
+      }),
+    );
+    expect(meta.ttsModel).toBe('google/gemini-3.1-flash-tts-preview');
+    expect(meta.voice).toBe('Kore');
+  });
+
+  it('empty raw → null ttsModel', () => {
+    expect(parseJobMetadata('').ttsModel).toBeNull();
+  });
+
   it('unknown deliveryMode and non-number speakingRate → null', () => {
     const meta = parseJobMetadata(
       JSON.stringify({

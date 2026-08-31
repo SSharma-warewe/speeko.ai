@@ -40,10 +40,13 @@ export type AgentJobMetadata = {
   context?: Record<string, unknown>;
   participantIdentity?: string;
   voice?: string | null;
+  /** LLM override (LiveKit Inference). Not the speech model. */
   model?: string | null;
+  /** TTS catalog id (`inworld/inworld-tts-2`, `fishaudio/s2.1-pro-free`, …). */
+  ttsModel?: string | null;
   temperature?: number | null;
-  /** Inworld TTS speaking_rate (0.5–1.5). */
+  /** Speaking-rate multiplier when the selected TTS supports it (0.5–1.5). */
   speakingRate?: number | null;
-  /** Inworld TTS-2 delivery_mode. */
+  /** Inworld TTS-2 delivery_mode. Ignored by other speech models. */
   deliveryMode?: DeliveryMode | null;
 };

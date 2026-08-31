@@ -92,8 +92,18 @@ export class AgentResponseDto {
   @ApiPropertyOptional({ nullable: true })
   voice!: string | null;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'LLM override (LiveKit Inference). Not the speech model.',
+  })
   model!: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'TTS catalog id. null = worker / template default (Inworld TTS-2).',
+  })
+  ttsModel?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
   temperature!: number | null;

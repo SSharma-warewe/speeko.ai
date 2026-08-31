@@ -67,6 +67,7 @@ export default function UserAgentDetailPage() {
   const [toolProfileId, setToolProfileId] = useState("");
   const [calendarIntegrationId, setCalendarIntegrationId] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [ttsModel, setTtsModel] = useState<string | null>(null);
   const [voice, setVoice] = useState<string | null>(null);
   const [speakingRate, setSpeakingRate] = useState(DEFAULT_SPEAKING_RATE);
   const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>(
@@ -98,6 +99,7 @@ export default function UserAgentDetailPage() {
     setToolProfileId(data.agent.toolProfileId || "");
     setCalendarIntegrationId(data.agent.calendarIntegrationId || "");
     setIsActive(data.agent.isActive);
+    setTtsModel(data.agent.ttsModel ?? null);
     setVoice(data.agent.voice ?? null);
     setSpeakingRate(data.agent.speakingRate ?? DEFAULT_SPEAKING_RATE);
     setDeliveryMode(parseDeliveryMode(data.agent.deliveryMode));
@@ -137,6 +139,7 @@ export default function UserAgentDetailPage() {
         toolProfileId: toolProfileId || undefined,
         calendarIntegrationId: calendarIntegrationId || null,
         isActive,
+        ttsModel,
         voice,
         speakingRate,
         deliveryMode,
@@ -437,12 +440,14 @@ export default function UserAgentDetailPage() {
               aria-hidden={studioPane !== "voice"}
             >
               <AgentVoiceRack
+                ttsModel={ttsModel}
                 voice={voice}
                 speakingRate={speakingRate}
                 deliveryMode={deliveryMode}
                 temperature={temperature}
                 disabled={submitting}
                 onChange={(next) => {
+                  if (next.ttsModel !== undefined) setTtsModel(next.ttsModel);
                   if (next.voice !== undefined) setVoice(next.voice);
                   if (next.speakingRate !== undefined)
                     setSpeakingRate(next.speakingRate);
@@ -577,8 +582,10 @@ export default function UserAgentDetailPage() {
               <dd className="ops-mono">
                 {agent.enabledTools?.length ? agent.enabledTools.join(", ") : "—"}
               </dd>
-              <dt>Model</dt>
+              <dt>LLM</dt>
               <dd className="ops-mono">{agent.model || "default"}</dd>
+              <dt>Speech</dt>
+              <dd className="ops-mono">{agent.ttsModel || "Inworld TTS-2"}</dd>
             </dl>
 
             <p className="ops-desk-note">

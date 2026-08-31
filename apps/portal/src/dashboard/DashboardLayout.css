@@ -4080,6 +4080,10 @@
   flex: 0 0 auto;
 }
 
+.ops-voice-cast > .ca-segment {
+  flex: 0 0 auto;
+}
+
 .ops-voice-tiles {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));

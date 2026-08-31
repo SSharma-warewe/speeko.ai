@@ -66,6 +66,16 @@ export class UpdateAgentDto {
   @MaxLength(100)
   model?: string | null;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'TTS catalog id (inworld/inworld-tts-2, fishaudio/s2.1-pro-free, google/gemini-3.1-flash-tts-preview). null = worker default Inworld. OpenRouter Fish slug is accepted and stored as the LiveKit id.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  ttsModel?: string | null;
+
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsNumber()

@@ -25,7 +25,10 @@ export type Agent = {
   calendarIntegrationId?: string | null;
   enabledTools: string[];
   voice: string | null;
+  /** LLM override (LiveKit Inference). */
   model: string | null;
+  /** TTS catalog id. null = worker default (Inworld TTS-2). */
+  ttsModel?: string | null;
   temperature: number | null;
   speakingRate?: number | null;
   deliveryMode?: DeliveryMode | null;
@@ -44,6 +47,7 @@ export type UpdateAgentTemplateRequest = {
   defaultToolProfileId?: string;
   voice?: string | null;
   model?: string | null;
+  ttsModel?: string | null;
   temperature?: number | null;
   speakingRate?: number | null;
   deliveryMode?: DeliveryMode | null;
@@ -75,6 +79,7 @@ export type UpdateOrganizationAgentRequest = {
   defaultTaskKey?: string | null;
   voice?: string | null;
   model?: string | null;
+  ttsModel?: string | null;
   temperature?: number | null;
   speakingRate?: number | null;
   deliveryMode?: DeliveryMode | null;

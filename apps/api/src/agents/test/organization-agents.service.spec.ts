@@ -534,6 +534,7 @@ describe('OrganizationAgentsService', () => {
         defaultTaskKey: 'debt_collection',
         voice: 'source-voice',
         model: 'source-model',
+        ttsModel: 'fishaudio/s2.1-pro-free',
         temperature: 0.9,
         speakingRate: 1.4,
         deliveryMode: 'BALANCED',
@@ -572,6 +573,7 @@ describe('OrganizationAgentsService', () => {
           defaultTaskKey: 'debt_collection',
           voice: 'source-voice',
           model: 'source-model',
+          ttsModel: 'fishaudio/s2.1-pro-free',
           temperature: 0.9,
           speakingRate: 1.4,
           deliveryMode: 'BALANCED',
@@ -905,6 +907,27 @@ describe('OrganizationAgentsService', () => {
       expect(row.speakingRate).toBe(0.75);
       expect(row.deliveryMode).toBe('STABLE');
       expect(row.temperature).toBe(0.4);
+    });
+
+    it('31. ttsModel alias stored; mismatched voice 400', async () => {
+      const row = makeOrgAgent({ voice: null, ttsModel: null });
+      repository.findByIdAndOrgWithAgent.mockResolvedValue(row);
+      repository.save.mockImplementation(async (r: OrganizationAgent) => r);
+
+      await service.update(ORG_ID, ORG_AGENT_ID, {
+        ttsModel: 'fish-audio/s2.1-pro-free:free',
+        voice: '933563129e564b19a115bedd57b7406a',
+      } as UpdateOrganizationAgentDto);
+
+      expect(row.ttsModel).toBe('fishaudio/s2.1-pro-free');
+      expect(row.voice).toBe('933563129e564b19a115bedd57b7406a');
+
+      await expect(
+        service.update(ORG_ID, ORG_AGENT_ID, {
+          ttsModel: 'google/gemini-3.1-flash-tts-preview',
+          voice: 'Ashley',
+        } as UpdateOrganizationAgentDto),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 

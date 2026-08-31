@@ -5,7 +5,7 @@ import { Agent, AgentDirection } from './agent.entity';
 import { AgentsRepository } from './agents.repository';
 import { UpdateAgentDto } from './dto/update-agent.dto';
 import { toAgentTemplateResponse } from './mappers/agent-response.mapper';
-import { normalizeDeliveryMode, normalizeVoice } from './voice-settings';
+import { applyVoicePatch } from './voice-settings';
 
 export type CreateAgentSeedInput = {
   key: string;
@@ -17,6 +17,7 @@ export type CreateAgentSeedInput = {
   defaultToolProfileId: string | null;
   voice: string | null;
   model: string | null;
+  ttsModel?: string | null;
   temperature: number | null;
   speakingRate?: number | null;
   deliveryMode?: string | null;
@@ -83,6 +84,7 @@ export class AgentsService {
       defaultToolProfileId: input.defaultToolProfileId,
       voice: input.voice,
       model: input.model,
+      ttsModel: input.ttsModel ?? null,
       temperature: input.temperature,
       speakingRate: input.speakingRate ?? null,
       deliveryMode: input.deliveryMode ?? null,
@@ -113,21 +115,7 @@ export class AgentsService {
       await this.toolProfilesService.findById(dto.defaultToolProfileId);
       agent.defaultToolProfileId = dto.defaultToolProfileId;
     }
-    if (dto.voice !== undefined) {
-      agent.voice = normalizeVoice(dto.voice);
-    }
-    if (dto.model !== undefined) {
-      agent.model = dto.model;
-    }
-    if (dto.temperature !== undefined) {
-      agent.temperature = dto.temperature;
-    }
-    if (dto.speakingRate !== undefined) {
-      agent.speakingRate = dto.speakingRate;
-    }
-    if (dto.deliveryMode !== undefined) {
-      agent.deliveryMode = normalizeDeliveryMode(dto.deliveryMode);
-    }
+    applyVoicePatch(agent, dto);
     if (dto.isActive !== undefined) {
       agent.isActive = dto.isActive;
     }

@@ -17,6 +17,24 @@ export { DELIVERY_MODES, isDeliveryMode } from './delivery.js';
 export type { DeliveryMode } from './delivery.js';
 
 export {
+  DEFAULT_TTS_MODEL_ID,
+  KNOWN_TTS_MODEL_IDS,
+  TTS_BACKENDS,
+  TTS_MODEL_ALIASES,
+  TTS_MODEL_IDS,
+  TTS_MODEL_LIST,
+  TTS_MODELS,
+  canonicalizeTtsModelId,
+  defaultVoiceForTtsModel,
+  featuredVoicesForTtsModel,
+  isKnownTtsModel,
+  isVoiceAllowed,
+  ttsModelSpec,
+  voicesForTtsModel,
+} from './tts.js';
+export type { TtsBackend, TtsModelId, TtsModelSpec, TtsVoiceOption } from './tts.js';
+
+export {
   DEMO_CALLS_PER_DAY,
   DEMO_COUNTRIES,
   DEMO_DIRECTIONS,

@@ -101,6 +101,10 @@ export class OrganizationAgent {
   @Column({ type: 'varchar', length: 100, nullable: true })
   model!: string | null;
 
+  /** Optional TTS catalog id. null = template / worker default (Inworld TTS-2). */
+  @Column({ name: 'tts_model', type: 'varchar', length: 120, nullable: true })
+  ttsModel!: string | null;
+
   @Column({ type: 'real', nullable: true })
   temperature!: number | null;
 

@@ -1,7 +1,10 @@
+import { BadRequestException } from '@nestjs/common';
 import {
+  applyVoicePatch,
   isDeliveryMode,
   normalizeDeliveryMode,
   normalizeVoice,
+  parseStoredTtsModel,
   resolveVoiceRuntime,
 } from '../voice-settings';
 
@@ -49,6 +52,7 @@ describe('voice-settings', () => {
           {
             voice: 'Ashley',
             model: 'google/gemma',
+            ttsModel: 'inworld/inworld-tts-2',
             temperature: 0.4,
             speakingRate: 1.1,
             deliveryMode: 'STABLE',
@@ -57,6 +61,7 @@ describe('voice-settings', () => {
       ).toEqual({
         voice: 'Olivia',
         model: 'google/gemma',
+        ttsModel: 'inworld/inworld-tts-2',
         temperature: 0.4,
         speakingRate: 1.1,
         deliveryMode: 'CREATIVE',
@@ -67,10 +72,64 @@ describe('voice-settings', () => {
       expect(resolveVoiceRuntime(null, null)).toEqual({
         voice: null,
         model: null,
+        ttsModel: null,
         temperature: null,
         speakingRate: null,
         deliveryMode: null,
       });
+    });
+
+    it('org ttsModel overrides template', () => {
+      expect(
+        resolveVoiceRuntime(
+          { ttsModel: 'fishaudio/s2.1-pro-free' },
+          { ttsModel: 'inworld/inworld-tts-2', voice: 'Ashley' },
+        ).ttsModel,
+      ).toBe('fishaudio/s2.1-pro-free');
+    });
+  });
+
+  describe('parseStoredTtsModel', () => {
+    it('empty → null; aliases normalize; unknown throws', () => {
+      expect(parseStoredTtsModel(null)).toBeNull();
+      expect(parseStoredTtsModel('  ')).toBeNull();
+      expect(parseStoredTtsModel('fish-audio/s2.1-pro-free:free')).toBe(
+        'fishaudio/s2.1-pro-free',
+      );
+      expect(parseStoredTtsModel('google/gemini-3.1-flash-tts-preview')).toBe(
+        'google/gemini-3.1-flash-tts-preview',
+      );
+      expect(() => parseStoredTtsModel('not-a-tts')).toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('applyVoicePatch', () => {
+    it('rejects a voice that is not on the selected TTS model', () => {
+      const row: {
+        voice: string | null;
+        ttsModel: string | null;
+      } = { voice: 'Ashley', ttsModel: null };
+      expect(() =>
+        applyVoicePatch(row, {
+          ttsModel: 'google/gemini-3.1-flash-tts-preview',
+          voice: 'Ashley',
+        }),
+      ).toThrow(BadRequestException);
+    });
+
+    it('accepts a matching Gemini voice', () => {
+      const row: {
+        voice: string | null;
+        ttsModel: string | null;
+      } = { voice: null, ttsModel: null };
+      applyVoicePatch(row, {
+        ttsModel: 'google/gemini-3.1-flash-tts-preview',
+        voice: 'Kore',
+      });
+      expect(row.ttsModel).toBe('google/gemini-3.1-flash-tts-preview');
+      expect(row.voice).toBe('Kore');
     });
   });
 });
