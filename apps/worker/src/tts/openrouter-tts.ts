@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 const SAMPLE_RATE = 24_000;
 const NUM_CHANNELS = 1;
 const FRAME_SAMPLES = 480; // 20 ms at 24 kHz
+const FRAME_BYTES = FRAME_SAMPLES * 2;
 const OPENROUTER_SPEECH_URL = 'https://openrouter.ai/api/v1/audio/speech';
 
 export type OpenRouterTtsOptions = {
@@ -68,46 +69,91 @@ export class OpenRouterChunkedStream extends tts.ChunkedStream {
   }
 
   protected async run(): Promise<void> {
-    const pcm = await synthesizeOpenRouterPcm({
-      apiKey: this.#tts.opts.apiKey,
-      model: this.#tts.opts.model,
-      voice: this.#tts.opts.voice,
-      input: this.inputText,
-      abortSignal: this.abortSignal,
-      fetchImpl: this.#tts.opts.fetchImpl,
-    });
+    const text = this.inputText.trim();
+    if (!text) return;
+
     const requestId = randomUUID();
-    const samples = pcmToInt16(pcm);
-    for (let offset = 0; offset < samples.length; offset += FRAME_SAMPLES) {
-      const slice = samples.subarray(
-        offset,
-        Math.min(offset + FRAME_SAMPLES, samples.length),
-      );
-      const data = new Int16Array(slice);
-      const frame = new AudioFrame(
-        data,
-        SAMPLE_RATE,
-        NUM_CHANNELS,
-        data.length,
-      );
+    const started = Date.now();
+    let ttfbMs = -1;
+    let bytes = 0;
+    let pending = new Uint8Array(0);
+    let aborted = false;
+
+    const putFrame = (pcmBytes: Uint8Array, final: boolean) => {
+      const copy = new ArrayBuffer(pcmBytes.byteLength);
+      new Uint8Array(copy).set(pcmBytes);
+      const data = new Int16Array(copy);
       this.queue.put({
         requestId,
         segmentId: requestId,
-        frame,
-        final: offset + FRAME_SAMPLES >= samples.length,
+        frame: new AudioFrame(data, SAMPLE_RATE, NUM_CHANNELS, data.length),
+        final,
       });
+    };
+
+    const flushPending = (final: boolean) => {
+      while (pending.byteLength >= FRAME_BYTES) {
+        putFrame(pending.subarray(0, FRAME_BYTES), false);
+        pending = pending.subarray(FRAME_BYTES);
+      }
+      if (final) {
+        const even = pending.byteLength - (pending.byteLength % 2);
+        if (even > 0) {
+          putFrame(pending.subarray(0, even), true);
+        }
+        pending = new Uint8Array(0);
+      }
+    };
+
+    try {
+      for await (const chunk of iterateOpenRouterPcm({
+        apiKey: this.#tts.opts.apiKey,
+        model: this.#tts.opts.model,
+        voice: this.#tts.opts.voice,
+        input: text,
+        abortSignal: this.abortSignal,
+        fetchImpl: this.#tts.opts.fetchImpl,
+      })) {
+        if (this.abortSignal.aborted) {
+          aborted = true;
+          return;
+        }
+        if (ttfbMs < 0) ttfbMs = Date.now() - started;
+        bytes += chunk.byteLength;
+        pending = concatBytes(pending, chunk);
+        flushPending(false);
+      }
+      flushPending(true);
+    } catch (err) {
+      if (isAbortError(err) || this.abortSignal.aborted) {
+        aborted = true;
+        return;
+      }
+      throw err;
+    } finally {
+      console.log(
+        `[tts] openrouter model=${this.#tts.opts.model} voice=${this.#tts.opts.voice} chars=${text.length} ttfbMs=${ttfbMs} durationMs=${Date.now() - started} bytes=${bytes} aborted=${aborted}`,
+      );
     }
   }
 }
 
-export async function synthesizeOpenRouterPcm(input: {
+export function isAbortError(err: unknown): boolean {
+  if (err == null || typeof err !== 'object') return false;
+  const name = 'name' in err ? String(err.name) : '';
+  return name === 'AbortError' || name === 'TimeoutError';
+}
+
+export async function* iterateOpenRouterPcm(input: {
   apiKey: string;
   model: string;
   voice: string;
   input: string;
   abortSignal?: AbortSignal;
   fetchImpl?: typeof fetch;
-}): Promise<ArrayBuffer> {
+}): AsyncGenerator<Uint8Array, void, unknown> {
+  if (input.abortSignal?.aborted) return;
+
   const fetchImpl = input.fetchImpl ?? fetch;
   let response: Response;
   try {
@@ -116,6 +162,7 @@ export async function synthesizeOpenRouterPcm(input: {
       headers: {
         Authorization: `Bearer ${input.apiKey}`,
         'Content-Type': 'application/json',
+        Accept: 'audio/pcm',
       },
       body: JSON.stringify({
         model: input.model,
@@ -126,6 +173,7 @@ export async function synthesizeOpenRouterPcm(input: {
       signal: input.abortSignal,
     });
   } catch (err) {
+    if (isAbortError(err) || input.abortSignal?.aborted) return;
     throw new APIError(`OpenRouter TTS request failed: ${String(err)}`, {
       retryable: true,
     });
@@ -149,13 +197,55 @@ export async function synthesizeOpenRouterPcm(input: {
     });
   }
 
-  return response.arrayBuffer();
+  if (response.body) {
+    const reader = response.body.getReader();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value && value.byteLength > 0) yield value;
+      }
+    } catch (err) {
+      if (isAbortError(err) || input.abortSignal?.aborted) return;
+      throw new APIError(`OpenRouter TTS stream failed: ${String(err)}`, {
+        retryable: true,
+      });
+    } finally {
+      try {
+        reader.releaseLock();
+      } catch {
+        // already released
+      }
+    }
+    return;
+  }
+
+  const buffer = await response.arrayBuffer();
+  if (buffer.byteLength > 0) yield new Uint8Array(buffer);
 }
 
-function pcmToInt16(buffer: ArrayBuffer): Int16Array {
-  const bytes = new Uint8Array(buffer);
-  const evenLength = bytes.byteLength - (bytes.byteLength % 2);
-  const copy = new ArrayBuffer(evenLength);
-  new Uint8Array(copy).set(bytes.subarray(0, evenLength));
-  return new Int16Array(copy);
+export async function synthesizeOpenRouterPcm(input: {
+  apiKey: string;
+  model: string;
+  voice: string;
+  input: string;
+  abortSignal?: AbortSignal;
+  fetchImpl?: typeof fetch;
+}): Promise<ArrayBuffer> {
+  let pending = new Uint8Array(0);
+  for await (const chunk of iterateOpenRouterPcm(input)) {
+    pending = concatBytes(pending, chunk);
+  }
+  const even = pending.byteLength - (pending.byteLength % 2);
+  const copy = new ArrayBuffer(even);
+  new Uint8Array(copy).set(pending.subarray(0, even));
+  return copy;
+}
+
+function concatBytes(left: Uint8Array, right: Uint8Array): Uint8Array {
+  if (right.byteLength === 0) return left;
+  const out = new Uint8Array(left.byteLength + right.byteLength);
+  if (left.byteLength > 0) out.set(left, 0);
+  out.set(right, left.byteLength);
+  return out;
 }
