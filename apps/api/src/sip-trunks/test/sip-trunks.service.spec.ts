@@ -399,19 +399,6 @@ describe('SipTrunksService', () => {
       expect(result).not.toHaveProperty('authPassword');
     });
 
-    it('18. create() aliases createOutbound', async () => {
-      repository.findByLivekitTrunkId.mockResolvedValue(null);
-      const dto: CreateSipTrunkDto = {
-        name: 'Alias',
-        numbers: ['+15550001111'],
-        livekitTrunkId: 'ST_alias',
-      };
-
-      const result = await service.create(ORG_ID, dto);
-
-      expect(result.name).toBe('Alias');
-      expect(result.direction).toBe(SipTrunkDirection.OUTBOUND);
-    });
   });
 
   describe('createInboundDraft', () => {

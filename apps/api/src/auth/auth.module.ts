@@ -20,8 +20,8 @@ import { PasswordTokensService } from './password-tokens.service';
   imports: [
     TypeOrmModule.forFeature([PasswordResetToken]),
     AdminsModule,
+    OrganizationsModule,
     forwardRef(() => UsersModule),
-    forwardRef(() => OrganizationsModule),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

@@ -8,6 +8,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { clientIp } from '../../common/client-ip';
+import {
+  normalizeOrigin,
+  parseCorsOriginAllowlist,
+} from '../../common/cors-origin';
+import { throwTooManyRequests } from '../../common/http-too-many-requests';
 import { normalizeEmail } from '../../common/password.util';
 import { demoPhoneDigits } from '../demo-form.constants';
 import { DemoRateLimitService } from '../demo-rate-limit.service';
@@ -40,14 +45,7 @@ export class DemoAbuseGuard implements CanActivate {
       email,
     });
     if (!result.allowed) {
-      throw new HttpException(
-        {
-          statusCode: HttpStatus.TOO_MANY_REQUESTS,
-          message: 'Too many demo requests. Try again later.',
-          error: 'Too Many Requests',
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
+      throwTooManyRequests('Too many demo requests. Try again later.');
     }
     return true;
   }
@@ -77,14 +75,7 @@ export class DemoAbuseGuard implements CanActivate {
   }
 
   private originAllowlist(): string[] {
-    const raw = this.config.get<string>('CORS_ORIGIN')?.trim() ?? '';
-    if (!raw) {
-      return [];
-    }
-    return raw
-      .split(',')
-      .map((o) => normalizeOrigin(o))
-      .filter(Boolean);
+    return parseCorsOriginAllowlist(this.config.get<string>('CORS_ORIGIN'));
   }
 }
 
@@ -98,16 +89,12 @@ function headerValue(value: string | string[] | undefined): string {
   return '';
 }
 
-function normalizeOrigin(value: string): string {
-  return value.trim().replace(/\/+$/, '').toLowerCase();
-}
-
 function originFromReferer(referer: string): string {
   if (!referer) {
     return '';
   }
   try {
-    return new URL(referer).origin.toLowerCase();
+    return normalizeOrigin(new URL(referer).origin);
   } catch {
     return '';
   }

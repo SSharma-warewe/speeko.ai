@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CallFailureCode } from '../calls/call.entity';
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -8,7 +8,7 @@ import {
   QueueBackoffStrategy,
 } from './organization-queue-settings.entity';
 import { OrganizationQueueSettingsRepository } from './organization-queue-settings.repository';
-import { QUEUE_DEFAULTS } from './queue.defaults';
+import { QUEUE_DEFAULTS, queuePositiveInt } from './queue.defaults';
 
 @Injectable()
 export class OrganizationQueueSettingsService {
@@ -30,7 +30,7 @@ export class OrganizationQueueSettingsService {
     return this.createDefaults(organizationId);
   }
 
-  async createDefaults(
+  private async createDefaults(
     organizationId: string,
   ): Promise<OrganizationQueueSettings> {
     const existing = await this.repo.findByOrganizationId(organizationId);
@@ -42,16 +42,16 @@ export class OrganizationQueueSettingsService {
       organizationId,
       enabled: true,
       paused: false,
-      maxConcurrent: this.intEnv(
-        'QUEUE_DEFAULT_MAX_CONCURRENT',
+      maxConcurrent: queuePositiveInt(
+        this.config.get('QUEUE_DEFAULT_MAX_CONCURRENT'),
         QUEUE_DEFAULTS.maxConcurrent,
       ),
-      maxDialsPerMinute: this.intEnv(
-        'QUEUE_DEFAULT_MAX_DIALS_PER_MINUTE',
+      maxDialsPerMinute: queuePositiveInt(
+        this.config.get('QUEUE_DEFAULT_MAX_DIALS_PER_MINUTE'),
         QUEUE_DEFAULTS.maxDialsPerMinute,
       ),
-      defaultMaxAttempts: this.intEnv(
-        'QUEUE_DEFAULT_MAX_ATTEMPTS',
+      defaultMaxAttempts: queuePositiveInt(
+        this.config.get('QUEUE_DEFAULT_MAX_ATTEMPTS'),
         QUEUE_DEFAULTS.defaultMaxAttempts,
       ),
       backoffStrategy: QUEUE_DEFAULTS.backoffStrategy,
@@ -130,24 +130,5 @@ export class OrganizationQueueSettingsService {
 
   async findAll(): Promise<OrganizationQueueSettings[]> {
     return this.repo.findAll();
-  }
-
-  async require(organizationId: string): Promise<OrganizationQueueSettings> {
-    const settings = await this.repo.findByOrganizationId(organizationId);
-    if (!settings) {
-      throw new NotFoundException(
-        `Queue settings not found for organization: ${organizationId}`,
-      );
-    }
-    return settings;
-  }
-
-  private intEnv(key: string, fallback: number): number {
-    const raw = this.config.get<string | number>(key);
-    if (raw === undefined || raw === null || raw === '') {
-      return fallback;
-    }
-    const n = typeof raw === 'number' ? raw : Number.parseInt(String(raw), 10);
-    return Number.isFinite(n) && n > 0 ? n : fallback;
   }
 }

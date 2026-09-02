@@ -83,19 +83,27 @@ export class OrganizationAgentsService {
     }
   }
 
+  private async resolveCreateSlug(
+    organizationId: string,
+    params: { slug?: string; from: string },
+  ): Promise<string> {
+    const explicit = Boolean(params.slug?.trim());
+    const preferred = slugify(explicit ? params.slug! : params.from);
+    if (explicit) {
+      await this.assertSlugAvailable(organizationId, preferred);
+      return preferred;
+    }
+    return this.allocateSlug(organizationId, preferred);
+  }
+
   private async allocateSlug(
     organizationId: string,
     preferred: string,
-    excludeId?: string,
   ): Promise<string> {
-    const existing = excludeId
-      ? await this.organizationAgentsRepository.listSlugsByOrganizationExcluding(
-          organizationId,
-          excludeId,
-        )
-      : await this.organizationAgentsRepository.listSlugsByOrganization(
-          organizationId,
-        );
+    const existing =
+      await this.organizationAgentsRepository.listSlugsByOrganization(
+        organizationId,
+      );
     return nextAvailableSlug(preferred, existing);
   }
 
@@ -138,15 +146,10 @@ export class OrganizationAgentsService {
     }
 
     const name = (dto.name?.trim() || template.name).slice(0, 255);
-    const preferredSlug = dto.slug?.trim()
-      ? slugify(dto.slug)
-      : slugify(dto.name?.trim() || template.key);
-    const slug = dto.slug?.trim()
-      ? preferredSlug
-      : await this.allocateSlug(organizationId, preferredSlug);
-    if (dto.slug?.trim()) {
-      await this.assertSlugAvailable(organizationId, slug);
-    }
+    const slug = await this.resolveCreateSlug(organizationId, {
+      slug: dto.slug,
+      from: dto.name?.trim() || template.key,
+    });
 
     let toolProfileId =
       dto.toolProfileId ?? template.defaultToolProfileId ?? null;
@@ -201,15 +204,10 @@ export class OrganizationAgentsService {
     const source = await this.loadWithTemplate(organizationId, id);
 
     const name = dto.name.trim().slice(0, 255);
-    const preferredSlug = dto.slug?.trim()
-      ? slugify(dto.slug)
-      : slugify(dto.name);
-    const slug = dto.slug?.trim()
-      ? preferredSlug
-      : await this.allocateSlug(organizationId, preferredSlug);
-    if (dto.slug?.trim()) {
-      await this.assertSlugAvailable(organizationId, slug);
-    }
+    const slug = await this.resolveCreateSlug(organizationId, {
+      slug: dto.slug,
+      from: dto.name,
+    });
 
     const row = this.organizationAgentsRepository.create({
       organizationId,

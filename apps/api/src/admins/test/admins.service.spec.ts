@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Admin } from '../admin.entity';
 import { AdminsRepository } from '../admins.repository';
@@ -205,10 +206,12 @@ describe('AdminsService', () => {
       );
     });
 
-    it('no-ops when the admin is missing', async () => {
+    it('throws NotFoundException when the admin is missing', async () => {
       repository.findById.mockResolvedValue(null);
 
-      await expect(service.updateName('missing', 'Ops Lead')).resolves.toBeUndefined();
+      await expect(service.updateName('missing', 'Ops Lead')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
       expect(repository.save).not.toHaveBeenCalled();
     });
   });

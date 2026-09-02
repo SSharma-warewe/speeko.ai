@@ -36,7 +36,7 @@ import { CallsRepository } from '../calls.repository';
 import { CompleteCallDto } from '../dto/complete-call.dto';
 import { EnsureInboundCallDto } from '../dto/ensure-inbound-call.dto';
 import { CallResponseDto } from '../dto/call-response.dto';
-import { toAdminCallResponse } from '../mappers/call-response.mapper';
+import { toCallResponse } from '../mappers/call-response.mapper';
 
 @Injectable()
 export class CallWorkerService {
@@ -72,13 +72,13 @@ export class CallWorkerService {
     const existing = await this.callsRepository.findByRoomName(roomName);
     if (existing) {
       if (isTerminalCallStatus(existing.status)) {
-        return toAdminCallResponse(existing);
+        return toCallResponse(existing);
       }
       if (this.applyInboundSipDetails(existing, dto)) {
         const saved = await this.callsRepository.save(existing);
-        return toAdminCallResponse(saved);
+        return toCallResponse(saved);
       }
-      return toAdminCallResponse(existing);
+      return toCallResponse(existing);
     }
 
     const { organizationAgentId, agentId } =
@@ -121,7 +121,7 @@ export class CallWorkerService {
         `org=${call.organizationId ?? 'n/a'} orgAgent=${call.organizationAgentId ?? 'n/a'} ` +
         `from=${fromNumber ?? 'n/a'} to=${toNumber ?? 'n/a'} task=${taskKey}`,
     );
-    return toAdminCallResponse(call);
+    return toCallResponse(call);
   }
 
   async completeFromWorker(
@@ -155,7 +155,7 @@ export class CallWorkerService {
       }
       await priceAttemptSafe(this.priceService, this.logger, call, 'fill');
       const saved = await this.callsRepository.save(call);
-      return toAdminCallResponse(saved);
+      return toCallResponse(saved);
     }
 
     // Late callback after sweeper requeue (pending) or claim (creating) must
@@ -168,7 +168,7 @@ export class CallWorkerService {
         `Ignoring worker complete for call id=${call.id} status=${call.status} ` +
           `(not dialing/ready; late callback after requeue or claim)`,
       );
-      return toAdminCallResponse(call);
+      return toCallResponse(call);
     }
 
     if (dto.transcript) {
@@ -216,7 +216,7 @@ export class CallWorkerService {
           `tools=${this.formatToolEventsSummary(saved.sessionReport)} ` +
           `costUsd=${saved.costUsd ?? 'n/a'}`,
       );
-      return toAdminCallResponse(saved);
+      return toCallResponse(saved);
     }
 
     // Failed from worker — may requeue under org policy
@@ -237,7 +237,7 @@ export class CallWorkerService {
           `tools=${this.formatToolEventsSummary(saved.sessionReport)}`,
       );
     }
-    return toAdminCallResponse(saved);
+    return toCallResponse(saved);
   }
 
   /** Merge worker toolEvents into sessionReport.toolEvents (JSONB, no schema change). */

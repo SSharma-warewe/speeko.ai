@@ -18,10 +18,6 @@ export class CallBatchesRepository {
     return this.repo.save(batch);
   }
 
-  findById(id: string): Promise<CallBatch | null> {
-    return this.repo.findOne({ where: { id } });
-  }
-
   findByIdAndOrganization(
     id: string,
     organizationId: string,

@@ -1,6 +1,5 @@
 import {
   Controller,
-  ForbiddenException,
   Get,
   Param,
   UseGuards,
@@ -13,6 +12,7 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthPrincipal } from '../auth/auth.types';
+import { orgIdFrom } from '../auth/org-id';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserGuard } from '../auth/guards/user.guard';
 import { ParseResourceIdPipe } from '../common/parse-resource-id.pipe';
@@ -38,7 +38,7 @@ export class UserSipTrunksController {
   list(
     @CurrentUser() principal: AuthPrincipal,
   ): Promise<SipTrunkResponseDto[]> {
-    return this.sipTrunksService.listByOrganization(this.orgIdFrom(principal));
+    return this.sipTrunksService.listByOrganization(orgIdFrom(principal));
   }
 
   @Get(':id')
@@ -53,13 +53,7 @@ export class UserSipTrunksController {
     @CurrentUser() principal: AuthPrincipal,
     @Param('id', ParseResourceIdPipe('SIP trunk')) id: string,
   ): Promise<SipTrunkResponseDto> {
-    return this.sipTrunksService.getOne(this.orgIdFrom(principal), id);
+    return this.sipTrunksService.getOne(orgIdFrom(principal), id);
   }
 
-  private orgIdFrom(principal: AuthPrincipal): string {
-    if (principal.typ !== 'user' || !principal.orgId) {
-      throw new ForbiddenException('Organization user access required');
-    }
-    return principal.orgId;
-  }
 }

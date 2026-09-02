@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
+import { trimString } from '../../common/trim-string';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -19,10 +20,6 @@ import {
   DEMO_TEAM_SIZES,
   stripDemoPhone,
 } from '../demo-form.constants';
-
-function trimString({ value }: { value: unknown }): unknown {
-  return typeof value === 'string' ? value.trim() : value;
-}
 
 /**
  * Marketing get-demo form payload. Proxied to the integration enqueue endpoint.

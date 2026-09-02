@@ -28,3 +28,15 @@ export const QUEUE_DEFAULTS = {
   /** Cap reaps per dialer tick so one tick cannot thrash LiveKit. */
   staleInFlightBatchSize: 50,
 } as const;
+
+/** Positive int from env (`ConfigService.get`); otherwise `fallback`. */
+export function queuePositiveInt(
+  raw: string | number | undefined | null,
+  fallback: number,
+): number {
+  if (raw === undefined || raw === null || raw === '') {
+    return fallback;
+  }
+  const n = typeof raw === 'number' ? raw : Number.parseInt(String(raw), 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}

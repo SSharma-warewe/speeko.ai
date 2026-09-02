@@ -13,6 +13,7 @@ import { PublishResourceResultDto } from './dto/inbound-publish-result.dto';
 import { UpdateInboundSipTrunkDto } from './dto/update-inbound-sip-trunk.dto';
 import { UpdateSipTrunkDto } from './dto/update-sip-trunk.dto';
 import { SipTrunkResponseDto } from './dto/sip-trunk-response.dto';
+import { runPublishBatch } from './lib/publish-batch';
 import { toSipTrunkResponse } from './mappers/sip-trunk-response.mapper';
 import { SipTrunk, SipTrunkDirection } from './sip-trunk.entity';
 import { SipTrunksRepository } from './sip-trunks.repository';
@@ -41,24 +42,26 @@ export class SipTrunksService {
     return rows.map(toSipTrunkResponse);
   }
 
-  async listInboundByOrganization(
+  listInboundByOrganization(
     organizationId: string,
   ): Promise<SipTrunkResponseDto[]> {
-    await this.organizationsService.findById(organizationId);
-    const rows = await this.sipTrunksRepository.findByOrganizationAndDirection(
-      organizationId,
-      SipTrunkDirection.INBOUND,
-    );
-    return rows.map(toSipTrunkResponse);
+    return this.listByDirection(organizationId, SipTrunkDirection.INBOUND);
   }
 
-  async listOutboundByOrganization(
+  listOutboundByOrganization(
     organizationId: string,
+  ): Promise<SipTrunkResponseDto[]> {
+    return this.listByDirection(organizationId, SipTrunkDirection.OUTBOUND);
+  }
+
+  async listByDirection(
+    organizationId: string,
+    direction: SipTrunkDirection,
   ): Promise<SipTrunkResponseDto[]> {
     await this.organizationsService.findById(organizationId);
     const rows = await this.sipTrunksRepository.findByOrganizationAndDirection(
       organizationId,
-      SipTrunkDirection.OUTBOUND,
+      direction,
     );
     return rows.map(toSipTrunkResponse);
   }
@@ -69,21 +72,38 @@ export class SipTrunksService {
     return toSipTrunkResponse(row);
   }
 
-  async getInboundOne(
+  getInboundOne(
     organizationId: string,
     id: string,
   ): Promise<SipTrunkResponseDto> {
-    await this.organizationsService.findById(organizationId);
-    const row = await this.requireInboundByIdAndOrg(organizationId, id);
-    return toSipTrunkResponse(row);
+    return this.getOneByDirection(
+      organizationId,
+      id,
+      SipTrunkDirection.INBOUND,
+    );
   }
 
-  async getOutboundOne(
+  getOutboundOne(
     organizationId: string,
     id: string,
   ): Promise<SipTrunkResponseDto> {
+    return this.getOneByDirection(
+      organizationId,
+      id,
+      SipTrunkDirection.OUTBOUND,
+    );
+  }
+
+  async getOneByDirection(
+    organizationId: string,
+    id: string,
+    direction: SipTrunkDirection,
+  ): Promise<SipTrunkResponseDto> {
     await this.organizationsService.findById(organizationId);
-    const row = await this.requireOutboundByIdAndOrg(organizationId, id);
+    const row =
+      direction === SipTrunkDirection.INBOUND
+        ? await this.requireInboundByIdAndOrg(organizationId, id)
+        : await this.requireOutboundByIdAndOrg(organizationId, id);
     return toSipTrunkResponse(row);
   }
 
@@ -136,17 +156,6 @@ export class SipTrunksService {
     return this.sipTrunksRepository.findByIdsAndOrg(organizationId, ids);
   }
 
-  /**
-   * Create/link an **outbound** SIP trunk (admin or org user).
-   * Always persists `direction=outbound` and a LiveKit trunk id (link or provision).
-   */
-  async create(
-    organizationId: string,
-    dto: CreateSipTrunkDto,
-  ): Promise<SipTrunkResponseDto> {
-    return this.createOutbound(organizationId, dto);
-  }
-
   /** Org-user / admin shared: outbound only. */
   async createOutbound(
     organizationId: string,
@@ -154,23 +163,14 @@ export class SipTrunksService {
   ): Promise<SipTrunkResponseDto> {
     await this.organizationsService.findById(organizationId);
 
-    const numbers = this.normalizeNumbers(dto.numbers);
-    if (numbers.length === 0) {
-      throw new BadRequestException('At least one phone number is required');
-    }
+    const numbers = this.requireNumbers(dto.numbers);
 
     let livekitTrunkId: string;
     let providerAddress: string | null = dto.providerAddress?.trim() || null;
 
     if (dto.livekitTrunkId?.trim()) {
       livekitTrunkId = dto.livekitTrunkId.trim();
-      const existing =
-        await this.sipTrunksRepository.findByLivekitTrunkId(livekitTrunkId);
-      if (existing) {
-        throw new ConflictException(
-          `LiveKit trunk already linked: ${livekitTrunkId}`,
-        );
-      }
+      await this.assertLivekitTrunkUnlinked(livekitTrunkId);
     } else if (dto.providerAddress?.trim()) {
       const created = await this.livekit.createSipOutboundTrunk({
         name: dto.name.trim(),
@@ -220,10 +220,7 @@ export class SipTrunksService {
   ): Promise<SipTrunkResponseDto> {
     await this.organizationsService.findById(organizationId);
 
-    const numbers = this.normalizeNumbers(dto.numbers);
-    if (numbers.length === 0) {
-      throw new BadRequestException('At least one phone number is required');
-    }
+    const numbers = this.requireNumbers(dto.numbers);
 
     const allowedNumbers = this.normalizeNumbers(dto.allowedNumbers ?? []);
     const allowedAddresses = this.normalizeNumbers(dto.allowedAddresses ?? []);
@@ -233,13 +230,7 @@ export class SipTrunksService {
 
     if (dto.livekitTrunkId?.trim()) {
       livekitTrunkId = dto.livekitTrunkId.trim();
-      const existing =
-        await this.sipTrunksRepository.findByLivekitTrunkId(livekitTrunkId);
-      if (existing) {
-        throw new ConflictException(
-          `LiveKit trunk already linked: ${livekitTrunkId}`,
-        );
-      }
+      await this.assertLivekitTrunkUnlinked(livekitTrunkId);
       publishedAt = new Date();
     }
 
@@ -295,11 +286,7 @@ export class SipTrunksService {
       row.name = dto.name.trim();
     }
     if (dto.numbers !== undefined) {
-      const numbers = this.normalizeNumbers(dto.numbers);
-      if (numbers.length === 0) {
-        throw new BadRequestException('At least one phone number is required');
-      }
-      row.numbers = numbers;
+      row.numbers = this.requireNumbers(dto.numbers);
     }
     if (dto.allowedNumbers !== undefined) {
       row.allowedNumbers = this.normalizeNumbers(dto.allowedNumbers);
@@ -412,12 +399,10 @@ export class SipTrunksService {
       );
     }
 
-    const numbers = this.normalizeNumbers(row.numbers);
-    if (numbers.length === 0) {
-      throw new BadRequestException(
-        `Inbound SIP trunk requires at least one number: ${row.id}`,
-      );
-    }
+    const numbers = this.requireNumbers(
+      row.numbers,
+      `Inbound SIP trunk requires at least one number: ${row.id}`,
+    );
 
     const created = await this.livekit.createSipInboundTrunk({
       name: row.name,
@@ -450,72 +435,23 @@ export class SipTrunksService {
     published: SipTrunkResponseDto[];
   }> {
     await this.organizationsService.findById(organizationId);
-
-    let candidates: SipTrunk[];
-    if (sipTrunkIds && sipTrunkIds.length > 0) {
-      candidates = await this.sipTrunksRepository.findByIdsAndOrg(
-        organizationId,
-        sipTrunkIds,
-      );
-      const found = new Set(candidates.map((c) => c.id));
-      for (const id of sipTrunkIds) {
-        if (!found.has(id)) {
-          // will surface as failed below via missing candidates — collect explicitly
-        }
-      }
-    } else {
-      candidates = await this.sipTrunksRepository.findInboundDrafts(organizationId);
-    }
-
-    const results: PublishResourceResultDto[] = [];
-    const published: SipTrunkResponseDto[] = [];
-
-    if (sipTrunkIds && sipTrunkIds.length > 0) {
-      const found = new Set(candidates.map((c) => c.id));
-      for (const id of sipTrunkIds) {
-        if (!found.has(id)) {
-          results.push({
-            id,
-            outcome: 'failed',
-            message: `SIP trunk not found for org: ${id}`,
-          });
-        }
-      }
-    }
-
-    for (const row of candidates) {
-      if (row.direction !== SipTrunkDirection.INBOUND) {
-        results.push({
-          id: row.id,
-          outcome: 'failed',
-          message: `Not an inbound trunk (${row.direction})`,
-        });
-        continue;
-      }
-      if (row.livekitTrunkId?.trim()) {
-        results.push({
-          id: row.id,
-          outcome: 'skipped',
-          message: 'Already published',
-          livekitId: row.livekitTrunkId,
-        });
-        continue;
-      }
-      try {
-        const dto = await this.publishInbound(organizationId, row.id);
-        results.push({
-          id: row.id,
-          outcome: 'published',
-          livekitId: dto.livekitTrunkId,
-        });
-        published.push(dto);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        results.push({ id: row.id, outcome: 'failed', message });
-      }
-    }
-
-    return { results, published };
+    return runPublishBatch({
+      requestedIds: sipTrunkIds,
+      loadByIds: (ids) =>
+        this.sipTrunksRepository.findByIdsAndOrg(organizationId, ids),
+      loadDrafts: () =>
+        this.sipTrunksRepository.findInboundDrafts(organizationId),
+      livekitId: (row) => row.livekitTrunkId,
+      publishOne: async (id) => {
+        const dto = await this.publishInbound(organizationId, id);
+        return { livekitId: dto.livekitTrunkId, dto };
+      },
+      notFoundMessage: (id) => `SIP trunk not found for org: ${id}`,
+      extraFail: (row) =>
+        row.direction !== SipTrunkDirection.INBOUND
+          ? `Not an inbound trunk (${row.direction})`
+          : null,
+    });
   }
 
   private async requireByIdAndOrg(
@@ -565,11 +501,7 @@ export class SipTrunksService {
       row.name = dto.name.trim();
     }
     if (dto.numbers !== undefined) {
-      const numbers = this.normalizeNumbers(dto.numbers);
-      if (numbers.length === 0) {
-        throw new BadRequestException('At least one phone number is required');
-      }
-      row.numbers = numbers;
+      row.numbers = this.requireNumbers(dto.numbers);
     }
     if (dto.isActive !== undefined) {
       row.isActive = dto.isActive;
@@ -589,5 +521,28 @@ export class SipTrunksService {
     return numbers
       .map((n) => n.trim())
       .filter((n) => n.length > 0);
+  }
+
+  private requireNumbers(
+    numbers: string[],
+    message = 'At least one phone number is required',
+  ): string[] {
+    const next = this.normalizeNumbers(numbers);
+    if (next.length === 0) {
+      throw new BadRequestException(message);
+    }
+    return next;
+  }
+
+  private async assertLivekitTrunkUnlinked(
+    livekitTrunkId: string,
+  ): Promise<void> {
+    const existing =
+      await this.sipTrunksRepository.findByLivekitTrunkId(livekitTrunkId);
+    if (existing) {
+      throw new ConflictException(
+        `LiveKit trunk already linked: ${livekitTrunkId}`,
+      );
+    }
   }
 }

@@ -5,8 +5,7 @@ import { DataSource, In, Repository } from 'typeorm';
 import { AgentDirection } from '../agents/agent.entity';
 import { Call, CallStatus } from '../calls/call.entity';
 import { CallBatchStatus } from './call-batch.entity';
-import { OrganizationQueueSettings } from './organization-queue-settings.entity';
-import { QUEUE_DEFAULTS } from './queue.defaults';
+import { QUEUE_DEFAULTS, queuePositiveInt } from './queue.defaults';
 
 @Injectable()
 export class QueueClaimService {
@@ -189,8 +188,8 @@ export class QueueClaimService {
   }
 
   async reclaimStale(organizationId: string): Promise<number> {
-    const lease = this.intEnv(
-      'QUEUE_CLAIM_LEASE_SECONDS',
+    const lease = queuePositiveInt(
+      this.config.get('QUEUE_CLAIM_LEASE_SECONDS'),
       QUEUE_DEFAULTS.claimLeaseSeconds,
     );
     const result = await this.dataSource.query(
@@ -235,12 +234,12 @@ export class QueueClaimService {
    * Caller is responsible for fail/requeue + LiveKit cleanup.
    */
   async findStaleInFlight(limit?: number): Promise<Call[]> {
-    const dialingSecs = this.intEnv(
-      'QUEUE_STALE_DIALING_SECONDS',
+    const dialingSecs = queuePositiveInt(
+      this.config.get('QUEUE_STALE_DIALING_SECONDS'),
       QUEUE_DEFAULTS.staleDialingSeconds,
     );
-    const readySecs = this.intEnv(
-      'QUEUE_STALE_READY_SECONDS',
+    const readySecs = queuePositiveInt(
+      this.config.get('QUEUE_STALE_READY_SECONDS'),
       QUEUE_DEFAULTS.staleReadySeconds,
     );
     const batch =
@@ -289,48 +288,15 @@ export class QueueClaimService {
     readySeconds: number;
   } {
     return {
-      dialingSeconds: this.intEnv(
-        'QUEUE_STALE_DIALING_SECONDS',
+      dialingSeconds: queuePositiveInt(
+        this.config.get('QUEUE_STALE_DIALING_SECONDS'),
         QUEUE_DEFAULTS.staleDialingSeconds,
       ),
-      readySeconds: this.intEnv(
-        'QUEUE_STALE_READY_SECONDS',
+      readySeconds: queuePositiveInt(
+        this.config.get('QUEUE_STALE_READY_SECONDS'),
         QUEUE_DEFAULTS.staleReadySeconds,
       ),
     };
-  }
-
-  async forceRequeueCreating(organizationId: string): Promise<number> {
-    const result = await this.dataSource.query(
-      `
-      UPDATE calls
-      SET
-        status = $1,
-        attempt_count = GREATEST(attempt_count - 1, 0),
-        next_attempt_at = NOW(),
-        queue_locked_at = NULL,
-        dial_started_at = NULL,
-        room_name = NULL,
-        livekit_dispatch_id = NULL,
-        livekit_sip_call_id = NULL,
-        error_message = 'Forced requeue of stuck creating',
-        updated_at = NOW()
-      WHERE organization_id = $2
-        AND status = $3
-      `,
-      [CallStatus.PENDING, organizationId, CallStatus.CREATING],
-    );
-    return this.affectedCount(result);
-  }
-
-  effectiveMaxConcurrent(
-    settings: OrganizationQueueSettings,
-    batchOverride?: number | null,
-  ): number {
-    if (batchOverride != null && batchOverride > 0) {
-      return Math.min(settings.maxConcurrent, batchOverride);
-    }
-    return settings.maxConcurrent;
   }
 
   private extractIds(raw: unknown): string[] {
@@ -359,12 +325,5 @@ export class QueueClaimService {
       return (result as unknown[])[1] as number;
     }
     return 0;
-  }
-
-  private intEnv(key: string, fallback: number): number {
-    const raw = this.config.get<string | number>(key);
-    if (raw === undefined || raw === null || raw === '') return fallback;
-    const n = typeof raw === 'number' ? raw : Number.parseInt(String(raw), 10);
-    return Number.isFinite(n) && n > 0 ? n : fallback;
   }
 }

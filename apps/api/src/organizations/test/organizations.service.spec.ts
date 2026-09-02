@@ -175,30 +175,4 @@ describe('OrganizationsService', () => {
       await expect(service.findBySlug('missing')).resolves.toBeNull();
     });
   });
-
-  describe('findByIdOrSlug', () => {
-    it('12. returns by id without falling back to slug', async () => {
-      repository.findById.mockResolvedValue(org);
-
-      await expect(service.findByIdOrSlug(ORG_ID)).resolves.toEqual(org);
-      expect(repository.findById).toHaveBeenCalledWith(ORG_ID);
-      expect(repository.findBySlug).not.toHaveBeenCalled();
-    });
-
-    it('13. falls back to slug when id lookup misses', async () => {
-      repository.findById.mockResolvedValue(null);
-      repository.findBySlug.mockResolvedValue(org);
-
-      await expect(service.findByIdOrSlug('acme')).resolves.toEqual(org);
-      expect(repository.findById).toHaveBeenCalledWith('acme');
-      expect(repository.findBySlug).toHaveBeenCalledWith('acme');
-    });
-
-    it('14. returns null when both id and slug miss', async () => {
-      repository.findById.mockResolvedValue(null);
-      repository.findBySlug.mockResolvedValue(null);
-
-      await expect(service.findByIdOrSlug('unknown')).resolves.toBeNull();
-    });
-  });
 });

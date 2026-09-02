@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -23,6 +22,7 @@ import { ApiJwtErrors, ApiNotFoundError } from '../common/swagger/api-errors';
 import { AgentDirection } from '../agents/agent.entity';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthPrincipal } from '../auth/auth.types';
+import { orgIdFrom } from '../auth/org-id';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserGuard } from '../auth/guards/user.guard';
 import { CallBucket, CallStatus } from './call.entity';
@@ -64,7 +64,7 @@ export class UserCallsController {
     @CurrentUser() principal: AuthPrincipal,
     @Body() dto: CreateUserCallsBatchDto,
   ): Promise<EnqueueCallsResponseDto> {
-    return this.callDial.enqueueCallsForOrg(this.orgIdFrom(principal), dto);
+    return this.callDial.enqueueCallsForOrg(orgIdFrom(principal), dto);
   }
 
   @Post(':id/cancel')
@@ -78,7 +78,7 @@ export class UserCallsController {
     @CurrentUser() principal: AuthPrincipal,
     @Param('id', ParseResourceIdPipe('Call')) id: string,
   ): Promise<CallResponseDto> {
-    return this.callsService.cancelPendingForOrg(this.orgIdFrom(principal), id);
+    return this.callsService.cancelPendingForOrg(orgIdFrom(principal), id);
   }
 
   @Post(':id/retry')
@@ -92,7 +92,7 @@ export class UserCallsController {
     @CurrentUser() principal: AuthPrincipal,
     @Param('id', ParseResourceIdPipe('Call')) id: string,
   ): Promise<CallResponseDto> {
-    return this.callsService.retryNowForOrg(this.orgIdFrom(principal), id);
+    return this.callsService.retryNowForOrg(orgIdFrom(principal), id);
   }
 
   @Post(':id/prioritize')
@@ -106,7 +106,7 @@ export class UserCallsController {
     @CurrentUser() principal: AuthPrincipal,
     @Param('id', ParseResourceIdPipe('Call')) id: string,
   ): Promise<CallResponseDto> {
-    return this.callsService.prioritizeForOrg(this.orgIdFrom(principal), id);
+    return this.callsService.prioritizeForOrg(orgIdFrom(principal), id);
   }
 
   @Post('outbound')
@@ -121,7 +121,7 @@ export class UserCallsController {
     @Body() dto: CreateUserOutboundCallDto,
   ): Promise<CallResponseDto> {
     return this.callDial.createOutboundCallForOrg(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       dto,
     );
   }
@@ -138,7 +138,7 @@ export class UserCallsController {
     @Body() dto: CreateUserTestCallDto,
   ): Promise<TestCallResponseDto> {
     return this.callWebTest.createOrgAgentTestCall(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       dto,
     );
   }
@@ -164,7 +164,7 @@ export class UserCallsController {
     @CurrentUser() principal: AuthPrincipal,
     @Query() query: ListCallsQueryDto,
   ): Promise<CallResponseDto[]> {
-    return this.callsService.listByOrganization(this.orgIdFrom(principal), {
+    return this.callsService.listByOrganization(orgIdFrom(principal), {
       limit: query.limit ?? 50,
       bucket: query.bucket,
       status: query.status,
@@ -185,14 +185,7 @@ export class UserCallsController {
   ): Promise<CallResponseDto> {
     return this.callsService.findByIdForOrganization(
       id,
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
     );
-  }
-
-  private orgIdFrom(principal: AuthPrincipal): string {
-    if (principal.typ !== 'user' || !principal.orgId) {
-      throw new ForbiddenException('Organization user access required');
-    }
-    return principal.orgId;
   }
 }

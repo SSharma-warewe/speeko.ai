@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -21,6 +20,7 @@ import {
 } from '@nestjs/swagger';
 import type { AuthPrincipal } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { orgIdFrom } from '../auth/org-id';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserGuard } from '../auth/guards/user.guard';
 import { ParseResourceIdPipe } from '../common/parse-resource-id.pipe';
@@ -54,7 +54,7 @@ export class UserIntegrationEndpointsController {
     @CurrentUser() principal: AuthPrincipal,
   ): Promise<IntegrationEndpointResponseDto[]> {
     return this.integrationEndpointsService.listForOrg(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
     );
   }
 
@@ -72,7 +72,7 @@ export class UserIntegrationEndpointsController {
   ): Promise<IntegrationEndpointSecretResponseDto> {
     const userId = principal.typ === 'user' ? principal.id : null;
     return this.integrationEndpointsService.createForOrg(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       dto,
       userId,
     );
@@ -87,7 +87,7 @@ export class UserIntegrationEndpointsController {
     @Param('id', ParseResourceIdPipe('Integration')) id: string,
   ): Promise<IntegrationEndpointResponseDto> {
     return this.integrationEndpointsService.getOneForOrg(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       id,
     );
   }
@@ -104,7 +104,7 @@ export class UserIntegrationEndpointsController {
     @Body() dto: UpdateIntegrationEndpointDto,
   ): Promise<IntegrationEndpointResponseDto> {
     return this.integrationEndpointsService.updateForOrg(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       id,
       dto,
     );
@@ -122,7 +122,7 @@ export class UserIntegrationEndpointsController {
     @Param('id', ParseResourceIdPipe('Integration')) id: string,
   ): Promise<IntegrationEndpointSecretResponseDto> {
     return this.integrationEndpointsService.rotateKeyForOrg(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       id,
     );
   }
@@ -137,15 +137,9 @@ export class UserIntegrationEndpointsController {
     @Param('id', ParseResourceIdPipe('Integration')) id: string,
   ): Promise<void> {
     await this.integrationEndpointsService.deleteForOrg(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       id,
     );
   }
 
-  private orgIdFrom(principal: AuthPrincipal): string {
-    if (principal.typ !== 'user' || !principal.orgId) {
-      throw new ForbiddenException('Organization user access required');
-    }
-    return principal.orgId;
-  }
 }

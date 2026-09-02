@@ -4,6 +4,10 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ApiModule } from './api.module';
+import {
+  normalizeOrigin,
+  parseCorsOriginAllowlist,
+} from './common/cors-origin';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(ApiModule);
@@ -38,7 +42,7 @@ async function bootstrap() {
     )
     .addTag('auth', 'Login and current principal (admin + org user)')
     .addTag('organizations', 'Platform org registry (admin)')
-    .addTag('users', 'Org users under an organization (admin) + org-user agent config')
+    .addTag('users', 'Org members (admin) and org-user agent configs')
     .addTag('agents', 'Platform agent templates (admin)')
     .addTag(
       'organization-agents',
@@ -118,15 +122,21 @@ async function bootstrap() {
   });
 
   const config = app.get(ConfigService);
-  const corsOrigin = config.get<string>('CORS_ORIGIN');
+  const corsAllowlist = parseCorsOriginAllowlist(
+    config.get<string>('CORS_ORIGIN'),
+  );
   app.enableCors({
-    // Comma-separated origins, or reflect request origin when unset (dev-friendly).
-    origin: corsOrigin
-      ? corsOrigin
-          .split(',')
-          .map((o) => o.trim())
-          .filter(Boolean)
-      : true,
+    // Comma-separated CORS_ORIGIN, or reflect request origin when unset (dev-friendly).
+    origin:
+      corsAllowlist.length === 0
+        ? true
+        : (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+            if (!origin) {
+              callback(null, true);
+              return;
+            }
+            callback(null, corsAllowlist.includes(normalizeOrigin(origin)));
+          },
     credentials: true,
   });
 

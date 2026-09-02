@@ -5,6 +5,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { normalizeEmail } from '../common/password.util';
 import { GhlService } from '../ghl/ghl.service';
 import { RequestDemoDto } from './dto/request-demo.dto';
 import { RequestDemoResponseDto } from './dto/request-demo-response.dto';
@@ -24,7 +25,7 @@ export class DemoService {
    */
   async requestDemo(dto: RequestDemoDto): Promise<RequestDemoResponseDto> {
     const phoneNumber = dto.phone.trim();
-    const email = dto.email.trim().toLowerCase();
+    const email = normalizeEmail(dto.email);
     const firstName = dto.firstName.trim();
     const lastName = dto.lastName.trim();
     const company = dto.company.trim();

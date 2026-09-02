@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -21,6 +20,7 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthPrincipal } from '../auth/auth.types';
+import { orgIdFrom } from '../auth/org-id';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserGuard } from '../auth/guards/user.guard';
 import { ParseResourceIdPipe } from '../common/parse-resource-id.pipe';
@@ -55,7 +55,7 @@ export class UserToolProfilesController {
   ): Promise<KnownToolsResponseDto> {
     return {
       toolIds: await this.toolProfilesService.listAssignedToolIds(
-        this.orgIdFrom(principal),
+        orgIdFrom(principal),
       ),
     };
   }
@@ -69,7 +69,7 @@ export class UserToolProfilesController {
   @ApiOkResponse({ type: [ToolProfileResponseDto] })
   list(@CurrentUser() principal: AuthPrincipal) {
     return this.toolProfilesService.listForOrganization(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
     );
   }
 
@@ -82,7 +82,7 @@ export class UserToolProfilesController {
     @Param('id', ParseResourceIdPipe('Tool profile')) id: string,
   ) {
     return this.toolProfilesService.getResponseForOrganization(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       id,
     );
   }
@@ -100,7 +100,7 @@ export class UserToolProfilesController {
     @Body() dto: CreateToolProfileDto,
   ) {
     return this.toolProfilesService.createForOrganization(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       dto,
     );
   }
@@ -118,7 +118,7 @@ export class UserToolProfilesController {
     @Body() dto: UpdateToolProfileDto,
   ) {
     return this.toolProfilesService.updateForOrganization(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       id,
       dto,
     );
@@ -139,15 +139,9 @@ export class UserToolProfilesController {
     @Param('id', ParseResourceIdPipe('Tool profile')) id: string,
   ): Promise<void> {
     await this.toolProfilesService.removeForOrganization(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       id,
     );
   }
 
-  private orgIdFrom(principal: AuthPrincipal): string {
-    if (principal.typ !== 'user' || !principal.orgId) {
-      throw new ForbiddenException('Organization user access required');
-    }
-    return principal.orgId;
-  }
 }

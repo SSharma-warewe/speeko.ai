@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -21,6 +20,7 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthPrincipal } from '../auth/auth.types';
+import { orgIdFrom } from '../auth/org-id';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserGuard } from '../auth/guards/user.guard';
 import { ParseResourceIdPipe } from '../common/parse-resource-id.pipe';
@@ -51,7 +51,7 @@ export class UserSipDispatchRulesController {
     @CurrentUser() principal: AuthPrincipal,
   ): Promise<SipDispatchRuleResponseDto[]> {
     return this.sipDispatchRulesService.listByOrganization(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
     );
   }
 
@@ -63,7 +63,7 @@ export class UserSipDispatchRulesController {
     @CurrentUser() principal: AuthPrincipal,
     @Param('id', ParseResourceIdPipe('Dispatch rule')) id: string,
   ): Promise<SipDispatchRuleResponseDto> {
-    return this.sipDispatchRulesService.getOne(this.orgIdFrom(principal), id);
+    return this.sipDispatchRulesService.getOne(orgIdFrom(principal), id);
   }
 
   @Post()
@@ -78,7 +78,7 @@ export class UserSipDispatchRulesController {
     @Body() dto: CreateSipDispatchRuleDto,
   ): Promise<SipDispatchRuleResponseDto> {
     return this.sipDispatchRulesService.createDraft(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       dto,
     );
   }
@@ -96,7 +96,7 @@ export class UserSipDispatchRulesController {
     @Body() dto: UpdateSipDispatchRuleDto,
   ): Promise<SipDispatchRuleResponseDto> {
     return this.sipDispatchRulesService.update(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       id,
       dto,
     );
@@ -114,7 +114,7 @@ export class UserSipDispatchRulesController {
     @CurrentUser() principal: AuthPrincipal,
     @Param('id', ParseResourceIdPipe('Dispatch rule')) id: string,
   ): Promise<void> {
-    await this.sipDispatchRulesService.remove(this.orgIdFrom(principal), id);
+    await this.sipDispatchRulesService.remove(orgIdFrom(principal), id);
   }
 
   @Post(':id/publish')
@@ -131,13 +131,7 @@ export class UserSipDispatchRulesController {
     @CurrentUser() principal: AuthPrincipal,
     @Param('id', ParseResourceIdPipe('Dispatch rule')) id: string,
   ): Promise<SipDispatchRuleResponseDto> {
-    return this.sipDispatchRulesService.publish(this.orgIdFrom(principal), id);
+    return this.sipDispatchRulesService.publish(orgIdFrom(principal), id);
   }
 
-  private orgIdFrom(principal: AuthPrincipal): string {
-    if (principal.typ !== 'user' || !principal.orgId) {
-      throw new ForbiddenException('Organization user access required');
-    }
-    return principal.orgId;
-  }
 }

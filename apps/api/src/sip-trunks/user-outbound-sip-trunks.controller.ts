@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -21,6 +20,7 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthPrincipal } from '../auth/auth.types';
+import { orgIdFrom } from '../auth/org-id';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserGuard } from '../auth/guards/user.guard';
 import { ParseResourceIdPipe } from '../common/parse-resource-id.pipe';
@@ -56,7 +56,7 @@ export class UserOutboundSipTrunksController {
     @CurrentUser() principal: AuthPrincipal,
   ): Promise<SipTrunkResponseDto[]> {
     return this.sipTrunksService.listOutboundByOrganization(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
     );
   }
 
@@ -70,7 +70,7 @@ export class UserOutboundSipTrunksController {
     @CurrentUser() principal: AuthPrincipal,
     @Param('id', ParseResourceIdPipe('SIP trunk')) id: string,
   ): Promise<SipTrunkResponseDto> {
-    return this.sipTrunksService.getOutboundOne(this.orgIdFrom(principal), id);
+    return this.sipTrunksService.getOutboundOne(orgIdFrom(principal), id);
   }
 
   @Post()
@@ -86,7 +86,7 @@ export class UserOutboundSipTrunksController {
     @Body() dto: CreateSipTrunkDto,
   ): Promise<SipTrunkResponseDto> {
     return this.sipTrunksService.createOutbound(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       dto,
     );
   }
@@ -105,7 +105,7 @@ export class UserOutboundSipTrunksController {
     @Body() dto: UpdateSipTrunkDto,
   ): Promise<SipTrunkResponseDto> {
     return this.sipTrunksService.updateOutbound(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       id,
       dto,
     );
@@ -123,13 +123,7 @@ export class UserOutboundSipTrunksController {
     @CurrentUser() principal: AuthPrincipal,
     @Param('id', ParseResourceIdPipe('SIP trunk')) id: string,
   ): Promise<void> {
-    await this.sipTrunksService.removeOutbound(this.orgIdFrom(principal), id);
+    await this.sipTrunksService.removeOutbound(orgIdFrom(principal), id);
   }
 
-  private orgIdFrom(principal: AuthPrincipal): string {
-    if (principal.typ !== 'user' || !principal.orgId) {
-      throw new ForbiddenException('Organization user access required');
-    }
-    return principal.orgId;
-  }
 }

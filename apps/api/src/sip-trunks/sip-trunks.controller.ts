@@ -62,7 +62,7 @@ export class SipTrunksController {
     @Param('orgId', ParseResourceIdPipe('Organization')) orgId: string,
     @Body() dto: CreateSipTrunkDto,
   ): Promise<SipTrunkResponseDto> {
-    return this.sipTrunksService.create(orgId, dto);
+    return this.sipTrunksService.createOutbound(orgId, dto);
   }
 
   @Get(':id')

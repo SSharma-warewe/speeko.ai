@@ -1,10 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-
-interface WindowEntry {
-  count: number;
-  resetAt: number;
-}
+import {
+  FixedWindowRateLimit,
+  type RateLimitResult,
+} from '../common/fixed-window-rate-limit';
 
 /**
  * In-process fixed-window counter for login endpoints.
@@ -12,7 +11,7 @@ interface WindowEntry {
  */
 @Injectable()
 export class LoginRateLimitService {
-  private readonly windows = new Map<string, WindowEntry>();
+  private readonly limiter = new FixedWindowRateLimit();
   private readonly maxAttempts: number;
   private readonly windowMs: number;
 
@@ -29,31 +28,13 @@ export class LoginRateLimitService {
    * Record one attempt for the key.
    * @returns whether the attempt is allowed (false → rate limited)
    */
-  consume(key: string): { allowed: boolean; retryAfterSec: number } {
-    const now = Date.now();
-    this.evictExpired(now);
-
-    const existing = this.windows.get(key);
-    if (!existing || existing.resetAt <= now) {
-      this.windows.set(key, { count: 1, resetAt: now + this.windowMs });
-      return { allowed: true, retryAfterSec: 0 };
-    }
-
-    if (existing.count >= this.maxAttempts) {
-      const retryAfterSec = Math.max(
-        1,
-        Math.ceil((existing.resetAt - now) / 1000),
-      );
-      return { allowed: false, retryAfterSec };
-    }
-
-    existing.count += 1;
-    return { allowed: true, retryAfterSec: 0 };
+  consume(key: string): RateLimitResult {
+    return this.limiter.consume(key, this.maxAttempts, this.windowMs);
   }
 
   /** Test helper: clear all counters. */
   reset(): void {
-    this.windows.clear();
+    this.limiter.reset();
   }
 
   getMaxAttempts(): number {
@@ -62,17 +43,5 @@ export class LoginRateLimitService {
 
   getWindowMs(): number {
     return this.windowMs;
-  }
-
-  private evictExpired(now: number): void {
-    // Opportunistic cleanup to avoid unbounded growth under abuse.
-    if (this.windows.size < 500) {
-      return;
-    }
-    for (const [key, entry] of this.windows) {
-      if (entry.resetAt <= now) {
-        this.windows.delete(key);
-      }
-    }
   }
 }

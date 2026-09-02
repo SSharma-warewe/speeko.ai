@@ -39,7 +39,7 @@ export class QueueDialerService {
     };
   }
 
-  @Interval(2000)
+  @Interval(QUEUE_DEFAULTS.dialerIntervalMs)
   async tick(): Promise<void> {
     if (!this.isEnabled()) {
       return;

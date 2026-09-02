@@ -71,12 +71,7 @@ export class CallBatchesService {
     batchId: string,
   ): Promise<CallBatchResponseDto> {
     const batch = await this.requireForOrg(organizationId, batchId);
-    if (batch.status === CallBatchStatus.CANCELLED) {
-      throw new BadRequestException('Cannot pause a cancelled batch');
-    }
-    if (batch.status === CallBatchStatus.COMPLETED) {
-      throw new BadRequestException('Cannot pause a completed batch');
-    }
+    this.assertBatchMutable(batch, 'pause');
     batch.status = CallBatchStatus.PAUSED;
     batch.pausedAt = new Date();
     const saved = await this.repo.save(batch);
@@ -88,12 +83,7 @@ export class CallBatchesService {
     batchId: string,
   ): Promise<CallBatchResponseDto> {
     const batch = await this.requireForOrg(organizationId, batchId);
-    if (batch.status === CallBatchStatus.CANCELLED) {
-      throw new BadRequestException('Cannot resume a cancelled batch');
-    }
-    if (batch.status === CallBatchStatus.COMPLETED) {
-      throw new BadRequestException('Cannot resume a completed batch');
-    }
+    this.assertBatchMutable(batch, 'resume');
     batch.status = CallBatchStatus.RUNNING;
     batch.pausedAt = null;
     const saved = await this.repo.save(batch);
@@ -185,6 +175,18 @@ export class CallBatchesService {
       throw new NotFoundException(`Batch not found: ${batchId}`);
     }
     return batch;
+  }
+
+  private assertBatchMutable(
+    batch: CallBatch,
+    action: 'pause' | 'resume',
+  ): void {
+    if (batch.status === CallBatchStatus.CANCELLED) {
+      throw new BadRequestException(`Cannot ${action} a cancelled batch`);
+    }
+    if (batch.status === CallBatchStatus.COMPLETED) {
+      throw new BadRequestException(`Cannot ${action} a completed batch`);
+    }
   }
 
   async statsForBatch(batchId: string): Promise<CallBatchStatsDto> {

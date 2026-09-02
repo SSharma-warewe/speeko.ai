@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -21,6 +20,7 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthPrincipal } from '../auth/auth.types';
+import { orgIdFrom } from '../auth/org-id';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserGuard } from '../auth/guards/user.guard';
 import { ParseResourceIdPipe } from '../common/parse-resource-id.pipe';
@@ -51,7 +51,7 @@ export class UserInboundSipTrunksController {
     @CurrentUser() principal: AuthPrincipal,
   ): Promise<SipTrunkResponseDto[]> {
     return this.sipTrunksService.listInboundByOrganization(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
     );
   }
 
@@ -63,7 +63,7 @@ export class UserInboundSipTrunksController {
     @CurrentUser() principal: AuthPrincipal,
     @Param('id', ParseResourceIdPipe('SIP trunk')) id: string,
   ): Promise<SipTrunkResponseDto> {
-    return this.sipTrunksService.getInboundOne(this.orgIdFrom(principal), id);
+    return this.sipTrunksService.getInboundOne(orgIdFrom(principal), id);
   }
 
   @Post()
@@ -79,7 +79,7 @@ export class UserInboundSipTrunksController {
     @Body() dto: CreateInboundSipTrunkDto,
   ): Promise<SipTrunkResponseDto> {
     return this.sipTrunksService.createInboundDraft(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       dto,
     );
   }
@@ -97,7 +97,7 @@ export class UserInboundSipTrunksController {
     @Body() dto: UpdateInboundSipTrunkDto,
   ): Promise<SipTrunkResponseDto> {
     return this.sipTrunksService.updateInbound(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       id,
       dto,
     );
@@ -117,7 +117,7 @@ export class UserInboundSipTrunksController {
     @CurrentUser() principal: AuthPrincipal,
     @Param('id', ParseResourceIdPipe('SIP trunk')) id: string,
   ): Promise<void> {
-    await this.sipTrunksService.removeInbound(this.orgIdFrom(principal), id);
+    await this.sipTrunksService.removeInbound(orgIdFrom(principal), id);
   }
 
   @Post(':id/publish')
@@ -135,15 +135,9 @@ export class UserInboundSipTrunksController {
     @Param('id', ParseResourceIdPipe('SIP trunk')) id: string,
   ): Promise<SipTrunkResponseDto> {
     return this.sipTrunksService.publishInbound(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       id,
     );
   }
 
-  private orgIdFrom(principal: AuthPrincipal): string {
-    if (principal.typ !== 'user' || !principal.orgId) {
-      throw new ForbiddenException('Organization user access required');
-    }
-    return principal.orgId;
-  }
 }

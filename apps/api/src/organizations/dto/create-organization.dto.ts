@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { SLUG_PATTERN } from '../../common/slug';
 
 export class CreateOrganizationDto {
   @ApiProperty({ example: 'Acme Call Center' })
@@ -15,7 +16,7 @@ export class CreateOrganizationDto {
   @IsString()
   @MinLength(2)
   @MaxLength(100)
-  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+  @Matches(SLUG_PATTERN, {
     message: 'slug must be lowercase alphanumeric with optional hyphens',
   })
   slug!: string;

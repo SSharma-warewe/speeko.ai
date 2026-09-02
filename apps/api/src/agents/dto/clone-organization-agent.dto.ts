@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { SLUG_PATTERN } from '../../common/slug';
 
 export class CloneOrganizationAgentDto {
   @ApiProperty({
@@ -20,7 +21,7 @@ export class CloneOrganizationAgentDto {
   @IsString()
   @MinLength(1)
   @MaxLength(80)
-  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+  @Matches(SLUG_PATTERN, {
     message:
       'slug must be lowercase alphanumeric with optional single hyphens (e.g. collections-outreach)',
   })

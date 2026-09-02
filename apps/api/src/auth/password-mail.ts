@@ -9,7 +9,7 @@ export function buildInviteEmail(params: {
       'Set your Speeko password',
       `<p>You've been invited to <strong>${escapeHtml(params.organizationName)}</strong> on Speeko.</p>
        <p>Choose a password to activate your account. This link expires in ${escapeHtml(params.expiresLabel)}.</p>
-       <p><a href="${escapeAttr(params.setPasswordUrl)}">Set password</a></p>
+       <p><a href="${escapeHtml(params.setPasswordUrl)}">Set password</a></p>
        <p style="color:#666;font-size:13px">If the button does not work, paste this URL into your browser:<br>${escapeHtml(params.setPasswordUrl)}</p>`,
     ),
   };
@@ -25,7 +25,7 @@ export function buildResetEmail(params: {
       'Reset your Speeko password',
       `<p>We received a request to reset your Speeko password.</p>
        <p>This link expires in ${escapeHtml(params.expiresLabel)}.</p>
-       <p><a href="${escapeAttr(params.resetUrl)}">Reset password</a></p>
+       <p><a href="${escapeHtml(params.resetUrl)}">Reset password</a></p>
        <p style="color:#666;font-size:13px">If you did not ask for this, you can ignore this email.</p>
        <p style="color:#666;font-size:13px">If the button does not work, paste this URL into your browser:<br>${escapeHtml(params.resetUrl)}</p>`,
     ),
@@ -57,8 +57,4 @@ function escapeHtml(value: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
-}
-
-function escapeAttr(value: string): string {
-  return escapeHtml(value);
 }

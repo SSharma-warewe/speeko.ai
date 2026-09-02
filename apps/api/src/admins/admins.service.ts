@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { normalizeEmail } from '../common/password.util';
 import { Admin } from './admin.entity';
 import { AdminsRepository } from './admins.repository';
@@ -30,20 +30,22 @@ export class AdminsService {
   }
 
   async updatePasswordHash(id: string, passwordHash: string): Promise<void> {
-    const admin = await this.findById(id);
-    if (!admin) {
-      return;
-    }
+    const admin = await this.getOrThrow(id);
     admin.passwordHash = passwordHash;
     await this.adminsRepository.save(admin);
   }
 
   async updateName(id: string, name: string): Promise<void> {
-    const admin = await this.findById(id);
-    if (!admin) {
-      return;
-    }
+    const admin = await this.getOrThrow(id);
     admin.name = name;
     await this.adminsRepository.save(admin);
+  }
+
+  async getOrThrow(id: string): Promise<Admin> {
+    const admin = await this.findById(id);
+    if (!admin) {
+      throw new NotFoundException(`Admin not found: ${id}`);
+    }
+    return admin;
   }
 }

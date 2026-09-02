@@ -1,11 +1,7 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  HttpException,
-  HttpStatus,
-  Injectable,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Request } from 'express';
+import { clientIp } from '../../common/client-ip';
+import { throwTooManyRequests } from '../../common/http-too-many-requests';
 import { normalizeEmail } from '../../common/password.util';
 import { LoginRateLimitService } from '../login-rate-limit.service';
 
@@ -20,7 +16,7 @@ export class PasswordPublicRateLimitGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const req = context.switchToHttp().getRequest<Request>();
     const route = this.routeFromPath(req.path || req.url || '');
-    const ip = this.clientIp(req);
+    const ip = clientIp(req);
     const includeEmail = route.includes('forgot');
     const emailRaw =
       typeof (req.body as { email?: unknown } | undefined)?.email === 'string'
@@ -31,14 +27,7 @@ export class PasswordPublicRateLimitGuard implements CanActivate {
 
     const result = this.rateLimit.consume(key);
     if (!result.allowed) {
-      throw new HttpException(
-        {
-          statusCode: HttpStatus.TOO_MANY_REQUESTS,
-          message: 'Too many attempts. Try again later.',
-          error: 'Too Many Requests',
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
+      throwTooManyRequests('Too many attempts. Try again later.');
     }
     return true;
   }
@@ -50,16 +39,5 @@ export class PasswordPublicRateLimitGuard implements CanActivate {
     if (path.includes('reset-password')) return 'user-reset';
     if (path.includes('set-password')) return 'set-password';
     return 'password-public';
-  }
-
-  private clientIp(req: Request): string {
-    const forwarded = req.headers['x-forwarded-for'];
-    if (typeof forwarded === 'string' && forwarded.trim()) {
-      return forwarded.split(',')[0].trim();
-    }
-    if (Array.isArray(forwarded) && forwarded[0]) {
-      return forwarded[0].split(',')[0].trim();
-    }
-    return req.ip || req.socket?.remoteAddress || 'unknown';
   }
 }

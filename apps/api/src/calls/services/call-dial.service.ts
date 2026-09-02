@@ -7,18 +7,17 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
-import { Agent, AgentDirection } from '../../agents/agent.entity';
+import { AgentDirection } from '../../agents/agent.entity';
 import { OrganizationAgent } from '../../agents/organization-agent.entity';
 import { OrganizationAgentsService } from '../../agents/organization-agents.service';
-import { orgAgentDefaultTaskKey } from '../../agents/org-agent-task';
-import { resolveVoiceRuntime } from '../../agents/voice-settings';
+import { packOrgAgentJobMetadata } from '../../agents/job-metadata';
 import { LivekitService } from '../../livekit/livekit.service';
 import { CallBatchesService } from '../../queue/call-batches.service';
 import { OrganizationQueueSettingsService } from '../../queue/organization-queue-settings.service';
 import { QueueRetryService } from '../../queue/queue-retry.service';
+import { SipTrunk } from '../../sip-trunks/sip-trunk.entity';
 import { SipTrunksService } from '../../sip-trunks/sip-trunks.service';
 import { ToolProfilesService } from '../../tools/tool-profiles.service';
-import type { AgentJobMetadata } from '@call-agent/contracts';
 import { CallFailureService } from './call-failure.service';
 import { pickFromNumber, resolveToNumber } from '../lib/call-phone';
 import { newCallRow } from '../lib/call-row';
@@ -27,7 +26,8 @@ import {
   CallLifecycleEvent,
   initializeCallStatus,
 } from '../lib/call-state-machine';
-import { resolveTaskKey } from '../lib/call-task-key';
+import { requireActiveOrgAgent } from '../lib/require-org-agent';
+import { resolveOrgAgentTaskKey } from '../lib/call-task-key';
 import { Call, CallFailureCode, CallMedium, CallStatus } from '../call.entity';
 import { CallsRepository } from '../calls.repository';
 import { CreateOutboundCallDto } from '../dto/create-outbound-call.dto';
@@ -80,45 +80,21 @@ export class CallDialService {
     organizationId: string,
     dto: CreateUserCallsBatchDto,
   ): Promise<EnqueueCallsResponseDto> {
-    const orgAgent =
-      await this.organizationAgentsService.getEntityWithTemplate(
-        organizationId,
-        dto.organizationAgentId,
-      );
-
-    if (!orgAgent.isActive) {
-      throw new BadRequestException(
-        `Organization agent is inactive: ${dto.organizationAgentId}`,
-      );
-    }
-
-    const template = orgAgent.agent;
-    if (!template) {
-      throw new BadRequestException(
-        `Organization agent missing template relation: ${orgAgent.id}`,
-      );
-    }
-
-    const taskKey = resolveTaskKey(
+    const { orgAgent, template } = await requireActiveOrgAgent(
+      this.organizationAgentsService,
+      organizationId,
+      dto.organizationAgentId,
+    );
+    const taskKey = resolveOrgAgentTaskKey(
       this.logger,
       dto.task,
-      orgAgentDefaultTaskKey(orgAgent, template),
-      template.defaultTaskKey,
+      orgAgent,
+      template,
     );
-
-    const trunk = await this.sipTrunksService.resolveOutboundForCall(
+    const { trunk, fromNumber } = await this.resolveOutboundFrom(
       organizationId,
       dto.sipTrunkId,
     );
-    const fromNumber = pickFromNumber(
-      trunk.numbers,
-      this.defaultCountryCode(),
-    );
-    if (!fromNumber) {
-      throw new BadRequestException(
-        `SIP trunk has no from numbers configured: ${trunk.id}`,
-      );
-    }
 
     const queueSettings =
       await this.queueSettingsService.getOrCreate(organizationId);
@@ -199,30 +175,16 @@ export class CallDialService {
   async createOutboundCall(
     dto: CreateOutboundCallDto,
   ): Promise<CallResponseDto> {
-    const orgAgent =
-      await this.organizationAgentsService.getEntityWithTemplate(
-        dto.organizationId,
-        dto.organizationAgentId,
-      );
-
-    if (!orgAgent.isActive) {
-      throw new BadRequestException(
-        `Organization agent is inactive: ${dto.organizationAgentId}`,
-      );
-    }
-
-    const template = orgAgent.agent;
-    if (!template) {
-      throw new BadRequestException(
-        `Organization agent missing template relation: ${orgAgent.id}`,
-      );
-    }
-
-    const taskKey = resolveTaskKey(
+    const { orgAgent, template } = await requireActiveOrgAgent(
+      this.organizationAgentsService,
+      dto.organizationId,
+      dto.organizationAgentId,
+    );
+    const taskKey = resolveOrgAgentTaskKey(
       this.logger,
       dto.task,
-      orgAgentDefaultTaskKey(orgAgent, template),
-      template.defaultTaskKey,
+      orgAgent,
+      template,
     );
     const enabledTools = await this.toolProfilesService.resolveEnabledToolIds(
       orgAgent.toolProfileId ?? template.defaultToolProfileId,
@@ -230,19 +192,10 @@ export class CallDialService {
     );
 
     const toNumber = resolveToNumber(dto, this.defaultCountryCode());
-    const trunk = await this.sipTrunksService.resolveOutboundForCall(
+    const { trunk, fromNumber } = await this.resolveOutboundFrom(
       dto.organizationId,
       dto.sipTrunkId,
     );
-    const fromNumber = pickFromNumber(
-      trunk.numbers,
-      this.defaultCountryCode(),
-    );
-    if (!fromNumber) {
-      throw new BadRequestException(
-        `SIP trunk has no from numbers configured: ${trunk.id}`,
-      );
-    }
 
     const shouldWait =
       dto.waitUntilAnswered !== undefined
@@ -280,7 +233,6 @@ export class CallDialService {
       call = await this.executeSipDial({
         call,
         orgAgent,
-        template,
         taskKey,
         enabledTools,
         trunkLivekitId: trunk.livekitTrunkId!,
@@ -336,12 +288,7 @@ export class CallDialService {
 
     const taskKey =
       call.taskKey ??
-      resolveTaskKey(
-        this.logger,
-        null,
-        orgAgentDefaultTaskKey(orgAgent, template),
-        template.defaultTaskKey,
-      );
+      resolveOrgAgentTaskKey(this.logger, null, orgAgent, template);
     const enabledTools = await this.toolProfilesService.resolveEnabledToolIds(
       orgAgent.toolProfileId ?? template.defaultToolProfileId,
       call.organizationId,
@@ -377,7 +324,6 @@ export class CallDialService {
       return await this.executeSipDial({
         call,
         orgAgent,
-        template,
         taskKey,
         enabledTools,
         trunkLivekitId: trunk.livekitTrunkId,
@@ -403,7 +349,6 @@ export class CallDialService {
   private async executeSipDial(input: {
     call: Call;
     orgAgent: OrganizationAgent;
-    template: Agent;
     taskKey: string;
     enabledTools: string[];
     trunkLivekitId: string;
@@ -417,7 +362,6 @@ export class CallDialService {
     let { call } = input;
     const {
       orgAgent,
-      template,
       taskKey,
       enabledTools,
       trunkLivekitId,
@@ -429,14 +373,14 @@ export class CallDialService {
       roomName,
     } = input;
 
-    const metadata = this.buildOutboundMetadata({
-      call,
-      orgAgent,
-      template,
-      taskKey,
+    const metadata = packOrgAgentJobMetadata(orgAgent, {
+      task: taskKey,
       enabledTools,
-      participantIdentity,
+      direction: AgentDirection.OUTBOUND,
+      medium: CallMedium.SIP,
+      callId: call.id,
       context,
+      participantIdentity,
     });
 
     this.logger.log(
@@ -525,44 +469,6 @@ export class CallDialService {
     }
   }
 
-  private buildOutboundMetadata(input: {
-    call: Call;
-    orgAgent: OrganizationAgent;
-    template: Agent;
-    taskKey: string;
-    enabledTools: string[];
-    participantIdentity: string;
-    context?: Record<string, unknown>;
-  }): AgentJobMetadata {
-    const {
-      call,
-      orgAgent,
-      template,
-      taskKey,
-      enabledTools,
-      participantIdentity,
-      context,
-    } = input;
-    return {
-      callId: call.id,
-      organizationId: orgAgent.organizationId,
-      organizationAgentId: orgAgent.id,
-      agentKey: template.key,
-      direction: AgentDirection.OUTBOUND,
-      medium: CallMedium.SIP,
-      task: taskKey,
-      prompt: {
-        systemPrompt: orgAgent.systemPrompt,
-        onEnterInstructions: orgAgent.onEnterInstructions ?? null,
-        onExitInstructions: orgAgent.onExitInstructions ?? null,
-      },
-      enabledTools,
-      context,
-      participantIdentity,
-      ...resolveVoiceRuntime(orgAgent, template),
-    };
-  }
-
   private formatSipError(err: unknown): string {
     if (!err || typeof err !== 'object') {
       return String(err);
@@ -586,6 +492,26 @@ export class CallDialService {
     if (!err || typeof err !== 'object') return undefined;
     const e = err as { sipStatusCode?: number | string };
     return e.sipStatusCode;
+  }
+
+  private async resolveOutboundFrom(
+    organizationId: string,
+    sipTrunkId?: string,
+  ): Promise<{ trunk: SipTrunk; fromNumber: string }> {
+    const trunk = await this.sipTrunksService.resolveOutboundForCall(
+      organizationId,
+      sipTrunkId,
+    );
+    const fromNumber = pickFromNumber(
+      trunk.numbers,
+      this.defaultCountryCode(),
+    );
+    if (!fromNumber) {
+      throw new BadRequestException(
+        `SIP trunk has no from numbers configured: ${trunk.id}`,
+      );
+    }
+    return { trunk, fromNumber };
   }
 
   private defaultCountryCode(): string {

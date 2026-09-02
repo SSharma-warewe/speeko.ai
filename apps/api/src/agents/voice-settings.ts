@@ -19,15 +19,6 @@ export type VoiceRuntime = {
   deliveryMode: DeliveryMode | null;
 };
 
-type VoiceRuntimeInput = Partial<{
-  voice: string | null;
-  model: string | null;
-  ttsModel: string | null;
-  temperature: number | null;
-  speakingRate: number | null;
-  deliveryMode: string | null;
-}>;
-
 export type VoicePatchInput = Partial<{
   voice: string | null;
   model: string | null;
@@ -81,7 +72,7 @@ export function assertVoiceMatchesTtsModel(
 }
 
 export function applyVoicePatch(
-  row: VoiceRuntimeInput & VoicePatchInput,
+  row: VoicePatchInput,
   dto: VoicePatchInput,
   fallbackTtsModel?: string | null,
 ): void {
@@ -112,8 +103,8 @@ export function applyVoicePatch(
 }
 
 export function resolveVoiceRuntime(
-  org?: VoiceRuntimeInput | null,
-  template?: VoiceRuntimeInput | null,
+  org?: VoicePatchInput | null,
+  template?: VoicePatchInput | null,
 ): VoiceRuntime {
   return {
     voice: org?.voice ?? template?.voice ?? null,

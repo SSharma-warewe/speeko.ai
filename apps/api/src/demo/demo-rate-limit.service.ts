@@ -1,15 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import {
+  FixedWindowRateLimit,
+  type RateLimitResult,
+} from '../common/fixed-window-rate-limit';
 
-interface WindowEntry {
-  count: number;
-  resetAt: number;
-}
-
-export interface DemoRateLimitResult {
-  allowed: boolean;
-  retryAfterSec: number;
-}
+export type DemoRateLimitResult = RateLimitResult;
 
 /**
  * In-process fixed-window counters for the public get-demo route.
@@ -17,7 +13,7 @@ export interface DemoRateLimitResult {
  */
 @Injectable()
 export class DemoRateLimitService {
-  private readonly windows = new Map<string, WindowEntry>();
+  private readonly limiter = new FixedWindowRateLimit();
 
   readonly ipMax: number;
   readonly ipWindowMs: number;
@@ -82,40 +78,11 @@ export class DemoRateLimitService {
     maxAttempts: number,
     windowMs: number,
   ): DemoRateLimitResult {
-    const now = Date.now();
-    this.evictExpired(now);
-
-    const existing = this.windows.get(key);
-    if (!existing || existing.resetAt <= now) {
-      this.windows.set(key, { count: 1, resetAt: now + windowMs });
-      return { allowed: true, retryAfterSec: 0 };
-    }
-
-    if (existing.count >= maxAttempts) {
-      const retryAfterSec = Math.max(
-        1,
-        Math.ceil((existing.resetAt - now) / 1000),
-      );
-      return { allowed: false, retryAfterSec };
-    }
-
-    existing.count += 1;
-    return { allowed: true, retryAfterSec: 0 };
+    return this.limiter.consume(key, maxAttempts, windowMs);
   }
 
   /** Test helper: clear all counters. */
   reset(): void {
-    this.windows.clear();
-  }
-
-  private evictExpired(now: number): void {
-    if (this.windows.size < 500) {
-      return;
-    }
-    for (const [key, entry] of this.windows) {
-      if (entry.resetAt <= now) {
-        this.windows.delete(key);
-      }
-    }
+    this.limiter.reset();
   }
 }

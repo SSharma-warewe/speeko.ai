@@ -10,12 +10,13 @@ import {
 import type { AgentJobMetadata } from '@call-agent/contracts';
 import { AgentDirection } from '../agents/agent.entity';
 import { CallMedium } from '../calls/call.entity';
+import { packOrgAgentJobMetadata } from '../agents/job-metadata';
 import { orgAgentDefaultTaskKey } from '../agents/org-agent-task';
 import { OrganizationAgentsService } from '../agents/organization-agents.service';
-import { resolveVoiceRuntime } from '../agents/voice-settings';
 import { LivekitService } from '../livekit/livekit.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PublishResourceResultDto } from '../sip-trunks/dto/inbound-publish-result.dto';
+import { runPublishBatch } from '../sip-trunks/lib/publish-batch';
 import { SipTrunk, SipTrunkDirection } from '../sip-trunks/sip-trunk.entity';
 import { SipTrunksService } from '../sip-trunks/sip-trunks.service';
 import {
@@ -265,58 +266,17 @@ export class SipDispatchRulesService {
     published: SipDispatchRuleResponseDto[];
   }> {
     await this.organizationsService.findById(organizationId);
-
-    let candidates: SipDispatchRule[];
-    if (dispatchRuleIds && dispatchRuleIds.length > 0) {
-      candidates = await this.repo.findByIdsAndOrg(
-        organizationId,
-        dispatchRuleIds,
-      );
-    } else {
-      candidates = await this.repo.findDraftsByOrganization(organizationId);
-    }
-
-    const results: PublishResourceResultDto[] = [];
-    const published: SipDispatchRuleResponseDto[] = [];
-
-    if (dispatchRuleIds && dispatchRuleIds.length > 0) {
-      const found = new Set(candidates.map((c) => c.id));
-      for (const id of dispatchRuleIds) {
-        if (!found.has(id)) {
-          results.push({
-            id,
-            outcome: 'failed',
-            message: `Dispatch rule not found for org: ${id}`,
-          });
-        }
-      }
-    }
-
-    for (const row of candidates) {
-      if (row.livekitDispatchRuleId?.trim()) {
-        results.push({
-          id: row.id,
-          outcome: 'skipped',
-          message: 'Already published',
-          livekitId: row.livekitDispatchRuleId,
-        });
-        continue;
-      }
-      try {
-        const dto = await this.publish(organizationId, row.id);
-        results.push({
-          id: row.id,
-          outcome: 'published',
-          livekitId: dto.livekitDispatchRuleId,
-        });
-        published.push(dto);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        results.push({ id: row.id, outcome: 'failed', message });
-      }
-    }
-
-    return { results, published };
+    return runPublishBatch({
+      requestedIds: dispatchRuleIds,
+      loadByIds: (ids) => this.repo.findByIdsAndOrg(organizationId, ids),
+      loadDrafts: () => this.repo.findDraftsByOrganization(organizationId),
+      livekitId: (row) => row.livekitDispatchRuleId,
+      publishOne: async (id) => {
+        const dto = await this.publish(organizationId, id);
+        return { livekitId: dto.livekitDispatchRuleId, dto };
+      },
+      notFoundMessage: (id) => `Dispatch rule not found for org: ${id}`,
+    });
   }
 
   private toLivekitRuleSpec(row: SipDispatchRule) {
@@ -410,22 +370,14 @@ export class SipDispatchRulesService {
         organizationId,
       );
 
-    const metadata: AgentJobMetadata = {
-      organizationId,
-      organizationAgentId: orgAgent.id,
-      agentKey: template.key,
-      direction: AgentDirection.INBOUND,
-      medium: CallMedium.SIP,
-      task: taskKey,
-      prompt: {
-        systemPrompt: orgAgent.systemPrompt,
-        onEnterInstructions: orgAgent.onEnterInstructions ?? null,
-        onExitInstructions: orgAgent.onExitInstructions ?? null,
-      },
-      enabledTools,
-      ...resolveVoiceRuntime(orgAgent, template),
-    };
-    return JSON.stringify(metadata);
+    return JSON.stringify(
+      packOrgAgentJobMetadata(orgAgent, {
+        task: taskKey,
+        enabledTools,
+        direction: AgentDirection.INBOUND,
+        medium: CallMedium.SIP,
+      }),
+    );
   }
 
   private async assertInboundTrunks(

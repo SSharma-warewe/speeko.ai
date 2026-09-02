@@ -46,14 +46,6 @@ export class OrganizationsService {
     return this.organizationsRepository.findBySlug(slug.toLowerCase());
   }
 
-  async findByIdOrSlug(idOrSlug: string): Promise<Organization | null> {
-    const byId = await this.organizationsRepository.findById(idOrSlug);
-    if (byId) {
-      return byId;
-    }
-    return this.findBySlug(idOrSlug);
-  }
-
   async save(org: Organization): Promise<Organization> {
     return this.organizationsRepository.save(org);
   }

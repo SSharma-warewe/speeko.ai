@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -21,6 +20,7 @@ import {
 } from '@nestjs/swagger';
 import type { AuthPrincipal } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { orgIdFrom } from '../auth/org-id';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserGuard } from '../auth/guards/user.guard';
 import { ParseResourceIdPipe } from '../common/parse-resource-id.pipe';
@@ -56,7 +56,7 @@ export class UserOrganizationIntegrationsController {
     @CurrentUser() principal: AuthPrincipal,
   ): Promise<OrganizationIntegrationResponseDto[]> {
     return this.organizationIntegrationsService.listForOrg(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
     );
   }
 
@@ -73,7 +73,7 @@ export class UserOrganizationIntegrationsController {
   ): Promise<OrganizationIntegrationResponseDto> {
     const userId = principal.typ === 'user' ? principal.id : null;
     return this.organizationIntegrationsService.createForOrg(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       dto,
       userId,
     );
@@ -93,7 +93,7 @@ export class UserOrganizationIntegrationsController {
     @Body() dto: PreviewGhlCalendarsDto,
   ): Promise<PreviewGhlCalendarsResponseDto> {
     return this.organizationIntegrationsService.previewGhlCalendars(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       dto,
     );
   }
@@ -107,7 +107,7 @@ export class UserOrganizationIntegrationsController {
     @Param('id', ParseResourceIdPipe('Integration')) id: string,
   ): Promise<OrganizationIntegrationResponseDto> {
     return this.organizationIntegrationsService.getOneForOrg(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       id,
     );
   }
@@ -122,7 +122,7 @@ export class UserOrganizationIntegrationsController {
     @Body() dto: UpdateOrganizationIntegrationDto,
   ): Promise<OrganizationIntegrationResponseDto> {
     return this.organizationIntegrationsService.updateForOrg(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       id,
       dto,
     );
@@ -142,7 +142,7 @@ export class UserOrganizationIntegrationsController {
     @Param('id', ParseResourceIdPipe('Integration')) id: string,
   ): Promise<void> {
     await this.organizationIntegrationsService.removeForOrg(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       id,
     );
   }
@@ -159,15 +159,9 @@ export class UserOrganizationIntegrationsController {
     @Param('id', ParseResourceIdPipe('Integration')) id: string,
   ): Promise<OrganizationIntegrationTestResponseDto> {
     return this.organizationIntegrationsService.testConnection(
-      this.orgIdFrom(principal),
+      orgIdFrom(principal),
       id,
     );
   }
 
-  private orgIdFrom(principal: AuthPrincipal): string {
-    if (principal.typ !== 'user' || !principal.orgId) {
-      throw new ForbiddenException('Organization context required');
-    }
-    return principal.orgId;
-  }
 }

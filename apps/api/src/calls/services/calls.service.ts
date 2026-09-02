@@ -13,16 +13,14 @@ import {
 } from '../lib/call-state-machine';
 import {
   CALL_BUCKET_STATUSES,
+  Call,
   CallBucket,
   CallFailureCode,
   CallStatus,
 } from '../call.entity';
 import { CallsRepository } from '../calls.repository';
 import { CallResponseDto } from '../dto/call-response.dto';
-import {
-  toAdminCallResponse,
-  toCallResponse,
-} from '../mappers/call-response.mapper';
+import { toCallResponse } from '../mappers/call-response.mapper';
 
 @Injectable()
 export class CallsService {
@@ -36,13 +34,7 @@ export class CallsService {
     organizationId: string,
     callId: string,
   ): Promise<CallResponseDto> {
-    const call = await this.callsRepository.findByIdAndOrganization(
-      callId,
-      organizationId,
-    );
-    if (!call) {
-      throw new NotFoundException(`Call not found: ${callId}`);
-    }
+    const call = await this.requireOrgCall(organizationId, callId);
     if (call.status !== CallStatus.PENDING) {
       throw new BadRequestException(
         `Only pending calls can be cancelled (status=${call.status})`,
@@ -66,13 +58,7 @@ export class CallsService {
     organizationId: string,
     callId: string,
   ): Promise<CallResponseDto> {
-    const call = await this.callsRepository.findByIdAndOrganization(
-      callId,
-      organizationId,
-    );
-    if (!call) {
-      throw new NotFoundException(`Call not found: ${callId}`);
-    }
+    const call = await this.requireOrgCall(organizationId, callId);
 
     if (call.status === CallStatus.PENDING) {
       call.nextAttemptAt = new Date();
@@ -108,13 +94,7 @@ export class CallsService {
     callId: string,
     priority = 100,
   ): Promise<CallResponseDto> {
-    const call = await this.callsRepository.findByIdAndOrganization(
-      callId,
-      organizationId,
-    );
-    if (!call) {
-      throw new NotFoundException(`Call not found: ${callId}`);
-    }
+    const call = await this.requireOrgCall(organizationId, callId);
     if (call.status !== CallStatus.PENDING) {
       throw new BadRequestException(
         `Only pending calls can be prioritized (status=${call.status})`,
@@ -130,26 +110,34 @@ export class CallsService {
     if (!call) {
       throw new NotFoundException(`Call not found: ${id}`);
     }
-    return toAdminCallResponse(call);
+    return toCallResponse(call);
   }
 
   async findByIdForOrganization(
     id: string,
     organizationId: string,
   ): Promise<CallResponseDto> {
+    const call = await this.requireOrgCall(organizationId, id);
+    return toCallResponse(call);
+  }
+
+  private async requireOrgCall(
+    organizationId: string,
+    callId: string,
+  ): Promise<Call> {
     const call = await this.callsRepository.findByIdAndOrganization(
-      id,
+      callId,
       organizationId,
     );
     if (!call) {
-      throw new NotFoundException(`Call not found: ${id}`);
+      throw new NotFoundException(`Call not found: ${callId}`);
     }
-    return toCallResponse(call);
+    return call;
   }
 
   async list(limit = 50): Promise<CallResponseDto[]> {
     const rows = await this.callsRepository.findRecent(limit);
-    return rows.map((call) => toAdminCallResponse(call));
+    return rows.map((call) => toCallResponse(call));
   }
 
   async listByOrganization(

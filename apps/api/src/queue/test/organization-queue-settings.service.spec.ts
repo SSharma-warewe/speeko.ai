@@ -98,11 +98,12 @@ describe('OrganizationQueueSettingsService', () => {
     expect(result.organizationId).toBe(ORG_ID);
   });
 
-  it('3. createDefaults race: existing found after re-check returns it', async () => {
+  it('3. getOrCreate race: existing found after re-check returns it', async () => {
     const existing = makeSettings();
-    // createDefaults checks find again
-    repo.findByOrganizationId.mockResolvedValue(existing);
-    const result = await service.createDefaults(ORG_ID);
+    repo.findByOrganizationId
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(existing);
+    const result = await service.getOrCreate(ORG_ID);
     expect(result).toBe(existing);
     expect(repo.create).not.toHaveBeenCalled();
   });
@@ -112,7 +113,7 @@ describe('OrganizationQueueSettingsService', () => {
       key === 'QUEUE_DEFAULT_MAX_CONCURRENT' ? '3' : undefined,
     );
     repo.findByOrganizationId.mockResolvedValue(null);
-    await service.createDefaults(ORG_ID);
+    await service.getOrCreate(ORG_ID);
     expect(repo.create).toHaveBeenCalledWith(
       expect.objectContaining({ maxConcurrent: 3 }),
     );
@@ -126,7 +127,7 @@ describe('OrganizationQueueSettingsService', () => {
       return undefined;
     });
     repo.findByOrganizationId.mockResolvedValue(null);
-    await service.createDefaults(ORG_ID);
+    await service.getOrCreate(ORG_ID);
     expect(repo.create).toHaveBeenCalledWith(
       expect.objectContaining({
         maxConcurrent: QUEUE_DEFAULTS.maxConcurrent,
@@ -180,15 +181,7 @@ describe('OrganizationQueueSettingsService', () => {
     expect(result.paused).toBe(false);
   });
 
-  it('8. require missing throws NotFoundException', async () => {
-    repo.findByOrganizationId.mockResolvedValue(null);
-    await expect(service.require(ORG_ID)).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
-    await expect(service.require(ORG_ID)).rejects.toThrow(/Queue settings/);
-  });
-
-  it('9. getOrCreate propagates org not found', async () => {
+  it('8. getOrCreate propagates org not found', async () => {
     organizationsService.findById.mockRejectedValue(
       new NotFoundException('Organization not found'),
     );

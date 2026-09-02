@@ -51,10 +51,6 @@ export function toCallResponse(
   return dto;
 }
 
-export function toAdminCallResponse(call: Call): CallResponseDto {
-  return toCallResponse(call, { includeCost: true });
-}
-
 /**
  * Legacy rows created before task_status existed default to pending.
  * A call already stored as completed is a finished workflow for display.

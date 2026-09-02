@@ -113,19 +113,6 @@ export class QueueRetryService {
       // Push to quiet end on the same local calendar day (or next if overnight).
       const endHour = Math.floor(end / 60);
       const endMin = end % 60;
-      const targetLocal = new Date(
-        Date.UTC(
-          localParts.year,
-          localParts.month - 1,
-          localParts.day,
-          endHour,
-          endMin,
-          0,
-          0,
-        ),
-      );
-
-      // Convert "wall time in tz" approximate: use formatter inverse via offset.
       const pushed = this.wallTimeInZoneToUtc(
         {
           year: localParts.year,

@@ -12,6 +12,7 @@ import { OrganizationAgent } from './organization-agent.entity';
 import { OrganizationAgentsController } from './organization-agents.controller';
 import { OrganizationAgentsRepository } from './organization-agents.repository';
 import { OrganizationAgentsService } from './organization-agents.service';
+import { UserOrganizationAgentsController } from './user-organization-agents.controller';
 
 @Module({
   imports: [
@@ -21,7 +22,11 @@ import { OrganizationAgentsService } from './organization-agents.service';
     OrganizationsModule,
     ToolsModule,
   ],
-  controllers: [AgentsController, OrganizationAgentsController],
+  controllers: [
+    AgentsController,
+    OrganizationAgentsController,
+    UserOrganizationAgentsController,
+  ],
   providers: [
     AgentsRepository,
     OrganizationAgentsRepository,

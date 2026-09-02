@@ -8,6 +8,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { SLUG_PATTERN } from '../../common/slug';
 
 export class CreateToolProfileDto {
   @ApiProperty({ example: 'Sales lite' })
@@ -25,7 +26,7 @@ export class CreateToolProfileDto {
   @IsString()
   @MinLength(1)
   @MaxLength(80)
-  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+  @Matches(SLUG_PATTERN, {
     message: 'key must be a lowercase slug (a-z, 0-9, hyphens)',
   })
   key?: string;

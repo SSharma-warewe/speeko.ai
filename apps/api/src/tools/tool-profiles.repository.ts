@@ -37,13 +37,6 @@ export class ToolProfilesRepository {
     });
   }
 
-  findAll(): Promise<ToolProfile[]> {
-    return this.profiles.find({
-      relations: { tools: true },
-      order: { key: 'ASC' },
-    });
-  }
-
   /** Platform seeds (organization_id IS NULL) only. */
   findPlatform(): Promise<ToolProfile[]> {
     return this.profiles.find({

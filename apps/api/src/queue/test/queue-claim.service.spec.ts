@@ -1,7 +1,6 @@
 import { AgentDirection } from '../../agents/agent.entity';
 import { Call, CallStatus } from '../../calls/call.entity';
 import { CallBatchStatus } from '../call-batch.entity';
-import { OrganizationQueueSettings } from '../organization-queue-settings.entity';
 import { QUEUE_DEFAULTS } from '../queue.defaults';
 import { QueueClaimService } from '../queue-claim.service';
 
@@ -253,27 +252,5 @@ describe('QueueClaimService', () => {
       dialingSeconds: QUEUE_DEFAULTS.staleDialingSeconds,
       readySeconds: QUEUE_DEFAULTS.staleReadySeconds,
     });
-  });
-
-  it('14. forceRequeueCreating updates creating → pending', async () => {
-    dataSource.query.mockResolvedValue([[], 2]);
-    await expect(service.forceRequeueCreating(ORG_ID)).resolves.toBe(2);
-    expect(dataSource.query).toHaveBeenCalledWith(
-      expect.stringContaining('Forced requeue of stuck creating'),
-      [CallStatus.PENDING, ORG_ID, CallStatus.CREATING],
-    );
-  });
-
-  it('15. effectiveMaxConcurrent uses min(settings, batch override)', () => {
-    const settings = { maxConcurrent: 5 } as OrganizationQueueSettings;
-    expect(service.effectiveMaxConcurrent(settings, 2)).toBe(2);
-    expect(service.effectiveMaxConcurrent(settings, 10)).toBe(5);
-  });
-
-  it('16. effectiveMaxConcurrent null/0 override uses settings', () => {
-    const settings = { maxConcurrent: 5 } as OrganizationQueueSettings;
-    expect(service.effectiveMaxConcurrent(settings, null)).toBe(5);
-    expect(service.effectiveMaxConcurrent(settings, 0)).toBe(5);
-    expect(service.effectiveMaxConcurrent(settings, undefined)).toBe(5);
   });
 });

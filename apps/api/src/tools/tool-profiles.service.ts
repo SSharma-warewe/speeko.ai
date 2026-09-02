@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { slugify } from '../common/slug';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { isKnownToolId, KNOWN_TOOL_IDS } from './known-tools';
 import { CreateToolProfileDto } from './dto/create-tool-profile.dto';
@@ -39,30 +40,10 @@ export class ToolProfilesService {
     return row;
   }
 
-  async findByKey(key: string): Promise<ToolProfile | null> {
-    return this.repo.findByKey(key);
-  }
-
-  async requireByKey(key: string): Promise<ToolProfile> {
-    const row = await this.repo.findByKey(key);
-    if (!row) {
-      throw new NotFoundException(`Tool profile not found for key: ${key}`);
-    }
-    return row;
-  }
-
-  list(): Promise<ToolProfile[]> {
-    return this.repo.findAll();
-  }
-
   listPlatformResponses(): Promise<ToolProfileResponse[]> {
     return this.repo
       .findPlatform()
       .then((rows) => rows.map(toToolProfileResponse));
-  }
-
-  listResponses(): Promise<ToolProfileResponse[]> {
-    return this.list().then((rows) => rows.map(toToolProfileResponse));
   }
 
   listForOrganization(organizationId: string): Promise<ToolProfileResponse[]> {
@@ -123,15 +104,15 @@ export class ToolProfilesService {
    */
   async listAssignedToolIds(organizationId: string): Promise<string[]> {
     const org = await this.organizationsService.findById(organizationId);
-    if (org.allowedToolIds == null) {
-      return this.knownToolIds();
-    }
-    const repaired = repairAssignedToolIds(org.allowedToolIds);
-    if (!sameToolIds(org.allowedToolIds, repaired)) {
-      org.allowedToolIds = repaired;
+    const effective = effectiveAssignedToolIds(org.allowedToolIds);
+    if (
+      org.allowedToolIds != null &&
+      !sameToolIds(org.allowedToolIds, effective)
+    ) {
+      org.allowedToolIds = effective;
       await this.organizationsService.save(org);
     }
-    return repaired;
+    return effective;
   }
 
   async replaceAssignedToolIds(
@@ -217,7 +198,7 @@ export class ToolProfilesService {
     organizationId: string | null,
   ): Promise<ToolProfileResponse> {
     const toolIds = normalizeToolIds(dto.toolIds);
-    const key = dto.key?.trim() || slugifyKey(dto.name);
+    const key = dto.key?.trim() || slugify(dto.name);
     if (!key) {
       throw new BadRequestException('Could not derive a valid key from name');
     }
@@ -406,13 +387,4 @@ function sameToolIds(
   }
   const a = [...raw].sort();
   return a.every((id, i) => id === next[i]);
-}
-
-export function slugifyKey(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
 }

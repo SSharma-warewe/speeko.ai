@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  ForbiddenException,
   HttpCode,
   HttpStatus,
   Inject,
@@ -17,6 +16,7 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthPrincipal } from '../auth/auth.types';
+import { orgIdFrom } from '../auth/org-id';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserGuard } from '../auth/guards/user.guard';
 import { ApiJwtErrors } from '../common/swagger/api-errors';
@@ -49,7 +49,7 @@ export class UserInboundPublishController {
     @CurrentUser() principal: AuthPrincipal,
     @Body() dto: PublishInboundDto,
   ): Promise<InboundPublishResultDto> {
-    const organizationId = this.orgIdFrom(principal);
+    const organizationId = orgIdFrom(principal);
 
     const trunkResult = await this.sipTrunksService.publishInboundMany(
       organizationId,
@@ -66,12 +66,5 @@ export class UserInboundPublishController {
       publishedTrunks: trunkResult.published,
       publishedDispatchRules: ruleResult.published,
     };
-  }
-
-  private orgIdFrom(principal: AuthPrincipal): string {
-    if (principal.typ !== 'user' || !principal.orgId) {
-      throw new ForbiddenException('Organization user access required');
-    }
-    return principal.orgId;
   }
 }

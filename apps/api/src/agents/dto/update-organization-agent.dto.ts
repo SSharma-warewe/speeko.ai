@@ -1,21 +1,17 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
-  IsIn,
-  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
   Matches,
-  Max,
   MaxLength,
-  Min,
   MinLength,
-  ValidateIf,
 } from 'class-validator';
-import { DELIVERY_MODES } from '../voice-settings';
+import { SLUG_PATTERN } from '../../common/slug';
+import { VoiceSettingsDto } from './voice-settings.dto';
 
-export class UpdateOrganizationAgentDto {
+export class UpdateOrganizationAgentDto extends VoiceSettingsDto {
   @ApiPropertyOptional({
     example: 'Booking confirmations',
     description: 'Display name for this org agent config',
@@ -35,7 +31,7 @@ export class UpdateOrganizationAgentDto {
   @IsString()
   @MinLength(1)
   @MaxLength(80)
-  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+  @Matches(SLUG_PATTERN, {
     message:
       'slug must be lowercase alphanumeric with optional single hyphens (e.g. booking-confirmations)',
   })
@@ -98,55 +94,6 @@ export class UpdateOrganizationAgentDto {
   @IsString()
   @MaxLength(80)
   defaultTaskKey?: string | null;
-
-  @ApiPropertyOptional({ nullable: true })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  voice?: string | null;
-
-  @ApiPropertyOptional({ nullable: true })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  model?: string | null;
-
-  @ApiPropertyOptional({
-    nullable: true,
-    description:
-      'TTS catalog id. null = template / worker default (Inworld). Switching models requires a voice from that catalog.',
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(120)
-  ttsModel?: string | null;
-
-  @ApiPropertyOptional({ nullable: true })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(2)
-  temperature?: number | null;
-
-  @ApiPropertyOptional({
-    nullable: true,
-    description: 'Inworld TTS speaking_rate. 0.5–1.5. null = template / default.',
-  })
-  @IsOptional()
-  @IsNumber()
-  @Min(0.5)
-  @Max(1.5)
-  speakingRate?: number | null;
-
-  @ApiPropertyOptional({
-    nullable: true,
-    enum: DELIVERY_MODES,
-    description: 'Inworld TTS-2 delivery_mode. null = template / BALANCED.',
-  })
-  @IsOptional()
-  @ValidateIf((_, v) => v !== null && v !== undefined)
-  @IsIn(DELIVERY_MODES)
-  deliveryMode?: (typeof DELIVERY_MODES)[number] | null;
 
   @ApiPropertyOptional()
   @IsOptional()

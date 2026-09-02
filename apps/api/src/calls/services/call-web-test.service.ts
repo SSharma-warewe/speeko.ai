@@ -9,7 +9,8 @@ import { Agent } from '../../agents/agent.entity';
 import { OrganizationAgent } from '../../agents/organization-agent.entity';
 import { AgentsService } from '../../agents/agents.service';
 import { OrganizationAgentsService } from '../../agents/organization-agents.service';
-import { orgAgentDefaultTaskKey } from '../../agents/org-agent-task';
+import { packOrgAgentJobMetadata } from '../../agents/job-metadata';
+import { requireActiveOrgAgent } from '../lib/require-org-agent';
 import { resolveVoiceRuntime } from '../../agents/voice-settings';
 import { LivekitService } from '../../livekit/livekit.service';
 import { ToolProfilesService } from '../../tools/tool-profiles.service';
@@ -20,7 +21,10 @@ import {
   CallLifecycleEvent,
   initializeCallStatus,
 } from '../lib/call-state-machine';
-import { resolveTaskKey } from '../lib/call-task-key';
+import {
+  resolveOrgAgentTaskKey,
+  resolveTaskKey,
+} from '../lib/call-task-key';
 import { CallMedium, CallStatus } from '../call.entity';
 import { CallsRepository } from '../calls.repository';
 import { CreateTestCallDto } from '../dto/create-test-call.dto';
@@ -73,30 +77,16 @@ export class CallWebTestService {
     organizationId: string,
     dto: CreateUserTestCallDto,
   ): Promise<TestCallResponseDto> {
-    const orgAgent =
-      await this.organizationAgentsService.getEntityWithTemplate(
-        organizationId,
-        dto.organizationAgentId,
-      );
-
-    if (!orgAgent.isActive) {
-      throw new BadRequestException(
-        `Organization agent is inactive: ${dto.organizationAgentId}`,
-      );
-    }
-
-    const template = orgAgent.agent;
-    if (!template) {
-      throw new BadRequestException(
-        `Organization agent missing template relation: ${orgAgent.id}`,
-      );
-    }
-
-    const taskKey = resolveTaskKey(
+    const { orgAgent, template } = await requireActiveOrgAgent(
+      this.organizationAgentsService,
+      organizationId,
+      dto.organizationAgentId,
+    );
+    const taskKey = resolveOrgAgentTaskKey(
       this.logger,
       dto.task,
-      orgAgentDefaultTaskKey(orgAgent, template),
-      template.defaultTaskKey,
+      orgAgent,
+      template,
     );
     const enabledTools = await this.toolProfilesService.resolveEnabledToolIds(
       orgAgent.toolProfileId ?? template.defaultToolProfileId,
@@ -162,24 +152,33 @@ export class CallWebTestService {
     call = await this.callsRepository.save(call);
 
     try {
-      const metadata: AgentJobMetadata = {
-        callId: call.id,
-        ...(organizationId ? { organizationId } : {}),
-        ...(organizationAgentId ? { organizationAgentId } : {}),
-        agentKey,
-        direction,
-        medium: CallMedium.WEB,
-        task: taskKey,
-        prompt: {
-          systemPrompt: agent.systemPrompt,
-          onEnterInstructions: agent.onEnterInstructions ?? null,
-          onExitInstructions: agent.onExitInstructions ?? null,
-        },
-        enabledTools,
-        context,
-        participantIdentity,
-        ...resolveVoiceRuntime(agent, template),
-      };
+      const metadata: AgentJobMetadata = template
+        ? packOrgAgentJobMetadata(agent as OrganizationAgent, {
+            task: taskKey,
+            enabledTools,
+            direction,
+            medium: CallMedium.WEB,
+            callId: call.id,
+            context,
+            participantIdentity,
+          })
+        : {
+            callId: call.id,
+            ...(organizationId ? { organizationId } : {}),
+            agentKey,
+            direction,
+            medium: CallMedium.WEB,
+            task: taskKey,
+            prompt: {
+              systemPrompt: agent.systemPrompt,
+              onEnterInstructions: agent.onEnterInstructions ?? null,
+              onExitInstructions: agent.onExitInstructions ?? null,
+            },
+            enabledTools,
+            context,
+            participantIdentity,
+            ...resolveVoiceRuntime(agent, template),
+          };
 
       await this.livekit.createRoom({
         name: roomName,
