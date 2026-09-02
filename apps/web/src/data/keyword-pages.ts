@@ -5,11 +5,6 @@ export type KeywordFaq = {
   a: string;
 };
 
-export type KeywordSection = {
-  h2: string;
-  body: string[];
-};
-
 export type KeywordRelated = {
   to: string;
   kicker: string;
@@ -17,16 +12,44 @@ export type KeywordRelated = {
   body: string;
 };
 
+export type KeywordTape = {
+  name: string;
+  meta: string;
+  line: string;
+  stamp: string;
+};
+
+export type KeywordOutcome = {
+  verb: string;
+  body: string;
+};
+
+export type KeywordBeat = {
+  mark: string;
+  title: string;
+  body: string;
+};
+
+export type KeywordContrast = {
+  leftTitle: string;
+  left: string;
+  rightTitle: string;
+  right: string;
+};
+
 export type KeywordPageCopy = {
   path: KeywordPath;
   kicker: string;
   h1: string;
-  lead: string;
+  dek: string;
   chips: string[];
-  sections: KeywordSection[];
+  tape: KeywordTape;
+  outcomes: KeywordOutcome[];
+  job: KeywordBeat[];
+  contrast: KeywordContrast;
+  goLive: string;
   faqs: KeywordFaq[];
   related: KeywordRelated[];
-  cross: KeywordRelated;
   closeTitle: string;
   closeBody: string;
 };
@@ -64,43 +87,58 @@ export const KEYWORD_PAGES: KeywordPageCopy[] = [
     path: "/ai-voice-agent",
     kicker: "Product",
     h1: "An AI voice agent that finishes the call.",
-    lead: "Speeko is a voice agent for real phone calls — inbound rings and outbound dials. It does not stop at a transcript. You switch on tools, pick a task, and the call ends with a written outcome.",
+    dek: "Inbound rings and outbound dials. Tools write the outcome. Not a transcript sitting in a dashboard.",
     chips: ["Inbound", "Outbound", "Tools", "SIP"],
-    sections: [
+    tape: {
+      name: "Elena Vasquez",
+      meta: "Outbound · Dr. Patel 9:30",
+      line: "I’ll mark you confirmed. See you tomorrow.",
+      stamp: "CONFIRMED",
+    },
+    outcomes: [
       {
-        h2: "What an AI voice agent actually is",
-        body: [
-          "An AI voice agent answers or places a phone call, talks in a voice you choose, and runs actions you enabled — look someone up, confirm a visit, book a slot, transfer, hang up. Speech is the interface. The work is the tool that wrote something back.",
-          "Chatbots and IVR trees are the wrong comparison. People hang up on menus. They stay when the first second sounds like a person and the agent can do the job they called about.",
-        ],
+        verb: "Writes back",
+        body: "Confirm, book, cancel, transfer, hang up — only the tools you enabled. The row is not “AI handled it.”",
       },
       {
-        h2: "Inbound and outbound on the same agent platform",
-        body: [
-          "Inbound: point a virtual number at Speeko. A dispatch rule packs the persona, tools, and default task. The agent greets, identifies the caller when you have a record, and either finishes or transfers.",
-          "Outbound: you enqueue numbers (or your CRM posts one). The API owns the dial queue — concurrency, retries on no-answer and busy, quiet hours. The worker is voice-only. Task is chosen on the call or integration, not baked into the inbound persona.",
-        ],
+        verb: "Both directions",
+        body: "Inbound on a number you already have. Outbound from a queue with retries. Same persona, different task.",
       },
       {
-        h2: "Tools, not a longer prompt",
-        body: [
-          "The system prompt is persona: who the agent is, tone, what it must not do. Workflow lives in a task (confirm an appointment, qualify a lead, book a demo). Capabilities are a tool profile — hang up is always on; lookup, calendar, GoHighLevel, transfer are opt-in.",
-          "If a verb is not on the profile, the agent cannot pretend it ran. That is how a confirmation actually lands in the book instead of a voicemail your staff replay.",
-        ],
-      },
-      {
-        h2: "Voice people do not immediately cut",
-        body: [
-          "Neural speech, a talent you pick, pace and delivery on the agent Voice tab. Barge-in: they can talk over it. The first second is the whole call. Flat hold-music agents lose here; Speeko is built not to.",
-        ],
-      },
-      {
-        h2: "Go live on a number you already have",
-        body: [
-          "Bring a Telnyx, Twilio, or SIP trunk. Name the agent, switch on tools, link a calendar if the job needs one, publish inbound or start the outbound queue. No code, no new carrier required.",
-        ],
+        verb: "Voice that holds",
+        body: "Talent, pace, barge-in. The first second does not sound like hold music, so they stay for the job.",
       },
     ],
+    job: [
+      {
+        mark: "01",
+        title: "Speech is the interface",
+        body: "It answers or places the call in a voice you pick. Chatbots and IVR trees are the wrong comparison — people hang up on menus.",
+      },
+      {
+        mark: "02",
+        title: "The task is the job",
+        body: "Persona is who they are. The task is what this call must finish: confirm, qualify, book a demo. Inbound stores a default; outbound picks it per dial.",
+      },
+      {
+        mark: "03",
+        title: "Tools, not a longer prompt",
+        body: "Hangup is always on. Lookup, calendar, GoHighLevel, transfer are opt-in. If a verb is not on the profile, the agent cannot pretend it ran.",
+      },
+      {
+        mark: "04",
+        title: "The line clears",
+        body: "When the job is done — or they ask to stop — hangup deletes the room. No orphan legs holding a dial slot.",
+      },
+    ],
+    contrast: {
+      leftTitle: "What they hang up on",
+      left: "A menu. A reminder that says call us back. A voice that cannot look them up or write a result.",
+      rightTitle: "What Speeko writes",
+      right: "A finished task on the call tape: confirmed, booked, transferred, or hung up — with the tools that actually ran.",
+    },
+    goLive:
+      "Bring a Telnyx, Twilio, or SIP number. Name the agent, switch on tools, publish inbound or enqueue outbound. No code. No new carrier.",
     faqs: [
       {
         q: "Is Speeko an AI voice agent or a chatbot?",
@@ -139,12 +177,6 @@ export const KEYWORD_PAGES: KeywordPageCopy[] = [
         body: "A dial queue with retries, not a one-shot blast.",
       },
     ],
-    cross: {
-      to: "/how-it-works",
-      kicker: "Setup",
-      title: "From a number to a live agent.",
-      body: "Trunk, persona, tools, then publish or enqueue. No code.",
-    },
     closeTitle: "Hear it on a live number.",
     closeBody: "Bring a Telnyx or Twilio number. Leave with an agent that can act.",
   },
@@ -152,40 +184,58 @@ export const KEYWORD_PAGES: KeywordPageCopy[] = [
     path: "/appointment-confirmation-calls",
     kicker: "Use case",
     h1: "Confirm the visit while they're still on the line.",
-    lead: "Appointment confirmation calls only count if the book changes. Speeko agents call or answer, cite the visit, and write confirmed, rescheduled, or cancelled — not a voicemail your front desk has to replay.",
+    dek: "The book has to change. Confirmed, moved, or cancelled — not a voicemail your desk replays.",
     chips: ["Confirm", "Reschedule", "Cancel", "Lookup"],
-    sections: [
+    tape: {
+      name: "Elena Vasquez",
+      meta: "Dr. Patel · tomorrow 9:30 AM",
+      line: "Yes, I’ll be there. · Marked confirmed.",
+      stamp: "CONFIRMED",
+    },
+    outcomes: [
       {
-        h2: "The call is the write-back",
-        body: [
-          "A reminder that ends in “please call us back” is still your staff’s job. Speeko’s confirm-appointment path persists CONFIRMED, RESCHEDULED, or CANCELLED against the booking id, with an optional new time. Tomorrow’s list is actually worked.",
-        ],
+        verb: "Confirmed",
+        body: "The visit stays. Tomorrow’s list is actually worked — not a reminder that still needs a human.",
       },
       {
-        h2: "They should not have to re-introduce themselves",
-        body: [
-          "CRM or integration context rides on the call: name, time, provider, booking id. Lookup prefers those fields so the agent can say “Elena, Dr. Patel at 9:30” instead of treating every ring as a stranger.",
-        ],
+        verb: "Moved",
+        body: "Reschedule writes a new time against the booking id. Calendar tools check a slot is really open.",
       },
       {
-        h2: "Inbound reminders and outbound lists",
-        body: [
-          "Outbound: enqueue tomorrow’s appointments. The queue dials under your concurrency cap, retries no-answer and busy, respects quiet hours. Inbound: they call you — same persona, same confirm / move / cancel tools.",
-        ],
-      },
-      {
-        h2: "After hours is when no-shows start",
-        body: [
-          "Evening and weekend rings still get a person-sounding voice and a finished outcome. Transfer stays on the profile if someone needs a human during desk hours.",
-        ],
-      },
-      {
-        h2: "Calendar when the slot has to be real",
-        body: [
-          "Nylas or GoHighLevel on the agent: check free slots, book, cancel. The agent does not invent a time that is already taken. Hangup is always included so the line clears when the job is done.",
-        ],
+        verb: "Cancelled",
+        body: "The slot is free the minute they say they cannot make it. After hours still counts.",
       },
     ],
+    job: [
+      {
+        mark: "01",
+        title: "Cite the visit",
+        body: "Name, time, provider, booking id ride on the call. Lookup prefers those fields so it is not “who am I speaking with.”",
+      },
+      {
+        mark: "02",
+        title: "Talk, then write",
+        body: "Confirm-appointment stores CONFIRMED, RESCHEDULED, or CANCELLED. A “please call us back” reminder is still your staff’s job.",
+      },
+      {
+        mark: "03",
+        title: "Outbound list or inbound ring",
+        body: "Enqueue tomorrow’s appointments; the queue retries no-answer and busy. Or they call you — same persona, same tools.",
+      },
+      {
+        mark: "04",
+        title: "Hangup when it’s done",
+        body: "The line clears. Incomplete hangups are not silently redialed as if nobody picked up.",
+      },
+    ],
+    contrast: {
+      leftTitle: "A reminder blast",
+      left: "One-way audio. “Reply 1 to confirm.” They don’t. Your desk spends the morning on the ones who never did.",
+      rightTitle: "A finished confirmation",
+      right: "They said yes, Thursday, or cancel. The book already shows it. Staff keep the exceptions.",
+    },
+    goLive:
+      "Push tomorrow’s list with name, time, and booking id — portal bulk or a CRM POST. Same number patients already know.",
     faqs: [
       {
         q: "Is this just an appointment reminder robocall?",
@@ -224,12 +274,6 @@ export const KEYWORD_PAGES: KeywordPageCopy[] = [
         body: "How the dial queue claims, dials, and retries.",
       },
     ],
-    cross: {
-      to: "/solutions/customer-service",
-      kicker: "Tools",
-      title: "Customer service stack",
-      body: "Hangup, lookup, confirm, calendar, transfer — the kit for this job.",
-    },
     closeTitle: "Put confirmations on a number.",
     closeBody: "Same tools in the portal. Pick the task, enqueue tomorrow’s list.",
   },
@@ -237,40 +281,58 @@ export const KEYWORD_PAGES: KeywordPageCopy[] = [
     path: "/ai-receptionist",
     kicker: "Use case",
     h1: "The inbound line that actually answers.",
-    lead: "An AI receptionist is only useful if it picks up, knows who is calling, and either finishes or hands off. Speeko inbound agents do that on the virtual number you already have — after hours and during overflow.",
+    dek: "Overflow and after hours. Look them up. Finish what the tools allow. Transfer the rest.",
     chips: ["Inbound", "Lookup", "Transfer", "After hours"],
-    sections: [
+    tape: {
+      name: "James Okonkwo",
+      meta: "Inbound · after hours",
+      line: "I can take that booking, or put you through at 8.",
+      stamp: "BOOKED",
+    },
+    outcomes: [
       {
-        h2: "Missed inbound is still a person on hold",
-        body: [
-          "Overflow and closed-hours rings go to voicemail, then a callback list. A Speeko inbound agent greets immediately, in a voice you set, and stays on the job you assigned: take a booking, confirm a visit, answer what the tools allow, or transfer.",
-        ],
+        verb: "Picks up",
+        body: "No voicemail pile. A voice you set greets immediately — closed hours and overflow included.",
       },
       {
-        h2: "Look them up, then decide",
-        body: [
-          "Lookup by phone, email, or name, preferring CRM fields already on the call. Known patients get the right visit. Unknown callers get a clean intake — not a 12-option IVR.",
-        ],
+        verb: "Knows who",
+        body: "Lookup by phone, email, or name. Known callers get the right visit. Unknown callers get intake, not a 12-option tree.",
       },
       {
-        h2: "Finish or transfer — do not fake either",
-        body: [
-          "Booking, confirm, cancel, calendar, hangup: only if those ids are on the profile. Transfer is how billing disputes, clinical questions, and angry callers leave the agent and land on your team with a reason. The agent does not role-play a nurse.",
-        ],
-      },
-      {
-        h2: "Dispatch is a persona, not a shared inbox",
-        body: [
-          "Inbound routing is a dispatch rule: which trunks, which organization agent, which default task. You can run a confirmation persona on one number and a general receptionist on another. Publish when the trunk is live.",
-        ],
-      },
-      {
-        h2: "Same dashboard as outbound",
-        body: [
-          "Transcript, tool events, task status (completed vs hung up incomplete). Staff see what was said and what was written — not a black-box “AI handled it.”",
-        ],
+        verb: "Hands off",
+        body: "Transfer is how billing, clinical questions, and angry callers leave the agent with a reason attached.",
       },
     ],
+    job: [
+      {
+        mark: "01",
+        title: "The number still rings you",
+        body: "Publish an inbound trunk and a dispatch rule. Point Telnyx, Twilio, or your carrier at Speeko. Patients keep the number on the card.",
+      },
+      {
+        mark: "02",
+        title: "Greet, then decide",
+        body: "Opening line in the talent on the Voice tab. Then lookup. Then book, confirm, cancel — or transfer. The agent does not role-play a nurse.",
+      },
+      {
+        mark: "03",
+        title: "A persona, not a shared inbox",
+        body: "One number can be a confirmation agent. Another a general receptionist. Dispatch packs the default task.",
+      },
+      {
+        mark: "04",
+        title: "Staff see the tape",
+        body: "Transcript, tool events, completed vs hung up incomplete. Not a black box that “handled it.”",
+      },
+    ],
+    contrast: {
+      leftTitle: "Hold, then voicemail",
+      left: "Overflow waits. After hours dumps to a box. Morning is a callback list that is already late.",
+      rightTitle: "Answered, then written",
+      right: "They got a person-sounding voice, a lookup, and either a finished job or a human with context.",
+    },
+    goLive:
+      "Draft the inbound trunk, attach a dispatch rule to a named agent, publish. Transfer stays on the profile for desk hours.",
     faqs: [
       {
         q: "Will it replace the front desk?",
@@ -309,12 +371,6 @@ export const KEYWORD_PAGES: KeywordPageCopy[] = [
         body: "How inbound and outbound share tools and persona.",
       },
     ],
-    cross: {
-      to: "/how-it-works",
-      kicker: "Setup",
-      title: "Publish inbound.",
-      body: "Draft the trunk, attach a dispatch rule, then go live.",
-    },
     closeTitle: "Put a receptionist on the overflow line.",
     closeBody: "Bring the number. Pick lookup, book, transfer. Publish.",
   },
@@ -322,40 +378,58 @@ export const KEYWORD_PAGES: KeywordPageCopy[] = [
     path: "/outbound-ai-calling",
     kicker: "Use case",
     h1: "Outbound calls that retry until they connect.",
-    lead: "Outbound AI calling fails as a blast: one dial, no-answer, done. Speeko queues the list, caps concurrency, retries busy and no-answer, and only marks the row completed when the task actually finished.",
-    chips: ["Queue", "Retries", "Outreach", "CRM dial-in"],
-    sections: [
+    dek: "A queue with a cap, not a blast. No-answer comes back. Completed means the task finished.",
+    chips: ["Queue", "Retries", "Outreach", "CRM"],
+    tape: {
+      name: "Sofia Chen",
+      meta: "Attempt 2 · demo-set",
+      line: "Thursday at 2 is open. I’ll put it on the calendar.",
+      stamp: "BOOKED",
+    },
+    outcomes: [
       {
-        h2: "The API owns the dialer",
-        body: [
-          "You enqueue pending calls (one or a batch). A dialer claims rows, opens the room, and places the SIP leg. The voice worker never dials and never talks to your database. That split is how you get continuous outbound without pinning agent processes on ring time.",
-        ],
+        verb: "Queued",
+        body: "One call or a batch. The dialer claims rows under your concurrency and rate. You can pause without deleting the list.",
       },
       {
-        h2: "Retries are a policy, not a hope",
-        body: [
-          "No-answer, busy, SIP error, timeout — if the code is in your retry list and attempts remain, the call goes back to pending with backoff (fixed or exponential) and optional quiet hours. Incomplete conversations are not silently redialed. You pause the org or a batch without deleting the list.",
-        ],
+        verb: "Retried",
+        body: "No-answer, busy, SIP error — if the code is in retry_on, it comes back with backoff and quiet hours.",
       },
       {
-        h2: "The task is the job, not the persona",
-        body: [
-          "Outbound agents do not store a default task. You pick it on the call, the batch, or the integration endpoint: lead qualification, demo booking, interview booking, confirm appointment, survey. Persona stays who they are; the task is what this dial must finish.",
-        ],
-      },
-      {
-        h2: "CRM sends a thin request",
-        body: [
-          "An integration endpoint bakes in agent, task, trunk, and queue overrides. Your CRM posts a phone number plus optional context. Speeko merges that with the endpoint defaults and enqueues. Agent choice does not leak into every webhook.",
-        ],
-      },
-      {
-        h2: "Demo-set and outreach need calendar tools",
-        body: [
-          "Qualification is conversation. A meeting landing is check-slots + create event (Nylas) or GHL free slots + schedule. Enable those ids on the outbound profile or the agent will talk a good game and write nothing.",
-        ],
+        verb: "Completed",
+        body: "Only when the task actually finished. A hangup mid-sentence is incomplete, not a silent redial.",
       },
     ],
+    job: [
+      {
+        mark: "01",
+        title: "The API owns the dialer",
+        body: "Enqueue pending calls. A dialer places the SIP leg. The voice worker never dials and never talks to your database.",
+      },
+      {
+        mark: "02",
+        title: "Task per dial",
+        body: "Outbound agents do not store a default task. You pick it on the call, batch, or integration: qualify, demo-set, confirm, interview.",
+      },
+      {
+        mark: "03",
+        title: "CRM sends a thin request",
+        body: "The endpoint bakes in agent, task, trunk. Your CRM posts a phone number plus optional context. Same queue as bulk.",
+      },
+      {
+        mark: "04",
+        title: "Meetings need calendar tools",
+        body: "Qualification is talk. A meeting landing is free slots + book. Leave those ids off and the agent writes nothing.",
+      },
+    ],
+    contrast: {
+      leftTitle: "A one-shot blast",
+      left: "Fire the list once. No-answer is dead. No cap. No quiet hours. It sounds like a robocall farm because it is one.",
+      rightTitle: "A queued campaign",
+      right: "Concurrency, retries, pause, cancel. The row tells you attempt, last failure, and whether the task completed.",
+    },
+    goLive:
+      "Outbound trunk, named agent, task on the call or endpoint. Enqueue. The dialer respects your cap.",
     faqs: [
       {
         q: "Is this auto-dialer spam?",
@@ -394,12 +468,6 @@ export const KEYWORD_PAGES: KeywordPageCopy[] = [
         body: "Persona, tools, and SIP on one platform.",
       },
     ],
-    cross: {
-      to: "/how-it-works",
-      kicker: "Setup",
-      title: "Queue, then dial.",
-      body: "Outbound trunk, agent, task on the call — the dialer does the rest.",
-    },
     closeTitle: "Enqueue a real list.",
     closeBody: "One call or fifty. The queue respects your cap and retries.",
   },
@@ -407,40 +475,58 @@ export const KEYWORD_PAGES: KeywordPageCopy[] = [
     path: "/ai-calling-for-clinics",
     kicker: "Clinics",
     h1: "Front desk calls without a new EHR.",
-    lead: "Clinics lose hours to “confirming tomorrow.” Speeko runs those calls on the number patients already know — confirm, move, or cancel — and leaves the chart system where it is.",
+    dek: "Tomorrow’s confirmations on the number patients already know. The chart stays where it is.",
     chips: ["Clinics", "Confirmations", "SIP", "No new EHR"],
-    sections: [
+    tape: {
+      name: "Priya Shah",
+      meta: "Dr. Nguyen · 8:00 AM",
+      line: "I can’t do 8. Thursday at 2 works. · Moved.",
+      stamp: "RESCHEDULED",
+    },
+    outcomes: [
       {
-        h2: "The desk is already full",
-        body: [
-          "Morning lists, no-shows, “can we do Thursday instead.” Speeko takes the routine confirmation loop so staff keep the exceptions: clinical questions, billing, upset families. Transfer is on the profile for those.",
-        ],
+        verb: "Desk keeps exceptions",
+        body: "Routine confirm / move / cancel leaves the line. Clinical questions, billing, upset families transfer.",
       },
       {
-        h2: "Keep the record you have",
-        body: [
-          "You do not migrate the EHR to use Speeko. Bring the clinic’s Telnyx, Twilio, or SIP number. Push tomorrow’s appointments in (portal bulk or a CRM/integration POST) with name, time, booking id. The agent writes confirm / reschedule / cancel back through the tools you enabled.",
-        ],
+        verb: "Same number",
+        body: "Telnyx, Twilio, or SIP you already publish. Patients do not learn a new line.",
       },
       {
-        h2: "They hear a person, not a reminder tree",
-        body: [
-          "Talent, pace, and delivery on the Voice tab. Barge-in when they talk over the agent. Cite the provider and time from context so it does not sound like a robocall farm. That is the difference between a completed confirm and an immediate hangup.",
-        ],
-      },
-      {
-        h2: "After-hours cancellations still free the slot",
-        body: [
-          "Evening “I can’t make 8am” should not wait for voicemail. Inbound on the same persona can cancel or move if those tools are on. The slot is usable the same night, not after a no-show.",
-        ],
-      },
-      {
-        h2: "What staff see the next morning",
-        body: [
-          "A call tape: transcript, tool events, task completed vs incomplete. Not a mystery AI. If the agent confirmed, the row says so. If they hung up mid-sentence, it is incomplete — and not auto-redialed as if it were a no-answer.",
-        ],
+        verb: "Chart stays",
+        body: "No EHR migration. Booking ids come in as context. Write-back is the tools you connect.",
       },
     ],
+    job: [
+      {
+        mark: "01",
+        title: "Cite provider and time",
+        body: "Context on the call so it does not sound like a robocall farm. Talent and barge-in on the Voice tab.",
+      },
+      {
+        mark: "02",
+        title: "Write the visit",
+        body: "Confirm, reschedule, or cancel against the booking id. After-hours “I can’t make 8” still frees the slot tonight.",
+      },
+      {
+        mark: "03",
+        title: "New-patient later",
+        body: "Many clinics start with confirmations only. Add book and calendar when the desk is ready.",
+      },
+      {
+        mark: "04",
+        title: "Morning tape",
+        body: "Staff see who confirmed, who moved, who hung up incomplete. No mystery AI.",
+      },
+    ],
+    contrast: {
+      leftTitle: "The morning callback list",
+      left: "Voicemail from last night. No-shows you could have moved. The desk is already behind before doors open.",
+      rightTitle: "The list, already worked",
+      right: "Confirmed, moved, or cancelled on the tape. Humans take what the tools cannot write.",
+    },
+    goLive:
+      "Clinic SIP in. Confirmation agent live. Tomorrow’s list in the queue — portal or the system you already have.",
     faqs: [
       {
         q: "Do we have to switch phone systems?",
@@ -479,12 +565,6 @@ export const KEYWORD_PAGES: KeywordPageCopy[] = [
         body: "The kit: hangup, lookup, confirm, calendar, transfer.",
       },
     ],
-    cross: {
-      to: "/how-it-works",
-      kicker: "Setup",
-      title: "Number, then persona.",
-      body: "Clinic SIP in. Confirmation agent live. List in the queue.",
-    },
     closeTitle: "Try it on tomorrow’s list.",
     closeBody: "Same number patients already call. Confirmations that write back.",
   },

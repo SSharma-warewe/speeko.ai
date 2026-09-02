@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Button } from "@call-agent/ui";
+import { Button, LiveDot } from "@call-agent/ui";
 import MarketingFooter from "../components/MarketingFooter";
 import MarketingNav from "../components/MarketingNav";
 import { KEYWORD_PAGE_BY_PATH } from "../data/keyword-pages";
@@ -12,87 +12,153 @@ export default function KeywordPage({ path }: { path: KeywordPath }) {
 
   return (
     <div className="sol-page kw-page">
-      <div className="sol-bar">
-        <MarketingNav />
-      </div>
+      <div className="kw-cover">
+        <div className="sol-bar">
+          <MarketingNav />
+        </div>
 
-      <header className="sol-wrap sol-mast">
-        <p className="sol-kicker">{page.kicker}</p>
-        <h1>{page.h1}</h1>
-        <p className="sol-lead">{page.lead}</p>
-        <ul className="sol-mast-chips" aria-label="Topics">
-          {page.chips.map((chip) => (
-            <li key={chip}>{chip}</li>
-          ))}
-        </ul>
-      </header>
-
-      {page.sections.map((section, index) => (
-        <section
-          key={section.h2}
-          className="sol-band"
-          aria-labelledby={`kw-h-${index}`}
-        >
-          <div className="sol-wrap kw-section">
-            <p className="sol-kicker">0{index + 1}</p>
-            <h2 id={`kw-h-${index}`}>{section.h2}</h2>
-            <div className="kw-copy">
-              {section.body.map((para) => (
-                <p key={para}>{para}</p>
-              ))}
+        <div className="kw-cover-grid">
+          <header className="kw-cover-copy">
+            <p className="kw-kicker kw-rise">{page.kicker}</p>
+            <h1 className="kw-rise kw-rise-2">{page.h1}</h1>
+            <p className="kw-dek kw-rise kw-rise-3">{page.dek}</p>
+            <div className="kw-cover-actions kw-rise kw-rise-4">
+              <Button as="a" href="/get-demo" variant="cta" size="lg" shine showArrow>
+                Get a demo
+              </Button>
+              <Button as="a" href="/how-it-works" variant="ghostOnDark" size="lg">
+                How it works
+              </Button>
             </div>
-          </div>
-        </section>
-      ))}
+            <ul className="kw-ticks kw-rise kw-rise-5" aria-label="On this call">
+              {page.chips.map((chip) => (
+                <li key={chip}>{chip}</li>
+              ))}
+            </ul>
+          </header>
 
-      <section className="sol-band" aria-labelledby="kw-faq-h">
-        <div className="sol-wrap">
-          <div className="sol-band-head">
-            <p className="sol-kicker">FAQ</p>
-            <h2 id="kw-faq-h">Questions we actually get.</h2>
-          </div>
-          <dl className="kw-faq">
-            {page.faqs.map((faq) => (
-              <div key={faq.q} className="kw-faq-item">
-                <dt>{faq.q}</dt>
-                <dd>{faq.a}</dd>
-              </div>
-            ))}
-          </dl>
+          <aside className="kw-tape kw-rise kw-rise-3" aria-label="Call tape preview">
+            <div className="kw-tape-chrome">
+              <span className="kw-tape-dots" aria-hidden>
+                <span />
+                <span />
+                <span />
+              </span>
+              <span className="kw-tape-live">
+                <LiveDot />
+                Live
+              </span>
+            </div>
+            <p className="kw-tape-meta">{page.tape.meta}</p>
+            <h2 className="kw-tape-name">{page.tape.name}</h2>
+            <blockquote className="kw-tape-line">
+              <p>{page.tape.line}</p>
+            </blockquote>
+            <p className="kw-tape-stamp">{page.tape.stamp}</p>
+          </aside>
         </div>
-      </section>
-
-      <section className="sol-band" aria-labelledby="kw-more-h">
-        <div className="sol-wrap">
-          <div className="sol-band-head">
-            <p className="sol-kicker">Also</p>
-            <h2 id="kw-more-h">Related pages.</h2>
-          </div>
-          <div className="sol-bento sol-bento--help">
-            {page.related.map((item) => (
-              <Link key={item.to} to={item.to} className="sol-bento-tile sol-help-card">
-                <span className="sol-recipe-kind">{item.kicker}</span>
-                <h3>{item.title}</h3>
-                <p>{item.body}</p>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <div className="sol-wrap sol-band sol-band--last">
-        <Link to={page.cross.to} className="sol-cross">
-          <div>
-            <p className="sol-kicker">{page.cross.kicker}</p>
-            <h2>{page.cross.title}</h2>
-            <p>{page.cross.body}</p>
-          </div>
-          <span className="sol-cross-go">Continue →</span>
-        </Link>
       </div>
 
-      <div className="sol-wrap sol-close">
-        <div className="sol-close-inner">
+      <section className="kw-lede" aria-label="What this call finishes">
+        <div className="kw-wrap kw-lede-grid">
+          {page.outcomes.map((item, index) => (
+            <article
+              key={item.verb}
+              className={`kw-lede-tile${index === 0 ? " is-lead" : ""}`}
+            >
+              <p className="kw-kicker">{item.verb}</p>
+              <p>{item.body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="kw-job" aria-labelledby="kw-job-h">
+        <div className="kw-wrap kw-job-grid">
+          <div className="kw-job-rail">
+            <p className="kw-kicker">On the call</p>
+            <h2 id="kw-job-h">The job, in order.</h2>
+          </div>
+          <ol className="kw-beats">
+            {page.job.map((beat) => (
+              <li key={beat.mark} className="kw-beat">
+                <span className="kw-beat-mark">{beat.mark}</span>
+                <div>
+                  <h3>{beat.title}</h3>
+                  <p>{beat.body}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      <section className="kw-contrast" aria-label="Contrast">
+        <div className="kw-wrap kw-contrast-grid">
+          <article className="kw-contrast-col is-left">
+            <p className="kw-kicker">{page.contrast.leftTitle}</p>
+            <p>{page.contrast.left}</p>
+          </article>
+          <article className="kw-contrast-col is-right">
+            <p className="kw-kicker">{page.contrast.rightTitle}</p>
+            <p>{page.contrast.right}</p>
+          </article>
+        </div>
+      </section>
+
+      <section className="kw-live" aria-labelledby="kw-live-h">
+        <div className="kw-wrap kw-live-row">
+          <div>
+            <p className="kw-kicker">Go live</p>
+            <h2 id="kw-live-h">On a number you already have.</h2>
+            <p className="kw-live-body">{page.goLive}</p>
+          </div>
+          <Link to="/how-it-works" className="kw-live-go">
+            Walk the setup →
+          </Link>
+        </div>
+      </section>
+
+      <section className="kw-faq" aria-labelledby="kw-faq-h">
+        <div className="kw-wrap">
+          <p className="kw-kicker">FAQ</p>
+          <h2 id="kw-faq-h">Questions we actually get.</h2>
+          <div className="kw-faq-list">
+            {page.faqs.map((faq) => (
+              <details key={faq.q}>
+                <summary>{faq.q}</summary>
+                <p>{faq.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="kw-also" aria-labelledby="kw-also-h">
+        <div className="kw-wrap">
+          <p className="kw-kicker">Also</p>
+          <h2 id="kw-also-h">Related pages.</h2>
+          <ol className="kw-also-list">
+            {page.related.map((item, index) => (
+              <li key={item.to}>
+                <Link to={item.to}>
+                  <span className="kw-also-n">0{index + 1}</span>
+                  <span className="kw-also-copy">
+                    <strong>{item.title}</strong>
+                    <em>{item.body}</em>
+                  </span>
+                  <span className="kw-also-go" aria-hidden>
+                    →
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      <section className="kw-close">
+        <div className="kw-wrap kw-close-inner">
           <div>
             <h2>{page.closeTitle}</h2>
             <p>{page.closeBody}</p>
@@ -101,7 +167,7 @@ export default function KeywordPage({ path }: { path: KeywordPath }) {
             Get a demo
           </Button>
         </div>
-      </div>
+      </section>
 
       <MarketingFooter />
     </div>
