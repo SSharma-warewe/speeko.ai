@@ -1,0 +1,34 @@
+# Speeko
+
+> Speeko is an AI voice agent platform that places and answers phone calls for appointment confirmations, inbound reception, and outbound lead outreach.
+
+Speeko runs inbound and outbound voice agents on a virtual number from Telnyx, Twilio, or another SIP carrier. Agents use neural speech with barge-in. Enabled tools can look someone up, check a calendar, book, cancel, confirm, transfer, or hang up. Outcomes and transcripts land in the Speeko portal. Teams do not write code to go live.
+
+Speeko is not an IVR menu, a chatbot, or a call-recording tool. The agent is meant to finish the job on the call.
+
+Canonical site: https://speeko.ai/
+Ops portal: https://portal.speeko.ai/
+Request a demo: https://speeko.ai/get-demo
+
+## Product
+
+- [Home](https://speeko.ai/): Inbound and outbound voice agents for appointment confirmations and lead outreach
+- [AI voice agent](https://speeko.ai/ai-voice-agent): Inbound answering and outbound dials with tools to look up, book, confirm, transfer, and hang up
+- [Appointment confirmation calls](https://speeko.ai/appointment-confirmation-calls): Confirm, reschedule, or cancel while the person is on the line, then write the outcome back
+- [AI receptionist](https://speeko.ai/ai-receptionist): Answer inbound calls, look the caller up, finish the job it can, transfer the rest
+- [Outbound AI calling](https://speeko.ai/outbound-ai-calling): Dial queue with concurrency, retries on no-answer and busy, tasks for outreach and demo booking
+- [AI calling for clinics](https://speeko.ai/ai-calling-for-clinics): Clinic confirmations on the number you already have, without replacing the EHR
+
+## How it works
+
+- [How it works](https://speeko.ai/how-it-works): Virtual number, named agents, tools, persona — no code
+- [Voice](https://speeko.ai/voice): Neural speech, talent, pace, delivery, barge-in
+- [Solutions](https://speeko.ai/solutions): Tool profiles — hang up, lookup, calendar, book, cancel, transfer
+- [Customer service](https://speeko.ai/solutions/customer-service): Clinic stack — confirm, calendar, transfer
+- [Marketing and sales](https://speeko.ai/solutions/marketing-sales): Demo-setter stack — GoHighLevel contacts, free slots, schedule
+
+## Optional
+
+- [Get a demo](https://speeko.ai/get-demo): Live walkthrough of inbound and outbound agents
+- [Speeko portal](https://portal.speeko.ai/): Sign in to run agents, queues, and call history
+- [Sitemap](https://speeko.ai/sitemap.xml): Indexable marketing URLs
