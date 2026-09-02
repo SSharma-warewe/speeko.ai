@@ -11,49 +11,49 @@ export type MarketingRoute = {
 export const MARKETING_ROUTES: MarketingRoute[] = [
   {
     path: "/",
-    title: "Speeko — Voice agents for calls",
+    title: "Speeko — AI Voice Agents for Inbound & Outbound Calls",
     description:
       "Speeko places and answers calls for appointment confirmations and lead outreach — with live transcripts, real-time outcomes, and zero missed follow-ups.",
     priority: 1.0,
   },
   {
     path: "/get-demo",
-    title: "Get a demo — Speeko",
+    title: "Get a Speeko Demo — See AI Voice Agents Handle Calls",
     description:
       "See Speeko voice agents handle real inbound and outbound calls. Request a live walkthrough tailored to your volume and stack.",
     priority: 0.9,
   },
   {
     path: "/how-it-works",
-    title: "How it works — Speeko",
+    title: "How Speeko Works — From a Number to a Live Voice Agent",
     description:
       "Bring a virtual number from Telnyx, Twilio, or your SIP carrier. Name the agents, switch on tools, and take a persona live — no code.",
     priority: 0.8,
   },
   {
     path: "/voice",
-    title: "Voice that people stay on — Speeko",
+    title: "Neural Voice That People Stay On — Speeko AI Agents",
     description:
       "Speeko agents use neural speech you pick on the agent — talent, pace, delivery — so the first second does not sound like an IVR.",
     priority: 0.8,
   },
   {
     path: "/solutions",
-    title: "Solutions — Speeko",
+    title: "Speeko Solutions — Voice Agent Tools for Real Call Jobs",
     description:
       "Agents only run tools you enable — hang up, look someone up, check a calendar, book, cancel, transfer. Assemble a profile. You do not upload code.",
     priority: 0.8,
   },
   {
     path: "/solutions/customer-service",
-    title: "Customer Service tools — Speeko",
+    title: "Customer Service Voice Agents — Speeko Clinic Call Tools",
     description:
       "Assemble a clinic agent from hangup, lookup, confirm, calendar, and transfer. Speeko voice agents finish the visit, not the voicemail.",
     priority: 0.7,
   },
   {
     path: "/solutions/marketing-sales",
-    title: "Marketing & Sales tools — Speeko",
+    title: "Marketing & Sales Voice Agent Tools — Speeko Demo Setters",
     description:
       "A demo-setter profile: GHL contact tools, free slots, and schedule. Qualification is the task; the tools are how a meeting actually lands.",
     priority: 0.7,
@@ -67,28 +67,28 @@ export const MARKETING_ROUTES: MarketingRoute[] = [
   },
   {
     path: "/appointment-confirmation-calls",
-    title: "Appointment Confirmation Calls — Speeko",
+    title: "AI Appointment Confirmation Calls — Speeko Voice Agents",
     description:
       "AI appointment confirmation calls that confirm, reschedule, or cancel while the person is on the line — then write the outcome back to your book.",
     priority: 0.85,
   },
   {
     path: "/ai-receptionist",
-    title: "AI Receptionist for Inbound Calls — Speeko",
+    title: "AI Receptionist for Inbound Calls — Speeko Voice Agents",
     description:
       "An AI receptionist that answers inbound calls, looks the caller up, takes the job it can finish, and transfers the rest to a human.",
     priority: 0.85,
   },
   {
     path: "/outbound-ai-calling",
-    title: "Outbound AI Calling — Speeko",
+    title: "Outbound AI Calling with Dial Queue & Retries — Speeko",
     description:
       "Outbound AI calling with a real dial queue: concurrency limits, retries on no-answer and busy, and tasks for outreach, qualification, and demo booking.",
     priority: 0.85,
   },
   {
     path: "/ai-calling-for-clinics",
-    title: "AI Calling for Clinics — Speeko",
+    title: "AI Calling for Clinics — Speeko Appointment Confirmations",
     description:
       "Clinic appointment confirmation calls on the number you already have. Speeko agents confirm, move, or cancel visits without replacing your EHR.",
     priority: 0.85,
