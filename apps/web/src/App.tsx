@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { KEYWORD_PATHS } from "./data/marketing-routes";
+import { useGtagPageView } from "./lib/gtag";
 import { usePageMeta } from "./lib/page-meta";
 import GetDemoPage from "./pages/GetDemoPage";
 import HowItWorksPage from "./pages/HowItWorksPage";
@@ -21,6 +22,7 @@ function ScrollToTop() {
 function PageMeta() {
   const { pathname } = useLocation();
   usePageMeta(pathname);
+  useGtagPageView(pathname);
   return null;
 }
 
