@@ -1,0 +1,64 @@
+.kw-page .sol-mast h1 {
+  max-width: 22ch;
+}
+
+.kw-section h2 {
+  margin: 0 0 16px;
+  max-width: 22ch;
+  font-family: var(--font-display);
+  font-size: var(--sol-h2);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.kw-copy {
+  max-width: 62ch;
+  display: grid;
+  gap: 0.9em;
+}
+
+.kw-copy p {
+  margin: 0;
+  font-size: 15.5px;
+  line-height: 1.65;
+  color: var(--sol-ink);
+}
+
+.kw-faq {
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.kw-faq-item {
+  margin: 0;
+  padding: 18px 20px;
+  background: var(--sol-card);
+  border: 1px solid var(--sol-line);
+  border-radius: var(--sol-radius);
+}
+
+.kw-faq-item dt {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.kw-faq-item dd {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--sol-muted);
+}
+
+@media (max-width: 719px) {
+  .kw-copy p {
+    font-size: 15px;
+  }
+
+  .kw-faq-item {
+    padding: 16px;
+  }
+}

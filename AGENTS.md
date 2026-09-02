@@ -10,18 +10,18 @@ Multi-tenant inbound/outbound **call agent platform**:
 |-----|------|------|
 | API | `apps/api` | NestJS HTTP API, JWT auth, Swagger UI, calls domain + LiveKit adapter |
 | Worker | `apps/worker` | LiveKit Agents server (`@livekit/agents`) for inbound/outbound voice |
-| Web (marketing) | `apps/web` | Public marketing Vite + React SPA (`/`, `/get-demo`, `/how-it-works`, `/voice`, `/solutions`, `/solutions/customer-service`, `/solutions/marketing-sales`) |
+| Web (marketing) | `apps/web` | Public marketing Vite + React SPA (`/`, `/get-demo`, `/how-it-works`, `/voice`, `/solutions`, `/solutions/customer-service`, `/solutions/marketing-sales`, `/ai-voice-agent`, `/appointment-confirmation-calls`, `/ai-receptionist`, `/outbound-ai-calling`, `/ai-calling-for-clinics`) |
 | Portal | `apps/portal` | Authenticated Vite + React SPA (login + org/admin dashboards) |
 | UI kit | `packages/ui` | Reusable design-system primitives (`@call-agent/ui`) — buttons, forms, badges, motion |
 | Contracts | `packages/contracts` | Shared wire types + catalogs (`@call-agent/contracts`) imported by API, worker, portal, and web |
 
 Stack: NestJS monorepo, TypeORM, PostgreSQL, JWT Bearer auth, Swagger, LiveKit Agents + Inference, two Vite React frontends.
 
-**UI:** Marketing is `apps/web`; ops/admin portal is `apps/portal` (both use `@call-agent/ui`). Swagger (`/docs`) + LiveKit Meet remain for API/call testing. Typical deploy: marketing on the public host, portal on an app host (same path URLs). Cross-links via `VITE_PORTAL_URL` / `VITE_MARKETING_URL`. Solution pages (`/solutions`, `/solutions/customer-service`, `/solutions/marketing-sales`) catalog worker tools, custom tool profiles, and what those stacks can finish. Unknown `/solutions/*` redirects to `/solutions`. How it works (`/how-it-works`) is the first-user setup runway (virtual number → agents → tools/voice → persona → CRM integration or inbound dispatch). Voice (`/voice`) is the hang-up problem page: neural speech, barge-in, and editing talent / pace / delivery on the agent Voice tab.
+**UI:** Marketing is `apps/web`; ops/admin portal is `apps/portal` (both use `@call-agent/ui`). Swagger (`/docs`) + LiveKit Meet remain for API/call testing. Typical deploy: marketing on the public host, portal on an app host (same path URLs). Cross-links via `VITE_PORTAL_URL` / `VITE_MARKETING_URL`. Solution pages (`/solutions`, `/solutions/customer-service`, `/solutions/marketing-sales`) catalog worker tools, custom tool profiles, and what those stacks can finish. Unknown `/solutions/*` redirects to `/solutions`. How it works (`/how-it-works`) is the first-user setup runway (virtual number → agents → tools/voice → persona → CRM integration or inbound dispatch). Voice (`/voice`) is the hang-up problem page: neural speech, barge-in, and editing talent / pace / delivery on the agent Voice tab. Keyword landers (`/ai-voice-agent`, `/appointment-confirmation-calls`, `/ai-receptionist`, `/outbound-ai-calling`, `/ai-calling-for-clinics`) are search-intent pages; `vite build` emits a unique `index.html` (title, description, canonical) per marketing route so crawlers do not collapse them to `/`. The **web** service is served with `serve dist` (**not** `serve -s`) so those shells are returned instead of the homepage HTML. Portal keeps `serve -s` (authenticated SPA, no public SEO shells).
 
 | Surface | App | URL | Auth |
 |---------|-----|-----|------|
-| Marketing site | `apps/web` | `/`, `/get-demo`, `/how-it-works`, `/voice`, `/solutions`, `/solutions/customer-service`, `/solutions/marketing-sales` | public |
+| Marketing site | `apps/web` | `/`, `/get-demo`, `/how-it-works`, `/voice`, `/solutions`, `/solutions/customer-service`, `/solutions/marketing-sales`, `/ai-voice-agent`, `/appointment-confirmation-calls`, `/ai-receptionist`, `/outbound-ai-calling`, `/ai-calling-for-clinics` | public |
 | Org-user ops desk | `apps/portal` | `/login` → `/dashboard` | `POST /api/auth/login` (email + password + org slug) |
 | Platform admin | `apps/portal` | `/admin-login` → `/admin-dashboard` | `POST /api/auth/admin/login` |
 

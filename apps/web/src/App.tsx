@@ -1,8 +1,10 @@
 import { useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { KEYWORD_PATHS } from "./data/marketing-routes";
 import { usePageMeta } from "./lib/page-meta";
 import GetDemoPage from "./pages/GetDemoPage";
 import HowItWorksPage from "./pages/HowItWorksPage";
+import KeywordPage from "./pages/KeywordPage";
 import LandingPage from "./pages/LandingPage";
 import SolutionPage from "./pages/SolutionPage";
 import SolutionsIndexPage from "./pages/SolutionsIndexPage";
@@ -42,6 +44,13 @@ export default function App() {
           path="/solutions/marketing-sales"
           element={<SolutionPage slug="marketing-sales" />}
         />
+        {KEYWORD_PATHS.map((path) => (
+          <Route
+            key={path}
+            path={path}
+            element={<KeywordPage path={path} />}
+          />
+        ))}
         <Route path="/solutions/*" element={<Navigate to="/solutions" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

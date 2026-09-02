@@ -31,6 +31,7 @@
 }
 .lp-nav-link {
   position: relative;
+  display: inline-block;
   font-size: 14px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.72);
@@ -57,7 +58,7 @@
 .lp-nav-link.is-active::after {
   transform: scaleX(1);
 }
-.lp-solutions {
+.lp-nav-mega {
   position: relative;
   padding-bottom: 12px;
   margin-bottom: -12px;
@@ -78,8 +79,11 @@
   gap: 6px;
   z-index: 50;
 }
-.lp-solutions:hover .lp-mega,
-.lp-solutions:focus-within .lp-mega {
+.lp-mega--wide {
+  min-width: 520px;
+}
+.lp-nav-mega:hover .lp-mega,
+.lp-nav-mega:focus-within .lp-mega {
   display: grid;
 }
 .lp-mega-col {
@@ -160,7 +164,7 @@
 }
 .lp-footer-cols {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 24px;
 }
 .lp-footer-col {
@@ -221,6 +225,9 @@
   .lp-footer-top {
     grid-template-columns: 1fr;
     gap: 32px;
+  }
+  .lp-footer-cols {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
@@ -320,7 +327,7 @@
   .lp-nav-link::after {
     display: none;
   }
-  .lp-solutions {
+  .lp-nav-mega {
     padding-bottom: 0;
     margin-bottom: 0;
   }
@@ -340,8 +347,11 @@
     grid-template-columns: 1fr;
     gap: 4px;
   }
-  .lp-solutions:hover .lp-mega,
-  .lp-solutions:focus-within .lp-mega {
+  .lp-mega--wide {
+    min-width: 0;
+  }
+  .lp-nav-mega:hover .lp-mega,
+  .lp-nav-mega:focus-within .lp-mega {
     display: grid;
   }
   .lp-mega-col {

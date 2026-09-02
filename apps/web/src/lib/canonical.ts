@@ -1,17 +1,7 @@
 import { useEffect } from "react";
+import { MARKETING_ORIGIN, MARKETING_PATHS } from "../data/marketing-routes";
 
-/** Public marketing origin. Canonicals always point here, never localhost. */
-export const MARKETING_ORIGIN = "https://speeko.ai";
-
-const CANONICAL_PATHS = new Set([
-  "/",
-  "/get-demo",
-  "/how-it-works",
-  "/voice",
-  "/solutions",
-  "/solutions/customer-service",
-  "/solutions/marketing-sales",
-]);
+export { MARKETING_ORIGIN };
 
 const PATH_ALIASES: Record<string, string> = {
   "/signup": "/get-demo",
@@ -30,7 +20,7 @@ export function normalizePath(pathname: string): string {
 export function toCanonicalPath(pathname: string): string {
   const path = normalizePath(pathname);
   if (PATH_ALIASES[path]) return PATH_ALIASES[path];
-  if (CANONICAL_PATHS.has(path)) return path;
+  if (MARKETING_PATHS.has(path)) return path;
   if (path.startsWith("/solutions/")) return "/solutions";
   return "/";
 }

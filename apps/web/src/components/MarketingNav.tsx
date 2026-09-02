@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { KEYWORD_NAV } from "../data/keyword-pages";
 
 const SOLUTIONS = [
   {
@@ -21,6 +22,7 @@ export default function MarketingNav() {
   const onHome = pathname === "/";
   const hash = (id: string) => (onHome ? `#${id}` : `/#${id}`);
   const onSolutions = pathname === "/solutions" || pathname.startsWith("/solutions/");
+  const onUseCases = KEYWORD_NAV.some((item) => item.to === pathname);
   const onHow = pathname === "/how-it-works";
   const onVoice = pathname === "/voice";
 
@@ -77,7 +79,7 @@ export default function MarketingNav() {
         />
       ) : null}
       <div id={panelId} className="lp-nav-links">
-        <div className="lp-solutions">
+        <div className="lp-nav-mega">
           <Link
             to="/solutions"
             className={`lp-nav-link${onSolutions ? " is-active" : ""}`}
@@ -87,6 +89,29 @@ export default function MarketingNav() {
           </Link>
           <div className="lp-mega" role="menu">
             {SOLUTIONS.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={`lp-mega-col${pathname === item.to ? " is-active" : ""}`}
+                role="menuitem"
+                onClick={close}
+              >
+                <span className="lp-mega-title">{item.title}</span>
+                <span className="lp-mega-sub">{item.sub}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+        <div className="lp-nav-mega">
+          <Link
+            to="/ai-voice-agent"
+            className={`lp-nav-link${onUseCases ? " is-active" : ""}`}
+            onClick={close}
+          >
+            Use cases
+          </Link>
+          <div className="lp-mega lp-mega--wide" role="menu">
+            {KEYWORD_NAV.map((item) => (
               <Link
                 key={item.to}
                 to={item.to}

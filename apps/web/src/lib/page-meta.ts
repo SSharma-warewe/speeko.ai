@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { MARKETING_ROUTES } from "../data/marketing-routes";
 import { canonicalUrl, toCanonicalPath, useCanonicalUrl } from "./canonical";
 
 export type PageMeta = {
@@ -7,43 +8,12 @@ export type PageMeta = {
 };
 
 /** SEO copy keyed by canonical path (same locs as sitemap.xml). */
-export const PAGE_META: Record<string, PageMeta> = {
-  "/": {
-    title: "Speeko — Voice agents for calls",
-    description:
-      "Speeko places and answers calls for appointment confirmations and lead outreach — with live transcripts, real-time outcomes, and zero missed follow-ups.",
-  },
-  "/get-demo": {
-    title: "Get a demo — Speeko",
-    description:
-      "See Speeko voice agents handle real inbound and outbound calls. Request a live walkthrough tailored to your volume and stack.",
-  },
-  "/how-it-works": {
-    title: "How it works — Speeko",
-    description:
-      "Bring a virtual number from Telnyx, Twilio, or your SIP carrier. Name the agents, switch on tools, and take a persona live — no code.",
-  },
-  "/voice": {
-    title: "Voice that people stay on — Speeko",
-    description:
-      "Speeko agents use neural speech you pick on the agent — talent, pace, delivery — so the first second does not sound like an IVR.",
-  },
-  "/solutions": {
-    title: "Solutions — Speeko",
-    description:
-      "Agents only run tools you enable — hang up, look someone up, check a calendar, book, cancel, transfer. Assemble a profile. You do not upload code.",
-  },
-  "/solutions/customer-service": {
-    title: "Customer Service tools — Speeko",
-    description:
-      "Assemble a clinic agent from hangup, lookup, confirm, calendar, and transfer. Speeko voice agents finish the visit, not the voicemail.",
-  },
-  "/solutions/marketing-sales": {
-    title: "Marketing & Sales tools — Speeko",
-    description:
-      "A demo-setter profile: GHL contact tools, free slots, and schedule. Qualification is the task; the tools are how a meeting actually lands.",
-  },
-};
+export const PAGE_META: Record<string, PageMeta> = Object.fromEntries(
+  MARKETING_ROUTES.map((route) => [
+    route.path,
+    { title: route.title, description: route.description },
+  ]),
+);
 
 export function pageMetaForPath(pathname: string): PageMeta {
   const path = toCanonicalPath(pathname);

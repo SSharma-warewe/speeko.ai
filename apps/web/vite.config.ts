@@ -2,12 +2,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { marketingHtmlPlugin } from "./vite-plugin-marketing-html";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const monorepoRoot = path.resolve(__dirname, "../..");
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), marketingHtmlPlugin()],
   resolve: {
     dedupe: ["react", "react-dom"],
     alias: [

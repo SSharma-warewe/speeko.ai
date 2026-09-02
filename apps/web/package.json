@@ -1,6 +1,6 @@
 {
   "name": "@call-agent/web",
-  "description": "Marketing site (landing, demo, how-it-works, voice, solutions)",
+  "description": "Marketing site (landing, demo, how-it-works, voice, solutions, keyword landers)",
   "version": "0.1.0",
   "private": true,
   "type": "module",

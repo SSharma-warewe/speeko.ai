@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { KEYWORD_NAV } from "../data/keyword-pages";
 
 export default function MarketingFooter() {
   return (
@@ -22,6 +23,14 @@ export default function MarketingFooter() {
             <Link to="/how-it-works">How it works</Link>
             <Link to="/voice">Voice</Link>
             <a href="/#faq">FAQ</a>
+          </div>
+          <div className="lp-footer-col">
+            <p className="lp-footer-col-title">Use cases</p>
+            {KEYWORD_NAV.map((item) => (
+              <Link key={item.to} to={item.to}>
+                {item.title}
+              </Link>
+            ))}
           </div>
           <div className="lp-footer-col">
             <p className="lp-footer-col-title">Get started</p>
