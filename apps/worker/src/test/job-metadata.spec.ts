@@ -1,4 +1,4 @@
-import { parseJobMetadata } from '../job-metadata';
+import { mergeInboundJobMetadata, parseJobMetadata } from '../job-metadata';
 
 describe('parseJobMetadata voice extras', () => {
   it('empty raw → null speakingRate / deliveryMode', () => {
@@ -64,6 +64,45 @@ describe('parseJobMetadata voice extras', () => {
 
   it('empty raw → null ttsModel', () => {
     expect(parseJobMetadata('').ttsModel).toBeNull();
+  });
+
+  it('mergeInboundJobMetadata overlays live voice/model and keeps ring fields', () => {
+    const dispatched = parseJobMetadata(
+      JSON.stringify({
+        organizationId: 'org-1',
+        organizationAgentId: 'oa-1',
+        agentKey: 'inbound',
+        direction: 'inbound',
+        medium: 'sip',
+        task: 'general',
+        prompt: { systemPrompt: 'old' },
+        enabledTools: ['endCall'],
+        participantIdentity: '+1555',
+        model: null,
+        ttsModel: null,
+      }),
+    );
+    const live = parseJobMetadata(
+      JSON.stringify({
+        organizationId: 'org-1',
+        organizationAgentId: 'oa-1',
+        agentKey: 'inbound',
+        direction: 'inbound',
+        medium: 'sip',
+        task: 'general',
+        prompt: { systemPrompt: 'new' },
+        enabledTools: ['endCall'],
+        model: 'openai/gpt-realtime-2.1-mini',
+        ttsModel: null,
+        voice: 'marin',
+      }),
+    );
+    const merged = mergeInboundJobMetadata(dispatched, live);
+    expect(merged.model).toBe('openai/gpt-realtime-2.1-mini');
+    expect(merged.voice).toBe('marin');
+    expect(merged.prompt.systemPrompt).toBe('new');
+    expect(merged.participantIdentity).toBe('+1555');
+    expect(merged.callId).toBeUndefined();
   });
 
   it('unknown deliveryMode and non-number speakingRate → null', () => {

@@ -120,6 +120,13 @@ export function applyVoicePatch(
   if (dto.deliveryMode !== undefined) {
     row.deliveryMode = normalizeDeliveryMode(dto.deliveryMode);
   }
+  // Speech-to-speech has no TTS stage. Drop leftover pipeline speech
+  // so GET / job metadata cannot keep advertising Inworld.
+  if (isRealtimeLlmModel(row.model)) {
+    row.ttsModel = null;
+    row.speakingRate = null;
+    row.deliveryMode = null;
+  }
   if (
     dto.model !== undefined ||
     dto.ttsModel !== undefined ||
@@ -137,9 +144,20 @@ export function resolveVoiceRuntime(
   org?: VoicePatchInput | null,
   template?: VoicePatchInput | null,
 ): VoiceRuntime {
+  const model = org?.model ?? template?.model ?? null;
+  if (isRealtimeLlmModel(model)) {
+    return {
+      voice: org?.voice ?? template?.voice ?? null,
+      model,
+      ttsModel: null,
+      temperature: org?.temperature ?? template?.temperature ?? null,
+      speakingRate: null,
+      deliveryMode: null,
+    };
+  }
   return {
     voice: org?.voice ?? template?.voice ?? null,
-    model: org?.model ?? template?.model ?? null,
+    model,
     ttsModel: org?.ttsModel ?? template?.ttsModel ?? null,
     temperature: org?.temperature ?? template?.temperature ?? null,
     speakingRate: org?.speakingRate ?? template?.speakingRate ?? null,

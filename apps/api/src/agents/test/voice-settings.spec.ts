@@ -88,6 +88,25 @@ describe('voice-settings', () => {
         ).ttsModel,
       ).toBe('fishaudio/s2.1-pro-free');
     });
+
+    it('realtime model drops pipeline TTS even if template still has Inworld', () => {
+      expect(
+        resolveVoiceRuntime(
+          {
+            model: 'openai/gpt-realtime-2.1-mini',
+            ttsModel: null,
+            voice: 'marin',
+          },
+          { ttsModel: 'inworld/inworld-tts-2', voice: 'Ashley' },
+        ),
+      ).toMatchObject({
+        model: 'openai/gpt-realtime-2.1-mini',
+        ttsModel: null,
+        voice: 'marin',
+        speakingRate: null,
+        deliveryMode: null,
+      });
+    });
   });
 
   describe('parseStoredLlmModel', () => {
@@ -174,6 +193,30 @@ describe('voice-settings', () => {
       });
       expect(row.model).toBe('openai/gpt-realtime-2.1-mini');
       expect(row.voice).toBe('marin');
+    });
+
+    it('realtime model clears leftover pipeline TTS without a ttsModel patch', () => {
+      const row: {
+        voice: string | null;
+        model: string | null;
+        ttsModel: string | null;
+        speakingRate: number | null;
+        deliveryMode: string | null;
+      } = {
+        voice: 'marin',
+        model: null,
+        ttsModel: 'fishaudio/s2.1-pro-free',
+        speakingRate: 1.1,
+        deliveryMode: 'CREATIVE',
+      };
+      applyVoicePatch(row, {
+        model: 'openai/gpt-realtime-2.1-mini',
+        voice: 'marin',
+      });
+      expect(row.model).toBe('openai/gpt-realtime-2.1-mini');
+      expect(row.ttsModel).toBeNull();
+      expect(row.speakingRate).toBeNull();
+      expect(row.deliveryMode).toBeNull();
     });
   });
 });

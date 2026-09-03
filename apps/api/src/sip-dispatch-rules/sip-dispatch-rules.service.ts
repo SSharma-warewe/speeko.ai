@@ -10,8 +10,6 @@ import {
 import type { AgentJobMetadata } from '@call-agent/contracts';
 import { AgentDirection } from '../agents/agent.entity';
 import { CallMedium } from '../calls/call.entity';
-import { packOrgAgentJobMetadata } from '../agents/job-metadata';
-import { orgAgentDefaultTaskKey } from '../agents/org-agent-task';
 import { OrganizationAgentsService } from '../agents/organization-agents.service';
 import { LivekitService } from '../livekit/livekit.service';
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -19,11 +17,7 @@ import { PublishResourceResultDto } from '../sip-trunks/dto/inbound-publish-resu
 import { runPublishBatch } from '../sip-trunks/lib/publish-batch';
 import { SipTrunk, SipTrunkDirection } from '../sip-trunks/sip-trunk.entity';
 import { SipTrunksService } from '../sip-trunks/sip-trunks.service';
-import {
-  DEFAULT_TASK_KEY,
-  isKnownTaskKey,
-} from '../tools/known-tools';
-import { ToolProfilesService } from '../tools/tool-profiles.service';
+import { DEFAULT_TASK_KEY } from '../tools/known-tools';
 import { CreateSipDispatchRuleDto } from './dto/create-sip-dispatch-rule.dto';
 import { SipDispatchRuleResponseDto } from './dto/sip-dispatch-rule-response.dto';
 import { UpdateSipDispatchRuleDto } from './dto/update-sip-dispatch-rule.dto';
@@ -44,7 +38,6 @@ export class SipDispatchRulesService {
     @Inject(forwardRef(() => SipTrunksService))
     private readonly sipTrunksService: SipTrunksService,
     private readonly organizationAgentsService: OrganizationAgentsService,
-    private readonly toolProfilesService: ToolProfilesService,
     private readonly livekit: LivekitService,
   ) {}
 
@@ -351,33 +344,12 @@ export class SipDispatchRulesService {
       return JSON.stringify(fallback);
     }
 
-    const orgAgent =
-      await this.organizationAgentsService.getEntityWithTemplate(
+    const metadata =
+      await this.organizationAgentsService.packInboundJobMetadata(
         organizationId,
         row.organizationAgentId,
       );
-    const template = orgAgent.agent;
-    const preferred = orgAgentDefaultTaskKey(orgAgent, template);
-    const taskKey =
-      preferred && isKnownTaskKey(preferred)
-        ? preferred
-        : template.defaultTaskKey && isKnownTaskKey(template.defaultTaskKey)
-          ? template.defaultTaskKey
-          : DEFAULT_TASK_KEY;
-    const enabledTools =
-      await this.toolProfilesService.resolveEnabledToolIds(
-        orgAgent.toolProfileId,
-        organizationId,
-      );
-
-    return JSON.stringify(
-      packOrgAgentJobMetadata(orgAgent, {
-        task: taskKey,
-        enabledTools,
-        direction: AgentDirection.INBOUND,
-        medium: CallMedium.SIP,
-      }),
-    );
+    return JSON.stringify(metadata);
   }
 
   private async assertInboundTrunks(

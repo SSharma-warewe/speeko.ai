@@ -246,14 +246,18 @@ export function AgentVoiceRack({
           {realtime ? "Realtime model" : "Language model"}
         </label>
         <div>{llmControl}</div>
-        {!realtime ? (
+        {realtime ? (
+          <p className="ops-desk-hint">
+            Native speech-to-speech — no separate TTS.
+          </p>
+        ) : (
           <>
             <label className="ops-voice-compact-label" htmlFor="agent-tts-model">
               Speech model
             </label>
             <div id="agent-tts-model">{ttsControl}</div>
           </>
-        ) : null}
+        )}
         <label className="ops-voice-compact-label" htmlFor="agent-voice-select">
           Voice
         </label>
@@ -280,7 +284,12 @@ export function AgentVoiceRack({
           <span className="ops-desk-hint">{llmSpec.shortLabel}</span>
         </div>
         {llmControl}
-        {!realtime ? (
+        {realtime ? (
+          <p className="ops-desk-hint">
+            Native speech-to-speech — no STT or TTS picker. Talent below is
+            the realtime voice, not Inworld.
+          </p>
+        ) : (
           <>
             <div className="ops-voice-cast-head">
               <span className="ops-desk-kicker">Speech model</span>
@@ -288,7 +297,7 @@ export function AgentVoiceRack({
             </div>
             {ttsControl}
           </>
-        ) : null}
+        )}
         <div className="ops-voice-cast-head">
           <span className="ops-desk-kicker">Talent</span>
           <span className="ops-desk-hint">

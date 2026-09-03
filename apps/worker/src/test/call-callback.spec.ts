@@ -3,6 +3,7 @@ import {
   isRetryableCompleteStatus,
   postCallComplete,
   postInboundEnsure,
+  postInboundJobMetadata,
   type CompleteCallPayload,
 } from '../call-callback';
 
@@ -279,5 +280,69 @@ describe('postInboundEnsure', () => {
       postInboundEnsure(ensurePayload, { fetch: fetchMock, sleep, env }),
     ).resolves.toBeUndefined();
     expect(fetchMock).toHaveBeenCalledTimes(DEFAULT_COMPLETE_CALLBACK_MAX_ATTEMPTS);
+  });
+});
+
+describe('postInboundJobMetadata', () => {
+  const env = {
+    API_BASE_URL: 'http://api.example',
+    WORKER_CALLBACK_SECRET: 'secret',
+  };
+
+  function jsonResponse(status: number, body = ''): Response {
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      text: jest.fn().mockResolvedValue(body),
+    } as unknown as Response;
+  }
+
+  it('parses live realtime model from the packed body', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      jsonResponse(
+        200,
+        JSON.stringify({
+          organizationId: 'org-1',
+          organizationAgentId: 'oa-1',
+          agentKey: 'inbound',
+          direction: 'inbound',
+          medium: 'sip',
+          task: 'general',
+          prompt: { systemPrompt: 'Hi' },
+          enabledTools: ['endCall'],
+          model: 'openai/gpt-realtime-2.1-mini',
+          ttsModel: null,
+          voice: 'marin',
+        }),
+      ),
+    );
+
+    const meta = await postInboundJobMetadata(
+      { organizationId: 'org-1', organizationAgentId: 'oa-1' },
+      { fetch: fetchMock, env },
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://api.example/api/internal/organization-agents/oa-1/job-metadata',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ organizationId: 'org-1' }),
+      }),
+    );
+    expect(meta?.model).toBe('openai/gpt-realtime-2.1-mini');
+    expect(meta?.ttsModel).toBeNull();
+    expect(meta?.voice).toBe('marin');
+  });
+
+  it('returns undefined after a 500 without throwing', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(jsonResponse(500, 'boom'));
+    const sleep = jest.fn().mockResolvedValue(undefined);
+
+    await expect(
+      postInboundJobMetadata(
+        { organizationId: 'org-1', organizationAgentId: 'oa-1' },
+        { fetch: fetchMock, sleep, env },
+      ),
+    ).resolves.toBeUndefined();
   });
 });

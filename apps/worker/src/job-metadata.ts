@@ -35,6 +35,25 @@ function parseHookField(
   return undefined;
 }
 
+/**
+ * Overlay live org-agent config onto the static inbound dispatch snapshot.
+ * Ring-specific fields (callId, SIP identity, context) stay from the job.
+ */
+export function mergeInboundJobMetadata(
+  dispatched: AgentJobMetadata,
+  live: AgentJobMetadata,
+): AgentJobMetadata {
+  return {
+    ...dispatched,
+    ...live,
+    callId: dispatched.callId,
+    medium: dispatched.medium ?? live.medium,
+    direction: dispatched.direction,
+    participantIdentity: dispatched.participantIdentity,
+    context: dispatched.context ?? live.context,
+  };
+}
+
 export function parseJobMetadata(raw: string | undefined | null): AgentJobMetadata {
   if (!raw || !raw.trim()) {
     return {

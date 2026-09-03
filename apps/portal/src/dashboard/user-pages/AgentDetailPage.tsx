@@ -7,6 +7,7 @@ import {
   DEFAULT_SPEAKING_RATE,
   DEFAULT_TEMPERATURE,
   parseDeliveryMode,
+  speechModelLabel,
   storedLlmModel,
   storedTtsModel,
   type DeliveryMode,
@@ -592,7 +593,9 @@ export default function UserAgentDetailPage() {
               <dt>LLM</dt>
               <dd className="ops-mono">{agent.model || "default"}</dd>
               <dt>Speech</dt>
-              <dd className="ops-mono">{agent.ttsModel || "Inworld TTS-2"}</dd>
+              <dd className="ops-mono">
+                {speechModelLabel(agent.model, agent.ttsModel)}
+              </dd>
             </dl>
 
             <p className="ops-desk-note">

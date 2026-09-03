@@ -5,26 +5,30 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { CallMedium, type AgentJobMetadata } from '@call-agent/contracts';
 import { Repository } from 'typeorm';
 import { OrganizationIntegration } from '../organization-integrations/organization-integration.entity';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { DEFAULT_TASK_KEY, isKnownTaskKey } from '../tools/known-tools';
 import { ToolProfilesService } from '../tools/tool-profiles.service';
 import { AgentDirection } from './agent.entity';
 import { AgentsService, normalizeHookInstructions } from './agents.service';
 import { AssignAgentDto } from './dto/assign-agent.dto';
 import { CloneOrganizationAgentDto } from './dto/clone-organization-agent.dto';
 import { UpdateOrganizationAgentDto } from './dto/update-organization-agent.dto';
+import { packOrgAgentJobMetadata } from './job-metadata';
 import { toOrganizationAgentResponse } from './mappers/agent-response.mapper';
 import {
   INBOUND_TASK_REQUIRED,
   isOutboundTemplate,
+  orgAgentDefaultTaskKey,
   OUTBOUND_NO_DEFAULT_TASK,
   storedDefaultTaskKey,
 } from './org-agent-task';
-import { applyVoicePatch } from './voice-settings';
 import { OrganizationAgent } from './organization-agent.entity';
 import { OrganizationAgentsRepository } from './organization-agents.repository';
 import { nextAvailableSlug, slugify } from './slug.util';
+import { applyVoicePatch } from './voice-settings';
 
 @Injectable()
 export class OrganizationAgentsService {
@@ -129,6 +133,39 @@ export class OrganizationAgentsService {
   ): Promise<OrganizationAgent> {
     await this.organizationsService.findById(organizationId);
     return this.loadWithTemplate(organizationId, id);
+  }
+
+  /**
+   * Live inbound job metadata for a published dispatch rule.
+   * SIP dispatch snapshots this at publish; the worker re-fetches it on
+   * each ring so voice / model / prompt / tools changes apply without republish.
+   */
+  async packInboundJobMetadata(
+    organizationId: string,
+    organizationAgentId: string,
+  ): Promise<AgentJobMetadata> {
+    const orgAgent = await this.getEntityWithTemplate(
+      organizationId,
+      organizationAgentId,
+    );
+    const template = orgAgent.agent;
+    const preferred = orgAgentDefaultTaskKey(orgAgent, template);
+    const taskKey =
+      preferred && isKnownTaskKey(preferred)
+        ? preferred
+        : template.defaultTaskKey && isKnownTaskKey(template.defaultTaskKey)
+          ? template.defaultTaskKey
+          : DEFAULT_TASK_KEY;
+    const enabledTools = await this.toolProfilesService.resolveEnabledToolIds(
+      orgAgent.toolProfileId,
+      organizationId,
+    );
+    return packOrgAgentJobMetadata(orgAgent, {
+      task: taskKey,
+      enabledTools,
+      direction: AgentDirection.INBOUND,
+      medium: CallMedium.SIP,
+    });
   }
 
   /**

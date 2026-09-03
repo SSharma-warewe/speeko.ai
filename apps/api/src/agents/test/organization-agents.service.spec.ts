@@ -1036,5 +1036,29 @@ describe('OrganizationAgentsService', () => {
       expect(result.agent.key).toBe('inbound');
       expect(result.systemPrompt).toBe('Org persona customized');
     });
+
+    it('35c. packInboundJobMetadata uses live realtime model and strips TTS', async () => {
+      const row = makeOrgAgent({
+        model: 'openai/gpt-realtime-2.1-mini',
+        ttsModel: 'inworld/inworld-tts-2',
+        voice: 'marin',
+      });
+      repository.findByIdAndOrgWithAgent.mockResolvedValue(row);
+      toolProfilesService.resolveEnabledToolIds.mockResolvedValue(['endCall']);
+
+      const meta = await service.packInboundJobMetadata(ORG_ID, ORG_AGENT_ID);
+
+      expect(meta.model).toBe('openai/gpt-realtime-2.1-mini');
+      expect(meta.ttsModel).toBeNull();
+      expect(meta.voice).toBe('marin');
+      expect(meta.task).toBe('confirm_appointment');
+      expect(meta.medium).toBe('sip');
+      expect(meta.direction).toBe('inbound');
+      expect(meta.callId).toBeUndefined();
+      expect(toolProfilesService.resolveEnabledToolIds).toHaveBeenCalledWith(
+        'org-profile',
+        ORG_ID,
+      );
+    });
   });
 });

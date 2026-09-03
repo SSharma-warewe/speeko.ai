@@ -13,7 +13,6 @@ import {
   SipTrunkDirection,
 } from '../../sip-trunks/sip-trunk.entity';
 import { SipTrunksService } from '../../sip-trunks/sip-trunks.service';
-import { ToolProfilesService } from '../../tools/tool-profiles.service';
 import { CreateSipDispatchRuleDto } from '../dto/create-sip-dispatch-rule.dto';
 import { UpdateSipDispatchRuleDto } from '../dto/update-sip-dispatch-rule.dto';
 import {
@@ -36,8 +35,10 @@ describe('SipDispatchRulesService', () => {
   };
   let organizationsService: { findById: jest.Mock };
   let sipTrunksService: { getEntitiesByIds: jest.Mock };
-  let organizationAgentsService: { getEntityWithTemplate: jest.Mock };
-  let toolProfilesService: { resolveEnabledToolIds: jest.Mock };
+  let organizationAgentsService: {
+    getEntityWithTemplate: jest.Mock;
+    packInboundJobMetadata: jest.Mock;
+  };
   let livekit: {
     getAgentName: jest.Mock;
     createSipDispatchRule: jest.Mock;
@@ -146,6 +147,26 @@ describe('SipDispatchRulesService', () => {
     },
   };
 
+  const packedInboundMetadata = {
+    organizationId: ORG_ID,
+    organizationAgentId: ORG_AGENT_ID,
+    agentKey: 'inbound',
+    direction: 'inbound',
+    medium: 'sip',
+    task: 'confirm_appointment',
+    prompt: {
+      systemPrompt: 'You are a helpful clinic agent.',
+      onEnterInstructions: 'Greet warmly',
+      onExitInstructions: null,
+    },
+    enabledTools: ['endCall', 'confirmAppointment'],
+    voice: 'alloy',
+    temperature: 0.4,
+    model: 'template-model',
+    speakingRate: 0.9,
+    deliveryMode: 'CREATIVE',
+  };
+
   beforeEach(async () => {
     repo = {
       findByOrganization: jest.fn(),
@@ -172,12 +193,9 @@ describe('SipDispatchRulesService', () => {
 
     organizationAgentsService = {
       getEntityWithTemplate: jest.fn().mockResolvedValue(orgAgentWithTemplate),
-    };
-
-    toolProfilesService = {
-      resolveEnabledToolIds: jest
+      packInboundJobMetadata: jest
         .fn()
-        .mockResolvedValue(['endCall', 'confirmAppointment']),
+        .mockResolvedValue(packedInboundMetadata),
     };
 
     livekit = {
@@ -196,7 +214,6 @@ describe('SipDispatchRulesService', () => {
           provide: OrganizationAgentsService,
           useValue: organizationAgentsService,
         },
-        { provide: ToolProfilesService, useValue: toolProfilesService },
         { provide: LivekitService, useValue: livekit },
       ],
     }).compile();
@@ -533,12 +550,8 @@ describe('SipDispatchRulesService', () => {
       await service.publish(ORG_ID, RULE_ID);
 
       expect(
-        organizationAgentsService.getEntityWithTemplate,
+        organizationAgentsService.packInboundJobMetadata,
       ).toHaveBeenCalledWith(ORG_ID, ORG_AGENT_ID);
-      expect(toolProfilesService.resolveEnabledToolIds).toHaveBeenCalledWith(
-        'profile-1',
-        ORG_ID,
-      );
 
       const call = livekit.createSipDispatchRule.mock.calls[0][0];
       expect(call.agentName).toBe('custom-agent');

@@ -3,10 +3,11 @@ import { buildAgentRuntime } from './builders/agent-builder.js';
 import {
   postCallComplete,
   postInboundEnsure,
+  postInboundJobMetadata,
   serializeTranscript,
   serializeUsage,
 } from './call-callback.js';
-import { parseJobMetadata } from './job-metadata.js';
+import { mergeInboundJobMetadata, parseJobMetadata } from './job-metadata.js';
 import { classifyShutdownComplete } from './shutdown-status.js';
 import {
   type SipAnswerParticipant,
@@ -21,7 +22,22 @@ import {
  * (no Cloud, no real SIP, no Inference). defineAgent still wires this as `entry`.
  */
 export async function runAgentJob(ctx: JobContext): Promise<void> {
-  const meta = parseJobMetadata(ctx.job.metadata);
+  let meta = parseJobMetadata(ctx.job.metadata);
+  // Inbound SIP dispatch metadata is snapshotted at publish. Re-read the
+  // current org agent so Voice-tab realtime / TTS changes apply on the next ring.
+  if (
+    meta.direction === 'inbound' &&
+    meta.organizationAgentId &&
+    meta.organizationId
+  ) {
+    const live = await postInboundJobMetadata({
+      organizationAgentId: meta.organizationAgentId,
+      organizationId: meta.organizationId,
+    });
+    if (live) {
+      meta = mergeInboundJobMetadata(meta, live);
+    }
+  }
   const roomName = ctx.job.room?.name ?? 'unknown';
   // Web tests join as Meet. SIP: wait for the party, then only outbound waits
   // for the PSTN callee to answer. Inbound ringing becomes active only after
@@ -32,7 +48,8 @@ export async function runAgentJob(ctx: JobContext): Promise<void> {
   console.log(
     `[agent] job start room=${roomName} callId=${meta.callId ?? 'n/a'} ` +
       `agentKey=${meta.agentKey} direction=${meta.direction} medium=${meta.medium ?? 'n/a'} ` +
-      `task=${meta.task} tools=${meta.enabledTools.join(',')}`,
+      `task=${meta.task} model=${meta.model ?? 'default'} tts=${meta.ttsModel ?? 'default'} ` +
+      `tools=${meta.enabledTools.join(',')}`,
   );
 
   let answeredAt: string | null = null;

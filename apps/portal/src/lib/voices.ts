@@ -95,6 +95,17 @@ export function storedLlmModel(
   return id;
 }
 
+/** Cast / spec label. Realtime has no TTS stage. */
+export function speechModelLabel(
+  model: string | null | undefined,
+  ttsModel: string | null | undefined,
+): string {
+  if (isRealtimeLlmModel(model)) return "Realtime · no TTS";
+  const id = canonicalizeTtsModelId(ttsModel);
+  if (!id || id === DEFAULT_TTS_MODEL) return "Inworld TTS-2";
+  return ttsModelSpec(id).label;
+}
+
 export function voiceCatalog(
   ttsModel: string | null | undefined,
   current: string | null,

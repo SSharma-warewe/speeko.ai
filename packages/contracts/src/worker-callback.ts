@@ -33,6 +33,15 @@ export type CompleteCallPayload = {
   toolEvents?: ToolEvent[] | null;
 };
 
+/**
+ * Worker → API POST /api/internal/organization-agents/:id/job-metadata
+ * Live inbound pack so voice/model/prompt/tools are not frozen at SIP publish.
+ */
+export type InboundJobMetadataRequest = {
+  organizationId: string;
+  organizationAgentId: string;
+};
+
 /** Worker → API POST /api/internal/calls/inbound (upsert by room name). */
 export type InboundEnsurePayload = {
   roomName: string;

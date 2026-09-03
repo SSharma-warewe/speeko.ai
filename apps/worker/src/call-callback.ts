@@ -10,15 +10,22 @@
 import type {
   CompleteCallPayload,
   InboundEnsurePayload,
+  InboundJobMetadataRequest,
 } from '@call-agent/contracts';
 import type { ToolEvent } from './tools/types.js';
+import { parseJobMetadata, type AgentJobMetadata } from './job-metadata.js';
 
 export const DEFAULT_COMPLETE_CALLBACK_TIMEOUT_MS = 8_000;
 export const DEFAULT_COMPLETE_CALLBACK_MAX_ATTEMPTS = 5;
 export const DEFAULT_COMPLETE_CALLBACK_BACKOFF_MS = 500;
 export const COMPLETE_CALLBACK_BACKOFF_CAP_MS = 4_000;
 
-export type { CompleteCallPayload, InboundEnsurePayload, ToolEvent };
+export type {
+  CompleteCallPayload,
+  InboundEnsurePayload,
+  InboundJobMetadataRequest,
+  ToolEvent,
+};
 
 export type PostCallCompleteDeps = {
   fetch?: typeof fetch;
@@ -214,6 +221,34 @@ export async function postInboundEnsure(
     );
     return undefined;
   }
+}
+
+/**
+ * Live inbound org-agent pack (persona / tools / voice / realtime vs pipeline).
+ * Never throws — missing config keeps the static dispatch snapshot.
+ */
+export async function postInboundJobMetadata(
+  payload: InboundJobMetadataRequest,
+  deps: PostCallCompleteDeps = {},
+): Promise<AgentJobMetadata | undefined> {
+  const result = await postWorkerJson(
+    `/api/internal/organization-agents/${payload.organizationAgentId}/job-metadata`,
+    { organizationId: payload.organizationId },
+    'inbound job metadata',
+    `orgAgent=${payload.organizationAgentId}`,
+    deps,
+  );
+  if (!result?.ok || !result.text.trim()) {
+    return undefined;
+  }
+  const parsed = parseJobMetadata(result.text);
+  if (!parsed.organizationAgentId) {
+    console.warn(
+      `[agent] inbound job metadata: response missing organizationAgentId orgAgent=${payload.organizationAgentId}`,
+    );
+    return undefined;
+  }
+  return parsed;
 }
 
 /** Best-effort serialize LiveKit ChatContext / session.history. */

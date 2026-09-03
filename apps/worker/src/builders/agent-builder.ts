@@ -46,6 +46,11 @@ export async function buildAgentRuntime(
   );
 
   const models = buildModels(meta);
+  console.log(
+    `[agent] models kind=${models.kind} llm=${meta.model ?? 'google/gemma-4-31b-it'} ` +
+      `tts=${models.kind === 'realtime' ? 'none' : (meta.ttsModel ?? 'inworld/inworld-tts-2')} ` +
+      `voice=${meta.voice ?? 'default'}`,
+  );
   const tools = await buildTools(meta, userData);
   const instructions = buildPersonaPrompt(meta);
   const session = buildAgentSession(models, userData);

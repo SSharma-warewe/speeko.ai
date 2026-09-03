@@ -21,13 +21,18 @@ jest.mock('../call-callback', () => {
     ...actual,
     postCallComplete: jest.fn().mockResolvedValue(undefined),
     postInboundEnsure: jest.fn().mockResolvedValue(undefined),
+    postInboundJobMetadata: jest.fn().mockResolvedValue(undefined),
   };
 });
 
 import type { JobContext } from '@livekit/agents';
 import { runAgentJob } from '../agent';
 import { buildAgentRuntime } from '../builders/agent-builder';
-import { postCallComplete, postInboundEnsure } from '../call-callback';
+import {
+  postCallComplete,
+  postInboundEnsure,
+  postInboundJobMetadata,
+} from '../call-callback';
 import type { CompleteCallPayload } from '../call-callback';
 import type { AgentJobMetadata } from '../job-metadata';
 import { waitForSipAnswer } from '../sip-answer';
@@ -54,6 +59,10 @@ describe('runAgentJob', () => {
   const postInboundEnsureMock = postInboundEnsure as jest.MockedFunction<
     typeof postInboundEnsure
   >;
+  const postInboundJobMetadataMock =
+    postInboundJobMetadata as jest.MockedFunction<
+      typeof postInboundJobMetadata
+    >;
 
   type ShutdownCb = () => Promise<void> | void;
 
@@ -199,6 +208,7 @@ describe('runAgentJob', () => {
     waitForSipAnswerMock.mockResolvedValue(undefined);
     postCallCompleteMock.mockResolvedValue(undefined);
     postInboundEnsureMock.mockResolvedValue(undefined);
+    postInboundJobMetadataMock.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -263,6 +273,52 @@ describe('runAgentJob', () => {
       expect(waitForSipAnswerMock).not.toHaveBeenCalled();
       expect(postInboundEnsureMock).toHaveBeenCalled();
       expect(runtime.session.start).toHaveBeenCalledTimes(1);
+    });
+
+    it('inbound SIP re-reads live org-agent metadata before building models', async () => {
+      const ctx = makeCtx(
+        metadata({
+          callId: undefined,
+          organizationAgentId: 'oa-live',
+          agentKey: 'inbound',
+          direction: 'inbound',
+          medium: 'sip',
+          model: null,
+          ttsModel: null,
+          participantIdentity: undefined,
+        }),
+      );
+      ctx.waitForParticipant.mockResolvedValue({
+        identity: PHONE,
+        attributes: { 'sip.callStatus': 'ringing' },
+      });
+      postInboundEnsureMock.mockResolvedValue('inbound-call-1');
+      postInboundJobMetadataMock.mockResolvedValue(
+        metadata({
+          organizationAgentId: 'oa-live',
+          agentKey: 'inbound',
+          direction: 'inbound',
+          medium: 'sip',
+          model: 'openai/gpt-realtime-2.1-mini',
+          ttsModel: null,
+          voice: 'marin',
+          callId: undefined,
+        }),
+      );
+
+      await runJob(ctx);
+
+      expect(postInboundJobMetadataMock).toHaveBeenCalledWith({
+        organizationAgentId: 'oa-live',
+        organizationId: 'org-1',
+      });
+      expect(buildAgentRuntimeMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'openai/gpt-realtime-2.1-mini',
+          voice: 'marin',
+          ttsModel: null,
+        }),
+      );
     });
   });
 

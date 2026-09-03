@@ -121,6 +121,7 @@ export type { AgentJobMetadata, AgentJobPrompt } from './job-metadata.js';
 export type {
   CompleteCallPayload,
   InboundEnsurePayload,
+  InboundJobMetadataRequest,
   ToolEvent,
 } from './worker-callback.js';
 

@@ -8,6 +8,7 @@ import { AgentSeedService } from './agent-seed.service';
 import { AgentsController } from './agents.controller';
 import { AgentsRepository } from './agents.repository';
 import { AgentsService } from './agents.service';
+import { InternalOrganizationAgentsController } from './internal-organization-agents.controller';
 import { OrganizationAgent } from './organization-agent.entity';
 import { OrganizationAgentsController } from './organization-agents.controller';
 import { OrganizationAgentsRepository } from './organization-agents.repository';
@@ -26,6 +27,7 @@ import { UserOrganizationAgentsController } from './user-organization-agents.con
     AgentsController,
     OrganizationAgentsController,
     UserOrganizationAgentsController,
+    InternalOrganizationAgentsController,
   ],
   providers: [
     AgentsRepository,
