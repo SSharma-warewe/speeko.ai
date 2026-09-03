@@ -5,10 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  canonicalizeDestinationCountry,
-  destinationCountryFromE164,
-} from '../calls/lib/call-phone';
+import { canonicalizeDestinationCountry } from '../calls/lib/call-phone';
 import { LivekitService } from '../livekit/livekit.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { CreateInboundSipTrunkDto } from './dto/create-inbound-sip-trunk.dto';
@@ -168,10 +165,10 @@ export class SipTrunksService {
     await this.organizationsService.findById(organizationId);
 
     const numbers = this.requireNumbers(dto.numbers);
+    // Do not infer +91 → in. Frejun allowlists US LiveKit SIP IPs;
+    // pinning India blackholes the INVITE (provider never logs the call).
     const destinationCountry =
-      canonicalizeDestinationCountry(dto.destinationCountry) ||
-      destinationCountryFromE164(numbers[0]) ||
-      undefined;
+      canonicalizeDestinationCountry(dto.destinationCountry) || undefined;
 
     let livekitTrunkId: string;
     let providerAddress: string | null = dto.providerAddress?.trim() || null;

@@ -177,21 +177,15 @@ describe('CallDialService', () => {
       expect(result.toNumber).toBe('+15551234567');
     });
 
-    it('11b. +91 dest pins LiveKit trunk destinationCountry=in before dial', async () => {
+    it('11b. +91 dest does not auto-pin destinationCountry (Frejun allowlists US IPs)', async () => {
       await dial.createOutboundCall({
         organizationId: ORG_ID,
         organizationAgentId: ORG_AGENT_ID,
         toNumber: '+918852863728',
       });
 
-      expect(livekit.updateSipOutboundTrunkFields).toHaveBeenCalledWith(
-        'ST_out_1',
-        { destinationCountry: 'in' },
-      );
+      expect(livekit.updateSipOutboundTrunkFields).not.toHaveBeenCalled();
       expect(livekit.createSipParticipant).toHaveBeenCalled();
-      const pinOrder = livekit.updateSipOutboundTrunkFields.mock.invocationCallOrder[0];
-      const dialOrder = livekit.createSipParticipant.mock.invocationCallOrder[0];
-      expect(pinOrder).toBeLessThan(dialOrder);
     });
 
     it('12. createOutboundCallForOrg forces organizationId from JWT arg', async () => {

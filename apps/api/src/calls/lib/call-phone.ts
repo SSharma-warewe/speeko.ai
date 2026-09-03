@@ -27,10 +27,9 @@ export function pickFromNumber(
 }
 
 /**
- * LiveKit outbound region pin. Telephony docs use lowercase ISO 3166-1
- * alpha-2 (`in`, not `IN`). Unknown / uppercase values are treated as a
- * miss and INVITEs stay in the API region (SFO) — Frejun never sees them.
- * +91 → `in`; unknown prefixes stay unset.
+ * Optional LiveKit outbound region pin (lowercase ISO 3166-1 alpha-2).
+ * Do not auto-apply on +91 dials — Frejun allowlists US LiveKit SIP IPs,
+ * so `in` blackholes the INVITE. Keep this for an explicit trunk DTO.
  */
 export function destinationCountryFromE164(
   phone: string | null | undefined,

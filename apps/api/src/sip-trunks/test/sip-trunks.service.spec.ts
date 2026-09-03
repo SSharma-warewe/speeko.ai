@@ -367,7 +367,7 @@ describe('SipTrunksService', () => {
       expect(result.livekitTrunkId).toBe('ST_linked');
     });
 
-    it('16b. link path pins destinationCountry=in for +91 numbers', async () => {
+    it('16b. link path does not infer destinationCountry from +91 numbers', async () => {
       repository.findByLivekitTrunkId.mockResolvedValue(null);
       const dto: CreateSipTrunkDto = {
         name: 'India linked',
@@ -377,10 +377,7 @@ describe('SipTrunksService', () => {
 
       await service.createOutbound(ORG_ID, dto);
 
-      expect(livekit.updateSipOutboundTrunkFields).toHaveBeenCalledWith(
-        'ST_in_link',
-        { destinationCountry: 'in' },
-      );
+      expect(livekit.updateSipOutboundTrunkFields).not.toHaveBeenCalled();
     });
 
     it('17. provision path calls LiveKit and persists returned id', async () => {
@@ -418,7 +415,7 @@ describe('SipTrunksService', () => {
       expect(result).not.toHaveProperty('authPassword');
     });
 
-    it('17b. provision infers destinationCountry=in from +91 when omitted', async () => {
+    it('17b. provision does not infer destinationCountry from +91 when omitted', async () => {
       livekit.createSipOutboundTrunk.mockResolvedValue({
         sipTrunkId: 'ST_inferred',
         address: 'voice-repo.sip.frejun.ai',
@@ -431,7 +428,7 @@ describe('SipTrunksService', () => {
 
       expect(livekit.createSipOutboundTrunk).toHaveBeenCalledWith(
         expect.objectContaining({
-          destinationCountry: 'in',
+          destinationCountry: undefined,
         }),
       );
     });

@@ -658,13 +658,11 @@ describe('LivekitService', () => {
           waitUntilAnswered: false,
           playDialtone: undefined,
           krispEnabled: undefined,
-          ringingTimeout: 60,
+          ringingTimeout: undefined,
           timeout: undefined,
-          media: expect.objectContaining({
-            mediaTimeout: expect.objectContaining({ seconds: 90n }),
-          }),
         }),
       );
+      expect(sipClient.createSipParticipant.mock.calls[0][3].media).toBeUndefined();
       expect(result).toEqual({
         participantId: 'p1',
         participantIdentity: '+1555',

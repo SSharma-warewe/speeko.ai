@@ -406,22 +406,30 @@ export class LivekitService {
     roomName: string;
     sipCallId: string;
   }> {
+    const waitUntilAnswered = params.waitUntilAnswered ?? false;
+    const ringingTimeout =
+      params.ringingTimeout ??
+      (waitUntilAnswered ? SIP_OUTBOUND_RINGING_TIMEOUT_SECONDS : undefined);
     const opts: CreateSipParticipantOptions = {
       fromNumber: params.fromNumber,
       participantIdentity: params.participantIdentity ?? params.phoneNumber,
       participantName: params.participantName ?? params.phoneNumber,
-      waitUntilAnswered: params.waitUntilAnswered ?? false,
+      waitUntilAnswered,
       playDialtone: params.playDialtone,
       krispEnabled: params.krispEnabled,
-      ringingTimeout:
-        params.ringingTimeout ?? SIP_OUTBOUND_RINGING_TIMEOUT_SECONDS,
+      ringingTimeout,
       timeout: params.timeout,
-      media: new SIPMediaConfig({
+    };
+    // Only when we wait for answer: 183-with-no-RTP otherwise trips LiveKit's
+    // 30s media timer. Fire-and-forget queue dials must not send this — extra
+    // media config on the INVITE is enough for Frejun to drop the call unsigned.
+    if (waitUntilAnswered) {
+      opts.media = new SIPMediaConfig({
         mediaTimeout: {
           seconds: BigInt(SIP_OUTBOUND_MEDIA_TIMEOUT_SECONDS),
         },
-      }),
-    };
+      });
+    }
 
     const participant = await this.sipClient.createSipParticipant(
       params.sipTrunkId,
