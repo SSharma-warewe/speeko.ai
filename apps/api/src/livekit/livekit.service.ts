@@ -271,6 +271,19 @@ export class LivekitService {
     };
   }
 
+  async updateSipOutboundTrunkFields(
+    sipTrunkId: string,
+    fields: { destinationCountry?: string },
+  ): Promise<void> {
+    await this.sipClient.updateSipOutboundTrunkFields(sipTrunkId, fields);
+    this.logger.log(
+      `Updated LiveKit outbound trunk ${sipTrunkId}` +
+        (fields.destinationCountry
+          ? ` destinationCountry=${fields.destinationCountry}`
+          : ''),
+    );
+  }
+
   async listSipOutboundTrunks(): Promise<
     Array<{ sipTrunkId: string; name: string; address: string; numbers: string[] }>
   > {

@@ -213,6 +213,7 @@ export function createCallsHarness() {
       sipCallId: 'sip-call-1',
       participantIdentity: '+15551234567',
     }),
+    updateSipOutboundTrunkFields: jest.fn().mockResolvedValue(undefined),
     hasRemoteCallee: jest.fn().mockResolvedValue(false),
   };
 

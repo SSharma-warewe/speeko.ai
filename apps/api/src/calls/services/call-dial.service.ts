@@ -19,7 +19,11 @@ import { SipTrunk } from '../../sip-trunks/sip-trunk.entity';
 import { SipTrunksService } from '../../sip-trunks/sip-trunks.service';
 import { ToolProfilesService } from '../../tools/tool-profiles.service';
 import { CallFailureService } from './call-failure.service';
-import { pickFromNumber, resolveToNumber } from '../lib/call-phone';
+import {
+  destinationCountryFromE164,
+  pickFromNumber,
+  resolveToNumber,
+} from '../lib/call-phone';
 import { newCallRow } from '../lib/call-row';
 import {
   applyCallEvent,
@@ -415,6 +419,18 @@ export class CallDialService {
     this.logger.log(
       `Dialing SIP trunk=${trunkLivekitId} from=${fromNumber} to=${toNumber} wait=${shouldWait} task=${taskKey} call=${call.id}`,
     );
+
+    const destinationCountry = destinationCountryFromE164(toNumber);
+    if (destinationCountry) {
+      await this.livekit
+        .updateSipOutboundTrunkFields(trunkLivekitId, { destinationCountry })
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          this.logger.warn(
+            `Could not pin destinationCountry=${destinationCountry} on ${trunkLivekitId}: ${message}`,
+          );
+        });
+    }
 
     try {
       const sipParticipant = await this.livekit.createSipParticipant({

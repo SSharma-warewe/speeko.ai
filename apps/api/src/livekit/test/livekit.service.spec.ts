@@ -19,6 +19,7 @@ type SipClientMock = {
   deleteSipTrunk: jest.Mock;
   deleteSipDispatchRule: jest.Mock;
   createSipParticipant: jest.Mock;
+  updateSipOutboundTrunkFields: jest.Mock;
 };
 
 type AccessTokenInstance = {
@@ -65,6 +66,7 @@ jest.mock('livekit-server-sdk', () => {
     deleteSipTrunk = jest.fn();
     deleteSipDispatchRule = jest.fn();
     createSipParticipant = jest.fn();
+    updateSipOutboundTrunkFields = jest.fn();
     constructor(
       public host: string,
       public apiKey: string,
@@ -390,6 +392,22 @@ describe('LivekitService', () => {
         address: 'sip.provider.com',
         numbers: [],
       });
+    });
+
+    it('18b. updateSipOutboundTrunkFields forwards destinationCountry', async () => {
+      sipClient.updateSipOutboundTrunkFields.mockResolvedValue({
+        sipTrunkId: 'ST_out',
+        destinationCountry: 'IN',
+      });
+
+      await service.updateSipOutboundTrunkFields('ST_out', {
+        destinationCountry: 'IN',
+      });
+
+      expect(sipClient.updateSipOutboundTrunkFields).toHaveBeenCalledWith(
+        'ST_out',
+        { destinationCountry: 'IN' },
+      );
     });
 
     it('19. listSipOutboundTrunks maps numbers default []', async () => {

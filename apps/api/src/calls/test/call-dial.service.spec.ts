@@ -171,9 +171,27 @@ describe('CallDialService', () => {
           krispEnabled: true,
         }),
       );
+      expect(livekit.updateSipOutboundTrunkFields).not.toHaveBeenCalled();
       expect(result.status).toBe(CallStatus.DIALING);
       expect(result.livekitSipCallId).toBe('sip-call-1');
       expect(result.toNumber).toBe('+15551234567');
+    });
+
+    it('11b. +91 dest pins LiveKit trunk destinationCountry=IN before dial', async () => {
+      await dial.createOutboundCall({
+        organizationId: ORG_ID,
+        organizationAgentId: ORG_AGENT_ID,
+        toNumber: '+918852863728',
+      });
+
+      expect(livekit.updateSipOutboundTrunkFields).toHaveBeenCalledWith(
+        'ST_out_1',
+        { destinationCountry: 'IN' },
+      );
+      expect(livekit.createSipParticipant).toHaveBeenCalled();
+      const pinOrder = livekit.updateSipOutboundTrunkFields.mock.invocationCallOrder[0];
+      const dialOrder = livekit.createSipParticipant.mock.invocationCallOrder[0];
+      expect(pinOrder).toBeLessThan(dialOrder);
     });
 
     it('12. createOutboundCallForOrg forces organizationId from JWT arg', async () => {

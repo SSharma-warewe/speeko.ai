@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { destinationCountryFromE164 } from '../calls/lib/call-phone';
 import { LivekitService } from '../livekit/livekit.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { CreateInboundSipTrunkDto } from './dto/create-inbound-sip-trunk.dto';
@@ -164,6 +165,10 @@ export class SipTrunksService {
     await this.organizationsService.findById(organizationId);
 
     const numbers = this.requireNumbers(dto.numbers);
+    const destinationCountry =
+      dto.destinationCountry?.trim().toUpperCase() ||
+      destinationCountryFromE164(numbers[0]) ||
+      undefined;
 
     let livekitTrunkId: string;
     let providerAddress: string | null = dto.providerAddress?.trim() || null;
@@ -171,6 +176,18 @@ export class SipTrunksService {
     if (dto.livekitTrunkId?.trim()) {
       livekitTrunkId = dto.livekitTrunkId.trim();
       await this.assertLivekitTrunkUnlinked(livekitTrunkId);
+      if (destinationCountry) {
+        await this.livekit
+          .updateSipOutboundTrunkFields(livekitTrunkId, {
+            destinationCountry,
+          })
+          .catch((err: unknown) => {
+            const message = err instanceof Error ? err.message : String(err);
+            this.logger.warn(
+              `Could not pin destinationCountry=${destinationCountry} on ${livekitTrunkId}: ${message}`,
+            );
+          });
+      }
     } else if (dto.providerAddress?.trim()) {
       const created = await this.livekit.createSipOutboundTrunk({
         name: dto.name.trim(),
@@ -178,7 +195,7 @@ export class SipTrunksService {
         numbers,
         authUsername: dto.authUsername,
         authPassword: dto.authPassword,
-        destinationCountry: dto.destinationCountry,
+        destinationCountry,
       });
       livekitTrunkId = created.sipTrunkId;
       providerAddress = created.address || providerAddress;

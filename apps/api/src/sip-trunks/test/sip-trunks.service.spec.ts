@@ -34,6 +34,7 @@ describe('SipTrunksService', () => {
     createSipOutboundTrunk: jest.Mock;
     createSipInboundTrunk: jest.Mock;
     deleteSipTrunk: jest.Mock;
+    updateSipOutboundTrunkFields: jest.Mock;
   };
 
   const ORG_ID = 'org-id';
@@ -126,6 +127,7 @@ describe('SipTrunksService', () => {
       createSipOutboundTrunk: jest.fn(),
       createSipInboundTrunk: jest.fn(),
       deleteSipTrunk: jest.fn(),
+      updateSipOutboundTrunkFields: jest.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -359,9 +361,26 @@ describe('SipTrunksService', () => {
         Date,
       );
       expect(livekit.createSipOutboundTrunk).not.toHaveBeenCalled();
+      expect(livekit.updateSipOutboundTrunkFields).not.toHaveBeenCalled();
       expect(result).not.toHaveProperty('authPassword');
       expect(result.status).toBe('live');
       expect(result.livekitTrunkId).toBe('ST_linked');
+    });
+
+    it('16b. link path pins destinationCountry=IN for +91 numbers', async () => {
+      repository.findByLivekitTrunkId.mockResolvedValue(null);
+      const dto: CreateSipTrunkDto = {
+        name: 'India linked',
+        numbers: ['+918065179684'],
+        livekitTrunkId: 'ST_in_link',
+      };
+
+      await service.createOutbound(ORG_ID, dto);
+
+      expect(livekit.updateSipOutboundTrunkFields).toHaveBeenCalledWith(
+        'ST_in_link',
+        { destinationCountry: 'IN' },
+      );
     });
 
     it('17. provision path calls LiveKit and persists returned id', async () => {
@@ -397,6 +416,24 @@ describe('SipTrunksService', () => {
       );
       expect(result.livekitTrunkId).toBe('ST_provisioned');
       expect(result).not.toHaveProperty('authPassword');
+    });
+
+    it('17b. provision infers destinationCountry=IN from +91 when omitted', async () => {
+      livekit.createSipOutboundTrunk.mockResolvedValue({
+        sipTrunkId: 'ST_inferred',
+        address: 'voice-repo.sip.frejun.ai',
+      });
+      await service.createOutbound(ORG_ID, {
+        name: 'Frejun',
+        numbers: ['+918065179684'],
+        providerAddress: 'voice-repo.sip.frejun.ai',
+      });
+
+      expect(livekit.createSipOutboundTrunk).toHaveBeenCalledWith(
+        expect.objectContaining({
+          destinationCountry: 'IN',
+        }),
+      );
     });
 
   });

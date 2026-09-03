@@ -26,6 +26,25 @@ export function pickFromNumber(
   return normalizePhone(first.trim(), defaultCountryCode);
 }
 
+/**
+ * LiveKit outbound region pin (ISO 3166-1 alpha-2). Indian PSTN trunks
+ * (Frejun/Airtel/etc.) drop US-originated INVITEs — the handset never rings
+ * and LiveKit reports USER_UNAVAILABLE after ~30s. +91 → IN is the one we
+ * must get right; unknown prefixes stay unset.
+ */
+export function destinationCountryFromE164(
+  phone: string | null | undefined,
+): string | null {
+  if (!phone) {
+    return null;
+  }
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('91') && digits.length >= 12) {
+    return 'IN';
+  }
+  return null;
+}
+
 export function resolveToNumber(
   dto: { toNumber?: string | null; context?: Record<string, unknown> | null },
   defaultCountryCode = '91',
