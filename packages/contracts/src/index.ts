@@ -18,6 +18,7 @@ export type { DeliveryMode } from './delivery.js';
 
 export {
   DEFAULT_TTS_MODEL_ID,
+  GROK_VOICES,
   KNOWN_TTS_MODEL_IDS,
   TTS_BACKENDS,
   TTS_MODEL_ALIASES,
@@ -33,6 +34,33 @@ export {
   voicesForTtsModel,
 } from './tts.js';
 export type { TtsBackend, TtsModelId, TtsModelSpec, TtsVoiceOption } from './tts.js';
+
+export {
+  DEFAULT_LLM_MODEL_ID,
+  KNOWN_LLM_MODEL_IDS,
+  LLM_BACKENDS,
+  LLM_KINDS,
+  LLM_MODEL_ALIASES,
+  LLM_MODEL_IDS,
+  LLM_MODEL_LIST,
+  LLM_MODELS,
+  PIPELINE_LLM_MODEL_LIST,
+  REALTIME_LLM_MODEL_LIST,
+  canonicalizeLlmModelId,
+  featuredVoicesForLlmModel,
+  isAgentVoiceAllowed,
+  isKnownLlmModel,
+  isLlmVoiceAllowed,
+  isRealtimeLlmModel,
+  llmModelSpec,
+  voicesForLlmModel,
+} from './llm.js';
+export type {
+  LlmBackend,
+  LlmKind,
+  LlmModelId,
+  LlmModelSpec,
+} from './llm.js';
 
 export {
   DEMO_CALLS_PER_DAY,

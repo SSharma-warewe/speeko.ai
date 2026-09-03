@@ -925,6 +925,12 @@ describe('OrganizationAgentsService', () => {
       await expect(
         service.update(ORG_ID, ORG_AGENT_ID, {
           ttsModel: 'google/gemini-3.1-flash-tts-preview',
+          voice: 'Kore',
+        } as UpdateOrganizationAgentDto),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        service.update(ORG_ID, ORG_AGENT_ID, {
+          ttsModel: 'fishaudio/s2.1-pro-free',
           voice: 'Ashley',
         } as UpdateOrganizationAgentDto),
       ).rejects.toBeInstanceOf(BadRequestException);

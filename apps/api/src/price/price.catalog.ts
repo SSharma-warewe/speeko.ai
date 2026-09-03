@@ -294,6 +294,7 @@ const TTS_ALIASES: Record<string, string> = {
   'rime/mist-v2': 'rime-mist',
   'rime/mist-v3': 'rime-mist',
   'xai/tts': 'xai-tts',
+  'xai/tts-1': 'xai-tts',
 };
 
 export function normalizeModelKey(raw: string): string {

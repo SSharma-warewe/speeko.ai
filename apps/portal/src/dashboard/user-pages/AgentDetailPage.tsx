@@ -7,6 +7,8 @@ import {
   DEFAULT_SPEAKING_RATE,
   DEFAULT_TEMPERATURE,
   parseDeliveryMode,
+  storedLlmModel,
+  storedTtsModel,
   type DeliveryMode,
 } from "../../lib/voices";
 import {
@@ -67,6 +69,7 @@ export default function UserAgentDetailPage() {
   const [toolProfileId, setToolProfileId] = useState("");
   const [calendarIntegrationId, setCalendarIntegrationId] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [model, setModel] = useState<string | null>(null);
   const [ttsModel, setTtsModel] = useState<string | null>(null);
   const [voice, setVoice] = useState<string | null>(null);
   const [speakingRate, setSpeakingRate] = useState(DEFAULT_SPEAKING_RATE);
@@ -99,7 +102,8 @@ export default function UserAgentDetailPage() {
     setToolProfileId(data.agent.toolProfileId || "");
     setCalendarIntegrationId(data.agent.calendarIntegrationId || "");
     setIsActive(data.agent.isActive);
-    setTtsModel(data.agent.ttsModel ?? null);
+    setModel(storedLlmModel(data.agent.model));
+    setTtsModel(storedTtsModel(data.agent.ttsModel));
     setVoice(data.agent.voice ?? null);
     setSpeakingRate(data.agent.speakingRate ?? DEFAULT_SPEAKING_RATE);
     setDeliveryMode(parseDeliveryMode(data.agent.deliveryMode));
@@ -139,6 +143,7 @@ export default function UserAgentDetailPage() {
         toolProfileId: toolProfileId || undefined,
         calendarIntegrationId: calendarIntegrationId || null,
         isActive,
+        model,
         ttsModel,
         voice,
         speakingRate,
@@ -440,6 +445,7 @@ export default function UserAgentDetailPage() {
               aria-hidden={studioPane !== "voice"}
             >
               <AgentVoiceRack
+                model={model}
                 ttsModel={ttsModel}
                 voice={voice}
                 speakingRate={speakingRate}
@@ -447,6 +453,7 @@ export default function UserAgentDetailPage() {
                 temperature={temperature}
                 disabled={submitting}
                 onChange={(next) => {
+                  if (next.model !== undefined) setModel(next.model);
                   if (next.ttsModel !== undefined) setTtsModel(next.ttsModel);
                   if (next.voice !== undefined) setVoice(next.voice);
                   if (next.speakingRate !== undefined)

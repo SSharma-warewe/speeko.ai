@@ -4,6 +4,7 @@ import {
   isDeliveryMode,
   normalizeDeliveryMode,
   normalizeVoice,
+  parseStoredLlmModel,
   parseStoredTtsModel,
   resolveVoiceRuntime,
 } from '../voice-settings';
@@ -89,6 +90,21 @@ describe('voice-settings', () => {
     });
   });
 
+  describe('parseStoredLlmModel', () => {
+    it('empty / Gemma → null; aliases normalize; unknown throws', () => {
+      expect(parseStoredLlmModel(null)).toBeNull();
+      expect(parseStoredLlmModel('  ')).toBeNull();
+      expect(parseStoredLlmModel('google/gemma-4-31b-it')).toBeNull();
+      expect(parseStoredLlmModel('gpt-4.1-mini')).toBe('openai/gpt-4.1-mini');
+      expect(parseStoredLlmModel('grok-voice-latest')).toBe(
+        'xai/grok-voice-think-fast-2.0',
+      );
+      expect(() => parseStoredLlmModel('not-an-llm')).toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
   describe('parseStoredTtsModel', () => {
     it('empty → null; aliases normalize; unknown throws', () => {
       expect(parseStoredTtsModel(null)).toBeNull();
@@ -96,9 +112,9 @@ describe('voice-settings', () => {
       expect(parseStoredTtsModel('fish-audio/s2.1-pro-free:free')).toBe(
         'fishaudio/s2.1-pro-free',
       );
-      expect(parseStoredTtsModel('google/gemini-3.1-flash-tts-preview')).toBe(
-        'google/gemini-3.1-flash-tts-preview',
-      );
+      expect(() =>
+        parseStoredTtsModel('google/gemini-3.1-flash-tts-preview'),
+      ).toThrow(BadRequestException);
       expect(() => parseStoredTtsModel('not-a-tts')).toThrow(
         BadRequestException,
       );
@@ -113,23 +129,51 @@ describe('voice-settings', () => {
       } = { voice: 'Ashley', ttsModel: null };
       expect(() =>
         applyVoicePatch(row, {
-          ttsModel: 'google/gemini-3.1-flash-tts-preview',
+          ttsModel: 'fishaudio/s2.1-pro-free',
           voice: 'Ashley',
         }),
       ).toThrow(BadRequestException);
     });
 
-    it('accepts a matching Gemini voice', () => {
+    it('accepts a matching Fish voice', () => {
       const row: {
         voice: string | null;
         ttsModel: string | null;
       } = { voice: null, ttsModel: null };
       applyVoicePatch(row, {
-        ttsModel: 'google/gemini-3.1-flash-tts-preview',
-        voice: 'Kore',
+        ttsModel: 'fishaudio/s2.1-pro-free',
+        voice: '933563129e564b19a115bedd57b7406a',
       });
-      expect(row.ttsModel).toBe('google/gemini-3.1-flash-tts-preview');
-      expect(row.voice).toBe('Kore');
+      expect(row.ttsModel).toBe('fishaudio/s2.1-pro-free');
+      expect(row.voice).toBe('933563129e564b19a115bedd57b7406a');
+    });
+
+    it('realtime model rejects a pipeline TTS voice', () => {
+      const row: {
+        voice: string | null;
+        model: string | null;
+        ttsModel: string | null;
+      } = { voice: 'Ashley', model: null, ttsModel: null };
+      expect(() =>
+        applyVoicePatch(row, {
+          model: 'openai/gpt-realtime-2.1-mini',
+          voice: 'Ashley',
+        }),
+      ).toThrow(BadRequestException);
+    });
+
+    it('accepts a matching realtime voice', () => {
+      const row: {
+        voice: string | null;
+        model: string | null;
+        ttsModel: string | null;
+      } = { voice: null, model: null, ttsModel: null };
+      applyVoicePatch(row, {
+        model: 'openai/gpt-realtime-2.1-mini',
+        voice: 'marin',
+      });
+      expect(row.model).toBe('openai/gpt-realtime-2.1-mini');
+      expect(row.voice).toBe('marin');
     });
   });
 });

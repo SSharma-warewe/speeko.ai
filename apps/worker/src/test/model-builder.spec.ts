@@ -1,13 +1,17 @@
 import type { AgentJobMetadata } from '../job-metadata';
 import {
+  createLlm,
+  createRealtimeLlm,
   createTts,
   resolveLlmModelOptions,
+  resolveRealtimeVoice,
   resolveTtsModelOptions,
   resolveTtsSpec,
   resolveTtsVoice,
 } from '../builders/model-builder';
 import { INFERENCE_MODELS } from '../models';
-import { OpenRouterTts } from '../tts/openrouter-tts';
+import * as openai from '@livekit/agents-plugin-openai';
+import * as xai from '@livekit/agents-plugin-xai';
 
 function meta(overrides: Partial<AgentJobMetadata> = {}): AgentJobMetadata {
   return {
@@ -80,22 +84,46 @@ describe('model-builder voice / temp helpers', () => {
     ).toBe(spec.defaultVoice);
   });
 
-  it('Gemini uses OpenRouter and requires OPENROUTER_API_KEY', () => {
+  it('OpenAI / xAI plugin models require worker keys', () => {
     expect(() =>
-      createTts(meta({ ttsModel: 'google/gemini-3.1-flash-tts-preview' }), {}),
-    ).toThrow(/OPENROUTER_API_KEY/);
+      createLlm(meta({ model: 'openai/gpt-4.1-mini' }), {}),
+    ).toThrow(/OPENAI_API_KEY/);
+    expect(() =>
+      createTts(meta({ ttsModel: 'openai/gpt-4o-mini-tts' }), {}),
+    ).toThrow(/OPENAI_API_KEY/);
+    expect(() => createTts(meta({ ttsModel: 'xai/tts-1' }), {})).toThrow(
+      /XAI_API_KEY/,
+    );
+    expect(() =>
+      createRealtimeLlm(
+        meta({ model: 'xai/grok-voice-think-fast-2.0' }),
+        {},
+      ),
+    ).toThrow(/XAI_API_KEY/);
+  });
 
+  it('builds plugin TTS when keys are present', () => {
     const tts = createTts(
-      meta({
-        ttsModel: 'google/gemini-3.1-flash-tts-preview',
-        voice: 'Kore',
-      }),
-      { OPENROUTER_API_KEY: 'sk-or-test' },
+      meta({ ttsModel: 'openai/gpt-4o-mini-tts', voice: 'ash' }),
+      { OPENAI_API_KEY: 'sk-test' },
     );
-    expect(tts).toBeInstanceOf(OpenRouterTts);
-    expect((tts as OpenRouterTts).opts.model).toBe(
-      'google/gemini-3.1-flash-tts-preview',
+    expect(tts).toBeInstanceOf(openai.TTS);
+
+    const grokTts = createTts(
+      meta({ ttsModel: 'xai/tts-1', voice: 'ara' }),
+      { XAI_API_KEY: 'xai-test' },
     );
-    expect((tts as OpenRouterTts).opts.voice).toBe('Kore');
+    expect(grokTts).toBeInstanceOf(xai.TTS);
+  });
+
+  it('realtime voice uses the realtime catalog', () => {
+    expect(
+      resolveRealtimeVoice(
+        meta({ model: 'openai/gpt-realtime-2.1-mini', voice: 'cedar' }),
+      ),
+    ).toBe('cedar');
+    expect(
+      resolveRealtimeVoice(meta({ model: 'openai/gpt-realtime-2.1-mini' })),
+    ).toBe('marin');
   });
 });

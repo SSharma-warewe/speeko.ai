@@ -3,13 +3,18 @@
  * `model` on agents remains the LLM override; TTS is `ttsModel` + `voice`.
  */
 
-export const TTS_BACKENDS = ['livekit-inference', 'openrouter'] as const;
+export const TTS_BACKENDS = [
+  'livekit-inference',
+  'openai-plugin',
+  'xai-plugin',
+] as const;
 export type TtsBackend = (typeof TTS_BACKENDS)[number];
 
 export const TTS_MODEL_IDS = {
   inworldTts2: 'inworld/inworld-tts-2',
   fishS21ProFree: 'fishaudio/s2.1-pro-free',
-  gemini31FlashTts: 'google/gemini-3.1-flash-tts-preview',
+  openaiGpt4oMiniTts: 'openai/gpt-4o-mini-tts',
+  xaiTts1: 'xai/tts-1',
 } as const;
 
 export type TtsModelId = (typeof TTS_MODEL_IDS)[keyof typeof TTS_MODEL_IDS];
@@ -17,20 +22,24 @@ export type TtsModelId = (typeof TTS_MODEL_IDS)[keyof typeof TTS_MODEL_IDS];
 export const KNOWN_TTS_MODEL_IDS = [
   TTS_MODEL_IDS.inworldTts2,
   TTS_MODEL_IDS.fishS21ProFree,
-  TTS_MODEL_IDS.gemini31FlashTts,
+  TTS_MODEL_IDS.openaiGpt4oMiniTts,
+  TTS_MODEL_IDS.xaiTts1,
 ] as const satisfies readonly TtsModelId[];
 
 export const DEFAULT_TTS_MODEL_ID = TTS_MODEL_IDS.inworldTts2;
 
-/** Incoming slugs (OpenRouter, short ids) → stored canonical id. */
+/** Incoming slugs (short ids, Fish OpenRouter-shaped ids) → stored canonical id. */
 export const TTS_MODEL_ALIASES: Record<string, TtsModelId> = {
   'inworld/inworld-tts-2': TTS_MODEL_IDS.inworldTts2,
   'inworld-tts-2': TTS_MODEL_IDS.inworldTts2,
   'fishaudio/s2.1-pro-free': TTS_MODEL_IDS.fishS21ProFree,
   'fish-audio/s2.1-pro-free': TTS_MODEL_IDS.fishS21ProFree,
   'fish-audio/s2.1-pro-free:free': TTS_MODEL_IDS.fishS21ProFree,
-  'google/gemini-3.1-flash-tts-preview': TTS_MODEL_IDS.gemini31FlashTts,
-  'gemini-3.1-flash-tts-preview': TTS_MODEL_IDS.gemini31FlashTts,
+  'openai/gpt-4o-mini-tts': TTS_MODEL_IDS.openaiGpt4oMiniTts,
+  'gpt-4o-mini-tts': TTS_MODEL_IDS.openaiGpt4oMiniTts,
+  'xai/tts-1': TTS_MODEL_IDS.xaiTts1,
+  'xai/tts': TTS_MODEL_IDS.xaiTts1,
+  'grok-tts': TTS_MODEL_IDS.xaiTts1,
 };
 
 export type TtsVoiceOption = {
@@ -47,7 +56,7 @@ export type TtsModelSpec = {
   label: string;
   shortLabel: string;
   backend: TtsBackend;
-  /** Id sent to LiveKit Inference or OpenRouter. */
+  /** Id sent to LiveKit Inference or the OpenAI TTS plugin. */
   runtimeModel: string;
   defaultVoice: string;
   voices: readonly TtsVoiceOption[];
@@ -113,61 +122,46 @@ const FISH_VOICES: readonly TtsVoiceOption[] = [
   },
 ];
 
-const GEMINI_VOICES: readonly TtsVoiceOption[] = [
-  { id: 'Zephyr', name: 'Zephyr', line: 'Bright', initial: 'Z', featured: true },
-  { id: 'Puck', name: 'Puck', line: 'Upbeat', initial: 'P', featured: true },
-  {
-    id: 'Charon',
-    name: 'Charon',
-    line: 'Informative',
-    initial: 'C',
-    featured: true,
-  },
-  { id: 'Kore', name: 'Kore', line: 'Firm', initial: 'K', featured: true },
-  {
-    id: 'Fenrir',
-    name: 'Fenrir',
-    line: 'Excitable',
-    initial: 'F',
-    featured: true,
-  },
-  { id: 'Leda', name: 'Leda', line: 'Youthful', initial: 'L' },
-  { id: 'Orus', name: 'Orus', line: 'Firm', initial: 'O' },
-  { id: 'Aoede', name: 'Aoede', line: 'Breezy', initial: 'A', featured: true },
-  { id: 'Callirrhoe', name: 'Callirrhoe', line: 'Easy-going', initial: 'C' },
-  { id: 'Autonoe', name: 'Autonoe', line: 'Bright', initial: 'U' },
-  {
-    id: 'Enceladus',
-    name: 'Enceladus',
-    line: 'Breathy',
-    initial: 'E',
-    featured: true,
-  },
-  { id: 'Iapetus', name: 'Iapetus', line: 'Clear', initial: 'I' },
-  { id: 'Umbriel', name: 'Umbriel', line: 'Easy-going', initial: 'U' },
-  { id: 'Algieba', name: 'Algieba', line: 'Smooth', initial: 'A' },
-  { id: 'Despina', name: 'Despina', line: 'Smooth', initial: 'D' },
-  { id: 'Erinome', name: 'Erinome', line: 'Clear', initial: 'E' },
-  { id: 'Algenib', name: 'Algenib', line: 'Gravelly', initial: 'A' },
-  { id: 'Rasalgethi', name: 'Rasalgethi', line: 'Informative', initial: 'R' },
-  { id: 'Laomedeia', name: 'Laomedeia', line: 'Upbeat', initial: 'L' },
-  { id: 'Achernar', name: 'Achernar', line: 'Soft', initial: 'A' },
-  { id: 'Alnilam', name: 'Alnilam', line: 'Firm', initial: 'A' },
-  { id: 'Schedar', name: 'Schedar', line: 'Even', initial: 'S' },
-  { id: 'Gacrux', name: 'Gacrux', line: 'Mature', initial: 'G' },
-  { id: 'Pulcherrima', name: 'Pulcherrima', line: 'Forward', initial: 'P' },
-  { id: 'Achird', name: 'Achird', line: 'Friendly', initial: 'A' },
-  { id: 'Zubenelgenubi', name: 'Zubenelgenubi', line: 'Casual', initial: 'Z' },
-  { id: 'Vindemiatrix', name: 'Vindemiatrix', line: 'Gentle', initial: 'V' },
-  { id: 'Sadachbia', name: 'Sadachbia', line: 'Lively', initial: 'S' },
-  { id: 'Sadaltager', name: 'Sadaltager', line: 'Knowledgeable', initial: 'S' },
-  {
-    id: 'Sulafat',
-    name: 'Sulafat',
-    line: 'Warm',
-    initial: 'S',
-    featured: true,
-  },
+const OPENAI_TTS_VOICES: readonly TtsVoiceOption[] = [
+  { id: 'ash', name: 'Ash', line: 'Clear', initial: 'A', featured: true },
+  { id: 'alloy', name: 'Alloy', line: 'Neutral', initial: 'Y', featured: true },
+  { id: 'coral', name: 'Coral', line: 'Bright', initial: 'C', featured: true },
+  { id: 'sage', name: 'Sage', line: 'Calm', initial: 'S', featured: true },
+  { id: 'ballad', name: 'Ballad', line: 'Warm', initial: 'B' },
+  { id: 'echo', name: 'Echo', line: 'Even', initial: 'E' },
+  { id: 'fable', name: 'Fable', line: 'Storyteller', initial: 'F' },
+  { id: 'nova', name: 'Nova', line: 'Bright', initial: 'N' },
+  { id: 'onyx', name: 'Onyx', line: 'Deep', initial: 'O' },
+  { id: 'shimmer', name: 'Shimmer', line: 'Light', initial: 'H' },
+];
+
+export const GROK_VOICES: readonly TtsVoiceOption[] = [
+  { id: 'ara', name: 'Ara', line: 'Warm, friendly', initial: 'A', featured: true },
+  { id: 'eve', name: 'Eve', line: 'Energetic', initial: 'E', featured: true },
+  { id: 'leo', name: 'Leo', line: 'Authoritative', initial: 'L', featured: true },
+  { id: 'rex', name: 'Rex', line: 'Confident', initial: 'R', featured: true },
+  { id: 'sal', name: 'Sal', line: 'Smooth', initial: 'S', featured: true },
+  { id: 'carina', name: 'Carina', line: 'Soft, empathetic', initial: 'C' },
+  { id: 'zagan', name: 'Zagan', line: 'Powerful', initial: 'Z' },
+  { id: 'helix', name: 'Helix', line: 'Bold', initial: 'H' },
+  { id: 'orion', name: 'Orion', line: 'Cinematic', initial: 'O' },
+  { id: 'luna', name: 'Luna', line: 'Gentle', initial: 'U' },
+  { id: 'iris', name: 'Iris', line: 'Friendly', initial: 'I' },
+  { id: 'altair', name: 'Altair', line: 'Elegant', initial: 'T' },
+  { id: 'zenith', name: 'Zenith', line: 'Sharp', initial: 'N' },
+  { id: 'perseus', name: 'Perseus', line: 'Strong', initial: 'P' },
+  { id: 'helios', name: 'Helios', line: 'Upbeat', initial: 'D' },
+  { id: 'lux', name: 'Lux', line: 'Calm', initial: 'X' },
+  { id: 'kepler', name: 'Kepler', line: 'Inventive', initial: 'K' },
+  { id: 'rigel', name: 'Rigel', line: 'Precise', initial: 'G' },
+  { id: 'cosmo', name: 'Cosmo', line: 'Curious', initial: 'M' },
+  { id: 'celeste', name: 'Celeste', line: 'Compassionate', initial: 'Q' },
+  { id: 'ursa', name: 'Ursa', line: 'Warm', initial: 'B' },
+  { id: 'sirius', name: 'Sirius', line: 'Quick-witted', initial: 'Y' },
+  { id: 'lumen', name: 'Lumen', line: 'Articulate', initial: 'W' },
+  { id: 'castor', name: 'Castor', line: 'Charismatic', initial: 'F' },
+  { id: 'naksh', name: 'Naksh', line: 'Thoughtful', initial: 'J' },
+  { id: 'atlas', name: 'Atlas', line: 'Commanding', initial: 'V' },
 ];
 
 export const TTS_MODELS: Record<TtsModelId, TtsModelSpec> = {
@@ -191,15 +185,25 @@ export const TTS_MODELS: Record<TtsModelId, TtsModelSpec> = {
     voices: FISH_VOICES,
     controls: { speakingRate: true, deliveryMode: false },
   },
-  [TTS_MODEL_IDS.gemini31FlashTts]: {
-    id: TTS_MODEL_IDS.gemini31FlashTts,
-    label: 'Gemini 3.1 Flash TTS',
-    shortLabel: 'Gemini',
-    backend: 'openrouter',
-    runtimeModel: TTS_MODEL_IDS.gemini31FlashTts,
-    defaultVoice: 'Kore',
-    voices: GEMINI_VOICES,
-    controls: { speakingRate: false, deliveryMode: false },
+  [TTS_MODEL_IDS.openaiGpt4oMiniTts]: {
+    id: TTS_MODEL_IDS.openaiGpt4oMiniTts,
+    label: 'OpenAI GPT-4o mini TTS',
+    shortLabel: 'OpenAI',
+    backend: 'openai-plugin',
+    runtimeModel: 'gpt-4o-mini-tts',
+    defaultVoice: 'ash',
+    voices: OPENAI_TTS_VOICES,
+    controls: { speakingRate: true, deliveryMode: false },
+  },
+  [TTS_MODEL_IDS.xaiTts1]: {
+    id: TTS_MODEL_IDS.xaiTts1,
+    label: 'Grok TTS',
+    shortLabel: 'Grok',
+    backend: 'xai-plugin',
+    runtimeModel: TTS_MODEL_IDS.xaiTts1,
+    defaultVoice: 'ara',
+    voices: GROK_VOICES,
+    controls: { speakingRate: true, deliveryMode: false },
   },
 };
 

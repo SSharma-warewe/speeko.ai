@@ -40,9 +40,9 @@ export type AgentJobMetadata = {
   context?: Record<string, unknown>;
   participantIdentity?: string;
   voice?: string | null;
-  /** LLM override (LiveKit Inference). Not the speech model. */
+  /** LLM / realtime catalog id. null = Gemma via LiveKit Inference. */
   model?: string | null;
-  /** TTS catalog id (`inworld/inworld-tts-2`, `fishaudio/s2.1-pro-free`, …). */
+  /** TTS catalog id. null = Inworld. Ignored when `model` is realtime. */
   ttsModel?: string | null;
   temperature?: number | null;
   /** Speaking-rate multiplier when the selected TTS supports it (0.5–1.5). */

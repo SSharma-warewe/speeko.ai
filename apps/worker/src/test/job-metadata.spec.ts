@@ -54,12 +54,12 @@ describe('parseJobMetadata voice extras', () => {
         task: 'general',
         prompt: { systemPrompt: 'Hi' },
         enabledTools: ['endCall'],
-        ttsModel: 'google/gemini-3.1-flash-tts-preview',
-        voice: 'Kore',
+        ttsModel: 'fishaudio/s2.1-pro-free',
+        voice: '933563129e564b19a115bedd57b7406a',
       }),
     );
-    expect(meta.ttsModel).toBe('google/gemini-3.1-flash-tts-preview');
-    expect(meta.voice).toBe('Kore');
+    expect(meta.ttsModel).toBe('fishaudio/s2.1-pro-free');
+    expect(meta.voice).toBe('933563129e564b19a115bedd57b7406a');
   });
 
   it('empty raw → null ttsModel', () => {

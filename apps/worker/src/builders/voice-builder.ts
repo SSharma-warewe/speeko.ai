@@ -6,6 +6,13 @@ export function buildAgentSession(
   models: ResolvedModels,
   userData: SessionUserData,
 ): voice.AgentSession<SessionUserData> {
+  if (models.kind === 'realtime') {
+    return new voice.AgentSession<SessionUserData>({
+      llm: models.llm,
+      userData,
+    });
+  }
+
   return new voice.AgentSession<SessionUserData>({
     stt: models.stt,
     llm: models.llm,

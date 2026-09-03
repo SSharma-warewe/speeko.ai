@@ -21,7 +21,8 @@ export class VoiceSettingsDto {
 
   @ApiPropertyOptional({
     nullable: true,
-    description: 'LLM override (LiveKit Inference). Not the speech model.',
+    description:
+      'LLM / realtime catalog id (google/gemma-4-31b-it, openai/gpt-4.1-mini, xai/grok-4.6, openai/gpt-realtime-2.1, xai/grok-voice-think-fast-2.0). null = Gemma via LiveKit Inference. Realtime ids run speech-to-speech (no STT/TTS).',
   })
   @IsOptional()
   @IsString()
@@ -31,7 +32,7 @@ export class VoiceSettingsDto {
   @ApiPropertyOptional({
     nullable: true,
     description:
-      'TTS catalog id (inworld/inworld-tts-2, fishaudio/s2.1-pro-free, google/gemini-3.1-flash-tts-preview). null = worker / template default (Inworld). OpenRouter Fish slug is accepted and stored as the LiveKit id.',
+      'TTS catalog id (inworld/inworld-tts-2, fishaudio/s2.1-pro-free, openai/gpt-4o-mini-tts, xai/tts-1). null = worker / template default (Inworld). Ignored when model is a realtime id.',
   })
   @IsOptional()
   @IsString()

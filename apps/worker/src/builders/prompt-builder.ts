@@ -1,3 +1,4 @@
+import { isRealtimeLlmModel } from '@call-agent/contracts';
 import type { AgentJobMetadata } from '../job-metadata.js';
 import {
   contextField,
@@ -308,6 +309,10 @@ export function buildOpeningInstructions(meta: AgentJobMetadata): string | null 
  * Custom text is spoken as-is (not LLM instructions).
  */
 export function buildClosingSpeech(meta: AgentJobMetadata): string | null {
+  // Native realtime audio does not reliably play session.say() closings.
+  if (isRealtimeLlmModel(meta.model)) {
+    return null;
+  }
   const custom = meta.prompt.onExitInstructions;
   if (custom === '') {
     return null;

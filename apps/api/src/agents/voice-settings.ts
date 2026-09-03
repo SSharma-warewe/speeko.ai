@@ -1,9 +1,12 @@
 import { BadRequestException } from '@nestjs/common';
 import {
+  DEFAULT_LLM_MODEL_ID,
   DELIVERY_MODES,
+  canonicalizeLlmModelId,
   canonicalizeTtsModelId,
+  isAgentVoiceAllowed,
   isDeliveryMode,
-  isVoiceAllowed,
+  isRealtimeLlmModel,
   type DeliveryMode,
 } from '@call-agent/contracts';
 
@@ -60,11 +63,34 @@ export function parseStoredTtsModel(
   return id;
 }
 
-export function assertVoiceMatchesTtsModel(
+/**
+ * Empty → null (worker default Gemma). Unknown slug → 400.
+ * Default Gemma is stored as null.
+ */
+export function parseStoredLlmModel(
+  value: string | null | undefined,
+): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const id = canonicalizeLlmModelId(trimmed);
+  if (!id) {
+    throw new BadRequestException(`Unknown LLM model: ${trimmed}`);
+  }
+  return id === DEFAULT_LLM_MODEL_ID ? null : id;
+}
+
+export function assertVoiceMatchesRuntime(
+  model: string | null | undefined,
   ttsModel: string | null | undefined,
   voice: string | null | undefined,
 ): void {
-  if (isVoiceAllowed(ttsModel, voice)) return;
+  if (isAgentVoiceAllowed({ model, ttsModel, voice })) return;
+  if (isRealtimeLlmModel(model)) {
+    throw new BadRequestException(
+      `Voice is not available on realtime model ${model}`,
+    );
+  }
   const label = ttsModel?.trim() || 'inworld/inworld-tts-2';
   throw new BadRequestException(
     `Voice is not available on TTS model ${label}`,
@@ -83,7 +109,7 @@ export function applyVoicePatch(
     row.voice = normalizeVoice(dto.voice);
   }
   if (dto.model !== undefined) {
-    row.model = dto.model;
+    row.model = parseStoredLlmModel(dto.model);
   }
   if (dto.temperature !== undefined) {
     row.temperature = dto.temperature;
@@ -94,8 +120,13 @@ export function applyVoicePatch(
   if (dto.deliveryMode !== undefined) {
     row.deliveryMode = normalizeDeliveryMode(dto.deliveryMode);
   }
-  if (dto.ttsModel !== undefined || dto.voice !== undefined) {
-    assertVoiceMatchesTtsModel(
+  if (
+    dto.model !== undefined ||
+    dto.ttsModel !== undefined ||
+    dto.voice !== undefined
+  ) {
+    assertVoiceMatchesRuntime(
+      row.model,
       row.ttsModel ?? fallbackTtsModel ?? null,
       row.voice,
     );

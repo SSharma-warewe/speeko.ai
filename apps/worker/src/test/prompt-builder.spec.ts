@@ -54,6 +54,17 @@ describe('buildClosingSpeech', () => {
     ).toBe('Thanks for calling. Goodbye.');
   });
 
+  it('skips session.say closings on realtime models', () => {
+    expect(
+      buildClosingSpeech(
+        meta({
+          model: 'openai/gpt-realtime-2.1-mini',
+          onExitInstructions: 'Thanks, goodbye.',
+        }),
+      ),
+    ).toBeNull();
+  });
+
   it('does not turn custom text into an LLM instruction', () => {
     const spoken = buildClosingSpeech(
       meta({ onExitInstructions: 'Thanks! Your appointment has been scheduled. Have a great day!' }),
