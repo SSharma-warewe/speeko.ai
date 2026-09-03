@@ -397,16 +397,16 @@ describe('LivekitService', () => {
     it('18b. updateSipOutboundTrunkFields forwards destinationCountry', async () => {
       sipClient.updateSipOutboundTrunkFields.mockResolvedValue({
         sipTrunkId: 'ST_out',
-        destinationCountry: 'IN',
+        destinationCountry: 'in',
       });
 
       await service.updateSipOutboundTrunkFields('ST_out', {
-        destinationCountry: 'IN',
+        destinationCountry: 'in',
       });
 
       expect(sipClient.updateSipOutboundTrunkFields).toHaveBeenCalledWith(
         'ST_out',
-        { destinationCountry: 'IN' },
+        { destinationCountry: 'in' },
       );
     });
 

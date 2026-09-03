@@ -356,6 +356,7 @@ describe('runAgentJob', () => {
         order.push('wait');
       });
       buildAgentRuntimeMock.mockImplementation(async (meta) => {
+        order.push('build');
         runtime = makeRuntime(meta);
         runtime.session.start.mockImplementation(async () => {
           order.push('start');
@@ -366,7 +367,25 @@ describe('runAgentJob', () => {
 
       await runJob(ctx);
 
-      expect(order).toEqual(['wait', 'start']);
+      expect(order).toEqual(['wait', 'build', 'start']);
+    });
+
+    it('does not construct models when outbound SIP never answers', async () => {
+      waitForSipAnswerMock.mockRejectedValue(
+        new Error('SIP callee disconnected before answer (no answer)'),
+      );
+      const ctx = makeCtx(metadata({ medium: 'sip' }));
+
+      await runJob(ctx);
+
+      expect(buildAgentRuntimeMock).not.toHaveBeenCalled();
+      expect(postCallCompleteMock).toHaveBeenCalledWith(
+        CALL_ID,
+        expect.objectContaining({
+          status: 'failed',
+          failureCode: 'no_answer',
+        }),
+      );
     });
   });
 

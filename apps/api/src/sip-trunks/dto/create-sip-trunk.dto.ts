@@ -68,7 +68,7 @@ export class CreateSipTrunkDto {
   @IsBoolean()
   isActive?: boolean;
 
-  @ApiPropertyOptional({ example: 'IN' })
+  @ApiPropertyOptional({ example: 'in' })
   @IsOptional()
   @IsString()
   @MaxLength(2)

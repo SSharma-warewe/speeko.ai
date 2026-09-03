@@ -9,6 +9,11 @@ export function buildAgentSession(
   if (models.kind === 'realtime') {
     return new voice.AgentSession<SessionUserData>({
       llm: models.llm,
+      // Realtime models own VAD / turn-taking. The AgentSession defaults
+      // (Silero VAD + InferenceTurnDetector) fight server-side detection
+      // and can publish audio while outbound SIP is still INVITEing.
+      vad: null,
+      turnHandling: { turnDetection: null },
       userData,
     });
   }

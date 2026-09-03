@@ -27,10 +27,10 @@ export function pickFromNumber(
 }
 
 /**
- * LiveKit outbound region pin (ISO 3166-1 alpha-2). Indian PSTN trunks
- * (Frejun/Airtel/etc.) drop US-originated INVITEs — the handset never rings
- * and LiveKit reports USER_UNAVAILABLE after ~30s. +91 → IN is the one we
- * must get right; unknown prefixes stay unset.
+ * LiveKit outbound region pin. Telephony docs use lowercase ISO 3166-1
+ * alpha-2 (`in`, not `IN`). Unknown / uppercase values are treated as a
+ * miss and INVITEs stay in the API region (SFO) — Frejun never sees them.
+ * +91 → `in`; unknown prefixes stay unset.
  */
 export function destinationCountryFromE164(
   phone: string | null | undefined,
@@ -40,9 +40,20 @@ export function destinationCountryFromE164(
   }
   const digits = phone.replace(/\D/g, '');
   if (digits.startsWith('91') && digits.length >= 12) {
-    return 'IN';
+    return 'in';
   }
   return null;
+}
+
+/** LiveKit destination_country is lowercase (`in`, `us`). */
+export function canonicalizeDestinationCountry(
+  value: string | null | undefined,
+): string | null {
+  if (value == null) {
+    return null;
+  }
+  const trimmed = value.trim().toLowerCase();
+  return trimmed.length === 2 ? trimmed : null;
 }
 
 export function resolveToNumber(

@@ -225,6 +225,15 @@ export async function waitForSipAnswer(input: {
       }
       const reason = formatDisconnectReason(p);
       const status = sipCallStatus(p) || lastStatus || 'n/a';
+      const attrs = p.attributes
+        ? Object.entries(p.attributes)
+            .map(([k, v]) => `${k}=${v}`)
+            .join(' ')
+        : '';
+      console.log(
+        `[sip-answer] disconnect identity=${p.identity} reason=${reason} status=${status}` +
+          (attrs ? ` ${attrs}` : ''),
+      );
       finish(
         new Error(
           `SIP callee disconnected before answer (no answer) reason=${reason} status=${status}`,

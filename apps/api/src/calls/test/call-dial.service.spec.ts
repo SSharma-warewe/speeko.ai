@@ -177,7 +177,7 @@ describe('CallDialService', () => {
       expect(result.toNumber).toBe('+15551234567');
     });
 
-    it('11b. +91 dest pins LiveKit trunk destinationCountry=IN before dial', async () => {
+    it('11b. +91 dest pins LiveKit trunk destinationCountry=in before dial', async () => {
       await dial.createOutboundCall({
         organizationId: ORG_ID,
         organizationAgentId: ORG_AGENT_ID,
@@ -186,7 +186,7 @@ describe('CallDialService', () => {
 
       expect(livekit.updateSipOutboundTrunkFields).toHaveBeenCalledWith(
         'ST_out_1',
-        { destinationCountry: 'IN' },
+        { destinationCountry: 'in' },
       );
       expect(livekit.createSipParticipant).toHaveBeenCalled();
       const pinOrder = livekit.updateSipOutboundTrunkFields.mock.invocationCallOrder[0];

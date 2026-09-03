@@ -5,7 +5,10 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { destinationCountryFromE164 } from '../calls/lib/call-phone';
+import {
+  canonicalizeDestinationCountry,
+  destinationCountryFromE164,
+} from '../calls/lib/call-phone';
 import { LivekitService } from '../livekit/livekit.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { CreateInboundSipTrunkDto } from './dto/create-inbound-sip-trunk.dto';
@@ -166,7 +169,7 @@ export class SipTrunksService {
 
     const numbers = this.requireNumbers(dto.numbers);
     const destinationCountry =
-      dto.destinationCountry?.trim().toUpperCase() ||
+      canonicalizeDestinationCountry(dto.destinationCountry) ||
       destinationCountryFromE164(numbers[0]) ||
       undefined;
 

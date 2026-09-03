@@ -57,25 +57,27 @@ export async function runAgentJob(ctx: JobContext): Promise<void> {
   let callId = meta.callId;
   let shutdownRegistered = false;
   let sipParticipant: SipAnswerParticipant | undefined;
-
-  const { session, agent, userData } = await buildAgentRuntime(meta);
+  let session: Awaited<ReturnType<typeof buildAgentRuntime>>['session'] | undefined;
+  let userData: Awaited<ReturnType<typeof buildAgentRuntime>>['userData'] | undefined;
 
   const registerShutdownComplete = () => {
-    if (!callId || shutdownRegistered) {
+    if (!callId || shutdownRegistered || !session || !userData) {
       return;
     }
     shutdownRegistered = true;
     const completeCallId = callId;
+    const completeSession = session;
+    const completeUserData = userData;
     ctx.addShutdownCallback(async () => {
       if (failedEarly) {
         return;
       }
       try {
-        const transcript = serializeTranscript(session.history);
-        const usage = serializeUsage(session.usage);
+        const transcript = serializeTranscript(completeSession.history);
+        const usage = serializeUsage(completeSession.usage);
         let sessionReport: Record<string, unknown> | null = null;
         try {
-          const report = ctx.makeSessionReport(session);
+          const report = ctx.makeSessionReport(completeSession);
           sessionReport = report as unknown as Record<string, unknown>;
         } catch {
           // optional
@@ -84,8 +86,8 @@ export async function runAgentJob(ctx: JobContext): Promise<void> {
           requireAnswer: waitForCallee,
           answeredAt,
           taskKey: meta.task,
-          taskResult: userData.taskResult,
-          taskCompleted: userData.taskCompleted === true,
+          taskResult: completeUserData.taskResult,
+          taskCompleted: completeUserData.taskCompleted === true,
         });
         await postCallComplete(completeCallId, {
           status: shutdown.status,
@@ -96,14 +98,14 @@ export async function runAgentJob(ctx: JobContext): Promise<void> {
           transcript,
           usage,
           sessionReport,
-          taskResult: shutdown.taskResult ?? userData.taskResult ?? null,
+          taskResult: shutdown.taskResult ?? completeUserData.taskResult ?? null,
           taskCompleted: shutdown.taskCompleted,
-          toolEvents: userData.toolEvents ?? [],
+          toolEvents: completeUserData.toolEvents ?? [],
         });
         console.log(
           `[agent] tools used callId=${completeCallId} completeStatus=${shutdown.status} ` +
-            `count=${userData.toolEvents?.length ?? 0} ` +
-            `${(userData.toolEvents ?? [])
+            `count=${completeUserData.toolEvents?.length ?? 0} ` +
+            `${(completeUserData.toolEvents ?? [])
               .map((e) => `${e.toolId}:${e.ok === false ? 'fail' : 'ok'}`)
               .join(',') || 'none'}`,
         );
@@ -118,6 +120,9 @@ export async function runAgentJob(ctx: JobContext): Promise<void> {
     participant?: SipAnswerParticipant,
   ): Promise<void> => {
     if (callId) {
+      if (userData) {
+        userData.callId = callId;
+      }
       return;
     }
     if (meta.direction !== 'inbound' || meta.medium !== 'sip') {
@@ -141,11 +146,11 @@ export async function runAgentJob(ctx: JobContext): Promise<void> {
       return;
     }
     callId = ensuredId;
-    userData.callId = ensuredId;
+    if (userData) {
+      userData.callId = ensuredId;
+    }
     registerShutdownComplete();
   };
-
-  registerShutdownComplete();
 
   try {
     await ctx.connect();
@@ -154,8 +159,10 @@ export async function runAgentJob(ctx: JobContext): Promise<void> {
     );
 
     // SIP party joins while still ringing. Outbound: wait until the callee
-    // answers before greeting. Inbound: we are the callee — start the session
-    // so LiveKit can 200 OK (sip.callStatus stays ringing until remote audio).
+    // answers before constructing models (realtime S2S opens a provider WS
+    // and can poison the outbound INVITE SDP) and before greeting. Inbound:
+    // we are the callee — start the session so LiveKit can 200 OK
+    // (sip.callStatus stays ringing until remote audio).
     if (isSip) {
       const identity = meta.participantIdentity;
       console.log(
@@ -187,15 +194,26 @@ export async function runAgentJob(ctx: JobContext): Promise<void> {
       }
     }
 
-    await session.start({
-      agent,
+    const runtime = await buildAgentRuntime({
+      ...meta,
+      ...(callId ? { callId } : {}),
+    });
+    session = runtime.session;
+    userData = runtime.userData;
+    if (callId) {
+      userData.callId = callId;
+    }
+    registerShutdownComplete();
+
+    await runtime.session.start({
+      agent: runtime.agent,
       room: ctx.room,
     });
     if (isSip && meta.direction === 'inbound' && !answeredAt) {
       answeredAt = new Date().toISOString();
     }
 
-    session.on(voice.AgentSessionEventTypes.Close, () => {
+    runtime.session.on(voice.AgentSessionEventTypes.Close, () => {
       console.log(`[agent] session closed room=${roomName}`);
     });
   } catch (err) {
