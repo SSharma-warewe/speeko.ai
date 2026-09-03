@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import {
+  formatDisconnectReason,
   isSipAnswered,
   sipCallStatus,
   sipParticipantInfo,
@@ -88,12 +89,37 @@ describe('sip-answer', () => {
 
   it('rejects when callee disconnects before answer', async () => {
     const room = new EventEmitter();
-    const p = participant('+1', 'ringing');
+    const p = {
+      ...participant('+1', 'ringing'),
+      disconnectReason: 15,
+    };
     const wait = waitForSipAnswer({ room, participant: p, timeoutMs: 500 });
     queueMicrotask(() => {
       room.emit('participantDisconnected', p);
     });
-    await expect(wait).rejects.toThrow(/no answer/);
+    await expect(wait).rejects.toThrow(/no answer.*MEDIA_FAILURE/);
+  });
+
+  it('resolves when polled attributes flip to active without an event', async () => {
+    const room = new EventEmitter();
+    const p = participant('+1', 'dialing');
+    const wait = waitForSipAnswer({
+      room,
+      participant: p,
+      timeoutMs: 500,
+      pollMs: 20,
+    });
+    setTimeout(() => {
+      p.attributes['sip.callStatus'] = 'active';
+    }, 40);
+    await expect(wait).resolves.toBeUndefined();
+  });
+
+  it('names LiveKit media-timeout disconnect reason', () => {
+    expect(formatDisconnectReason({ identity: '+1', disconnectReason: 15 })).toBe(
+      'MEDIA_FAILURE',
+    );
+    expect(formatDisconnectReason({ identity: '+1' })).toBe('unknown');
   });
 
   it('rejects on hangup attribute before answer', async () => {

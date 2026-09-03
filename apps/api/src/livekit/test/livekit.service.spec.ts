@@ -633,16 +633,19 @@ describe('LivekitService', () => {
         'ST_1',
         '+1555',
         'room-1',
-        {
+        expect.objectContaining({
           fromNumber: undefined,
           participantIdentity: '+1555',
           participantName: '+1555',
           waitUntilAnswered: false,
           playDialtone: undefined,
           krispEnabled: undefined,
-          ringingTimeout: undefined,
+          ringingTimeout: 60,
           timeout: undefined,
-        },
+          media: expect.objectContaining({
+            mediaTimeout: expect.objectContaining({ seconds: 90n }),
+          }),
+        }),
       );
       expect(result).toEqual({
         participantId: 'p1',
@@ -678,7 +681,7 @@ describe('LivekitService', () => {
         'ST_2',
         '+1999',
         'room-2',
-        {
+        expect.objectContaining({
           fromNumber: '+1800',
           participantIdentity: 'id-custom',
           participantName: 'Callee',
@@ -687,7 +690,10 @@ describe('LivekitService', () => {
           krispEnabled: false,
           ringingTimeout: 45,
           timeout: 60,
-        },
+          media: expect.objectContaining({
+            mediaTimeout: expect.objectContaining({ seconds: 90n }),
+          }),
+        }),
       );
       expect(result.sipCallId).toBe('SCL_2');
     });

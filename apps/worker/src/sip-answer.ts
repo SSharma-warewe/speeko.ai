@@ -5,14 +5,28 @@
  */
 
 export const SIP_ANSWER_TIMEOUT_MS = 60_000;
+export const SIP_ANSWER_POLL_MS = 250;
 
 const ANSWERED_STATUSES = new Set(['active', 'automation']);
 const PRE_ANSWER_STATUSES = new Set(['dialing', 'ringing']);
+
+/** LiveKit DisconnectReason names we care about for unanswered outbound. */
+const DISCONNECT_REASON_NAMES: Record<number, string> = {
+  1: 'CLIENT_INITIATED',
+  4: 'PARTICIPANT_REMOVED',
+  5: 'ROOM_DELETED',
+  11: 'USER_UNAVAILABLE',
+  12: 'USER_REJECTED',
+  13: 'SIP_TRUNK_FAILURE',
+  14: 'CONNECTION_TIMEOUT',
+  15: 'MEDIA_FAILURE',
+};
 
 export type SipAnswerParticipant = {
   identity: string;
   attributes?: Record<string, string>;
   trackPublications?: Map<string, { kind?: number | string }>;
+  disconnectReason?: number | string;
 };
 
 export type SipAnswerRoom = {
@@ -73,6 +87,23 @@ export function isSipAnswered(participant: SipAnswerParticipant): boolean {
   return hasPublishedAudio(participant);
 }
 
+export function formatDisconnectReason(
+  participant: SipAnswerParticipant,
+): string {
+  const raw = participant.disconnectReason;
+  if (raw === undefined || raw === null || raw === '') {
+    return 'unknown';
+  }
+  if (typeof raw === 'number') {
+    return DISCONNECT_REASON_NAMES[raw] ?? `code_${raw}`;
+  }
+  const asNum = Number(raw);
+  if (Number.isFinite(asNum) && DISCONNECT_REASON_NAMES[asNum]) {
+    return DISCONNECT_REASON_NAMES[asNum];
+  }
+  return String(raw);
+}
+
 function hasPublishedAudio(participant: SipAnswerParticipant): boolean {
   const pubs = participant.trackPublications;
   if (!pubs || pubs.size === 0) {
@@ -105,9 +136,11 @@ export async function waitForSipAnswer(input: {
   room: SipAnswerRoom;
   participant: SipAnswerParticipant;
   timeoutMs?: number;
+  pollMs?: number;
 }): Promise<void> {
   const { room, participant } = input;
   const timeoutMs = input.timeoutMs ?? SIP_ANSWER_TIMEOUT_MS;
+  const pollMs = input.pollMs ?? SIP_ANSWER_POLL_MS;
 
   if (isSipAnswered(participant)) {
     return;
@@ -118,6 +151,7 @@ export async function waitForSipAnswer(input: {
 
   await new Promise<void>((resolve, reject) => {
     let settled = false;
+    let lastStatus = sipCallStatus(participant);
 
     const finish = (err?: Error) => {
       if (settled) {
@@ -125,6 +159,7 @@ export async function waitForSipAnswer(input: {
       }
       settled = true;
       clearTimeout(timer);
+      clearInterval(poll);
       room.off('participantAttributesChanged', onAttrs);
       room.off('trackPublished', onTrackPublished);
       room.off('participantDisconnected', onParticipantDisconnected);
@@ -136,6 +171,25 @@ export async function waitForSipAnswer(input: {
       }
     };
 
+    const consider = (p: SipAnswerParticipant) => {
+      const status = sipCallStatus(p);
+      if (status && status !== lastStatus) {
+        lastStatus = status;
+        console.log(
+          `[sip-answer] identity=${p.identity} sipStatus=${status}`,
+        );
+      }
+      if (isSipAnswered(p)) {
+        finish();
+        return true;
+      }
+      if (status === 'hangup') {
+        finish(new Error('SIP callee hung up before answer (no answer)'));
+        return true;
+      }
+      return false;
+    };
+
     const timer = setTimeout(() => {
       finish(
         new Error(
@@ -144,18 +198,16 @@ export async function waitForSipAnswer(input: {
       );
     }, timeoutMs);
 
+    const poll = setInterval(() => {
+      consider(participant);
+    }, pollMs);
+
     const onAttrs = (...args: unknown[]) => {
       const p = (args[1] ?? args[0]) as SipAnswerParticipant | undefined;
       if (!p || !sameIdentity(p, participant)) {
         return;
       }
-      if (isSipAnswered(p)) {
-        finish();
-        return;
-      }
-      if (sipCallStatus(p) === 'hangup') {
-        finish(new Error('SIP callee hung up before answer (no answer)'));
-      }
+      consider(p);
     };
 
     const onTrackPublished = (...args: unknown[]) => {
@@ -163,9 +215,7 @@ export async function waitForSipAnswer(input: {
       if (!p || !sameIdentity(p, participant)) {
         return;
       }
-      if (isSipAnswered(p)) {
-        finish();
-      }
+      consider(p);
     };
 
     const onParticipantDisconnected = (...args: unknown[]) => {
@@ -173,7 +223,13 @@ export async function waitForSipAnswer(input: {
       if (!p || !sameIdentity(p, participant)) {
         return;
       }
-      finish(new Error('SIP callee disconnected before answer (no answer)'));
+      const reason = formatDisconnectReason(p);
+      const status = sipCallStatus(p) || lastStatus || 'n/a';
+      finish(
+        new Error(
+          `SIP callee disconnected before answer (no answer) reason=${reason} status=${status}`,
+        ),
+      );
     };
 
     const onRoomDisconnected = () => {

@@ -13,8 +13,22 @@ import {
   type SipDispatchRuleDirect,
   type SipDispatchRuleIndividual,
 } from 'livekit-server-sdk';
-import { RoomAgentDispatch, RoomConfiguration, SIPTransport } from '@livekit/protocol';
+import {
+  RoomAgentDispatch,
+  RoomConfiguration,
+  SIPMediaConfig,
+  SIPTransport,
+} from '@livekit/protocol';
 import { livekitHttpHost } from './livekit-url.util';
+
+/**
+ * LiveKit hangs up a SIP call if no RTP arrives within 30s of the media
+ * path (183 early media / 200 OK). India PSTN often sends 183+SDP with no
+ * RTP while still ringing, which killed outbound legs at ~32s as no_answer.
+ */
+export const SIP_OUTBOUND_MEDIA_TIMEOUT_SECONDS = 90;
+/** Align with worker waitForSipAnswer (60s). LiveKit default ringing is 3m. */
+export const SIP_OUTBOUND_RINGING_TIMEOUT_SECONDS = 60;
 
 export type CreateRoomParams = {
   name: string;
@@ -386,8 +400,14 @@ export class LivekitService {
       waitUntilAnswered: params.waitUntilAnswered ?? false,
       playDialtone: params.playDialtone,
       krispEnabled: params.krispEnabled,
-      ringingTimeout: params.ringingTimeout,
+      ringingTimeout:
+        params.ringingTimeout ?? SIP_OUTBOUND_RINGING_TIMEOUT_SECONDS,
       timeout: params.timeout,
+      media: new SIPMediaConfig({
+        mediaTimeout: {
+          seconds: BigInt(SIP_OUTBOUND_MEDIA_TIMEOUT_SECONDS),
+        },
+      }),
     };
 
     const participant = await this.sipClient.createSipParticipant(
