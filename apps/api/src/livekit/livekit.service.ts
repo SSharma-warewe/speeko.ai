@@ -248,7 +248,9 @@ export class LivekitService {
     numbers: string[];
   }> {
     const opts: CreateSipOutboundTrunkOptions = {
-      transport: SIPTransport.SIP_TRANSPORT_AUTO,
+      // Frejun's SBC is TCP. AUTO falls through to UDP; INVITEs get
+      // 0 SIP responses and LiveKit times out as USER_UNAVAILABLE.
+      transport: SIPTransport.SIP_TRANSPORT_TCP,
       authUsername: params.authUsername,
       authPassword: params.authPassword,
       destinationCountry: params.destinationCountry,

@@ -10,6 +10,10 @@ import * as openai from '@livekit/agents-plugin-openai';
 import * as xai from '@livekit/agents-plugin-xai';
 import type { AgentJobMetadata } from '../job-metadata.js';
 import { INFERENCE_MODELS } from '../models.js';
+import {
+  SpeekoOpenaiRealtimeModel,
+  SpeekoXaiRealtimeModel,
+} from './realtime-models.js';
 
 export function resolveLlmSpec(meta: AgentJobMetadata): LlmModelSpec {
   return llmModelSpec(meta.model);
@@ -167,14 +171,14 @@ export function createRealtimeLlm(
   const voice = resolveRealtimeVoice(meta, spec);
 
   if (spec.backend === 'xai-plugin') {
-    return new xai.realtime.RealtimeModel({
+    return new SpeekoXaiRealtimeModel({
       apiKey: requireEnv(env, 'XAI_API_KEY', spec.id),
       model: spec.runtimeModel,
       voice,
     });
   }
 
-  return new openai.realtime.RealtimeModel({
+  return new SpeekoOpenaiRealtimeModel({
     apiKey: requireEnv(env, 'OPENAI_API_KEY', spec.id),
     model: spec.runtimeModel,
     voice,

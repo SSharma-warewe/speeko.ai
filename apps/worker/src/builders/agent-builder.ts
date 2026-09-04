@@ -88,7 +88,11 @@ export async function buildAgentRuntime(
           tools,
           // Drop parent system prompt from history — tasks re-attach it via
           // composeTaskInstructions so it is not duplicated.
-          ctx.agent.chatCtx.copy({ excludeInstructions: true }),
+          ctx.agent.chatCtx.copy({
+            excludeInstructions: true,
+            excludeConfigUpdate: true,
+            excludeHandoff: true,
+          }),
         );
         const result = await task.run();
         userData.taskCompleted = true;

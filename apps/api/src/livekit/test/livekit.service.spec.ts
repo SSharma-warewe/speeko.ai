@@ -356,7 +356,7 @@ describe('LivekitService', () => {
   });
 
   describe('SIP trunks', () => {
-    it('18. createSipOutboundTrunk maps result and uses AUTO transport', async () => {
+    it('18. createSipOutboundTrunk maps result and uses TCP transport', async () => {
       sipClient.createSipOutboundTrunk.mockResolvedValue({
         sipTrunkId: 'ST_out',
         name: 'Out',
@@ -379,7 +379,7 @@ describe('LivekitService', () => {
         'sip.provider.com',
         ['+1555'],
         {
-          transport: SIPTransport.SIP_TRANSPORT_AUTO,
+          transport: SIPTransport.SIP_TRANSPORT_TCP,
           authUsername: 'u',
           authPassword: 'p',
           destinationCountry: 'US',
