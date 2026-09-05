@@ -27,7 +27,7 @@ export class UpdateIntegrationEndpointDto {
   @IsUUID()
   organizationAgentId?: string;
 
-  @ApiPropertyOptional({ example: 'lead_qualification' })
+  @ApiPropertyOptional({ example: 'demo_booking' })
   @IsOptional()
   @IsString()
   @MaxLength(80)

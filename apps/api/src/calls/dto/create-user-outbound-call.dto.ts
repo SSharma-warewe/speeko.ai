@@ -36,7 +36,7 @@ export class CreateUserOutboundCallDto {
   context!: Record<string, unknown>;
 
   @ApiPropertyOptional({
-    example: 'confirm_appointment',
+    example: 'demo_booking',
     description:
       'LiveKit task key. Defaults to the organization agent default task.',
   })

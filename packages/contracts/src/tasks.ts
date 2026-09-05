@@ -4,11 +4,6 @@
  */
 export const TASK_KEYS = {
   general: 'general',
-  confirmAppointment: 'confirm_appointment',
-  leadQualification: 'lead_qualification',
-  customerSupport: 'customer_support',
-  survey: 'survey',
-  debtCollection: 'debt_collection',
   demoBooking: 'demo_booking',
   interviewBooking: 'interview_booking',
 } as const;
@@ -17,11 +12,6 @@ export type KnownTaskKey = (typeof TASK_KEYS)[keyof typeof TASK_KEYS];
 
 export const KNOWN_TASK_KEYS = [
   TASK_KEYS.general,
-  TASK_KEYS.confirmAppointment,
-  TASK_KEYS.leadQualification,
-  TASK_KEYS.customerSupport,
-  TASK_KEYS.survey,
-  TASK_KEYS.debtCollection,
   TASK_KEYS.demoBooking,
   TASK_KEYS.interviewBooking,
 ] as const satisfies readonly KnownTaskKey[];

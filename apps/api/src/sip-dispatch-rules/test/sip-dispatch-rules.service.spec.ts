@@ -128,7 +128,7 @@ describe('SipDispatchRulesService', () => {
     systemPrompt: 'You are a helpful clinic agent.',
     onEnterInstructions: 'Greet warmly',
     onExitInstructions: null,
-    defaultTaskKey: 'confirm_appointment',
+    defaultTaskKey: 'interview_booking',
     toolProfileId: 'profile-1',
     voice: 'alloy',
     model: null,
@@ -153,7 +153,7 @@ describe('SipDispatchRulesService', () => {
     agentKey: 'inbound',
     direction: 'inbound',
     medium: 'sip',
-    task: 'confirm_appointment',
+    task: 'interview_booking',
     prompt: {
       systemPrompt: 'You are a helpful clinic agent.',
       onEnterInstructions: 'Greet warmly',
@@ -562,7 +562,7 @@ describe('SipDispatchRulesService', () => {
         agentKey: 'inbound',
         direction: 'inbound',
         medium: 'sip',
-        task: 'confirm_appointment',
+        task: 'interview_booking',
         prompt: {
           systemPrompt: 'You are a helpful clinic agent.',
           onEnterInstructions: 'Greet warmly',

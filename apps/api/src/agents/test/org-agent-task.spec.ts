@@ -16,20 +16,20 @@ describe('org-agent-task', () => {
     it('outbound ignores omit and rejects a sent key', () => {
       expect(storedDefaultTaskKey(AgentDirection.OUTBOUND, undefined, 'general')).toBeNull();
       expect(() =>
-        storedDefaultTaskKey(AgentDirection.OUTBOUND, 'survey', 'general'),
+        storedDefaultTaskKey(AgentDirection.OUTBOUND, 'demo_booking', 'general'),
       ).toThrow(BadRequestException);
       expect(() =>
-        storedDefaultTaskKey(AgentDirection.OUTBOUND, 'survey', 'general'),
+        storedDefaultTaskKey(AgentDirection.OUTBOUND, 'demo_booking', 'general'),
       ).toThrow(OUTBOUND_NO_DEFAULT_TASK);
     });
 
     it('inbound uses dto, then template, then general', () => {
       expect(
-        storedDefaultTaskKey(AgentDirection.INBOUND, 'survey', 'general'),
-      ).toBe('survey');
+        storedDefaultTaskKey(AgentDirection.INBOUND, 'demo_booking', 'general'),
+      ).toBe('demo_booking');
       expect(
-        storedDefaultTaskKey(AgentDirection.INBOUND, '  ', 'confirm_appointment'),
-      ).toBe('confirm_appointment');
+        storedDefaultTaskKey(AgentDirection.INBOUND, '  ', 'interview_booking'),
+      ).toBe('interview_booking');
       expect(storedDefaultTaskKey(AgentDirection.INBOUND, undefined, null)).toBe(
         'general',
       );
@@ -50,18 +50,18 @@ describe('org-agent-task', () => {
       expect(
         orgAgentDefaultTaskKey(
           {
-            defaultTaskKey: 'confirm_appointment',
+            defaultTaskKey: 'interview_booking',
             agent: inbound,
           } as OrganizationAgent,
           { ...inbound, defaultTaskKey: 'general' },
         ),
-      ).toBe('confirm_appointment');
+      ).toBe('interview_booking');
       expect(
         orgAgentDefaultTaskKey(
           { defaultTaskKey: null, agent: inbound } as OrganizationAgent,
-          { ...inbound, defaultTaskKey: 'survey' },
+          { ...inbound, defaultTaskKey: 'demo_booking' },
         ),
-      ).toBe('survey');
+      ).toBe('demo_booking');
       expect(
         orgAgentDefaultTaskKey(
           { defaultTaskKey: null, agent: inbound } as OrganizationAgent,

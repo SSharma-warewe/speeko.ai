@@ -135,7 +135,7 @@ describe('CallDialService', () => {
         organizationAgentId: ORG_AGENT_ID,
         toNumber: '+1 (555) 123-4567',
         context: { bookingId: 'bk_9' },
-        task: 'survey',
+        task: 'demo_booking',
       });
 
       expect(livekit.createRoom).toHaveBeenCalledWith(
@@ -152,7 +152,7 @@ describe('CallDialService', () => {
         agentKey: 'outbound',
         direction: AgentDirection.OUTBOUND,
         medium: CallMedium.SIP,
-        task: 'survey',
+        task: 'demo_booking',
         prompt: {
           systemPrompt: 'Org persona',
           onEnterInstructions: 'Org enter',

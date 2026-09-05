@@ -246,12 +246,12 @@ describe('AgentsService', () => {
       await service.createIfMissing({
         ...seedInput,
         systemPrompt: 'DIFFERENT SEED PROMPT',
-        defaultTaskKey: 'confirm_appointment',
+        defaultTaskKey: 'interview_booking',
       });
 
       expect(repository.save).toHaveBeenCalledWith(
         expect.objectContaining({
-          defaultTaskKey: 'confirm_appointment',
+          defaultTaskKey: 'interview_booking',
           systemPrompt: 'Keep me',
         }),
       );

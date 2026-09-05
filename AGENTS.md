@@ -141,7 +141,7 @@ Aligned with LiveKit’s separation of **Instructions**, **Tasks**, **Tools**, a
 Parse metadata → PromptBuilder → ToolBuilder (registry) → TaskBuilder → AgentSession
 ```
 
-Known task keys: `general`, `confirm_appointment`, `lead_qualification`, `customer_support`, `survey`, `debt_collection`, `demo_booking` (schedule calendar demo then short product discovery), `interview_booking` (confirm callee name, congratulate they were selected, then book an interview; calendar tools come from the agent tool profile, not the task).  
+Known task keys: `general`, `demo_booking` (schedule calendar demo then short product discovery), `interview_booking` (confirm callee name, congratulate they were selected, then book an interview; calendar tools come from the agent tool profile, not the task).  
 Known tool ids: `endCall`, `booking`, `cancelBooking`, `transferCall`, `lookupCustomer`, `confirmAppointment`, `checkCalendarAvailability`, `listCalendarEvents`, `createCalendarEvent`, `cancelCalendarEvent`, `checkGhlFreeSlots`, `lookupGhlContact`, `upsertGhlContact`, `scheduleGhlMeeting`.
 
 **Calendar tools (Nylas):** org stores API key + grant on `organization_integrations` (`provider=nylas`); link via `organization_agents.calendar_integration_id`; enable Nylas tool ids on a tool profile. Worker tools call `POST /api/internal/calls/:callId/calendar/*` with `X-Worker-Secret` — API holds secrets (never in LiveKit metadata).
@@ -642,14 +642,14 @@ Canonical TypeScript type: `AgentJobMetadata` in `@call-agent/contracts`. Inboun
   "agentKey": "outbound",
   "direction": "outbound",
   "medium": "sip",
-  "task": "confirm_appointment",
+  "task": "demo_booking",
   "prompt": {
     "systemPrompt": "...",
     "onEnterInstructions": null,
     "onExitInstructions": null
   },
   "enabledTools": ["endCall", "confirmAppointment", "lookupCustomer"],
-  "context": { "bookingId": "bk_1", "patientName": "Ada", "appointmentTime": "..." },
+  "context": { "firstName": "Ada", "email": "ada@example.com", "company": "Acme" },
   "participantIdentity": "+91...",
   "voice": null,
   "model": null,

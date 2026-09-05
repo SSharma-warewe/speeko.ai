@@ -19,7 +19,7 @@ export class IntegrationEndpointResponseDto {
   @ApiProperty({ format: 'uuid' })
   organizationAgentId!: string;
 
-  @ApiProperty({ example: 'confirm_appointment' })
+  @ApiProperty({ example: 'demo_booking' })
   taskKey!: string;
 
   @ApiPropertyOptional({ format: 'uuid', nullable: true })

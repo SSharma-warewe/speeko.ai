@@ -9,31 +9,6 @@ export const TASK_CONTEXT_SKELETONS: Record<string, Record<string, unknown>> = {
     customerName: "",
     notes: "",
   },
-  confirm_appointment: {
-    bookingId: "",
-    patientName: "",
-    appointmentTime: "",
-  },
-  lead_qualification: {
-    customerName: "",
-    company: "",
-    product: "",
-    source: "",
-  },
-  customer_support: {
-    customerName: "",
-    ticketId: "",
-    issueSummary: "",
-  },
-  survey: {
-    surveyId: "",
-    questions: ["Question 1?", "Question 2?"],
-  },
-  debt_collection: {
-    customerName: "",
-    accountId: "",
-    amount: "",
-  },
   demo_booking: {
     firstName: "",
     lastName: "",

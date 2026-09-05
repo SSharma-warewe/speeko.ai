@@ -421,7 +421,7 @@ describe('CallWorkerService', () => {
     };
     const inboundOrgAgent = {
       ...orgAgent,
-      defaultTaskKey: 'confirm_appointment',
+      defaultTaskKey: 'interview_booking',
       agent: inboundTemplate,
     };
     const inboundTrunk = {
@@ -442,7 +442,7 @@ describe('CallWorkerService', () => {
         organizationId: ORG_ID,
         organizationAgentId: ORG_AGENT_ID,
         agentKey: 'inbound',
-        task: 'confirm_appointment',
+        task: 'interview_booking',
         fromNumber: '+15551212',
         toNumber: '+18005550100',
         participantIdentity: '+15551212',
@@ -459,7 +459,7 @@ describe('CallWorkerService', () => {
       expect(result.toNumber).toBe('+18005550100');
       expect(result.organizationAgentId).toBe(ORG_AGENT_ID);
       expect(result.sipTrunkId).toBe('in-trunk-id');
-      expect(result.taskKey).toBe('confirm_appointment');
+      expect(result.taskKey).toBe('interview_booking');
       expect(callsRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({
           direction: AgentDirection.INBOUND,

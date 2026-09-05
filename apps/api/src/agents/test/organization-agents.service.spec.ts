@@ -89,7 +89,7 @@ describe('OrganizationAgentsService', () => {
       onExitInstructions: 'Custom bye',
       toolProfileId: 'org-profile',
       calendarIntegrationId: CAL_ID,
-      defaultTaskKey: 'confirm_appointment',
+      defaultTaskKey: 'interview_booking',
       voice: 'org-voice',
       model: 'org-model',
       temperature: 0.2,
@@ -408,10 +408,10 @@ describe('OrganizationAgentsService', () => {
 
       await service.assign(ORG_ID, {
         agentId: TEMPLATE_ID,
-        defaultTaskKey: 'survey',
+        defaultTaskKey: 'demo_booking',
       } as AssignAgentDto);
       expect(repository.create).toHaveBeenCalledWith(
-        expect.objectContaining({ defaultTaskKey: 'survey' }),
+        expect.objectContaining({ defaultTaskKey: 'demo_booking' }),
       );
 
       repository.create.mockClear();
@@ -450,7 +450,7 @@ describe('OrganizationAgentsService', () => {
       await expect(
         service.assign(ORG_ID, {
           agentId: TEMPLATE_ID,
-          defaultTaskKey: 'survey',
+          defaultTaskKey: 'demo_booking',
         } as AssignAgentDto),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -531,7 +531,7 @@ describe('OrganizationAgentsService', () => {
         onExitInstructions: null,
         toolProfileId: 'source-profile',
         calendarIntegrationId: 'source-cal',
-        defaultTaskKey: 'debt_collection',
+        defaultTaskKey: 'interview_booking',
         voice: 'source-voice',
         model: 'source-model',
         ttsModel: 'fishaudio/s2.1-pro-free',
@@ -570,7 +570,7 @@ describe('OrganizationAgentsService', () => {
           onExitInstructions: null,
           toolProfileId: 'source-profile',
           calendarIntegrationId: 'source-cal',
-          defaultTaskKey: 'debt_collection',
+          defaultTaskKey: 'interview_booking',
           voice: 'source-voice',
           model: 'source-model',
           ttsModel: 'fishaudio/s2.1-pro-free',
@@ -810,7 +810,7 @@ describe('OrganizationAgentsService', () => {
     });
 
     it('27b. inbound rejects null/blank defaultTaskKey; outbound rejects any set and clears leftover', async () => {
-      const inbound = makeOrgAgent({ defaultTaskKey: 'confirm_appointment' });
+      const inbound = makeOrgAgent({ defaultTaskKey: 'interview_booking' });
       repository.findByIdAndOrgWithAgent.mockResolvedValue(inbound);
       repository.save.mockImplementation(async (r: OrganizationAgent) => r);
 
@@ -826,9 +826,9 @@ describe('OrganizationAgentsService', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
 
       await service.update(ORG_ID, ORG_AGENT_ID, {
-        defaultTaskKey: 'survey',
+        defaultTaskKey: 'demo_booking',
       } as UpdateOrganizationAgentDto);
-      expect(inbound.defaultTaskKey).toBe('survey');
+      expect(inbound.defaultTaskKey).toBe('demo_booking');
 
       const outboundTemplate = {
         ...template,
@@ -843,7 +843,7 @@ describe('OrganizationAgentsService', () => {
 
       await expect(
         service.update(ORG_ID, ORG_AGENT_ID, {
-          defaultTaskKey: 'survey',
+          defaultTaskKey: 'demo_booking',
         } as UpdateOrganizationAgentDto),
       ).rejects.toBeInstanceOf(BadRequestException);
 
@@ -1051,7 +1051,7 @@ describe('OrganizationAgentsService', () => {
       expect(meta.model).toBe('openai/gpt-realtime-2.1-mini');
       expect(meta.ttsModel).toBeNull();
       expect(meta.voice).toBe('marin');
-      expect(meta.task).toBe('confirm_appointment');
+      expect(meta.task).toBe('interview_booking');
       expect(meta.medium).toBe('sip');
       expect(meta.direction).toBe('inbound');
       expect(meta.callId).toBeUndefined();

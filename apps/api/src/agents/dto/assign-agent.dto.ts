@@ -55,7 +55,7 @@ export class AssignAgentDto {
   calendarIntegrationId?: string;
 
   @ApiPropertyOptional({
-    example: 'confirm_appointment',
+    example: 'interview_booking',
     description:
       'Inbound only: default LiveKit task (required). Outbound: omit — 400 if sent.',
   })

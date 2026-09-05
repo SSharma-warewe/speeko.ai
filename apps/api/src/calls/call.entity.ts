@@ -115,7 +115,7 @@ export class Call {
   @Column({ type: 'jsonb', nullable: true })
   context!: Record<string, unknown> | null;
 
-  /** LiveKit task key executed by the worker (e.g. confirm_appointment). */
+  /** LiveKit task key executed by the worker (e.g. demo_booking). */
   @Column({ name: 'task_key', type: 'varchar', length: 80, nullable: true })
   taskKey!: string | null;
 

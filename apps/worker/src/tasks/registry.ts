@@ -1,22 +1,12 @@
-import { createConfirmAppointmentTask } from './confirm-appointment.task.js';
-import { createCustomerSupportTask } from './customer-support.task.js';
-import { createDebtCollectionTask } from './debt-collection.task.js';
 import { createDemoBookingTask } from './demo-booking.task.js';
 import { createGeneralConversationTask } from './general-conversation.task.js';
 import { createInterviewBookingTask } from './interview-booking.task.js';
-import { createLeadQualificationTask } from './lead-qualification.task.js';
-import { createSurveyTask } from './survey.task.js';
 import { TASK_KEYS } from './task-ids.js';
 import type { TaskFactory, TaskFactoryContext } from './types.js';
 import type { voice } from '@livekit/agents';
 
 const factories = new Map<string, TaskFactory>([
   [TASK_KEYS.general, createGeneralConversationTask],
-  [TASK_KEYS.confirmAppointment, createConfirmAppointmentTask],
-  [TASK_KEYS.leadQualification, createLeadQualificationTask],
-  [TASK_KEYS.customerSupport, createCustomerSupportTask],
-  [TASK_KEYS.survey, createSurveyTask],
-  [TASK_KEYS.debtCollection, createDebtCollectionTask],
   [TASK_KEYS.demoBooking, createDemoBookingTask],
   [TASK_KEYS.interviewBooking, createInterviewBookingTask],
 ]);

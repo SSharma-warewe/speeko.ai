@@ -56,7 +56,7 @@ export class Agent {
   @Column({ name: 'on_exit_instructions', type: 'text', nullable: true })
   onExitInstructions!: string | null;
 
-  /** Default LiveKit task key (e.g. general, confirm_appointment). */
+  /** Default LiveKit task key (e.g. general, demo_booking). */
   @Column({ name: 'default_task_key', type: 'varchar', length: 80, default: 'general' })
   defaultTaskKey!: string;
 

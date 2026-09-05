@@ -97,7 +97,7 @@ describe('agent-response.mapper', () => {
       onExitInstructions: 'Bye',
       toolProfileId: 'profile-org',
       calendarIntegrationId: 'cal-1',
-      defaultTaskKey: 'confirm_appointment',
+      defaultTaskKey: 'interview_booking',
       voice: 'org-voice',
       model: null,
       temperature: null,
@@ -160,9 +160,9 @@ describe('agent-response.mapper', () => {
         toOrganizationAgentResponse({
           ...orgAgent,
           defaultTaskKey: null as unknown as string,
-          agent: { ...template, defaultTaskKey: 'survey' },
+          agent: { ...template, defaultTaskKey: 'demo_booking' },
         } as OrganizationAgent).defaultTaskKey,
-      ).toBe('survey');
+      ).toBe('demo_booking');
 
       expect(
         toOrganizationAgentResponse({
@@ -177,12 +177,12 @@ describe('agent-response.mapper', () => {
 
       expect(
         toOrganizationAgentResponse(orgAgent).defaultTaskKey,
-      ).toBe('confirm_appointment');
+      ).toBe('interview_booking');
 
       expect(
         toOrganizationAgentResponse({
           ...orgAgent,
-          defaultTaskKey: 'confirm_appointment',
+          defaultTaskKey: 'interview_booking',
           agent: {
             ...template,
             key: 'outbound',

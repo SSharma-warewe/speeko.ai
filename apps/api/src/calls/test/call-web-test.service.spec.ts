@@ -70,7 +70,7 @@ describe('CallWebTestService', () => {
 
       const result = await webTest.createTestCall({
         agentKey: 'outbound',
-        task: 'lead_qualification',
+        task: 'demo_booking',
         context: { note: 'qa' },
       });
 
@@ -87,7 +87,7 @@ describe('CallWebTestService', () => {
         agentKey: 'outbound',
         direction: AgentDirection.OUTBOUND,
         medium: CallMedium.WEB,
-        task: 'lead_qualification',
+        task: 'demo_booking',
         prompt: {
           systemPrompt: 'Template persona',
           onEnterInstructions: 'Template enter',
@@ -182,7 +182,7 @@ describe('CallWebTestService', () => {
       };
       organizationAgentsService.getEntityWithTemplate.mockResolvedValue({
         ...orgAgent,
-        defaultTaskKey: 'confirm_appointment',
+        defaultTaskKey: 'interview_booking',
         agent: inboundTemplate,
       });
 
@@ -193,7 +193,7 @@ describe('CallWebTestService', () => {
       const dispatchMeta = JSON.parse(
         livekit.createAgentDispatch.mock.calls[0][0].metadata,
       );
-      expect(dispatchMeta.task).toBe('confirm_appointment');
+      expect(dispatchMeta.task).toBe('interview_booking');
       expect(dispatchMeta.direction).toBe(AgentDirection.INBOUND);
     });
 

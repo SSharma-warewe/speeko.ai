@@ -67,7 +67,7 @@ export class CreateUserCallsBatchDto {
   calls!: CreateUserCallItemDto[];
 
   @ApiPropertyOptional({
-    example: 'confirm_appointment',
+    example: 'demo_booking',
     description:
       'LiveKit task key for all items. Defaults to the organization agent default task.',
   })

@@ -336,42 +336,9 @@ function appendRuntimeContext(instructions: string, meta: AgentJobMetadata): str
 
 /** Built-in openings when onEnterInstructions is unset (task + direction aware). */
 function defaultOpeningInstructions(meta: AgentJobMetadata): string {
-  const patientName = contextField(
-    meta.context,
-    'patientName',
-    'customerName',
-    'name',
-  );
-  const appointmentTime = contextField(
-    meta.context,
-    'appointmentTime',
-    'appointment_time',
-    'time',
-  );
-
   const demoName = displayNameFromContext(meta.context);
 
   switch (meta.task) {
-    case 'confirm_appointment':
-      return [
-        'Greet the person briefly as an automated outbound call.',
-        patientName ? `Address them as ${patientName} if appropriate.` : null,
-        appointmentTime
-          ? `State you are calling about their appointment at ${appointmentTime} and ask if they can still make it.`
-          : 'State you are calling about their upcoming appointment and ask if they can still make it.',
-      ]
-        .filter(Boolean)
-        .join(' ');
-    case 'lead_qualification':
-      return 'Greet the person, state this is a brief outbound call, ask if it is a good time, and introduce the purpose at a high level.';
-    case 'customer_support':
-      return meta.direction === 'outbound'
-        ? 'Greet the person, state you are calling about their support request, and ask how you can help.'
-        : 'Greet the caller and ask how you can help with their issue today.';
-    case 'survey':
-      return 'Greet the person, explain this is a short survey call, ask if they have a minute, and begin with the first question after consent.';
-    case 'debt_collection':
-      return 'Greet the person, identify yourself as an automated call from the company about their account, verify identity gently, and state the purpose without reading sensitive numbers aloud unless verified.';
     case 'demo_booking':
       return [
         'Greet the person briefly as an automated outbound call about scheduling a product demo.',

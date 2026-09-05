@@ -58,7 +58,7 @@ export class CallResponseDto {
 
   @ApiPropertyOptional({
     nullable: true,
-    example: 'confirm_appointment',
+    example: 'demo_booking',
     description: 'LiveKit task key dispatched to the worker',
   })
   taskKey!: string | null;

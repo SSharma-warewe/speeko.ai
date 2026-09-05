@@ -85,7 +85,7 @@ export class UpdateOrganizationAgentDto extends VoiceSettingsDto {
   calendarIntegrationId?: string | null;
 
   @ApiPropertyOptional({
-    example: 'confirm_appointment',
+    example: 'interview_booking',
     nullable: true,
     description:
       'Inbound only: default LiveKit task (cannot clear). Outbound: omit — 400 if sent.',

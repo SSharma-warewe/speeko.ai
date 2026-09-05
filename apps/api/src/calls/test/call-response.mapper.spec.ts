@@ -28,7 +28,7 @@ describe('call-response.mapper', () => {
     fromNumber: '+918000000001',
     toNumber: '+15551234567',
     context: { bookingId: 'bk_1' },
-    taskKey: 'confirm_appointment',
+    taskKey: 'interview_booking',
     taskResult: { status: 'CONFIRMED' },
     taskStatus: CallTaskStatus.PENDING,
     transcript: [{ role: 'user', content: 'hi' }],
@@ -76,7 +76,7 @@ describe('call-response.mapper', () => {
       expect(dto.status).toBe(CallStatus.READY);
       expect(dto.medium).toBe(CallMedium.SIP);
       expect(dto.roomName).toBe('out-abc');
-      expect(dto.taskKey).toBe('confirm_appointment');
+      expect(dto.taskKey).toBe('interview_booking');
       expect(dto.taskResult).toEqual({ status: 'CONFIRMED' });
       expect(dto.taskStatus).toBe(CallTaskStatus.PENDING);
       expect(dto.context).toEqual({ bookingId: 'bk_1' });
