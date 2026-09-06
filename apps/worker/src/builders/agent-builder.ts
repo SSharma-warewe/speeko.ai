@@ -1,3 +1,4 @@
+import { isRealtimeLlmModel } from '@call-agent/contracts';
 import { voice } from '@livekit/agents';
 import { hangUpCall } from '../hangup.js';
 import type { AgentJobMetadata } from '../job-metadata.js';
@@ -8,8 +9,10 @@ import {
   buildOpeningInstructions,
   buildPersonaPrompt,
   hookMode,
+  shouldParentSpeakOpening,
   snapshotCallClock,
 } from './prompt-builder.js';
+import { speakRealtimeGoodbye } from './realtime-speech.js';
 import { buildTask } from './task-builder.js';
 import { buildTools } from './tool-builder.js';
 import { buildAgentSession } from './voice-builder.js';
@@ -60,21 +63,30 @@ export async function buildAgentRuntime(
     // Parent agent keeps shared capability tools; task adds workflow-complete tools.
     tools,
     async onEnter(ctx) {
-      // LiveKit parent onEnter: configurable opening speech, then workflow task.
+      // Pipeline: parent greets then AgentTask.run() replaces it.
+      // Realtime: skip parent generateReply — handoff abandons in-flight
+      // audio (waitForPlayout returns before playout). The task greets.
+      const realtime = isRealtimeLlmModel(meta.model);
       try {
-        const opening = buildOpeningInstructions(meta);
-        if (opening) {
-          const prefix = opening.replace(/\s+/g, ' ').slice(0, 80);
+        if (!shouldParentSpeakOpening(meta)) {
           console.log(
-            `[agent] onEnter opening mode=${hookMode(meta.prompt.onEnterInstructions)} prefix="${prefix}"`,
+            `[agent] onEnter realtime: skip parent opening; task greets callId=${meta.callId ?? 'n/a'}`,
           );
-          const openHandle = ctx.session.generateReply({
-            instructions: opening,
-          });
-          await openHandle.waitForPlayout();
-          console.log(`[agent] onEnter opening playout done callId=${meta.callId ?? 'n/a'}`);
         } else {
-          console.log('[agent] onEnter silent (no opening speech)');
+          const opening = buildOpeningInstructions(meta);
+          if (opening) {
+            const prefix = opening.replace(/\s+/g, ' ').slice(0, 80);
+            console.log(
+              `[agent] onEnter opening mode=${hookMode(meta.prompt.onEnterInstructions)} prefix="${prefix}"`,
+            );
+            const openHandle = ctx.session.generateReply({
+              instructions: opening,
+            });
+            await openHandle.waitForPlayout();
+            console.log(`[agent] onEnter opening playout done callId=${meta.callId ?? 'n/a'}`);
+          } else {
+            console.log('[agent] onEnter silent (no opening speech)');
+          }
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -105,7 +117,11 @@ export async function buildAgentRuntime(
         console.log(
           `[agent] task complete key=${meta.task} result=${JSON.stringify(userData.taskResult)}`,
         );
-        // Workflow done → hang up (goodbye via onExit say(); room delete drops SIP).
+        // Realtime: parent generateReply goodbye (session.say is skipped), then hang up.
+        // Pipeline: hang up immediately; onExit session.say plays the canned line.
+        if (realtime) {
+          await speakRealtimeGoodbye(ctx.session, meta);
+        }
         hangUpCall(ctx.session, { reason: 'task_complete', userData });
       } catch (err) {
         // Task may be interrupted by end_call / shutdown — keep partial result.

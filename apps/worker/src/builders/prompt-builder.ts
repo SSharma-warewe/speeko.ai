@@ -29,10 +29,17 @@ export function buildPersonaPrompt(meta: AgentJobMetadata): string {
   return parts.filter(Boolean).join('\n\n');
 }
 
+/** Platform rule: complete_* must not share a turn with a question. */
+export const COMPLETE_AFTER_LAST_ANSWER_RULE =
+  'Never call a complete_* tool in the same turn as a question. Wait for the answer to your last question first. After complete_* succeeds, do not speak — the system says goodbye and hangs up.';
+
 /**
  * LiveKit `AgentTask.run()` replaces the parent agent. Copy persona into the
  * task system prompt so company facts survive the handoff. Keep parent
  * history `excludeInstructions: true` so this is not duplicated.
+ *
+ * Realtime models skip the parent onEnter generateReply (handoff would
+ * abandon in-flight audio), so a FIRST TURN block tells the task to greet.
  */
 export function composeTaskInstructions(
   meta: AgentJobMetadata,
@@ -40,15 +47,46 @@ export function composeTaskInstructions(
 ): string {
   const persona = buildPersonaPrompt(meta);
   const trimmed = workflow.trim();
-  if (!trimmed) {
-    return persona;
+  const parts = [persona];
+  if (trimmed) {
+    parts.push(
+      '=== WORKFLOW (this call) ===',
+      trimmed,
+      'Persona and company facts above stay in force. Do not contradict them. Workflow is the objective for this call, not a new identity.',
+    );
+  }
+  parts.push(COMPLETE_AFTER_LAST_ANSWER_RULE);
+  const firstTurn = buildRealtimeFirstTurnBlock(meta);
+  if (firstTurn) {
+    parts.push(firstTurn);
+  }
+  return parts.join('\n\n');
+}
+
+/** Pipeline parent greets; realtime task greets after AgentTask handoff. */
+export function shouldParentSpeakOpening(meta: AgentJobMetadata): boolean {
+  return !isRealtimeLlmModel(meta.model);
+}
+
+/**
+ * Injected into the task prompt on realtime so the task speaks the opening
+ * (parent generateReply is skipped — task.run() replaces the parent).
+ */
+export function buildRealtimeFirstTurnBlock(
+  meta: AgentJobMetadata,
+): string | null {
+  if (!isRealtimeLlmModel(meta.model)) {
+    return null;
+  }
+  const opening = buildOpeningInstructions(meta);
+  if (!opening) {
+    return null;
   }
   return [
-    persona,
-    '=== WORKFLOW (this call) ===',
-    trimmed,
-    'Persona and company facts above stay in force. Do not contradict them. Workflow is the objective for this call, not a new identity.',
-  ].join('\n\n');
+    '=== FIRST TURN ===',
+    opening,
+    'Speak this opening yourself on the first turn. The parent agent will not greet before you start.',
+  ].join('\n');
 }
 
 export type CallClockSnapshot = {
@@ -304,15 +342,10 @@ export function buildOpeningInstructions(meta: AgentJobMetadata): string | null 
 }
 
 /**
- * Verbatim closing line for LiveKit parent Agent onExit (`session.say`).
- * null = skip speech for this hook.
- * Custom text is spoken as-is (not LLM instructions).
+ * Verbatim closing line (custom onExit, or direction default).
+ * `''` means silent. Shared by pipeline `session.say` and realtime generateReply.
  */
-export function buildClosingSpeech(meta: AgentJobMetadata): string | null {
-  // Native realtime audio does not reliably play session.say() closings.
-  if (isRealtimeLlmModel(meta.model)) {
-    return null;
-  }
+export function cannedClosingLine(meta: AgentJobMetadata): string | null {
   const custom = meta.prompt.onExitInstructions;
   if (custom === '') {
     return null;
@@ -324,6 +357,36 @@ export function buildClosingSpeech(meta: AgentJobMetadata): string | null {
     return 'Thanks for your time. Goodbye.';
   }
   return 'Thanks for calling. Goodbye.';
+}
+
+/**
+ * Verbatim closing line for LiveKit parent Agent onExit (`session.say`).
+ * null = skip speech for this hook.
+ * Custom text is spoken as-is (not LLM instructions).
+ */
+export function buildClosingSpeech(meta: AgentJobMetadata): string | null {
+  // Native realtime audio does not reliably play session.say() closings.
+  if (isRealtimeLlmModel(meta.model)) {
+    return null;
+  }
+  return cannedClosingLine(meta);
+}
+
+/**
+ * generateReply instructions for a realtime goodbye (session.say is skipped).
+ * null = skip (silent onExit, or not a realtime model).
+ */
+export function buildRealtimeClosingInstructions(
+  meta: AgentJobMetadata,
+): string | null {
+  if (!isRealtimeLlmModel(meta.model)) {
+    return null;
+  }
+  const line = cannedClosingLine(meta);
+  if (!line) {
+    return null;
+  }
+  return `Say exactly this line, then stop. Do not ask another question, do not call tools: ${line}`;
 }
 
 function appendRuntimeContext(instructions: string, meta: AgentJobMetadata): string {

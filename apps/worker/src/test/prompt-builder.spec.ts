@@ -1,7 +1,11 @@
 import type { AgentJobMetadata } from '../job-metadata';
 import {
+  COMPLETE_AFTER_LAST_ANSWER_RULE,
   buildClosingSpeech,
+  buildRealtimeClosingInstructions,
+  buildRealtimeFirstTurnBlock,
   composeTaskInstructions,
+  shouldParentSpeakOpening,
 } from '../builders/prompt-builder';
 
 function meta(
@@ -117,5 +121,115 @@ describe('composeTaskInstructions', () => {
     expect(composeTaskInstructions(personaMeta, '')).not.toMatch(
       /=== WORKFLOW/,
     );
+  });
+
+  it('includes the complete-after-last-answer rule', () => {
+    const text = composeTaskInstructions(meta(), 'Help the person.');
+    expect(text).toContain(COMPLETE_AFTER_LAST_ANSWER_RULE);
+  });
+
+  it('realtime compose includes FIRST TURN opening; pipeline does not', () => {
+    const realtime = composeTaskInstructions(
+      meta({
+        model: 'xai/grok-voice-think-fast-2.0',
+        task: 'loan_collection',
+        context: { name: 'Ada Lovelace' },
+      }),
+      'Collect the EMI.',
+    );
+    expect(realtime).toMatch(/=== FIRST TURN ===/);
+    expect(realtime).toMatch(/parent agent will not greet/);
+    expect(realtime).toMatch(/speaking with Ada Lovelace/);
+    expect(realtime).not.toMatch(/=== FIRST TURN ===[\s\S]*=== FIRST TURN ===/);
+
+    const pipeline = composeTaskInstructions(meta(), 'Help the person.');
+    expect(pipeline).not.toMatch(/=== FIRST TURN ===/);
+  });
+
+  it('realtime silent onEnter skips FIRST TURN', () => {
+    const text = composeTaskInstructions(
+      meta({
+        model: 'openai/gpt-realtime-2.1-mini',
+        prompt: {
+          systemPrompt: 'You are a test agent.',
+          onEnterInstructions: '',
+          onExitInstructions: null,
+        },
+      }),
+      'Help the person.',
+    );
+    expect(text).not.toMatch(/=== FIRST TURN ===/);
+    expect(buildRealtimeFirstTurnBlock(
+      meta({
+        model: 'openai/gpt-realtime-2.1-mini',
+        prompt: {
+          systemPrompt: 'You are a test agent.',
+          onEnterInstructions: '',
+          onExitInstructions: null,
+        },
+      }),
+    )).toBeNull();
+  });
+});
+
+describe('shouldParentSpeakOpening', () => {
+  it('is true for pipeline and false for realtime', () => {
+    expect(shouldParentSpeakOpening(meta())).toBe(true);
+    expect(
+      shouldParentSpeakOpening(meta({ model: 'xai/grok-voice-think-fast-2.0' })),
+    ).toBe(false);
+    expect(
+      shouldParentSpeakOpening(
+        meta({ model: 'openai/gpt-realtime-2.1-mini' }),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('buildRealtimeClosingInstructions', () => {
+  it('is null for pipeline models', () => {
+    expect(buildRealtimeClosingInstructions(meta())).toBeNull();
+    expect(
+      buildRealtimeClosingInstructions(
+        meta({ onExitInstructions: 'Thanks, goodbye.' }),
+      ),
+    ).toBeNull();
+  });
+
+  it('default outbound / inbound are exact canned lines', () => {
+    expect(
+      buildRealtimeClosingInstructions(
+        meta({ model: 'xai/grok-voice-think-fast-2.0' }),
+      ),
+    ).toBe(
+      'Say exactly this line, then stop. Do not ask another question, do not call tools: Thanks for your time. Goodbye.',
+    );
+    expect(
+      buildRealtimeClosingInstructions(
+        meta({
+          model: 'xai/grok-voice-think-fast-2.0',
+          direction: 'inbound',
+        }),
+      ),
+    ).toMatch(/Thanks for calling. Goodbye\.$/);
+  });
+
+  it('custom onExit is spoken verbatim; empty string is silent', () => {
+    expect(
+      buildRealtimeClosingInstructions(
+        meta({
+          model: 'openai/gpt-realtime-2.1-mini',
+          onExitInstructions: 'Bye now.',
+        }),
+      ),
+    ).toMatch(/Bye now\.$/);
+    expect(
+      buildRealtimeClosingInstructions(
+        meta({
+          model: 'openai/gpt-realtime-2.1-mini',
+          onExitInstructions: '',
+        }),
+      ),
+    ).toBeNull();
   });
 });
