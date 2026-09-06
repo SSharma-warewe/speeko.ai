@@ -368,6 +368,16 @@ function defaultOpeningInstructions(meta: AgentJobMetadata): string {
       ]
         .filter(Boolean)
         .join(' ');
+    case 'loan_collection':
+      return [
+        'Greet the person briefly as an automated outbound call about a payment that is due.',
+        demoName
+          ? `Ask if you are speaking with ${demoName} before discussing the due payment.`
+          : 'Ask for their name before discussing the due payment.',
+        'Do not mention the amount, due date, EMI, or CIBIL until they confirm they are the right person (or they have given their name).',
+      ]
+        .filter(Boolean)
+        .join(' ');
     case 'general':
     default:
       return meta.direction === 'outbound'

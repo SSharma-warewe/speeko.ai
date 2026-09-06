@@ -1,6 +1,7 @@
 import { createDemoBookingTask } from './demo-booking.task.js';
 import { createGeneralConversationTask } from './general-conversation.task.js';
 import { createInterviewBookingTask } from './interview-booking.task.js';
+import { createLoanCollectionTask } from './loan-collection.task.js';
 import { createPersonalLoanOutreachTask } from './personal-loan-outreach.task.js';
 import { TASK_KEYS } from './task-ids.js';
 import type { TaskFactory, TaskFactoryContext } from './types.js';
@@ -11,6 +12,7 @@ const factories = new Map<string, TaskFactory>([
   [TASK_KEYS.demoBooking, createDemoBookingTask],
   [TASK_KEYS.interviewBooking, createInterviewBookingTask],
   [TASK_KEYS.personalLoanOutreach, createPersonalLoanOutreachTask],
+  [TASK_KEYS.loanCollection, createLoanCollectionTask],
 ]);
 
 export class TaskRegistry {
