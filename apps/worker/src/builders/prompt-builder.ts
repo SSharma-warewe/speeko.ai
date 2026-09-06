@@ -358,6 +358,16 @@ function defaultOpeningInstructions(meta: AgentJobMetadata): string {
       ]
         .filter(Boolean)
         .join(' ');
+    case 'personal_loan_outreach':
+      return [
+        'Greet the person briefly as an automated outbound call about a personal loan offer.',
+        demoName
+          ? `Ask if you are speaking with ${demoName} before presenting the loan terms.`
+          : 'Ask for their name before presenting the loan terms.',
+        'Do not read the loan amount, interest rate, or term until they confirm they are the right person (or they have given their name).',
+      ]
+        .filter(Boolean)
+        .join(' ');
     case 'general':
     default:
       return meta.direction === 'outbound'

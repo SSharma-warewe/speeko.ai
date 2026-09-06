@@ -22,6 +22,13 @@ export const TASK_CONTEXT_SKELETONS: Record<string, Record<string, unknown>> = {
     durationMinutes: 30,
     notes: "",
   },
+  personal_loan_outreach: {
+    name: "",
+    email: "",
+    loanAmount: "",
+    interestRate: "",
+    time: "",
+  },
 };
 
 export function getTaskContextSkeleton(

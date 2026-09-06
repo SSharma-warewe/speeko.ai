@@ -1,6 +1,7 @@
 import { createDemoBookingTask } from './demo-booking.task.js';
 import { createGeneralConversationTask } from './general-conversation.task.js';
 import { createInterviewBookingTask } from './interview-booking.task.js';
+import { createPersonalLoanOutreachTask } from './personal-loan-outreach.task.js';
 import { TASK_KEYS } from './task-ids.js';
 import type { TaskFactory, TaskFactoryContext } from './types.js';
 import type { voice } from '@livekit/agents';
@@ -9,6 +10,7 @@ const factories = new Map<string, TaskFactory>([
   [TASK_KEYS.general, createGeneralConversationTask],
   [TASK_KEYS.demoBooking, createDemoBookingTask],
   [TASK_KEYS.interviewBooking, createInterviewBookingTask],
+  [TASK_KEYS.personalLoanOutreach, createPersonalLoanOutreachTask],
 ]);
 
 export class TaskRegistry {
