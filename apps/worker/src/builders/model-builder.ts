@@ -185,12 +185,16 @@ export function createRealtimeLlm(
   const voice = resolveRealtimeVoice(meta, spec);
 
   if (spec.backend === 'xai-plugin') {
-    return new SpeekoXaiRealtimeModel({
+    // xAI RealtimeModelOptions omits turnDetection in its published types,
+    // but the constructor spreads options onto OpenAI RealtimeModel which
+    // accepts it (plugin default is 200ms / interrupt on).
+    const xaiOptions = {
       apiKey: requireEnv(env, 'XAI_API_KEY', spec.id),
       model: spec.runtimeModel,
       voice,
       turnDetection: XAI_REALTIME_TURN_DETECTION,
-    });
+    };
+    return new SpeekoXaiRealtimeModel(xaiOptions);
   }
 
   return new SpeekoOpenaiRealtimeModel({
