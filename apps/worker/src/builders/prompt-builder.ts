@@ -34,12 +34,23 @@ export const COMPLETE_AFTER_LAST_ANSWER_RULE =
   'Never call a complete_* tool in the same turn as a question. Wait for the answer to your last question first. After complete_* succeeds, do not speak — the system says goodbye and hangs up.';
 
 /**
+ * Realtime S2S is listen-first after each utterance. Without this, the model
+ * states a fact and stops until the callee pokes it.
+ */
+export const REALTIME_TURN_RULE_BODY = [
+  'This is speech-to-speech: after you talk, the line is silent until they answer.',
+  'Until you call complete_*, every turn you speak MUST end with one clear question for the next unfilled required field.',
+  'Never end a turn as only a statement (amount, date, CIBIL, offer terms, or a confirmation with no question).',
+].join(' ');
+
+/**
  * LiveKit `AgentTask.run()` replaces the parent agent. Copy persona into the
  * task system prompt so company facts survive the handoff. Keep parent
  * history `excludeInstructions: true` so this is not duplicated.
  *
- * Realtime models skip the parent onEnter generateReply (handoff would
- * abandon in-flight audio), so a FIRST TURN block tells the task to greet.
+ * Realtime: parent onEnter does not generateReply (handoff would abandon
+ * in-flight audio). The task onEnter generateReplys the opening. A turn
+ * rule keeps later beats from ending on a statement.
  */
 export function composeTaskInstructions(
   meta: AgentJobMetadata,
@@ -56,9 +67,9 @@ export function composeTaskInstructions(
     );
   }
   parts.push(COMPLETE_AFTER_LAST_ANSWER_RULE);
-  const firstTurn = buildRealtimeFirstTurnBlock(meta);
-  if (firstTurn) {
-    parts.push(firstTurn);
+  const turnRule = buildRealtimeTurnRule(meta);
+  if (turnRule) {
+    parts.push(turnRule);
   }
   return parts.join('\n\n');
 }
@@ -69,24 +80,20 @@ export function shouldParentSpeakOpening(meta: AgentJobMetadata): boolean {
 }
 
 /**
- * Injected into the task prompt on realtime so the task speaks the opening
- * (parent generateReply is skipped — task.run() replaces the parent).
+ * Realtime-only turn-taking rules. Opening speech is task onEnter
+ * generateReply, not this prompt — do not re-greet.
  */
-export function buildRealtimeFirstTurnBlock(
-  meta: AgentJobMetadata,
-): string | null {
+export function buildRealtimeTurnRule(meta: AgentJobMetadata): string | null {
   if (!isRealtimeLlmModel(meta.model)) {
     return null;
   }
-  const opening = buildOpeningInstructions(meta);
-  if (!opening) {
-    return null;
+  const lines = ['=== REALTIME TURNS ==='];
+  if (buildOpeningInstructions(meta)) {
+    lines.push('The system already spoke the opening. Do not greet again.');
   }
-  return [
-    '=== FIRST TURN ===',
-    opening,
-    'Speak this opening yourself on the first turn. The parent agent will not greet before you start.',
-  ].join('\n');
+  lines.push(REALTIME_TURN_RULE_BODY);
+  lines.push('=== END REALTIME TURNS ===');
+  return lines.join('\n');
 }
 
 export type CallClockSnapshot = {

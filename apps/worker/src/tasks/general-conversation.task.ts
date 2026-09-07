@@ -1,6 +1,10 @@
-import { llm, voice } from '@livekit/agents';
+import { llm } from '@livekit/agents';
 import { z } from 'zod';
 import { composeTaskInstructions } from '../builders/prompt-builder.js';
+import {
+  createWorkflowTask,
+  finishWorkflowTask,
+} from '../builders/workflow-task.js';
 import { withToolRecording } from '../tools/tool-events.js';
 import { formatContextForInstructions } from './context-format.js';
 import { markTaskFinished, nullishString } from './task-complete.js';
@@ -21,7 +25,7 @@ export const createGeneralConversationTask: TaskFactory = ({
   tools,
   chatCtx,
 }) => {
-  const task = voice.AgentTask.create<GeneralConversationResult>({
+  const task = createWorkflowTask<GeneralConversationResult>(meta, {
     instructions: composeTaskInstructions(
       meta,
       [
@@ -50,7 +54,7 @@ export const createGeneralConversationTask: TaskFactory = ({
               summary: args.summary ?? undefined,
             };
             markTaskFinished(userData, 'general', result);
-            task.complete(result);
+            await finishWorkflowTask(task, meta, result);
             return {
               ok: true,
               outcome: args.outcome,
@@ -61,5 +65,5 @@ export const createGeneralConversationTask: TaskFactory = ({
     ],
   });
 
-  return task as unknown as voice.AgentTask<Record<string, unknown>>;
+  return task as unknown as ReturnType<TaskFactory>;
 };

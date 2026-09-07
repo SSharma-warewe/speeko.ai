@@ -1,4 +1,3 @@
-import { isRealtimeLlmModel } from '@call-agent/contracts';
 import { voice } from '@livekit/agents';
 import { hangUpCall } from '../hangup.js';
 import type { AgentJobMetadata } from '../job-metadata.js';
@@ -12,7 +11,6 @@ import {
   shouldParentSpeakOpening,
   snapshotCallClock,
 } from './prompt-builder.js';
-import { speakRealtimeGoodbye } from './realtime-speech.js';
 import { buildTask } from './task-builder.js';
 import { buildTools } from './tool-builder.js';
 import { buildAgentSession } from './voice-builder.js';
@@ -65,8 +63,7 @@ export async function buildAgentRuntime(
     async onEnter(ctx) {
       // Pipeline: parent greets then AgentTask.run() replaces it.
       // Realtime: skip parent generateReply — handoff abandons in-flight
-      // audio (waitForPlayout returns before playout). The task greets.
-      const realtime = isRealtimeLlmModel(meta.model);
+      // audio (waitForPlayout returns before playout). Task onEnter greets.
       try {
         if (!shouldParentSpeakOpening(meta)) {
           console.log(
@@ -117,11 +114,8 @@ export async function buildAgentRuntime(
         console.log(
           `[agent] task complete key=${meta.task} result=${JSON.stringify(userData.taskResult)}`,
         );
-        // Realtime: parent generateReply goodbye (session.say is skipped), then hang up.
+        // Realtime goodbye already played on the task before complete().
         // Pipeline: hang up immediately; onExit session.say plays the canned line.
-        if (realtime) {
-          await speakRealtimeGoodbye(ctx.session, meta);
-        }
         hangUpCall(ctx.session, { reason: 'task_complete', userData });
       } catch (err) {
         // Task may be interrupted by end_call / shutdown — keep partial result.

@@ -7,6 +7,7 @@ import { TaskRegistry } from '../tasks/registry';
 import { TASK_KEYS } from '../tasks/task-ids';
 import {
   buildLoanCollectionInstructions,
+  loanCollectionCompleteBlocker,
   spokenDueLabel,
 } from '../tasks/loan-collection.task';
 
@@ -125,6 +126,38 @@ describe('loan_collection task', () => {
     expect(composed).toMatch(/PHASE 3 — WHEN THEY WILL PAY/);
     expect(composed).toMatch(/complete_loan_collection_task/);
     expect(composed).toMatch(/Persona and company facts above stay in force/);
+  });
+
+  it('PROMISED complete requires a pay date and delay reason', () => {
+    expect(
+      loanCollectionCompleteBlocker({ outcome: 'PROMISED' }),
+    ).toMatch(/promisedPayDate/);
+    expect(
+      loanCollectionCompleteBlocker({
+        outcome: 'PROMISED',
+        promisedPayDate: 'today',
+      }),
+    ).toMatch(/delayReason/);
+    expect(
+      loanCollectionCompleteBlocker({
+        outcome: 'PROMISED',
+        promisedPayDate: 'today',
+        delayReason: '   ',
+      }),
+    ).toMatch(/delayReason/);
+    expect(
+      loanCollectionCompleteBlocker({
+        outcome: 'PROMISED',
+        promisedPayDate: 'today',
+        delayReason: 'none',
+      }),
+    ).toBeNull();
+    expect(
+      loanCollectionCompleteBlocker({ outcome: 'REFUSED' }),
+    ).toBeNull();
+    expect(
+      loanCollectionCompleteBlocker({ outcome: 'CALLBACK' }),
+    ).toBeNull();
   });
 
   it('default opening confirms name before discussing the due payment', () => {

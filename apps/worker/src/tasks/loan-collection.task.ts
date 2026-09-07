@@ -1,6 +1,10 @@
-import { llm, voice } from '@livekit/agents';
+import { llm } from '@livekit/agents';
 import { z } from 'zod';
 import { composeTaskInstructions } from '../builders/prompt-builder.js';
+import {
+  createWorkflowTask,
+  finishWorkflowTask,
+} from '../builders/workflow-task.js';
 import type { AgentJobMetadata } from '../job-metadata.js';
 import { withToolRecording } from '../tools/tool-events.js';
 import {
@@ -59,6 +63,31 @@ export function collectionLoanAmountFromContext(
     'amount',
     'emiAmount',
   );
+}
+
+function filledField(value: string | null | undefined): boolean {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+/**
+ * PROMISED must include a pay date and a delay reason so the model cannot
+ * complete after “today” without asking why it was late. Other outcomes pass.
+ */
+export function loanCollectionCompleteBlocker(args: {
+  outcome: LoanCollectionResult['outcome'];
+  promisedPayDate?: string | null;
+  delayReason?: string | null;
+}): string | null {
+  if (args.outcome !== 'PROMISED') {
+    return null;
+  }
+  if (!filledField(args.promisedPayDate)) {
+    return 'Ask when they will pay and get a date, then call complete_loan_collection_task again with promisedPayDate.';
+  }
+  if (!filledField(args.delayReason)) {
+    return 'Ask why the payment was delayed, then call complete_loan_collection_task again with delayReason (use "none" if they declined to say).';
+  }
+  return null;
 }
 
 /** Spoken label: EMI vs loan payment. Unknown values are used as-is. */
@@ -150,7 +179,7 @@ export const createLoanCollectionTask: TaskFactory = ({
   const dueDate = dueDateFromContext(meta.context);
   const loanAmount = collectionLoanAmountFromContext(meta.context);
 
-  const task = voice.AgentTask.create<LoanCollectionResult>({
+  const task = createWorkflowTask<LoanCollectionResult>(meta, {
     instructions: composeTaskInstructions(
       meta,
       buildLoanCollectionInstructions(meta),
@@ -192,6 +221,14 @@ export const createLoanCollectionTask: TaskFactory = ({
             'complete_loan_collection_task',
             args,
             async () => {
+              const blocked = loanCollectionCompleteBlocker(args);
+              if (blocked) {
+                return {
+                  ok: false,
+                  error: blocked,
+                  message: blocked,
+                };
+              }
               const result: LoanCollectionResult = {
                 outcome: args.outcome,
                 confirmedName: args.confirmedName ?? expectedName,
@@ -205,7 +242,7 @@ export const createLoanCollectionTask: TaskFactory = ({
                 notes: args.notes ?? undefined,
               };
               markTaskFinished(userData, 'loan_collection', result);
-              task.complete(result);
+              await finishWorkflowTask(task, meta, result);
               return {
                 ok: true,
                 ...result,
@@ -217,5 +254,5 @@ export const createLoanCollectionTask: TaskFactory = ({
     ],
   });
 
-  return task as unknown as voice.AgentTask<Record<string, unknown>>;
+  return task as unknown as ReturnType<TaskFactory>;
 };

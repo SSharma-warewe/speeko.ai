@@ -1,6 +1,10 @@
-import { llm, voice } from '@livekit/agents';
+import { llm } from '@livekit/agents';
 import { z } from 'zod';
 import { composeTaskInstructions } from '../builders/prompt-builder.js';
+import {
+  createWorkflowTask,
+  finishWorkflowTask,
+} from '../builders/workflow-task.js';
 import { withToolRecording } from '../tools/tool-events.js';
 import {
   contextField,
@@ -74,7 +78,7 @@ export const createDemoBookingTask: TaskFactory = ({
   const email = contextField(meta.context, 'email', 'participantEmail');
   const company = contextField(meta.context, 'company', 'companyName');
 
-  const task = voice.AgentTask.create<DemoBookingResult>({
+  const task = createWorkflowTask<DemoBookingResult>(meta, {
     instructions: composeTaskInstructions(meta, [
       'Your objective is a two-phase outbound demo call.',
       name ? `The contact name is ${name}.` : null,
@@ -162,7 +166,7 @@ export const createDemoBookingTask: TaskFactory = ({
                 notes: args.notes ?? undefined,
               };
               markTaskFinished(userData, 'demo_booking', result);
-              task.complete(result);
+              await finishWorkflowTask(task, meta, result);
               return {
                 ok: true,
                 ...result,
@@ -174,5 +178,5 @@ export const createDemoBookingTask: TaskFactory = ({
     ],
   });
 
-  return task as unknown as voice.AgentTask<Record<string, unknown>>;
+  return task as unknown as ReturnType<TaskFactory>;
 };

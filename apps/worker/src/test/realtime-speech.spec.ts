@@ -3,6 +3,7 @@ import {
   isRealtimeAgentBusy,
   isRealtimeAgentIdle,
   speakRealtimeGoodbye,
+  speakRealtimeOpening,
   waitForRealtimeUtterance,
   type RealtimeWaitSession,
 } from '../builders/realtime-speech';
@@ -104,7 +105,12 @@ describe('speakRealtimeGoodbye', () => {
     await expect(
       speakRealtimeGoodbye(session, realtimeMeta),
     ).resolves.toBeUndefined();
-    expect(session.generateReply).toHaveBeenCalled();
+    const arg = (session.generateReply as jest.Mock).mock.calls[0][0] as {
+      toolChoice?: string;
+      allowInterruptions?: boolean;
+    };
+    expect(arg.toolChoice).toBe('none');
+    expect(arg.allowInterruptions).toBeUndefined();
   });
 
   it('skips generateReply when onExit is silent', async () => {
@@ -116,6 +122,57 @@ describe('speakRealtimeGoodbye', () => {
       prompt: {
         ...realtimeMeta.prompt,
         onExitInstructions: '',
+      },
+    });
+    expect(session.generateReply).not.toHaveBeenCalled();
+  });
+});
+
+describe('speakRealtimeOpening', () => {
+  const realtimeMeta = {
+    agentKey: 'outbound',
+    direction: 'outbound',
+    task: 'loan_collection',
+    model: 'xai/grok-voice-think-fast-2.0',
+    prompt: {
+      systemPrompt: 'You are a test agent.',
+      onEnterInstructions: null,
+      onExitInstructions: null,
+    },
+    enabledTools: ['endCall'],
+    context: { name: 'Ada Lovelace' },
+  } as AgentJobMetadata;
+
+  it('generateReply with toolChoice none; does not throw if generateReply fails', async () => {
+    const session = Object.assign(fakeSession('idle'), {
+      generateReply: jest.fn(() => {
+        throw new Error('Item not found');
+      }),
+    });
+    await expect(
+      speakRealtimeOpening(session, realtimeMeta),
+    ).resolves.toBeUndefined();
+    expect(session.generateReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolChoice: 'none',
+        instructions: expect.stringMatching(/speaking with Ada Lovelace/),
+      }),
+    );
+    const arg = (session.generateReply as jest.Mock).mock.calls[0][0] as {
+      allowInterruptions?: boolean;
+    };
+    expect(arg.allowInterruptions).toBeUndefined();
+  });
+
+  it('skips generateReply when onEnter is silent', async () => {
+    const session = Object.assign(fakeSession('idle'), {
+      generateReply: jest.fn(),
+    });
+    await speakRealtimeOpening(session, {
+      ...realtimeMeta,
+      prompt: {
+        ...realtimeMeta.prompt,
+        onEnterInstructions: '',
       },
     });
     expect(session.generateReply).not.toHaveBeenCalled();

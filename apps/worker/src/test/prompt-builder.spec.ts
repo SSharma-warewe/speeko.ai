@@ -3,9 +3,10 @@ import {
   COMPLETE_AFTER_LAST_ANSWER_RULE,
   buildClosingSpeech,
   buildRealtimeClosingInstructions,
-  buildRealtimeFirstTurnBlock,
+  buildRealtimeTurnRule,
   composeTaskInstructions,
   shouldParentSpeakOpening,
+  REALTIME_TURN_RULE_BODY,
 } from '../builders/prompt-builder';
 
 function meta(
@@ -128,7 +129,7 @@ describe('composeTaskInstructions', () => {
     expect(text).toContain(COMPLETE_AFTER_LAST_ANSWER_RULE);
   });
 
-  it('realtime compose includes FIRST TURN opening; pipeline does not', () => {
+  it('realtime compose includes turn rule, not FIRST TURN; pipeline does not', () => {
     const realtime = composeTaskInstructions(
       meta({
         model: 'xai/grok-voice-think-fast-2.0',
@@ -137,38 +138,31 @@ describe('composeTaskInstructions', () => {
       }),
       'Collect the EMI.',
     );
-    expect(realtime).toMatch(/=== FIRST TURN ===/);
-    expect(realtime).toMatch(/parent agent will not greet/);
-    expect(realtime).toMatch(/speaking with Ada Lovelace/);
-    expect(realtime).not.toMatch(/=== FIRST TURN ===[\s\S]*=== FIRST TURN ===/);
+    expect(realtime).toMatch(/=== REALTIME TURNS ===/);
+    expect(realtime).toMatch(/system already spoke the opening/);
+    expect(realtime).toContain(REALTIME_TURN_RULE_BODY);
+    expect(realtime).not.toMatch(/=== FIRST TURN ===/);
+    expect(realtime).not.toMatch(/parent agent will not greet/);
 
     const pipeline = composeTaskInstructions(meta(), 'Help the person.');
+    expect(pipeline).not.toMatch(/=== REALTIME TURNS ===/);
     expect(pipeline).not.toMatch(/=== FIRST TURN ===/);
   });
 
-  it('realtime silent onEnter skips FIRST TURN', () => {
-    const text = composeTaskInstructions(
-      meta({
-        model: 'openai/gpt-realtime-2.1-mini',
-        prompt: {
-          systemPrompt: 'You are a test agent.',
-          onEnterInstructions: '',
-          onExitInstructions: null,
-        },
-      }),
-      'Help the person.',
-    );
-    expect(text).not.toMatch(/=== FIRST TURN ===/);
-    expect(buildRealtimeFirstTurnBlock(
-      meta({
-        model: 'openai/gpt-realtime-2.1-mini',
-        prompt: {
-          systemPrompt: 'You are a test agent.',
-          onEnterInstructions: '',
-          onExitInstructions: null,
-        },
-      }),
-    )).toBeNull();
+  it('realtime silent onEnter keeps turn rule but does not claim opening was spoken', () => {
+    const silentMeta = meta({
+      model: 'openai/gpt-realtime-2.1-mini',
+      prompt: {
+        systemPrompt: 'You are a test agent.',
+        onEnterInstructions: '',
+        onExitInstructions: null,
+      },
+    });
+    const text = composeTaskInstructions(silentMeta, 'Help the person.');
+    expect(text).toMatch(/=== REALTIME TURNS ===/);
+    expect(text).not.toMatch(/system already spoke the opening/);
+    expect(text).toContain(REALTIME_TURN_RULE_BODY);
+    expect(buildRealtimeTurnRule(silentMeta)).toMatch(/=== REALTIME TURNS ===/);
   });
 });
 

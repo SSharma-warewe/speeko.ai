@@ -1,6 +1,10 @@
-import { llm, voice } from '@livekit/agents';
+import { llm } from '@livekit/agents';
 import { z } from 'zod';
 import { composeTaskInstructions } from '../builders/prompt-builder.js';
+import {
+  createWorkflowTask,
+  finishWorkflowTask,
+} from '../builders/workflow-task.js';
 import type { AgentJobMetadata } from '../job-metadata.js';
 import { withToolRecording } from '../tools/tool-events.js';
 import {
@@ -103,7 +107,7 @@ export const createInterviewBookingTask: TaskFactory = ({
   const email = contextField(meta.context, 'email', 'participantEmail');
   const expectedName = displayNameFromContext(meta.context);
 
-  const task = voice.AgentTask.create<InterviewBookingResult>({
+  const task = createWorkflowTask<InterviewBookingResult>(meta, {
     instructions: composeTaskInstructions(
       meta,
       buildInterviewBookingInstructions(meta),
@@ -152,7 +156,7 @@ export const createInterviewBookingTask: TaskFactory = ({
                 notes: args.notes ?? undefined,
               };
               markTaskFinished(userData, 'interview_booking', result);
-              task.complete(result);
+              await finishWorkflowTask(task, meta, result);
               return {
                 ok: true,
                 ...result,
@@ -164,5 +168,5 @@ export const createInterviewBookingTask: TaskFactory = ({
     ],
   });
 
-  return task as unknown as voice.AgentTask<Record<string, unknown>>;
+  return task as unknown as ReturnType<TaskFactory>;
 };

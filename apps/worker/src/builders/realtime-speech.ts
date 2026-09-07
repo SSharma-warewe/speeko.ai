@@ -1,12 +1,14 @@
 import { voice } from '@livekit/agents';
 import type { AgentJobMetadata } from '../job-metadata.js';
 import {
+  buildOpeningInstructions,
   buildRealtimeClosingInstructions,
   hookMode,
 } from './prompt-builder.js';
 
 export const REALTIME_GOODBYE_MIN_MS = 1500;
 export const REALTIME_GOODBYE_TIMEOUT_MS = 8000;
+export const REALTIME_OPENING_TIMEOUT_MS = 15000;
 export const REALTIME_SPEAKING_START_MS = 2000;
 
 const AGENT_STATE_CHANGED = voice.AgentSessionEventTypes.AgentStateChanged;
@@ -105,19 +107,53 @@ function waitForAgentState(
   });
 }
 
-type RealtimeGoodbyeSession = RealtimeWaitSession & {
+export type RealtimeSpeechSession = RealtimeWaitSession & {
   generateReply: (options: {
     instructions: string;
+    toolChoice?: 'auto' | 'none' | 'required';
     allowInterruptions?: boolean;
   }) => unknown;
 };
 
 /**
- * Spoken goodbye on realtime after task.complete() — session.say is skipped.
- * Never throws; hangup still runs if generateReply / wait fails.
+ * First spoken turn on realtime after AgentTask handoff.
+ * Parent generateReply is skipped (handoff abandons in-flight audio).
+ * Never throws — the task still runs if opening speech fails.
+ */
+export async function speakRealtimeOpening(
+  session: RealtimeSpeechSession,
+  meta: AgentJobMetadata,
+): Promise<void> {
+  const instructions = buildOpeningInstructions(meta);
+  if (!instructions) {
+    console.log('[agent] realtime task opening skipped (silent onEnter)');
+    return;
+  }
+  const prefix = instructions.replace(/\s+/g, ' ').slice(0, 80);
+  try {
+    console.log(
+      `[agent] onEnter realtime: task opening mode=${hookMode(meta.prompt.onEnterInstructions)} prefix="${prefix}"`,
+    );
+    session.generateReply({
+      instructions,
+      toolChoice: 'none',
+    });
+    const wait = await waitForRealtimeUtterance(session, {
+      timeoutMs: REALTIME_OPENING_TIMEOUT_MS,
+    });
+    console.log(`[agent] realtime task opening wait=${wait}`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`[agent] realtime task opening failed: ${message}`);
+  }
+}
+
+/**
+ * Spoken goodbye on realtime while the task is still the active agent.
+ * session.say is skipped on native realtime. Never throws.
  */
 export async function speakRealtimeGoodbye(
-  session: RealtimeGoodbyeSession,
+  session: RealtimeSpeechSession,
   meta: AgentJobMetadata,
 ): Promise<void> {
   const instructions = buildRealtimeClosingInstructions(meta);
@@ -132,7 +168,7 @@ export async function speakRealtimeGoodbye(
     );
     session.generateReply({
       instructions,
-      allowInterruptions: false,
+      toolChoice: 'none',
     });
     const wait = await waitForRealtimeUtterance(session);
     console.log(`[agent] realtime goodbye wait=${wait}`);
