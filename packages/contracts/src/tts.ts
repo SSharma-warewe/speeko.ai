@@ -7,6 +7,7 @@ export const TTS_BACKENDS = [
   'livekit-inference',
   'openai-plugin',
   'xai-plugin',
+  'sarvam-plugin',
 ] as const;
 export type TtsBackend = (typeof TTS_BACKENDS)[number];
 
@@ -15,6 +16,7 @@ export const TTS_MODEL_IDS = {
   fishS21ProFree: 'fishaudio/s2.1-pro-free',
   openaiGpt4oMiniTts: 'openai/gpt-4o-mini-tts',
   xaiTts1: 'xai/tts-1',
+  sarvamBulbulV3: 'sarvam/bulbul-v3',
 } as const;
 
 export type TtsModelId = (typeof TTS_MODEL_IDS)[keyof typeof TTS_MODEL_IDS];
@@ -24,6 +26,7 @@ export const KNOWN_TTS_MODEL_IDS = [
   TTS_MODEL_IDS.fishS21ProFree,
   TTS_MODEL_IDS.openaiGpt4oMiniTts,
   TTS_MODEL_IDS.xaiTts1,
+  TTS_MODEL_IDS.sarvamBulbulV3,
 ] as const satisfies readonly TtsModelId[];
 
 export const DEFAULT_TTS_MODEL_ID = TTS_MODEL_IDS.inworldTts2;
@@ -40,6 +43,10 @@ export const TTS_MODEL_ALIASES: Record<string, TtsModelId> = {
   'xai/tts-1': TTS_MODEL_IDS.xaiTts1,
   'xai/tts': TTS_MODEL_IDS.xaiTts1,
   'grok-tts': TTS_MODEL_IDS.xaiTts1,
+  'sarvam/bulbul-v3': TTS_MODEL_IDS.sarvamBulbulV3,
+  'bulbul:v3': TTS_MODEL_IDS.sarvamBulbulV3,
+  'sarvam/bulbul': TTS_MODEL_IDS.sarvamBulbulV3,
+  'sarvam-tts': TTS_MODEL_IDS.sarvamBulbulV3,
 };
 
 export type TtsVoiceOption = {
@@ -164,6 +171,49 @@ export const GROK_VOICES: readonly TtsVoiceOption[] = [
   { id: 'atlas', name: 'Atlas', line: 'Commanding', initial: 'V' },
 ];
 
+/** Bulbul v3 speakers accepted by the LiveKit Node plugin. */
+export const SARVAM_VOICES: readonly TtsVoiceOption[] = [
+  { id: 'shubh', name: 'Shubh', line: 'Male, Indic', initial: 'S', featured: true },
+  { id: 'aditya', name: 'Aditya', line: 'Male, Indic', initial: 'A', featured: true },
+  { id: 'ritu', name: 'Ritu', line: 'Female, Indic', initial: 'R', featured: true },
+  { id: 'priya', name: 'Priya', line: 'Female, Indic', initial: 'P', featured: true },
+  { id: 'neha', name: 'Neha', line: 'Female, Indic', initial: 'N', featured: true },
+  { id: 'rahul', name: 'Rahul', line: 'Male, Indic', initial: 'H', featured: true },
+  { id: 'amelia', name: 'Amelia', line: 'Female, Indic', initial: 'M' },
+  { id: 'ishita', name: 'Ishita', line: 'Female, Indic', initial: 'I' },
+  { id: 'kavitha', name: 'Kavitha', line: 'Female, Indic', initial: 'K' },
+  { id: 'kavya', name: 'Kavya', line: 'Female, Indic', initial: 'Y' },
+  { id: 'pooja', name: 'Pooja', line: 'Female, Indic', initial: 'J' },
+  { id: 'roopa', name: 'Roopa', line: 'Female, Indic', initial: 'O' },
+  { id: 'rupali', name: 'Rupali', line: 'Female, Indic', initial: 'U' },
+  { id: 'shruti', name: 'Shruti', line: 'Female, Indic', initial: 'T' },
+  { id: 'shreya', name: 'Shreya', line: 'Female, Indic', initial: 'E' },
+  { id: 'simran', name: 'Simran', line: 'Female, Indic', initial: 'I' },
+  { id: 'sophia', name: 'Sophia', line: 'Female, Indic', initial: 'F' },
+  { id: 'suhani', name: 'Suhani', line: 'Female, Indic', initial: 'N' },
+  { id: 'tanya', name: 'Tanya', line: 'Female, Indic', initial: 'T' },
+  { id: 'aayan', name: 'Aayan', line: 'Male, Indic', initial: 'Y' },
+  { id: 'advait', name: 'Advait', line: 'Male, Indic', initial: 'D' },
+  { id: 'amit', name: 'Amit', line: 'Male, Indic', initial: 'M' },
+  { id: 'ashutosh', name: 'Ashutosh', line: 'Male, Indic', initial: 'A' },
+  { id: 'dev', name: 'Dev', line: 'Male, Indic', initial: 'V' },
+  { id: 'kabir', name: 'Kabir', line: 'Male, Indic', initial: 'B' },
+  { id: 'manan', name: 'Manan', line: 'Male, Indic', initial: 'N' },
+  { id: 'ratan', name: 'Ratan', line: 'Male, Indic', initial: 'R' },
+  { id: 'rohan', name: 'Rohan', line: 'Male, Indic', initial: 'O' },
+  { id: 'sumit', name: 'Sumit', line: 'Male, Indic', initial: 'U' },
+  { id: 'varun', name: 'Varun', line: 'Male, Indic', initial: 'V' },
+  { id: 'anand', name: 'Anand', line: 'Male, Indic', initial: 'N' },
+  { id: 'tarun', name: 'Tarun', line: 'Male, Indic', initial: 'T' },
+  { id: 'sunny', name: 'Sunny', line: 'Male, Indic', initial: 'Y' },
+  { id: 'mani', name: 'Mani', line: 'Male, Indic', initial: 'I' },
+  { id: 'gokul', name: 'Gokul', line: 'Male, Indic', initial: 'G' },
+  { id: 'vijay', name: 'Vijay', line: 'Male, Indic', initial: 'J' },
+  { id: 'mohit', name: 'Mohit', line: 'Male, Indic', initial: 'H' },
+  { id: 'rehan', name: 'Rehan', line: 'Male, Indic', initial: 'E' },
+  { id: 'soham', name: 'Soham', line: 'Male, Indic', initial: 'S' },
+];
+
 export const TTS_MODELS: Record<TtsModelId, TtsModelSpec> = {
   [TTS_MODEL_IDS.inworldTts2]: {
     id: TTS_MODEL_IDS.inworldTts2,
@@ -203,6 +253,16 @@ export const TTS_MODELS: Record<TtsModelId, TtsModelSpec> = {
     runtimeModel: TTS_MODEL_IDS.xaiTts1,
     defaultVoice: 'ara',
     voices: GROK_VOICES,
+    controls: { speakingRate: true, deliveryMode: false },
+  },
+  [TTS_MODEL_IDS.sarvamBulbulV3]: {
+    id: TTS_MODEL_IDS.sarvamBulbulV3,
+    label: 'Sarvam Bulbul v3',
+    shortLabel: 'Sarvam',
+    backend: 'sarvam-plugin',
+    runtimeModel: 'bulbul:v3',
+    defaultVoice: 'shubh',
+    voices: SARVAM_VOICES,
     controls: { speakingRate: true, deliveryMode: false },
   },
 };
@@ -262,4 +322,8 @@ export function isVoiceAllowed(
   const trimmed = voice.trim();
   if (!trimmed) return true;
   return voicesForTtsModel(ttsModelId).some((v) => v.id === trimmed);
+}
+
+export function isSarvamTtsModel(id: string | null | undefined): boolean {
+  return ttsModelSpec(id).backend === 'sarvam-plugin';
 }

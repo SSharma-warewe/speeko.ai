@@ -64,6 +64,28 @@ describe('parseJobMetadata voice extras', () => {
 
   it('empty raw → null ttsModel', () => {
     expect(parseJobMetadata('').ttsModel).toBeNull();
+    expect(parseJobMetadata('').sttModel).toBeNull();
+    expect(parseJobMetadata('').speechLanguage).toBeNull();
+  });
+
+  it('parses sttModel and speechLanguage', () => {
+    const meta = parseJobMetadata(
+      JSON.stringify({
+        agentKey: 'outbound',
+        direction: 'outbound',
+        task: 'general',
+        prompt: { systemPrompt: 'Hi' },
+        enabledTools: ['endCall'],
+        sttModel: 'sarvam/saaras-v3',
+        ttsModel: 'sarvam/bulbul-v3',
+        speechLanguage: 'hi-IN',
+        voice: 'shubh',
+      }),
+    );
+    expect(meta.sttModel).toBe('sarvam/saaras-v3');
+    expect(meta.ttsModel).toBe('sarvam/bulbul-v3');
+    expect(meta.speechLanguage).toBe('hi-IN');
+    expect(meta.voice).toBe('shubh');
   });
 
   it('mergeInboundJobMetadata overlays live voice/model and keeps ring fields', () => {

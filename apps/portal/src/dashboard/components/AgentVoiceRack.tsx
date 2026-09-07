@@ -3,26 +3,40 @@ import {
   extraRealtimeVoiceCatalog,
   extraVoiceCatalog,
   parseLlmModel,
+  parseSpeechLanguage,
+  parseSttModel,
   parseTtsModel,
   realtimeVoiceCatalog,
+  sttModelSpec,
   ttsModelSpec,
   voiceCatalog,
   PIPELINE_LLM_OPTIONS,
   REALTIME_LLM_OPTIONS,
+  STT_LANGUAGE_OPTIONS,
+  STT_MODEL_OPTIONS,
+  TTS_LANGUAGE_OPTIONS,
   TTS_MODEL_OPTIONS,
   DEFAULT_LLM_MODEL,
   DEFAULT_REALTIME_MODEL,
   isRealtimeLlmModel,
+  isSarvamSttModel,
+  isSarvamTtsModel,
   llmModelSpec,
   type DeliveryMode,
   type LlmModelId,
+  type SttModelId,
   type TtsModelId,
 } from "../../lib/voices";
-import { DEFAULT_TTS_MODEL_ID } from "@call-agent/contracts";
+import {
+  DEFAULT_STT_MODEL_ID,
+  DEFAULT_TTS_MODEL_ID,
+} from "@call-agent/contracts";
 
 export type AgentVoiceValues = {
   model: string | null;
   ttsModel: string | null;
+  sttModel: string | null;
+  speechLanguage: string | null;
   voice: string | null;
   speakingRate: number;
   deliveryMode: DeliveryMode;
@@ -51,12 +65,20 @@ function switchTtsModel(nextId: TtsModelId): Partial<AgentVoiceValues> {
   };
 }
 
+function switchSttModel(nextId: SttModelId): Partial<AgentVoiceValues> {
+  return {
+    sttModel: nextId === DEFAULT_STT_MODEL_ID ? null : nextId,
+  };
+}
+
 function switchLlmModel(nextId: LlmModelId): Partial<AgentVoiceValues> {
   const spec = llmModelSpec(nextId);
   if (spec.kind === "realtime") {
     return {
       model: nextId,
       ttsModel: null,
+      sttModel: null,
+      speechLanguage: null,
       voice: spec.defaultVoice,
     };
   }
@@ -72,6 +94,8 @@ function switchMode(next: PipelineMode): Partial<AgentVoiceValues> {
   return {
     model: null,
     ttsModel: null,
+    sttModel: null,
+    speechLanguage: null,
     voice: null,
   };
 }
@@ -79,6 +103,8 @@ function switchMode(next: PipelineMode): Partial<AgentVoiceValues> {
 export function AgentVoiceRack({
   model,
   ttsModel,
+  sttModel,
+  speechLanguage,
   voice,
   speakingRate,
   deliveryMode,
@@ -92,6 +118,14 @@ export function AgentVoiceRack({
   const llmSpec = llmModelSpec(selectedLlm);
   const selectedTts = parseTtsModel(ttsModel);
   const ttsSpec = ttsModelSpec(selectedTts);
+  const selectedStt = parseSttModel(sttModel);
+  const sttSpec = sttModelSpec(selectedStt);
+  const selectedLanguage = parseSpeechLanguage(speechLanguage);
+  const showSpeechLanguage =
+    !realtime && (isSarvamTtsModel(selectedTts) || isSarvamSttModel(selectedStt));
+  const languageOptions = isSarvamSttModel(selectedStt)
+    ? STT_LANGUAGE_OPTIONS
+    : TTS_LANGUAGE_OPTIONS;
   const voices = realtime
     ? realtimeVoiceCatalog(selectedLlm, voice)
     : voiceCatalog(selectedTts, voice);
@@ -141,13 +175,55 @@ export function AgentVoiceRack({
     </Select>
   );
 
-  const ttsControl = (
+  const ttsControl = compact ? (
+    <Select
+      id="agent-tts-select"
+      aria-label="Speech model"
+      value={selectedTts}
+      disabled={disabled}
+      onChange={(e) => onChange(switchTtsModel(e.target.value as TtsModelId))}
+    >
+      {TTS_MODEL_OPTIONS.map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </Select>
+  ) : (
     <SegmentedControl
       aria-label="Speech model"
       value={selectedTts}
       options={TTS_MODEL_OPTIONS.map((opt) => ({ ...opt, disabled }))}
       onChange={(value) => onChange(switchTtsModel(value as TtsModelId))}
     />
+  );
+
+  const sttControl = (
+    <SegmentedControl
+      aria-label="Listen model"
+      value={selectedStt}
+      options={STT_MODEL_OPTIONS.map((opt) => ({ ...opt, disabled }))}
+      onChange={(value) => onChange(switchSttModel(value as SttModelId))}
+    />
+  );
+
+  const languageControl = (
+    <Select
+      id="agent-speech-language"
+      aria-label="Speech language"
+      value={selectedLanguage ?? ""}
+      disabled={disabled}
+      onChange={(e) =>
+        onChange({ speechLanguage: e.target.value ? e.target.value : null })
+      }
+    >
+      <option value="">Default</option>
+      {languageOptions.map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </Select>
   );
 
   const voiceSelect = (
@@ -252,10 +328,23 @@ export function AgentVoiceRack({
           </p>
         ) : (
           <>
-            <label className="ops-voice-compact-label" htmlFor="agent-tts-model">
+            <label className="ops-voice-compact-label">Listen</label>
+            <div>{sttControl}</div>
+            <label className="ops-voice-compact-label" htmlFor="agent-tts-select">
               Speech model
             </label>
-            <div id="agent-tts-model">{ttsControl}</div>
+            <div>{ttsControl}</div>
+            {showSpeechLanguage ? (
+              <>
+                <label
+                  className="ops-voice-compact-label"
+                  htmlFor="agent-speech-language"
+                >
+                  Language
+                </label>
+                {languageControl}
+              </>
+            ) : null}
           </>
         )}
         <label className="ops-voice-compact-label" htmlFor="agent-voice-select">
@@ -292,10 +381,26 @@ export function AgentVoiceRack({
         ) : (
           <>
             <div className="ops-voice-cast-head">
+              <span className="ops-desk-kicker">Listen</span>
+              <span className="ops-desk-hint">{sttSpec.label}</span>
+            </div>
+            {sttControl}
+            <div className="ops-voice-cast-head">
               <span className="ops-desk-kicker">Speech model</span>
               <span className="ops-desk-hint">{speechHint}</span>
             </div>
             {ttsControl}
+            {showSpeechLanguage ? (
+              <>
+                <div className="ops-voice-cast-head">
+                  <span className="ops-desk-kicker">Language</span>
+                  <span className="ops-desk-hint">
+                    Sarvam STT / Bulbul TTS
+                  </span>
+                </div>
+                {languageControl}
+              </>
+            ) : null}
           </>
         )}
         <div className="ops-voice-cast-head">

@@ -75,6 +75,8 @@ export function parseJobMetadata(raw: string | undefined | null): AgentJobMetada
       voice: null,
       model: null,
       ttsModel: null,
+      sttModel: null,
+      speechLanguage: null,
       temperature: null,
       speakingRate: null,
       deliveryMode: null,
@@ -136,6 +138,11 @@ export function parseJobMetadata(raw: string | undefined | null): AgentJobMetada
       voice: typeof parsed.voice === 'string' ? parsed.voice : null,
       model: typeof parsed.model === 'string' ? parsed.model : null,
       ttsModel: typeof parsed.ttsModel === 'string' ? parsed.ttsModel : null,
+      sttModel: typeof parsed.sttModel === 'string' ? parsed.sttModel : null,
+      speechLanguage:
+        typeof parsed.speechLanguage === 'string'
+          ? parsed.speechLanguage
+          : null,
       temperature:
         typeof parsed.temperature === 'number' ? parsed.temperature : null,
       speakingRate:
@@ -167,6 +174,8 @@ export function parseJobMetadata(raw: string | undefined | null): AgentJobMetada
       voice: null,
       model: null,
       ttsModel: null,
+      sttModel: null,
+      speechLanguage: null,
       temperature: null,
       speakingRate: null,
       deliveryMode: null,

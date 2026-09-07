@@ -7,17 +7,19 @@ import {
 } from '@call-agent/contracts';
 
 describe('TTS catalog', () => {
-  it('includes Inworld, Fish, OpenAI, and Grok TTS', () => {
+  it('includes Inworld, Fish, OpenAI, Grok, and Sarvam TTS', () => {
     expect([...KNOWN_TTS_MODEL_IDS]).toEqual([
       'inworld/inworld-tts-2',
       'fishaudio/s2.1-pro-free',
       'openai/gpt-4o-mini-tts',
       'xai/tts-1',
+      'sarvam/bulbul-v3',
     ]);
     expect(ttsModelSpec('openai/gpt-4o-mini-tts').backend).toBe(
       'openai-plugin',
     );
     expect(ttsModelSpec('xai/tts-1').backend).toBe('xai-plugin');
+    expect(ttsModelSpec('bulbul:v3').backend).toBe('sarvam-plugin');
     expect(
       canonicalizeTtsModelId('google/gemini-3.1-flash-tts-preview'),
     ).toBeUndefined();

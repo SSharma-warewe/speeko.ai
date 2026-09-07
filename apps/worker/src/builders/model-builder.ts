@@ -1,15 +1,23 @@
-import { inference, llm, tts } from '@livekit/agents';
+import { inference, llm, stt, tts } from '@livekit/agents';
 import {
+  DEFAULT_STT_SPEECH_LANGUAGE_ID,
+  DEFAULT_TTS_SPEECH_LANGUAGE_ID,
+  canonicalizeSpeechLanguageId,
   isRealtimeLlmModel,
+  isTtsSpeechLanguage,
   llmModelSpec,
+  sttModelSpec,
   ttsModelSpec,
   type LlmModelSpec,
+  type SttModelSpec,
   type TtsModelSpec,
 } from '@call-agent/contracts';
 import * as openai from '@livekit/agents-plugin-openai';
+import * as sarvam from '@livekit/agents-plugin-sarvam';
 import * as xai from '@livekit/agents-plugin-xai';
 import type { AgentJobMetadata } from '../job-metadata.js';
 import { INFERENCE_MODELS } from '../models.js';
+import { personaSpeaksHindi } from './prompt-builder.js';
 import {
   SpeekoOpenaiRealtimeModel,
   SpeekoXaiRealtimeModel,
@@ -30,6 +38,30 @@ export function resolveLlmModelOptions(
 
 export function resolveTtsSpec(meta: AgentJobMetadata): TtsModelSpec {
   return ttsModelSpec(meta.ttsModel);
+}
+
+export function resolveSttSpec(meta: AgentJobMetadata): SttModelSpec {
+  return sttModelSpec(meta.sttModel);
+}
+
+/** Explicit metadata language, if it is a known catalog id. */
+export function resolveSpeechLanguage(
+  meta: AgentJobMetadata,
+): string | null {
+  return canonicalizeSpeechLanguageId(meta.speechLanguage) ?? null;
+}
+
+/** Bulbul requires a real BCP-47 code — never `unknown`. */
+export function resolveTtsLanguage(meta: AgentJobMetadata): string {
+  const explicit = resolveSpeechLanguage(meta);
+  if (explicit && isTtsSpeechLanguage(explicit)) return explicit;
+  if (personaSpeaksHindi(meta)) return 'hi-IN';
+  return DEFAULT_TTS_SPEECH_LANGUAGE_ID;
+}
+
+/** Saaras accepts `unknown` for auto-detect. */
+export function resolveSttLanguage(meta: AgentJobMetadata): string {
+  return resolveSpeechLanguage(meta) ?? DEFAULT_STT_SPEECH_LANGUAGE_ID;
 }
 
 export function resolveTtsVoice(
@@ -72,6 +104,8 @@ export function resolveTtsModelOptions(
   ) {
     if (spec.id === 'inworld/inworld-tts-2') {
       options.speaking_rate = meta.speakingRate;
+    } else if (spec.backend === 'sarvam-plugin') {
+      options.pace = meta.speakingRate;
     } else {
       options.speed = meta.speakingRate;
     }
@@ -108,6 +142,8 @@ export function createTts(
   const ttsOptions = resolveTtsModelOptions(meta, spec);
   const speed =
     typeof ttsOptions.speed === 'number' ? ttsOptions.speed : undefined;
+  const pace =
+    typeof ttsOptions.pace === 'number' ? ttsOptions.pace : undefined;
 
   if (spec.backend === 'openai-plugin') {
     return new openai.TTS({
@@ -123,6 +159,16 @@ export function createTts(
       apiKey: requireEnv(env, 'XAI_API_KEY', spec.id),
       voice,
       ...(speed !== undefined ? { speed } : {}),
+    });
+  }
+
+  if (spec.backend === 'sarvam-plugin') {
+    return new sarvam.TTS({
+      apiKey: requireEnv(env, 'SARVAM_API_KEY', spec.id),
+      model: spec.runtimeModel as 'bulbul:v3',
+      speaker: voice,
+      targetLanguageCode: resolveTtsLanguage(meta) as 'en-IN',
+      ...(pace !== undefined ? { pace } : {}),
     });
   }
 
@@ -210,6 +256,27 @@ export function createRealtimeLlm(
   });
 }
 
+export function createStt(
+  meta: AgentJobMetadata,
+  env: NodeJS.ProcessEnv = process.env,
+): stt.STT {
+  const spec = resolveSttSpec(meta);
+  if (spec.backend === 'sarvam-plugin') {
+    return new sarvam.STT({
+      apiKey: requireEnv(env, 'SARVAM_API_KEY', spec.id),
+      model: spec.runtimeModel as 'saaras:v3',
+      languageCode: resolveSttLanguage(meta) as 'unknown',
+      mode: 'transcribe',
+      highVadSensitivity: true,
+    });
+  }
+
+  return new inference.STT({
+    model: INFERENCE_MODELS.stt.model,
+    language: INFERENCE_MODELS.stt.language,
+  });
+}
+
 /**
  * Resolve STT/LLM/TTS (pipeline) or a speech-to-speech realtime model.
  * Return type inferred to avoid inference.STT generic friction.
@@ -227,10 +294,7 @@ export function buildModels(
 
   return {
     kind: 'pipeline' as const,
-    stt: new inference.STT({
-      model: INFERENCE_MODELS.stt.model,
-      language: INFERENCE_MODELS.stt.language,
-    }),
+    stt: createStt(meta, env),
     llm: createLlm(meta, env),
     tts: createTts(meta, env),
     turnDetection: new inference.TurnDetector({ version: 'v1' }),

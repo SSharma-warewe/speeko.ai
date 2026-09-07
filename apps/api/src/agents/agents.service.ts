@@ -18,6 +18,8 @@ export type CreateAgentSeedInput = {
   voice: string | null;
   model: string | null;
   ttsModel?: string | null;
+  sttModel?: string | null;
+  speechLanguage?: string | null;
   temperature: number | null;
   speakingRate?: number | null;
   deliveryMode?: string | null;
@@ -85,6 +87,8 @@ export class AgentsService {
       voice: input.voice,
       model: input.model,
       ttsModel: input.ttsModel ?? null,
+      sttModel: input.sttModel ?? null,
+      speechLanguage: input.speechLanguage ?? null,
       temperature: input.temperature,
       speakingRate: input.speakingRate ?? null,
       deliveryMode: input.deliveryMode ?? null,

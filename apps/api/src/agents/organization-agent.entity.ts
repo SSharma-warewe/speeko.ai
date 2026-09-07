@@ -105,6 +105,14 @@ export class OrganizationAgent {
   @Column({ name: 'tts_model', type: 'varchar', length: 120, nullable: true })
   ttsModel!: string | null;
 
+  /** Optional STT catalog id. null = template / worker default (Deepgram Nova-3). */
+  @Column({ name: 'stt_model', type: 'varchar', length: 120, nullable: true })
+  sttModel!: string | null;
+
+  /** BCP-47 for Sarvam STT/TTS. null = template / worker default. */
+  @Column({ name: 'speech_language', type: 'varchar', length: 16, nullable: true })
+  speechLanguage!: string | null;
+
   @Column({ type: 'real', nullable: true })
   temperature!: number | null;
 

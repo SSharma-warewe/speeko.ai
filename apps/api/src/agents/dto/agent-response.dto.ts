@@ -105,6 +105,20 @@ export class AgentResponseDto {
   })
   ttsModel?: string | null;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'STT catalog id. null = worker / template default (Deepgram Nova-3).',
+  })
+  sttModel?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'BCP-47 speech language for Sarvam STT/TTS. null = worker / template default.',
+  })
+  speechLanguage?: string | null;
+
   @ApiPropertyOptional({ nullable: true })
   temperature!: number | null;
 

@@ -535,6 +535,8 @@ describe('OrganizationAgentsService', () => {
         voice: 'source-voice',
         model: 'source-model',
         ttsModel: 'fishaudio/s2.1-pro-free',
+        sttModel: 'sarvam/saaras-v3',
+        speechLanguage: 'hi-IN',
         temperature: 0.9,
         speakingRate: 1.4,
         deliveryMode: 'BALANCED',
@@ -574,6 +576,8 @@ describe('OrganizationAgentsService', () => {
           voice: 'source-voice',
           model: 'source-model',
           ttsModel: 'fishaudio/s2.1-pro-free',
+          sttModel: 'sarvam/saaras-v3',
+          speechLanguage: 'hi-IN',
           temperature: 0.9,
           speakingRate: 1.4,
           deliveryMode: 'BALANCED',
@@ -1050,6 +1054,8 @@ describe('OrganizationAgentsService', () => {
 
       expect(meta.model).toBe('openai/gpt-realtime-2.1-mini');
       expect(meta.ttsModel).toBeNull();
+      expect(meta.sttModel).toBeNull();
+      expect(meta.speechLanguage).toBeNull();
       expect(meta.voice).toBe('marin');
       expect(meta.task).toBe('interview_booking');
       expect(meta.medium).toBe('sip');

@@ -8,6 +8,8 @@ import {
   DEFAULT_TEMPERATURE,
   parseDeliveryMode,
   storedLlmModel,
+  storedSpeechLanguage,
+  storedSttModel,
   storedTtsModel,
   type DeliveryMode,
 } from "../../lib/voices";
@@ -48,6 +50,8 @@ export default function OrgAgentDetailPage() {
   const [defaultTaskKey, setDefaultTaskKey] = useState("general");
   const [model, setModel] = useState<string | null>(null);
   const [ttsModel, setTtsModel] = useState<string | null>(null);
+  const [sttModel, setSttModel] = useState<string | null>(null);
+  const [speechLanguage, setSpeechLanguage] = useState<string | null>(null);
   const [voice, setVoice] = useState<string | null>(null);
   const [speakingRate, setSpeakingRate] = useState(DEFAULT_SPEAKING_RATE);
   const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>(
@@ -75,6 +79,8 @@ export default function OrgAgentDetailPage() {
       setDefaultTaskKey(data.defaultTaskKey || "general");
       setModel(storedLlmModel(data.model));
       setTtsModel(storedTtsModel(data.ttsModel));
+      setSttModel(storedSttModel(data.sttModel));
+      setSpeechLanguage(storedSpeechLanguage(data.speechLanguage));
       setVoice(data.voice ?? null);
       setSpeakingRate(data.speakingRate ?? DEFAULT_SPEAKING_RATE);
       setDeliveryMode(parseDeliveryMode(data.deliveryMode));
@@ -115,6 +121,8 @@ export default function OrgAgentDetailPage() {
         isActive,
         model,
         ttsModel,
+        sttModel,
+        speechLanguage,
         voice,
         speakingRate,
         deliveryMode,
@@ -336,6 +344,8 @@ export default function OrgAgentDetailPage() {
               compact
               model={model}
               ttsModel={ttsModel}
+              sttModel={sttModel}
+              speechLanguage={speechLanguage}
               voice={voice}
               speakingRate={speakingRate}
               deliveryMode={deliveryMode}
@@ -344,6 +354,9 @@ export default function OrgAgentDetailPage() {
               onChange={(next) => {
                 if (next.model !== undefined) setModel(next.model);
                 if (next.ttsModel !== undefined) setTtsModel(next.ttsModel);
+                if (next.sttModel !== undefined) setSttModel(next.sttModel);
+                if (next.speechLanguage !== undefined)
+                  setSpeechLanguage(next.speechLanguage);
                 if (next.voice !== undefined) setVoice(next.voice);
                 if (next.speakingRate !== undefined) setSpeakingRate(next.speakingRate);
                 if (next.deliveryMode !== undefined) setDeliveryMode(next.deliveryMode);

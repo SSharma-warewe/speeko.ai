@@ -1,8 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
 import {
   DEFAULT_LLM_MODEL_ID,
+  DEFAULT_STT_MODEL_ID,
   DELIVERY_MODES,
   canonicalizeLlmModelId,
+  canonicalizeSpeechLanguageId,
+  canonicalizeSttModelId,
   canonicalizeTtsModelId,
   isAgentVoiceAllowed,
   isDeliveryMode,
@@ -17,6 +20,8 @@ export type VoiceRuntime = {
   voice: string | null;
   model: string | null;
   ttsModel: string | null;
+  sttModel: string | null;
+  speechLanguage: string | null;
   temperature: number | null;
   speakingRate: number | null;
   deliveryMode: DeliveryMode | null;
@@ -26,6 +31,8 @@ export type VoicePatchInput = Partial<{
   voice: string | null;
   model: string | null;
   ttsModel: string | null;
+  sttModel: string | null;
+  speechLanguage: string | null;
   temperature: number | null;
   speakingRate: number | null;
   deliveryMode: string | null;
@@ -67,6 +74,38 @@ export function parseStoredTtsModel(
  * Empty → null (worker default Gemma). Unknown slug → 400.
  * Default Gemma is stored as null.
  */
+/**
+ * Empty / Deepgram → null (worker default). Unknown slug → 400.
+ */
+export function parseStoredSttModel(
+  value: string | null | undefined,
+): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const id = canonicalizeSttModelId(trimmed);
+  if (!id) {
+    throw new BadRequestException(`Unknown STT model: ${trimmed}`);
+  }
+  return id === DEFAULT_STT_MODEL_ID ? null : id;
+}
+
+/**
+ * Empty → null (worker default). Unknown code → 400.
+ */
+export function parseStoredSpeechLanguage(
+  value: string | null | undefined,
+): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const id = canonicalizeSpeechLanguageId(trimmed);
+  if (!id) {
+    throw new BadRequestException(`Unknown speech language: ${trimmed}`);
+  }
+  return id;
+}
+
 export function parseStoredLlmModel(
   value: string | null | undefined,
 ): string | null {
@@ -105,6 +144,12 @@ export function applyVoicePatch(
   if (dto.ttsModel !== undefined) {
     row.ttsModel = parseStoredTtsModel(dto.ttsModel);
   }
+  if (dto.sttModel !== undefined) {
+    row.sttModel = parseStoredSttModel(dto.sttModel);
+  }
+  if (dto.speechLanguage !== undefined) {
+    row.speechLanguage = parseStoredSpeechLanguage(dto.speechLanguage);
+  }
   if (dto.voice !== undefined) {
     row.voice = normalizeVoice(dto.voice);
   }
@@ -120,10 +165,12 @@ export function applyVoicePatch(
   if (dto.deliveryMode !== undefined) {
     row.deliveryMode = normalizeDeliveryMode(dto.deliveryMode);
   }
-  // Speech-to-speech has no TTS stage. Drop leftover pipeline speech
-  // so GET / job metadata cannot keep advertising Inworld.
+  // Speech-to-speech has no TTS/STT stage. Drop leftover pipeline speech
+  // so GET / job metadata cannot keep advertising Inworld / Deepgram.
   if (isRealtimeLlmModel(row.model)) {
     row.ttsModel = null;
+    row.sttModel = null;
+    row.speechLanguage = null;
     row.speakingRate = null;
     row.deliveryMode = null;
   }
@@ -150,6 +197,8 @@ export function resolveVoiceRuntime(
       voice: org?.voice ?? template?.voice ?? null,
       model,
       ttsModel: null,
+      sttModel: null,
+      speechLanguage: null,
       temperature: org?.temperature ?? template?.temperature ?? null,
       speakingRate: null,
       deliveryMode: null,
@@ -159,6 +208,8 @@ export function resolveVoiceRuntime(
     voice: org?.voice ?? template?.voice ?? null,
     model,
     ttsModel: org?.ttsModel ?? template?.ttsModel ?? null,
+    sttModel: org?.sttModel ?? template?.sttModel ?? null,
+    speechLanguage: org?.speechLanguage ?? template?.speechLanguage ?? null,
     temperature: org?.temperature ?? template?.temperature ?? null,
     speakingRate: org?.speakingRate ?? template?.speakingRate ?? null,
     deliveryMode: normalizeDeliveryMode(

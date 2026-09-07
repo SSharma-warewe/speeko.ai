@@ -32,12 +32,32 @@ export class VoiceSettingsDto {
   @ApiPropertyOptional({
     nullable: true,
     description:
-      'TTS catalog id (inworld/inworld-tts-2, fishaudio/s2.1-pro-free, openai/gpt-4o-mini-tts, xai/tts-1). null = worker / template default (Inworld). Ignored when model is a realtime id.',
+      'TTS catalog id (inworld/inworld-tts-2, fishaudio/s2.1-pro-free, openai/gpt-4o-mini-tts, xai/tts-1, sarvam/bulbul-v3). null = worker / template default (Inworld). Ignored when model is a realtime id.',
   })
   @IsOptional()
   @IsString()
   @MaxLength(120)
   ttsModel?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'STT catalog id (deepgram/nova-3, sarvam/saaras-v3). null = worker / template default (Deepgram Nova-3). Ignored when model is a realtime id.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  sttModel?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'BCP-47 speech language for Sarvam STT/TTS (hi-IN, en-IN, unknown, …). null = worker default. Ignored unless a Sarvam speech model is selected.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  speechLanguage?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()

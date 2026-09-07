@@ -29,6 +29,10 @@ export type Agent = {
   model: string | null;
   /** TTS catalog id. null = worker default (Inworld TTS-2). */
   ttsModel?: string | null;
+  /** STT catalog id. null = worker default (Deepgram Nova-3). */
+  sttModel?: string | null;
+  /** BCP-47 for Sarvam STT/TTS. null = worker default. */
+  speechLanguage?: string | null;
   temperature: number | null;
   speakingRate?: number | null;
   deliveryMode?: DeliveryMode | null;
@@ -48,6 +52,8 @@ export type UpdateAgentTemplateRequest = {
   voice?: string | null;
   model?: string | null;
   ttsModel?: string | null;
+  sttModel?: string | null;
+  speechLanguage?: string | null;
   temperature?: number | null;
   speakingRate?: number | null;
   deliveryMode?: DeliveryMode | null;
@@ -80,6 +86,8 @@ export type UpdateOrganizationAgentRequest = {
   voice?: string | null;
   model?: string | null;
   ttsModel?: string | null;
+  sttModel?: string | null;
+  speechLanguage?: string | null;
   temperature?: number | null;
   speakingRate?: number | null;
   deliveryMode?: DeliveryMode | null;

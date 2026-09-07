@@ -5,6 +5,8 @@ import {
   normalizeDeliveryMode,
   normalizeVoice,
   parseStoredLlmModel,
+  parseStoredSpeechLanguage,
+  parseStoredSttModel,
   parseStoredTtsModel,
   resolveVoiceRuntime,
 } from '../voice-settings';
@@ -63,6 +65,8 @@ describe('voice-settings', () => {
         voice: 'Olivia',
         model: 'google/gemma',
         ttsModel: 'inworld/inworld-tts-2',
+        sttModel: null,
+        speechLanguage: null,
         temperature: 0.4,
         speakingRate: 1.1,
         deliveryMode: 'CREATIVE',
@@ -74,6 +78,8 @@ describe('voice-settings', () => {
         voice: null,
         model: null,
         ttsModel: null,
+        sttModel: null,
+        speechLanguage: null,
         temperature: null,
         speakingRate: null,
         deliveryMode: null,
@@ -102,9 +108,23 @@ describe('voice-settings', () => {
       ).toMatchObject({
         model: 'openai/gpt-realtime-2.1-mini',
         ttsModel: null,
+        sttModel: null,
+        speechLanguage: null,
         voice: 'marin',
         speakingRate: null,
         deliveryMode: null,
+      });
+    });
+
+    it('org sttModel / speechLanguage override template', () => {
+      expect(
+        resolveVoiceRuntime(
+          { sttModel: 'sarvam/saaras-v3', speechLanguage: 'hi-IN' },
+          { sttModel: null, speechLanguage: 'en-IN' },
+        ),
+      ).toMatchObject({
+        sttModel: 'sarvam/saaras-v3',
+        speechLanguage: 'hi-IN',
       });
     });
   });
@@ -131,10 +151,35 @@ describe('voice-settings', () => {
       expect(parseStoredTtsModel('fish-audio/s2.1-pro-free:free')).toBe(
         'fishaudio/s2.1-pro-free',
       );
+      expect(parseStoredTtsModel('bulbul:v3')).toBe('sarvam/bulbul-v3');
       expect(() =>
         parseStoredTtsModel('google/gemini-3.1-flash-tts-preview'),
       ).toThrow(BadRequestException);
       expect(() => parseStoredTtsModel('not-a-tts')).toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('parseStoredSttModel', () => {
+    it('empty / Deepgram → null; aliases normalize; unknown throws', () => {
+      expect(parseStoredSttModel(null)).toBeNull();
+      expect(parseStoredSttModel('  ')).toBeNull();
+      expect(parseStoredSttModel('deepgram/nova-3')).toBeNull();
+      expect(parseStoredSttModel('saaras:v3')).toBe('sarvam/saaras-v3');
+      expect(() => parseStoredSttModel('whisper-1')).toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('parseStoredSpeechLanguage', () => {
+    it('empty → null; aliases normalize; unknown throws', () => {
+      expect(parseStoredSpeechLanguage(null)).toBeNull();
+      expect(parseStoredSpeechLanguage('  ')).toBeNull();
+      expect(parseStoredSpeechLanguage('hi-in')).toBe('hi-IN');
+      expect(parseStoredSpeechLanguage('auto')).toBe('unknown');
+      expect(() => parseStoredSpeechLanguage('fr-FR')).toThrow(
         BadRequestException,
       );
     });
@@ -200,12 +245,16 @@ describe('voice-settings', () => {
         voice: string | null;
         model: string | null;
         ttsModel: string | null;
+        sttModel: string | null;
+        speechLanguage: string | null;
         speakingRate: number | null;
         deliveryMode: string | null;
       } = {
         voice: 'marin',
         model: null,
         ttsModel: 'fishaudio/s2.1-pro-free',
+        sttModel: 'sarvam/saaras-v3',
+        speechLanguage: 'hi-IN',
         speakingRate: 1.1,
         deliveryMode: 'CREATIVE',
       };
@@ -215,8 +264,34 @@ describe('voice-settings', () => {
       });
       expect(row.model).toBe('openai/gpt-realtime-2.1-mini');
       expect(row.ttsModel).toBeNull();
+      expect(row.sttModel).toBeNull();
+      expect(row.speechLanguage).toBeNull();
       expect(row.speakingRate).toBeNull();
       expect(row.deliveryMode).toBeNull();
+    });
+
+    it('accepts Sarvam TTS voice + STT + language', () => {
+      const row: {
+        voice: string | null;
+        ttsModel: string | null;
+        sttModel: string | null;
+        speechLanguage: string | null;
+      } = {
+        voice: null,
+        ttsModel: null,
+        sttModel: null,
+        speechLanguage: null,
+      };
+      applyVoicePatch(row, {
+        ttsModel: 'sarvam/bulbul-v3',
+        voice: 'shubh',
+        sttModel: 'sarvam/saaras-v3',
+        speechLanguage: 'hi-IN',
+      });
+      expect(row.ttsModel).toBe('sarvam/bulbul-v3');
+      expect(row.voice).toBe('shubh');
+      expect(row.sttModel).toBe('sarvam/saaras-v3');
+      expect(row.speechLanguage).toBe('hi-IN');
     });
   });
 });

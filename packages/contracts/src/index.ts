@@ -20,6 +20,7 @@ export {
   DEFAULT_TTS_MODEL_ID,
   GROK_VOICES,
   KNOWN_TTS_MODEL_IDS,
+  SARVAM_VOICES,
   TTS_BACKENDS,
   TTS_MODEL_ALIASES,
   TTS_MODEL_IDS,
@@ -29,11 +30,42 @@ export {
   defaultVoiceForTtsModel,
   featuredVoicesForTtsModel,
   isKnownTtsModel,
+  isSarvamTtsModel,
   isVoiceAllowed,
   ttsModelSpec,
   voicesForTtsModel,
 } from './tts.js';
 export type { TtsBackend, TtsModelId, TtsModelSpec, TtsVoiceOption } from './tts.js';
+
+export {
+  DEFAULT_STT_MODEL_ID,
+  KNOWN_STT_MODEL_IDS,
+  STT_BACKENDS,
+  STT_MODEL_ALIASES,
+  STT_MODEL_IDS,
+  STT_MODEL_LIST,
+  STT_MODELS,
+  canonicalizeSttModelId,
+  isKnownSttModel,
+  isSarvamSttModel,
+  sttModelSpec,
+} from './stt.js';
+export type { SttBackend, SttModelId, SttModelSpec } from './stt.js';
+
+export {
+  DEFAULT_STT_SPEECH_LANGUAGE_ID,
+  DEFAULT_TTS_SPEECH_LANGUAGE_ID,
+  SPEECH_LANGUAGES,
+  SPEECH_LANGUAGE_IDS,
+  TTS_SPEECH_LANGUAGES,
+  canonicalizeSpeechLanguageId,
+  isKnownSpeechLanguage,
+  isTtsSpeechLanguage,
+} from './speech-language.js';
+export type {
+  SpeechLanguageId,
+  SpeechLanguageOption,
+} from './speech-language.js';
 
 export {
   DEFAULT_LLM_MODEL_ID,

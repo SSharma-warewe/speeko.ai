@@ -49,8 +49,9 @@ export async function buildAgentRuntime(
   const models = buildModels(meta);
   console.log(
     `[agent] models kind=${models.kind} llm=${meta.model ?? 'google/gemma-4-31b-it'} ` +
+      `stt=${models.kind === 'realtime' ? 'none' : (meta.sttModel ?? 'deepgram/nova-3')} ` +
       `tts=${models.kind === 'realtime' ? 'none' : (meta.ttsModel ?? 'inworld/inworld-tts-2')} ` +
-      `voice=${meta.voice ?? 'default'}`,
+      `voice=${meta.voice ?? 'default'} lang=${meta.speechLanguage ?? 'default'}`,
   );
   const tools = await buildTools(meta, userData);
   const instructions = buildPersonaPrompt(meta);

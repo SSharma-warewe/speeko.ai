@@ -1,21 +1,32 @@
 import {
   DEFAULT_LLM_MODEL_ID,
+  DEFAULT_STT_MODEL_ID,
   DEFAULT_TTS_MODEL_ID,
   DELIVERY_MODES,
   PIPELINE_LLM_MODEL_LIST,
   REALTIME_LLM_MODEL_LIST,
+  SPEECH_LANGUAGES,
+  STT_MODEL_LIST,
   TTS_MODEL_LIST,
+  TTS_SPEECH_LANGUAGES,
   canonicalizeLlmModelId,
+  canonicalizeSpeechLanguageId,
+  canonicalizeSttModelId,
   canonicalizeTtsModelId,
   featuredVoicesForLlmModel,
   featuredVoicesForTtsModel,
   isRealtimeLlmModel,
+  isSarvamSttModel,
+  isSarvamTtsModel,
   llmModelSpec,
+  sttModelSpec,
   ttsModelSpec,
   voicesForLlmModel,
   voicesForTtsModel,
   type DeliveryMode,
   type LlmModelId,
+  type SpeechLanguageId,
+  type SttModelId,
   type TtsModelId,
   type TtsVoiceOption,
 } from "@call-agent/contracts";
@@ -23,10 +34,15 @@ import {
 export {
   DELIVERY_MODES,
   isRealtimeLlmModel,
+  isSarvamSttModel,
+  isSarvamTtsModel,
   llmModelSpec,
+  sttModelSpec,
   ttsModelSpec,
   type DeliveryMode,
   type LlmModelId,
+  type SpeechLanguageId,
+  type SttModelId,
   type TtsModelId,
   type TtsVoiceOption,
 };
@@ -40,6 +56,7 @@ export const DEFAULT_SPEAKING_RATE = 1;
 export const DEFAULT_DELIVERY_MODE: DeliveryMode = "BALANCED";
 export const DEFAULT_TEMPERATURE = 0.7;
 export const DEFAULT_TTS_MODEL: TtsModelId = DEFAULT_TTS_MODEL_ID;
+export const DEFAULT_STT_MODEL: SttModelId = DEFAULT_STT_MODEL_ID;
 export const DEFAULT_LLM_MODEL: LlmModelId = DEFAULT_LLM_MODEL_ID;
 export const DEFAULT_REALTIME_MODEL: LlmModelId =
   "openai/gpt-realtime-2.1-mini";
@@ -48,6 +65,22 @@ export const TTS_MODEL_OPTIONS = TTS_MODEL_LIST.map((spec) => ({
   value: spec.id,
   label: spec.shortLabel,
   hint: spec.label,
+}));
+
+export const STT_MODEL_OPTIONS = STT_MODEL_LIST.map((spec) => ({
+  value: spec.id,
+  label: spec.shortLabel,
+  hint: spec.label,
+}));
+
+export const TTS_LANGUAGE_OPTIONS = TTS_SPEECH_LANGUAGES.map((lang) => ({
+  value: lang.id,
+  label: lang.name,
+}));
+
+export const STT_LANGUAGE_OPTIONS = SPEECH_LANGUAGES.map((lang) => ({
+  value: lang.id,
+  label: lang.name,
 }));
 
 export const PIPELINE_LLM_OPTIONS = PIPELINE_LLM_MODEL_LIST.map((spec) => ({
@@ -73,6 +106,16 @@ export function parseTtsModel(value: string | null | undefined): TtsModelId {
   return canonicalizeTtsModelId(value) ?? DEFAULT_TTS_MODEL;
 }
 
+export function parseSttModel(value: string | null | undefined): SttModelId {
+  return canonicalizeSttModelId(value) ?? DEFAULT_STT_MODEL;
+}
+
+export function parseSpeechLanguage(
+  value: string | null | undefined,
+): SpeechLanguageId | null {
+  return canonicalizeSpeechLanguageId(value) ?? null;
+}
+
 export function parseLlmModel(value: string | null | undefined): LlmModelId {
   return canonicalizeLlmModelId(value) ?? DEFAULT_LLM_MODEL;
 }
@@ -84,6 +127,21 @@ export function storedTtsModel(
   const id = canonicalizeTtsModelId(value);
   if (!id || id === DEFAULT_TTS_MODEL) return null;
   return id;
+}
+
+/** Persist default / unknown STT ids as null (worker Deepgram pin). */
+export function storedSttModel(
+  value: string | null | undefined,
+): string | null {
+  const id = canonicalizeSttModelId(value);
+  if (!id || id === DEFAULT_STT_MODEL) return null;
+  return id;
+}
+
+export function storedSpeechLanguage(
+  value: string | null | undefined,
+): string | null {
+  return canonicalizeSpeechLanguageId(value) ?? null;
 }
 
 /** Persist default Gemma / unknown as null. */

@@ -26,6 +26,8 @@ export function toAgentTemplateResponse(
     voice: agent.voice,
     model: agent.model,
     ttsModel: agent.ttsModel ?? null,
+    sttModel: agent.sttModel ?? null,
+    speechLanguage: agent.speechLanguage ?? null,
     temperature: agent.temperature,
     speakingRate: agent.speakingRate,
     deliveryMode: agent.deliveryMode,

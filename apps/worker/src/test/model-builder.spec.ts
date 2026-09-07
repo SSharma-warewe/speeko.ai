@@ -3,15 +3,19 @@ import {
   XAI_REALTIME_TURN_DETECTION,
   createLlm,
   createRealtimeLlm,
+  createStt,
   createTts,
   resolveLlmModelOptions,
   resolveRealtimeVoice,
+  resolveSttLanguage,
+  resolveTtsLanguage,
   resolveTtsModelOptions,
   resolveTtsSpec,
   resolveTtsVoice,
 } from '../builders/model-builder';
 import { INFERENCE_MODELS } from '../models';
 import * as openai from '@livekit/agents-plugin-openai';
+import * as sarvam from '@livekit/agents-plugin-sarvam';
 import * as xai from '@livekit/agents-plugin-xai';
 
 function meta(overrides: Partial<AgentJobMetadata> = {}): AgentJobMetadata {
@@ -85,7 +89,7 @@ describe('model-builder voice / temp helpers', () => {
     ).toBe(spec.defaultVoice);
   });
 
-  it('OpenAI / xAI plugin models require worker keys', () => {
+  it('OpenAI / xAI / Sarvam plugin models require worker keys', () => {
     expect(() =>
       createLlm(meta({ model: 'openai/gpt-4.1-mini' }), {}),
     ).toThrow(/OPENAI_API_KEY/);
@@ -95,6 +99,12 @@ describe('model-builder voice / temp helpers', () => {
     expect(() => createTts(meta({ ttsModel: 'xai/tts-1' }), {})).toThrow(
       /XAI_API_KEY/,
     );
+    expect(() =>
+      createTts(meta({ ttsModel: 'sarvam/bulbul-v3' }), {}),
+    ).toThrow(/SARVAM_API_KEY/);
+    expect(() =>
+      createStt(meta({ sttModel: 'sarvam/saaras-v3' }), {}),
+    ).toThrow(/SARVAM_API_KEY/);
     expect(() =>
       createRealtimeLlm(
         meta({ model: 'xai/grok-voice-think-fast-2.0' }),
@@ -115,6 +125,56 @@ describe('model-builder voice / temp helpers', () => {
       { XAI_API_KEY: 'xai-test' },
     );
     expect(grokTts).toBeInstanceOf(xai.TTS);
+
+    const sarvamTts = createTts(
+      meta({ ttsModel: 'sarvam/bulbul-v3', voice: 'shubh' }),
+      { SARVAM_API_KEY: 'sk_test' },
+    );
+    expect(sarvamTts).toBeInstanceOf(sarvam.TTS);
+
+    const sarvamStt = createStt(
+      meta({ sttModel: 'sarvam/saaras-v3' }),
+      { SARVAM_API_KEY: 'sk_test' },
+    );
+    expect(sarvamStt).toBeInstanceOf(sarvam.STT);
+  });
+
+  it('Sarvam maps speakingRate to pace', () => {
+    expect(
+      resolveTtsModelOptions(
+        meta({
+          ttsModel: 'sarvam/bulbul-v3',
+          speakingRate: 1.2,
+          deliveryMode: 'CREATIVE',
+        }),
+      ),
+    ).toEqual({ pace: 1.2 });
+  });
+
+  it('Sarvam TTS language falls back from persona; STT defaults to unknown', () => {
+    expect(resolveSttLanguage(meta())).toBe('unknown');
+    expect(resolveTtsLanguage(meta())).toBe('en-IN');
+    expect(
+      resolveTtsLanguage(
+        meta({
+          prompt: { systemPrompt: 'You speak Hindi Devanagari.' },
+        }),
+      ),
+    ).toBe('hi-IN');
+    expect(
+      resolveTtsLanguage(
+        meta({
+          speechLanguage: 'unknown',
+          prompt: { systemPrompt: 'You speak Hindi.' },
+        }),
+      ),
+    ).toBe('hi-IN');
+    expect(resolveTtsLanguage(meta({ speechLanguage: 'ta-IN' }))).toBe(
+      'ta-IN',
+    );
+    expect(resolveSttLanguage(meta({ speechLanguage: 'hi-IN' }))).toBe(
+      'hi-IN',
+    );
   });
 
   it('Grok realtime pins slower server VAD and does not interrupt', () => {
