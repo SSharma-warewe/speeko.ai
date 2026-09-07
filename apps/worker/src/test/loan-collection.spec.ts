@@ -55,6 +55,8 @@ describe('loan_collection task', () => {
     expect(text).toMatch(/PHASE 3 — WHEN THEY WILL PAY/);
     expect(text).toMatch(/PHASE 4 — REASON FOR DELAY/);
     expect(text).toMatch(/PHASE 5 — OTHER HELP/);
+    expect(text).toMatch(/Wait for that answer/);
+    expect(text).toMatch(/helpRequested are filled/);
     expect(text).toMatch(/speaking with Ada Lovelace/);
     expect(text).toMatch(/Due type: EMI/);
     expect(text).toMatch(/Amount: 12500/);
@@ -129,7 +131,7 @@ describe('loan_collection task', () => {
     expect(composed).toMatch(/Persona and company facts above stay in force/);
   });
 
-  it('PROMISED complete requires a pay date and delay reason', () => {
+  it('PROMISED complete requires a pay date, delay reason, and help answer', () => {
     expect(
       loanCollectionCompleteBlocker({
         outcome: 'PROMISED',
@@ -157,6 +159,24 @@ describe('loan_collection task', () => {
         promisedPayDate: 'today',
         delayReason: 'none',
         lastUserText: 'आज कर दूंगा',
+      }),
+    ).toMatch(/helpRequested/);
+    expect(
+      loanCollectionCompleteBlocker({
+        outcome: 'PROMISED',
+        promisedPayDate: 'today',
+        delayReason: 'none',
+        helpRequested: '   ',
+        lastUserText: 'नहीं',
+      }),
+    ).toMatch(/helpRequested/);
+    expect(
+      loanCollectionCompleteBlocker({
+        outcome: 'PROMISED',
+        promisedPayDate: 'today',
+        delayReason: 'none',
+        helpRequested: 'none',
+        lastUserText: 'नहीं',
       }),
     ).toBeNull();
     expect(
@@ -206,6 +226,13 @@ describe('loan_collection task', () => {
     ).toBeNull();
     expect(
       loanCollectionCompleteBlocker({
+        outcome: 'WRONG_PERSON',
+        lastUserText: 'No.',
+        hindiHanHomophone: true,
+      }),
+    ).toMatch(/han\/haan/);
+    expect(
+      loanCollectionCompleteBlocker({
         outcome: 'ALREADY_PAID',
         lastUserText: 'यह किस्त हो चुकी है',
       }),
@@ -233,6 +260,7 @@ describe('loan_collection task', () => {
     );
     expect(text).toMatch(/ask the identity question once more/i);
     expect(text).toMatch(/Do not complete WRONG_PERSON on unclear audio/);
+    expect(text).toMatch(/han \/ haan/);
   });
 
   it('default opening confirms name before discussing the due payment', () => {

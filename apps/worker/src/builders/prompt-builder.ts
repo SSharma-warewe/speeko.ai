@@ -5,6 +5,7 @@ import {
   displayNameFromContext,
   formatContextForInstructions,
 } from '../tasks/context-format.js';
+import { HINDI_HAN_ASR_RULE } from '../tasks/user-turn.js';
 
 /**
  * Build full parent-agent instructions for LiveKit.
@@ -96,6 +97,7 @@ export function buildRealtimeTurnRule(meta: AgentJobMetadata): string | null {
     lines.push(
       'Stay in Hindi Devanagari for the whole call. Digits and names may be spoken as-is. Do not switch to English or romanized Hinglish.',
     );
+    lines.push(HINDI_HAN_ASR_RULE);
   }
   lines.push('=== END REALTIME TURNS ===');
   return lines.join('\n');
@@ -416,7 +418,7 @@ export function buildRealtimeClosingInstructions(
   if (!line) {
     return null;
   }
-  return `Say exactly this line, then stop. Do not ask another question, do not call tools: ${line}`;
+  return `Say exactly this goodbye line and nothing else, then stop. Do not ask if they need help. Do not greet. Do not ask another question. Do not call tools: ${line}`;
 }
 
 function appendRuntimeContext(instructions: string, meta: AgentJobMetadata): string {

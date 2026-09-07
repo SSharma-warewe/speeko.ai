@@ -211,6 +211,8 @@ describe('Hindi persona language lock', () => {
       }),
     );
     expect(rule).toMatch(/Stay in Hindi Devanagari/);
+    expect(rule).toMatch(/han \/ haan/);
+    expect(rule).toMatch(/English "No"/);
     expect(
       buildRealtimeTurnRule(
         meta({ model: 'xai/grok-voice-think-fast-2.0' }),
@@ -249,7 +251,7 @@ describe('buildRealtimeClosingInstructions', () => {
         meta({ model: 'xai/grok-voice-think-fast-2.0' }),
       ),
     ).toBe(
-      'Say exactly this line, then stop. Do not ask another question, do not call tools: Thanks for your time. Goodbye.',
+      'Say exactly this goodbye line and nothing else, then stop. Do not ask if they need help. Do not greet. Do not ask another question. Do not call tools: Thanks for your time. Goodbye.',
     );
     expect(
       buildRealtimeClosingInstructions(

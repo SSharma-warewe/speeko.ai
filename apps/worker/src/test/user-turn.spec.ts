@@ -1,5 +1,6 @@
 import {
   classifyUserTurn,
+  isShortEnglishNo,
   lastUserTranscript,
 } from '../tasks/user-turn';
 
@@ -28,6 +29,22 @@ describe('classifyUserTurn', () => {
     expect(classifyUserTurn('wrong person')).toBe('wrong_person');
     expect(classifyUserTurn('यह किस्त हो चुकी है')).toBe('already_paid');
     expect(classifyUserTurn('I already paid')).toBe('already_paid');
+  });
+
+  it('treats ASR English No as Hindi han/yes when the homophone flag is on', () => {
+    expect(isShortEnglishNo('No.')).toBe(true);
+    expect(isShortEnglishNo('Nope')).toBe(true);
+    expect(isShortEnglishNo('नहीं')).toBe(false);
+    expect(isShortEnglishNo('nahi')).toBe(false);
+    expect(classifyUserTurn('No.')).toBe('no');
+    expect(classifyUserTurn('No.', { hindiHanHomophone: true })).toBe('yes');
+    expect(classifyUserTurn('Nope', { hindiHanHomophone: true })).toBe('yes');
+    expect(classifyUserTurn('han')).toBe('yes');
+    expect(classifyUserTurn('haan')).toBe('yes');
+    expect(classifyUserTurn('नहीं', { hindiHanHomophone: true })).toBe('no');
+    expect(
+      classifyUserTurn('Nahi, merko nahi chahiye.', { hindiHanHomophone: true }),
+    ).toBe('no');
   });
 
   it('treats real phrases as content', () => {

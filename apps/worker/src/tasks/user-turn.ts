@@ -44,7 +44,27 @@ export function lastUserTranscript(source: unknown): string {
   return '';
 }
 
-export function classifyUserTurn(text: string | null | undefined): UserTurnKind {
+export type ClassifyUserTurnOptions = {
+  /**
+   * Hindi “han” / “haan” (yes) is often transcribed as English “No.”
+   * When set, a short No/Nope is YES — not refusal.
+   */
+  hindiHanHomophone?: boolean;
+};
+
+/** Prompt rule: ASR writes han/haan as English No. */
+export const HINDI_HAN_ASR_RULE =
+  'Hindi yes is हाँ / हां / जी / han / haan / ha. Realtime ASR often writes han/haan as English "No" or "Nope". A short "No"/"Nope" (not नहीं, not nahi, not "not interested") means YES — reply as if they said हाँ. Never treat it as refusal or WRONG_PERSON.';
+
+/** Exact English no/nope (the han ASR swap). Not nahi / नहीं. */
+export function isShortEnglishNo(text: string | null | undefined): boolean {
+  return /^(no|nope)$/.test(normalizeTurn(text ?? ''));
+}
+
+export function classifyUserTurn(
+  text: string | null | undefined,
+  options: ClassifyUserTurnOptions = {},
+): UserTurnKind {
   const raw = (text ?? '').trim();
   if (!raw) return 'empty';
 
@@ -54,6 +74,7 @@ export function classifyUserTurn(text: string | null | undefined): UserTurnKind 
 
   if (isAlreadyPaid(raw, normalized)) return 'already_paid';
   if (isWrongPerson(raw, normalized)) return 'wrong_person';
+  if (options.hindiHanHomophone && isShortEnglishNo(raw)) return 'yes';
   if (isNo(raw, normalized)) return 'no';
   if (isYes(normalized)) return 'yes';
   return 'content';

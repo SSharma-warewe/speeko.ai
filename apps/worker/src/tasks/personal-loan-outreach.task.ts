@@ -1,6 +1,9 @@
 import { llm } from '@livekit/agents';
 import { z } from 'zod';
-import { composeTaskInstructions } from '../builders/prompt-builder.js';
+import {
+  composeTaskInstructions,
+  personaSpeaksHindi,
+} from '../builders/prompt-builder.js';
 import {
   createWorkflowTask,
   finishWorkflowTask,
@@ -15,6 +18,7 @@ import {
 import { markTaskFinished, nullishString } from './task-complete.js';
 import type { TaskFactory } from './types.js';
 import {
+  HINDI_HAN_ASR_RULE,
   classifyUserTurn,
   lastUserTranscript,
 } from './user-turn.js';
@@ -85,6 +89,7 @@ export function buildPersonalLoanOutreachInstructions(
       : '- Confirm it is a good time, then ask once for their name.',
     '- If it is the wrong person, do not present the loan. Complete with CALLBACK (offer a callback if they volunteer how to reach the right person) or NOT_INTERESTED if they refuse.',
     '- If their answer is unclear (hello, noise, a clipped word), ask the identity question once more. Do not treat hello/noise as a yes or no. After one retry, if they still do not clearly refuse identity, assume they are the expected contact and continue.',
+    `- ${HINDI_HAN_ASR_RULE}`,
     '',
     'PHASE 2 — PRESENT THE LOAN (only after identity is confirmed):',
     '- State this is about a personal loan offer. Present the terms in natural language, once:',
@@ -113,8 +118,11 @@ export function buildPersonalLoanOutreachInstructions(
 export function personalLoanOutreachCompleteBlocker(args: {
   outcome: PersonalLoanOutreachResult['outcome'];
   lastUserText?: string | null;
+  hindiHanHomophone?: boolean;
 }): string | null {
-  const kind = classifyUserTurn(args.lastUserText);
+  const kind = classifyUserTurn(args.lastUserText, {
+    hindiHanHomophone: args.hindiHanHomophone,
+  });
   if (kind === 'empty' || kind === 'filler') {
     return 'The last thing they said was not a clear answer (hello / noise / clipped). Ask the current question again. Do not complete yet.';
   }
@@ -173,6 +181,7 @@ export const createPersonalLoanOutreachTask: TaskFactory = ({
               const blocked = personalLoanOutreachCompleteBlocker({
                 ...args,
                 lastUserText: lastUserTranscript(task.session),
+                hindiHanHomophone: personaSpeaksHindi(meta),
               });
               if (blocked) {
                 return {

@@ -14,8 +14,11 @@ import {
 } from './context-format.js';
 import { markTaskFinished, nullishString } from './task-complete.js';
 import type { TaskFactory } from './types.js';
+import { personaSpeaksHindi } from '../builders/prompt-builder.js';
 import {
+  HINDI_HAN_ASR_RULE,
   classifyUserTurn,
+  isShortEnglishNo,
   lastUserTranscript,
 } from './user-turn.js';
 
@@ -95,14 +98,21 @@ export function loanCollectionCompleteBlocker(args: {
   outcome: LoanCollectionResult['outcome'];
   promisedPayDate?: string | null;
   delayReason?: string | null;
+  helpRequested?: string | null;
   lastUserText?: string | null;
   notes?: string | null;
+  hindiHanHomophone?: boolean;
 }): string | null {
-  const kind = classifyUserTurn(args.lastUserText);
+  const kind = classifyUserTurn(args.lastUserText, {
+    hindiHanHomophone: args.hindiHanHomophone,
+  });
   if (kind === 'empty' || kind === 'filler') {
     return 'The last thing they said was not a clear answer (hello / noise / clipped). Ask the current question again. Do not complete yet.';
   }
   if (args.outcome === 'WRONG_PERSON' && kind !== 'wrong_person') {
+    if (args.hindiHanHomophone && isShortEnglishNo(args.lastUserText)) {
+      return 'Short "No"/"Nope" is usually Hindi han/haan (yes), not English no. They confirmed identity. Continue the workflow. Do not complete WRONG_PERSON.';
+    }
     if (
       kind === 'content' &&
       typeof args.notes === 'string' &&
@@ -123,6 +133,9 @@ export function loanCollectionCompleteBlocker(args: {
   }
   if (!filledField(args.delayReason)) {
     return 'Ask why the payment was delayed, then call complete_loan_collection_task again with delayReason (use "none" if they declined to say).';
+  }
+  if (!filledField(args.helpRequested)) {
+    return 'Ask if they need any other help, wait for the answer, then call complete_loan_collection_task again with helpRequested (use "none" if they said no). Do not hang up before they answer.';
   }
   return null;
 }
@@ -176,6 +189,7 @@ export function buildLoanCollectionInstructions(
       : '- Confirm it is a good time, then ask once for their name.',
     '- If it is the wrong person, do not discuss the debt, amount, or CIBIL. Complete with WRONG_PERSON, or CALLBACK if they volunteer how to reach the right person.',
     '- If their answer is unclear (hello, noise, a clipped word), ask the identity question once more. Do not complete WRONG_PERSON on unclear audio. After one retry, if they still do not clearly say it is the wrong person, assume they are the expected contact and continue.',
+    `- ${HINDI_HAN_ASR_RULE}`,
     '',
     'PHASE 2 — DUE NOTICE (only after identity is confirmed):',
     `- State that their ${dueLabel} is due. Present the details in natural language, once:`,
@@ -191,11 +205,14 @@ export function buildLoanCollectionInstructions(
     '- Ask what the reason for the delay was. Skip this if they already paid or there is no delay.',
     '',
     'PHASE 5 — OTHER HELP:',
-    '- Ask if they need any other help. Capture a short note. Do not invent products, waivers, or tools that are not enabled on this call.',
+    '- After they answered when they will pay and why it was delayed, ask if they need any other help.',
+    '- Wait for that answer. Do not call complete_loan_collection_task in the same turn as this question.',
+    '- Capture a short note. Do not invent products, waivers, or tools that are not enabled on this call.',
     '',
     'COMPLETION:',
-    '- When you have their payment answer (and delay/help if they answered), call complete_loan_collection_task.',
-    '- Fill promisedPayDate on PROMISED. Fill delayReason and helpRequested when they answered those questions.',
+    '- On PROMISED, call complete_loan_collection_task only after promisedPayDate, delayReason, AND helpRequested are filled.',
+    '- Fill helpRequested with a short note, or "none" if they said no. The system hangs up after complete — if you skip help, they will hear the help question and then get cut off.',
+    '- Fill promisedPayDate on PROMISED. Fill delayReason when they answered why it was late.',
     '- Use CALLBACK if they asked to be called later or it was not a good time. Use WRONG_PERSON if identity failed.',
     '- After complete_loan_collection_task succeeds, the system hangs up automatically — do not also call end_call.',
     '- If they say goodbye or ask to stop mid-flow, prefer completing with the best-fit outcome then hangup; else call end_call.',
@@ -262,6 +279,7 @@ export const createLoanCollectionTask: TaskFactory = ({
               const blocked = loanCollectionCompleteBlocker({
                 ...args,
                 lastUserText: lastUserTranscript(task.session),
+                hindiHanHomophone: personaSpeaksHindi(meta),
               });
               if (blocked) {
                 return {

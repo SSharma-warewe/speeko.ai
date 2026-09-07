@@ -141,6 +141,20 @@ describe('personal_loan_outreach task', () => {
     ).toBeNull();
     expect(
       personalLoanOutreachCompleteBlocker({
+        outcome: 'INTERESTED',
+        lastUserText: 'No.',
+        hindiHanHomophone: true,
+      }),
+    ).toBeNull();
+    expect(
+      personalLoanOutreachCompleteBlocker({
+        outcome: 'NOT_INTERESTED',
+        lastUserText: 'No.',
+        hindiHanHomophone: true,
+      }),
+    ).toMatch(/not clearly declined/);
+    expect(
+      personalLoanOutreachCompleteBlocker({
         outcome: 'NOT_INTERESTED',
         lastUserText: 'Nahi, merko nahi chahiye.',
       }),
