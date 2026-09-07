@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { SegmentedControl, Select, Slider } from "@call-agent/ui";
 import {
   extraRealtimeVoiceCatalog,
@@ -100,6 +101,88 @@ function switchMode(next: PipelineMode): Partial<AgentVoiceValues> {
   };
 }
 
+function VoiceStage({
+  kicker,
+  hint,
+  span,
+  children,
+}: {
+  kicker: string;
+  hint?: string;
+  span?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className={span ? "ops-voice-stage is-span" : "ops-voice-stage"}>
+      <div className="ops-voice-cast-head">
+        <span className="ops-desk-kicker">{kicker}</span>
+        {hint ? <span className="ops-desk-hint">{hint}</span> : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function CompactField({
+  label,
+  htmlFor,
+  span,
+  children,
+}: {
+  label: string;
+  htmlFor?: string;
+  span?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={
+        span ? "ops-voice-compact-field is-span" : "ops-voice-compact-field"
+      }
+    >
+      <label className="ops-voice-compact-label" htmlFor={htmlFor}>
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function ModelChips<T extends string>({
+  options,
+  value,
+  disabled,
+  ariaLabel,
+  onChange,
+}: {
+  options: { value: T; label: string }[];
+  value: T;
+  disabled?: boolean;
+  ariaLabel: string;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="ops-voice-models" role="radiogroup" aria-label={ariaLabel}>
+      {options.map((opt) => {
+        const selected = opt.value === value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            className={selected ? "ops-voice-model is-on" : "ops-voice-model"}
+            disabled={disabled}
+            onClick={() => onChange(opt.value)}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function AgentVoiceRack({
   model,
   ttsModel,
@@ -149,16 +232,32 @@ export function AgentVoiceRack({
   );
 
   const llmControl = realtime ? (
-    <SegmentedControl
-      aria-label="Realtime model"
-      value={selectedLlm}
-      options={REALTIME_LLM_OPTIONS.map((opt) => ({
-        value: opt.value,
-        label: opt.label,
-        disabled,
-      }))}
-      onChange={(value) => onChange(switchLlmModel(value as LlmModelId))}
-    />
+    compact ? (
+      <Select
+        id="agent-llm-select"
+        aria-label="Realtime model"
+        value={selectedLlm}
+        disabled={disabled}
+        onChange={(e) => onChange(switchLlmModel(e.target.value as LlmModelId))}
+      >
+        {REALTIME_LLM_OPTIONS.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </Select>
+    ) : (
+      <ModelChips
+        ariaLabel="Realtime model"
+        value={selectedLlm}
+        disabled={disabled}
+        options={REALTIME_LLM_OPTIONS.map((opt) => ({
+          value: opt.value,
+          label: opt.label,
+        }))}
+        onChange={(value) => onChange(switchLlmModel(value))}
+      />
+    )
   ) : (
     <Select
       id="agent-llm-select"
@@ -190,20 +289,35 @@ export function AgentVoiceRack({
       ))}
     </Select>
   ) : (
-    <SegmentedControl
-      aria-label="Speech model"
+    <ModelChips
+      ariaLabel="Speech model"
       value={selectedTts}
-      options={TTS_MODEL_OPTIONS.map((opt) => ({ ...opt, disabled }))}
-      onChange={(value) => onChange(switchTtsModel(value as TtsModelId))}
+      disabled={disabled}
+      options={TTS_MODEL_OPTIONS.map((opt) => ({
+        value: opt.value,
+        label: opt.label,
+      }))}
+      onChange={(value) => onChange(switchTtsModel(value))}
     />
   );
 
-  const sttControl = (
+  const sttControl = compact ? (
     <SegmentedControl
       aria-label="Listen model"
       value={selectedStt}
       options={STT_MODEL_OPTIONS.map((opt) => ({ ...opt, disabled }))}
       onChange={(value) => onChange(switchSttModel(value as SttModelId))}
+    />
+  ) : (
+    <ModelChips
+      ariaLabel="Listen model"
+      value={selectedStt}
+      disabled={disabled}
+      options={STT_MODEL_OPTIONS.map((opt) => ({
+        value: opt.value,
+        label: opt.label,
+      }))}
+      onChange={(value) => onChange(switchSttModel(value))}
     />
   );
 
@@ -316,93 +430,94 @@ export function AgentVoiceRack({
   if (compact) {
     return (
       <div className="ops-voice-compact">
-        <label className="ops-voice-compact-label">Pipeline</label>
-        <div>{modeControl}</div>
-        <label className="ops-voice-compact-label" htmlFor="agent-llm-select">
-          {realtime ? "Realtime model" : "Language model"}
-        </label>
-        <div>{llmControl}</div>
+        <CompactField label="Pipeline">{modeControl}</CompactField>
+        <CompactField
+          label={realtime ? "Realtime model" : "Language model"}
+          htmlFor="agent-llm-select"
+        >
+          {llmControl}
+        </CompactField>
         {realtime ? (
-          <p className="ops-desk-hint">
+          <p className="ops-desk-hint ops-voice-compact-note">
             Native speech-to-speech — no separate TTS.
           </p>
         ) : (
           <>
-            <label className="ops-voice-compact-label">Listen</label>
-            <div>{sttControl}</div>
-            <label className="ops-voice-compact-label" htmlFor="agent-tts-select">
-              Speech model
-            </label>
-            <div>{ttsControl}</div>
+            <CompactField label="Listen">{sttControl}</CompactField>
+            <CompactField label="Speech model" htmlFor="agent-tts-select">
+              {ttsControl}
+            </CompactField>
             {showSpeechLanguage ? (
-              <>
-                <label
-                  className="ops-voice-compact-label"
-                  htmlFor="agent-speech-language"
-                >
-                  Language
-                </label>
+              <CompactField
+                span
+                label="Language"
+                htmlFor="agent-speech-language"
+              >
                 {languageControl}
-              </>
+              </CompactField>
             ) : null}
           </>
         )}
-        <label className="ops-voice-compact-label" htmlFor="agent-voice-select">
-          Voice
-        </label>
-        {voiceSelect}
-        {mixSliders}
+        <CompactField span label="Voice" htmlFor="agent-voice-select">
+          {voiceSelect}
+        </CompactField>
+        <div className="ops-voice-compact-mix">{mixSliders}</div>
       </div>
     );
   }
 
+  const featuredVoices = voices.filter((v) => {
+    if (v.storedId === null) return true;
+    if (extraVoices.length === 0) return true;
+    return !extraVoices.some((x) => x.id === v.id);
+  });
+
   return (
     <div className="ops-voice-rack">
-      <div className="ops-voice-cast">
-        <div className="ops-voice-cast-head">
-          <span className="ops-desk-kicker">Pipeline</span>
-          <span className="ops-desk-hint">
-            {realtime ? "Speech-to-speech" : "STT · LLM · TTS"}
-          </span>
-        </div>
+      <div className="ops-voice-strip">
+        <span className="ops-desk-kicker">Signal</span>
         {modeControl}
-        <div className="ops-voice-cast-head">
-          <span className="ops-desk-kicker">
-            {realtime ? "Realtime model" : "Language model"}
-          </span>
-          <span className="ops-desk-hint">{llmSpec.shortLabel}</span>
+        <span className="ops-desk-hint">
+          {realtime ? "Speech-to-speech" : "Listen · think · speak"}
+        </span>
+      </div>
+
+      {realtime ? (
+        <div className="ops-voice-stages is-realtime">
+          <VoiceStage kicker="Realtime model" hint={llmSpec.shortLabel} span>
+            {llmControl}
+            <p className="ops-voice-stage-note">
+              Native speech-to-speech — no STT or TTS picker. Talent below is
+              the realtime voice, not Inworld.
+            </p>
+          </VoiceStage>
         </div>
-        {llmControl}
-        {realtime ? (
-          <p className="ops-desk-hint">
-            Native speech-to-speech — no STT or TTS picker. Talent below is
-            the realtime voice, not Inworld.
-          </p>
-        ) : (
-          <>
-            <div className="ops-voice-cast-head">
-              <span className="ops-desk-kicker">Listen</span>
-              <span className="ops-desk-hint">{sttSpec.label}</span>
-            </div>
+      ) : (
+        <div
+          className={
+            showSpeechLanguage
+              ? "ops-voice-stages is-language"
+              : "ops-voice-stages"
+          }
+        >
+          <VoiceStage kicker="Listen" hint={sttSpec.label}>
             {sttControl}
-            <div className="ops-voice-cast-head">
-              <span className="ops-desk-kicker">Speech model</span>
-              <span className="ops-desk-hint">{speechHint}</span>
-            </div>
+          </VoiceStage>
+          <VoiceStage kicker="Think" hint={llmSpec.shortLabel}>
+            {llmControl}
+          </VoiceStage>
+          <VoiceStage kicker="Speak" hint={speechHint}>
             {ttsControl}
-            {showSpeechLanguage ? (
-              <>
-                <div className="ops-voice-cast-head">
-                  <span className="ops-desk-kicker">Language</span>
-                  <span className="ops-desk-hint">
-                    Sarvam STT / Bulbul TTS
-                  </span>
-                </div>
-                {languageControl}
-              </>
-            ) : null}
-          </>
-        )}
+          </VoiceStage>
+          {showSpeechLanguage ? (
+            <VoiceStage kicker="Language" hint="Sarvam STT / Bulbul TTS">
+              {languageControl}
+            </VoiceStage>
+          ) : null}
+        </div>
+      )}
+
+      <div className="ops-voice-cast">
         <div className="ops-voice-cast-head">
           <span className="ops-desk-kicker">Talent</span>
           <span className="ops-desk-hint">
@@ -410,37 +525,31 @@ export function AgentVoiceRack({
           </span>
         </div>
         <div className="ops-voice-tiles" role="listbox" aria-label="Voice">
-          {voices
-            .filter((v) => {
-              if (v.storedId === null) return true;
-              if (extraVoices.length === 0) return true;
-              return !extraVoices.some((x) => x.id === v.id);
-            })
-            .map((v) => {
-              const selected =
-                v.storedId === null ? voice === null : voice === v.storedId;
-              return (
-                <button
-                  key={v.storedId ?? "default"}
-                  type="button"
-                  role="option"
-                  aria-selected={selected}
-                  className={
-                    selected ? "ops-voice-tile is-on" : "ops-voice-tile"
-                  }
-                  disabled={disabled}
-                  onClick={() => onChange({ voice: v.storedId })}
-                >
-                  <span className="ops-voice-tile-mark" aria-hidden>
-                    {v.initial}
-                  </span>
-                  <span className="ops-voice-tile-copy">
-                    <span className="ops-voice-tile-name">{v.name}</span>
-                    <span className="ops-voice-tile-line">{v.line}</span>
-                  </span>
-                </button>
-              );
-            })}
+          {featuredVoices.map((v) => {
+            const selected =
+              v.storedId === null ? voice === null : voice === v.storedId;
+            return (
+              <button
+                key={v.storedId ?? "default"}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                className={
+                  selected ? "ops-voice-tile is-on" : "ops-voice-tile"
+                }
+                disabled={disabled}
+                onClick={() => onChange({ voice: v.storedId })}
+              >
+                <span className="ops-voice-tile-mark" aria-hidden>
+                  {v.initial}
+                </span>
+                <span className="ops-voice-tile-copy">
+                  <span className="ops-voice-tile-name">{v.name}</span>
+                  <span className="ops-voice-tile-line">{v.line}</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
         {extraVoices.length > 0 ? (
           <Select
