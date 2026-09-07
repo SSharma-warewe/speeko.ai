@@ -46,7 +46,7 @@ describe('realtime agent state helpers', () => {
 });
 
 describe('waitForRealtimeUtterance', () => {
-  it('already idle: waits minMs and returns idle', async () => {
+  it('already idle: waits minMs and returns min (never saw speaking)', async () => {
     const session = fakeSession('idle');
     const t0 = Date.now();
     const result = await waitForRealtimeUtterance(session, {
@@ -54,7 +54,7 @@ describe('waitForRealtimeUtterance', () => {
       timeoutMs: 200,
       speakingStartMs: 25,
     });
-    expect(result).toBe('idle');
+    expect(result).toBe('min');
     expect(Date.now() - t0).toBeGreaterThanOrEqual(40);
   });
 

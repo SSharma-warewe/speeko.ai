@@ -4,7 +4,10 @@ import {
   SpeekoOpenaiRealtimeModel,
   SpeekoXaiRealtimeModel,
 } from '../builders/realtime-models';
-import { createRealtimeLlm } from '../builders/model-builder';
+import {
+  XAI_REALTIME_TURN_DETECTION,
+  createRealtimeLlm,
+} from '../builders/model-builder';
 import type { AgentJobMetadata } from '../job-metadata';
 
 function meta(overrides: Partial<AgentJobMetadata> = {}): AgentJobMetadata {
@@ -49,6 +52,14 @@ describe('createRealtimeLlm wrappers', () => {
       { XAI_API_KEY: 'xai-test' },
     );
     expect(model).toBeInstanceOf(SpeekoXaiRealtimeModel);
+    const opts = (
+      model as unknown as {
+        _options: { turnDetection: typeof XAI_REALTIME_TURN_DETECTION };
+      }
+    )._options.turnDetection;
+    expect(opts).toEqual(XAI_REALTIME_TURN_DETECTION);
+    expect(opts.silence_duration_ms).toBe(700);
+    expect(opts.interrupt_response).toBe(false);
   });
 
   it('OpenAI realtime uses the Speeko subclass', () => {
@@ -57,5 +68,12 @@ describe('createRealtimeLlm wrappers', () => {
       { OPENAI_API_KEY: 'sk-test' },
     );
     expect(model).toBeInstanceOf(SpeekoOpenaiRealtimeModel);
+    const opts = (
+      model as unknown as {
+        _options: { turnDetection: { type: string; eagerness: string } };
+      }
+    )._options.turnDetection;
+    expect(opts.type).toBe('semantic_vad');
+    expect(opts.eagerness).toBe('medium');
   });
 });

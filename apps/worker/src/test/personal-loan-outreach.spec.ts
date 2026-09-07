@@ -5,7 +5,10 @@ import {
 } from '../builders/prompt-builder';
 import { TaskRegistry } from '../tasks/registry';
 import { TASK_KEYS } from '../tasks/task-ids';
-import { buildPersonalLoanOutreachInstructions } from '../tasks/personal-loan-outreach.task';
+import {
+  buildPersonalLoanOutreachInstructions,
+  personalLoanOutreachCompleteBlocker,
+} from '../tasks/personal-loan-outreach.task';
 
 function meta(
   overrides: Partial<AgentJobMetadata> = {},
@@ -121,5 +124,33 @@ describe('personal_loan_outreach task', () => {
     expect(opening).toMatch(/speaking with Ada Lovelace/);
     expect(opening).toMatch(/Do not read the loan amount, interest rate, or term/);
     expect(opening).toMatch(/AUTHORITATIVE CLOCK/);
+  });
+
+  it('does not complete INTERESTED from filler audio', () => {
+    expect(
+      personalLoanOutreachCompleteBlocker({
+        outcome: 'INTERESTED',
+        lastUserText: 'Hello.',
+      }),
+    ).toMatch(/not a clear answer/);
+    expect(
+      personalLoanOutreachCompleteBlocker({
+        outcome: 'INTERESTED',
+        lastUserText: 'जी हाँ',
+      }),
+    ).toBeNull();
+    expect(
+      personalLoanOutreachCompleteBlocker({
+        outcome: 'NOT_INTERESTED',
+        lastUserText: 'Nahi, merko nahi chahiye.',
+      }),
+    ).toBeNull();
+  });
+
+  it('identity retry is in the outreach prompt', () => {
+    const text = buildPersonalLoanOutreachInstructions(
+      meta({ context: offerContext }),
+    );
+    expect(text).toMatch(/ask the identity question once more/i);
   });
 });

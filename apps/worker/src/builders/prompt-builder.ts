@@ -92,8 +92,19 @@ export function buildRealtimeTurnRule(meta: AgentJobMetadata): string | null {
     lines.push('The system already spoke the opening. Do not greet again.');
   }
   lines.push(REALTIME_TURN_RULE_BODY);
+  if (personaSpeaksHindi(meta)) {
+    lines.push(
+      'Stay in Hindi Devanagari for the whole call. Digits and names may be spoken as-is. Do not switch to English or romanized Hinglish.',
+    );
+  }
   lines.push('=== END REALTIME TURNS ===');
   return lines.join('\n');
+}
+
+/** Persona asked for Hindi (portal system prompt). Used for opening/goodbye/script lock. */
+export function personaSpeaksHindi(meta: AgentJobMetadata): boolean {
+  const prompt = meta.prompt?.systemPrompt ?? '';
+  return /hindi|हिंदी|हिन्दी|devanagari/i.test(prompt);
 }
 
 export type CallClockSnapshot = {
@@ -344,6 +355,13 @@ export function buildOpeningInstructions(meta: AgentJobMetadata): string | null 
   } else {
     base = appendRuntimeContext(defaultOpeningInstructions(meta), meta);
   }
+  if (personaSpeaksHindi(meta)) {
+    base = [
+      'Speak this opening in Hindi using Devanagari script, not romanized Hinglish.',
+      'One short greeting, then the identity question only. Do not switch to English.',
+      base,
+    ].join(' ');
+  }
   // Ground opening speech on the same clock so “today” is not invented.
   return `${base}\n\n${buildCurrentTimeBlock(meta)}`;
 }
@@ -359,6 +377,11 @@ export function cannedClosingLine(meta: AgentJobMetadata): string | null {
   }
   if (typeof custom === 'string' && custom.trim()) {
     return custom.trim();
+  }
+  if (personaSpeaksHindi(meta)) {
+    return meta.direction === 'outbound'
+      ? 'धन्यवाद, आपका दिन शुभ हो।'
+      : 'धन्यवाद, कॉल करने के लिए शुक्रिया।';
   }
   if (meta.direction === 'outbound') {
     return 'Thanks for your time. Goodbye.';

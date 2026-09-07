@@ -6,10 +6,13 @@ import {
   hookMode,
 } from './prompt-builder.js';
 
-export const REALTIME_GOODBYE_MIN_MS = 1500;
-export const REALTIME_GOODBYE_TIMEOUT_MS = 8000;
+export const REALTIME_OPENING_MIN_MS = 3500;
 export const REALTIME_OPENING_TIMEOUT_MS = 15000;
+export const REALTIME_GOODBYE_MIN_MS = 2500;
+export const REALTIME_GOODBYE_TIMEOUT_MS = 3500;
 export const REALTIME_SPEAKING_START_MS = 2000;
+
+export type RealtimeUtteranceWait = 'idle' | 'timeout' | 'min';
 
 const AGENT_STATE_CHANGED = voice.AgentSessionEventTypes.AgentStateChanged;
 
@@ -41,8 +44,14 @@ export function isRealtimeAgentIdle(state: string): boolean {
 
 /**
  * waitForPlayout() returns in ~0.5s on xAI realtime without audio finishing.
- * Wait until the session is speaking/thinking, then back to idle/listening,
- * with a minimum wall time so a one-liner can play.
+ * xAI often never reports agentState=speaking (stays idle). Do not treat
+ * “already idle” as playout done — that logged wait=idle on the opening
+ * before the greeting finished.
+ *
+ * Returns:
+ * - `idle` — saw speaking/thinking, then idle/listening
+ * - `min` — never became busy; slept wall-clock minMs
+ * - `timeout` — saw busy and it never returned to idle
  */
 export async function waitForRealtimeUtterance(
   session: RealtimeWaitSession,
@@ -51,7 +60,7 @@ export async function waitForRealtimeUtterance(
     timeoutMs?: number;
     speakingStartMs?: number;
   } = {},
-): Promise<'idle' | 'timeout'> {
+): Promise<RealtimeUtteranceWait> {
   const minMs = options.minMs ?? REALTIME_GOODBYE_MIN_MS;
   const timeoutMs = options.timeoutMs ?? REALTIME_GOODBYE_TIMEOUT_MS;
   const speakingStartMs = options.speakingStartMs ?? REALTIME_SPEAKING_START_MS;
@@ -59,20 +68,36 @@ export async function waitForRealtimeUtterance(
   const deadline = started + timeoutMs;
 
   const remaining = () => Math.max(0, deadline - Date.now());
+  const padMin = async () => {
+    const elapsed = Date.now() - started;
+    if (elapsed < minMs) {
+      await sleep(Math.min(minMs - elapsed, remaining()));
+    }
+  };
 
-  await waitForAgentState(session, isRealtimeAgentBusy, Math.min(speakingStartMs, remaining()));
+  const sawBusy =
+    isRealtimeAgentBusy(session.agentState) ||
+    (await waitForAgentState(
+      session,
+      isRealtimeAgentBusy,
+      Math.min(speakingStartMs, remaining()),
+    ));
+
+  if (!sawBusy) {
+    await padMin();
+    return 'min';
+  }
+
   const becameIdle = await waitForAgentState(
     session,
     isRealtimeAgentIdle,
     remaining(),
   );
-
-  const elapsed = Date.now() - started;
-  if (elapsed < minMs) {
-    await sleep(minMs - elapsed);
+  await padMin();
+  if (becameIdle || isRealtimeAgentIdle(session.agentState)) {
+    return 'idle';
   }
-
-  return becameIdle || isRealtimeAgentIdle(session.agentState) ? 'idle' : 'timeout';
+  return 'timeout';
 }
 
 function waitForAgentState(
@@ -139,6 +164,7 @@ export async function speakRealtimeOpening(
       toolChoice: 'none',
     });
     const wait = await waitForRealtimeUtterance(session, {
+      minMs: REALTIME_OPENING_MIN_MS,
       timeoutMs: REALTIME_OPENING_TIMEOUT_MS,
     });
     console.log(`[agent] realtime task opening wait=${wait}`);
@@ -170,7 +196,10 @@ export async function speakRealtimeGoodbye(
       instructions,
       toolChoice: 'none',
     });
-    const wait = await waitForRealtimeUtterance(session);
+    const wait = await waitForRealtimeUtterance(session, {
+      minMs: REALTIME_GOODBYE_MIN_MS,
+      timeoutMs: REALTIME_GOODBYE_TIMEOUT_MS,
+    });
     console.log(`[agent] realtime goodbye wait=${wait}`);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

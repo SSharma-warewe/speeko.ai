@@ -163,6 +163,20 @@ export function createLlm(
   });
 }
 
+/**
+ * xAI plugin default is 200ms silence + interrupt_response, which clips Hindi
+ * and talks over the greeting. Pin a phone-call VAD: wait out a short pause,
+ * do not barge in on the agent.
+ */
+export const XAI_REALTIME_TURN_DETECTION = {
+  type: 'server_vad' as const,
+  threshold: 0.5,
+  prefix_padding_ms: 400,
+  silence_duration_ms: 700,
+  create_response: true,
+  interrupt_response: false,
+};
+
 export function createRealtimeLlm(
   meta: AgentJobMetadata,
   env: NodeJS.ProcessEnv = process.env,
@@ -175,6 +189,7 @@ export function createRealtimeLlm(
       apiKey: requireEnv(env, 'XAI_API_KEY', spec.id),
       model: spec.runtimeModel,
       voice,
+      turnDetection: XAI_REALTIME_TURN_DETECTION,
     });
   }
 

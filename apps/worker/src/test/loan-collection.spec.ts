@@ -7,6 +7,7 @@ import { TaskRegistry } from '../tasks/registry';
 import { TASK_KEYS } from '../tasks/task-ids';
 import {
   buildLoanCollectionInstructions,
+  confirmedNameForOutcome,
   loanCollectionCompleteBlocker,
   spokenDueLabel,
 } from '../tasks/loan-collection.task';
@@ -130,12 +131,16 @@ describe('loan_collection task', () => {
 
   it('PROMISED complete requires a pay date and delay reason', () => {
     expect(
-      loanCollectionCompleteBlocker({ outcome: 'PROMISED' }),
+      loanCollectionCompleteBlocker({
+        outcome: 'PROMISED',
+        lastUserText: 'आज कर दूंगा',
+      }),
     ).toMatch(/promisedPayDate/);
     expect(
       loanCollectionCompleteBlocker({
         outcome: 'PROMISED',
         promisedPayDate: 'today',
+        lastUserText: 'आज कर दूंगा',
       }),
     ).toMatch(/delayReason/);
     expect(
@@ -143,6 +148,7 @@ describe('loan_collection task', () => {
         outcome: 'PROMISED',
         promisedPayDate: 'today',
         delayReason: '   ',
+        lastUserText: 'आज कर दूंगा',
       }),
     ).toMatch(/delayReason/);
     expect(
@@ -150,14 +156,83 @@ describe('loan_collection task', () => {
         outcome: 'PROMISED',
         promisedPayDate: 'today',
         delayReason: 'none',
+        lastUserText: 'आज कर दूंगा',
       }),
     ).toBeNull();
     expect(
-      loanCollectionCompleteBlocker({ outcome: 'REFUSED' }),
+      loanCollectionCompleteBlocker({
+        outcome: 'REFUSED',
+        lastUserText: 'नहीं दूंगा',
+      }),
     ).toBeNull();
     expect(
-      loanCollectionCompleteBlocker({ outcome: 'CALLBACK' }),
+      loanCollectionCompleteBlocker({
+        outcome: 'CALLBACK',
+        lastUserText: 'बाद में कॉल करो',
+      }),
     ).toBeNull();
+  });
+
+  it('does not complete WRONG_PERSON or ALREADY_PAID from filler audio', () => {
+    expect(
+      loanCollectionCompleteBlocker({
+        outcome: 'WRONG_PERSON',
+        lastUserText: 'Hello.',
+      }),
+    ).toMatch(/not a clear answer/);
+    expect(
+      loanCollectionCompleteBlocker({
+        outcome: 'WRONG_PERSON',
+        lastUserText: '',
+      }),
+    ).toMatch(/not a clear answer/);
+    expect(
+      loanCollectionCompleteBlocker({
+        outcome: 'ALREADY_PAID',
+        lastUserText: 'A',
+      }),
+    ).toMatch(/not a clear answer/);
+    expect(
+      loanCollectionCompleteBlocker({
+        outcome: 'WRONG_PERSON',
+        lastUserText: 'हाँ, मैं शिवम हूँ',
+      }),
+    ).toMatch(/not clearly the wrong person/);
+    expect(
+      loanCollectionCompleteBlocker({
+        outcome: 'WRONG_PERSON',
+        lastUserText: 'मैं शिवम नहीं हूँ',
+      }),
+    ).toBeNull();
+    expect(
+      loanCollectionCompleteBlocker({
+        outcome: 'ALREADY_PAID',
+        lastUserText: 'यह किस्त हो चुकी है',
+      }),
+    ).toBeNull();
+  });
+
+  it('WRONG_PERSON does not inherit the expected contact name', () => {
+    expect(
+      confirmedNameForOutcome('WRONG_PERSON', null, 'shivam'),
+    ).toBeUndefined();
+    expect(
+      confirmedNameForOutcome('WRONG_PERSON', '  ', 'shivam'),
+    ).toBeUndefined();
+    expect(
+      confirmedNameForOutcome('WRONG_PERSON', 'Ravi', 'shivam'),
+    ).toBe('Ravi');
+    expect(
+      confirmedNameForOutcome('PROMISED', null, 'shivam'),
+    ).toBe('shivam');
+  });
+
+  it('identity retry is in the collection prompt', () => {
+    const text = buildLoanCollectionInstructions(
+      meta({ context: dueContext }),
+    );
+    expect(text).toMatch(/ask the identity question once more/i);
+    expect(text).toMatch(/Do not complete WRONG_PERSON on unclear audio/);
   });
 
   it('default opening confirms name before discussing the due payment', () => {

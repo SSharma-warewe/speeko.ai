@@ -14,6 +14,10 @@ import {
 } from './context-format.js';
 import { markTaskFinished, nullishString } from './task-complete.js';
 import type { TaskFactory } from './types.js';
+import {
+  classifyUserTurn,
+  lastUserTranscript,
+} from './user-turn.js';
 
 export type PersonalLoanOutreachResult = {
   outcome: 'INTERESTED' | 'NOT_INTERESTED' | 'CALLBACK';
@@ -80,6 +84,7 @@ export function buildPersonalLoanOutreachInstructions(
       ? `- Confirm it is a good time, then verify identity: ask if you are speaking with ${name}.`
       : '- Confirm it is a good time, then ask once for their name.',
     '- If it is the wrong person, do not present the loan. Complete with CALLBACK (offer a callback if they volunteer how to reach the right person) or NOT_INTERESTED if they refuse.',
+    '- If their answer is unclear (hello, noise, a clipped word), ask the identity question once more. Do not treat hello/noise as a yes or no. After one retry, if they still do not clearly refuse identity, assume they are the expected contact and continue.',
     '',
     'PHASE 2 — PRESENT THE LOAN (only after identity is confirmed):',
     '- State this is about a personal loan offer. Present the terms in natural language, once:',
@@ -100,6 +105,26 @@ export function buildPersonalLoanOutreachInstructions(
   ]
     .filter((line) => line !== null)
     .join(' ');
+}
+
+/**
+ * INTERESTED / NOT_INTERESTED need a real yes/no. Filler audio is not an answer.
+ */
+export function personalLoanOutreachCompleteBlocker(args: {
+  outcome: PersonalLoanOutreachResult['outcome'];
+  lastUserText?: string | null;
+}): string | null {
+  const kind = classifyUserTurn(args.lastUserText);
+  if (kind === 'empty' || kind === 'filler') {
+    return 'The last thing they said was not a clear answer (hello / noise / clipped). Ask the current question again. Do not complete yet.';
+  }
+  if (args.outcome === 'INTERESTED' && kind !== 'yes' && kind !== 'content') {
+    return 'They have not clearly said yes to the loan. Ask if they are interested, then complete again.';
+  }
+  if (args.outcome === 'NOT_INTERESTED' && kind !== 'no' && kind !== 'content') {
+    return 'They have not clearly declined. Ask if they are interested, then complete again.';
+  }
+  return null;
 }
 
 export const createPersonalLoanOutreachTask: TaskFactory = ({
@@ -145,6 +170,17 @@ export const createPersonalLoanOutreachTask: TaskFactory = ({
             'complete_personal_loan_outreach_task',
             args,
             async () => {
+              const blocked = personalLoanOutreachCompleteBlocker({
+                ...args,
+                lastUserText: lastUserTranscript(task.session),
+              });
+              if (blocked) {
+                return {
+                  ok: false,
+                  error: blocked,
+                  message: blocked,
+                };
+              }
               const result: PersonalLoanOutreachResult = {
                 outcome: args.outcome,
                 confirmedName: args.confirmedName ?? expectedName,

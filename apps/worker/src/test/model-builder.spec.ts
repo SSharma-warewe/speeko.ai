@@ -1,5 +1,6 @@
 import type { AgentJobMetadata } from '../job-metadata';
 import {
+  XAI_REALTIME_TURN_DETECTION,
   createLlm,
   createRealtimeLlm,
   createTts,
@@ -114,6 +115,17 @@ describe('model-builder voice / temp helpers', () => {
       { XAI_API_KEY: 'xai-test' },
     );
     expect(grokTts).toBeInstanceOf(xai.TTS);
+  });
+
+  it('Grok realtime pins slower server VAD and does not interrupt', () => {
+    expect(XAI_REALTIME_TURN_DETECTION).toEqual({
+      type: 'server_vad',
+      threshold: 0.5,
+      prefix_padding_ms: 400,
+      silence_duration_ms: 700,
+      create_response: true,
+      interrupt_response: false,
+    });
   });
 
   it('realtime voice uses the realtime catalog', () => {

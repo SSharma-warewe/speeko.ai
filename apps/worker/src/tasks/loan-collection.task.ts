@@ -14,6 +14,10 @@ import {
 } from './context-format.js';
 import { markTaskFinished, nullishString } from './task-complete.js';
 import type { TaskFactory } from './types.js';
+import {
+  classifyUserTurn,
+  lastUserTranscript,
+} from './user-turn.js';
 
 export type LoanCollectionResult = {
   outcome: 'PROMISED' | 'REFUSED' | 'ALREADY_PAID' | 'CALLBACK' | 'WRONG_PERSON';
@@ -69,15 +73,48 @@ function filledField(value: string | null | undefined): boolean {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+/** WRONG_PERSON must not inherit the expected contact name from context. */
+export function confirmedNameForOutcome(
+  outcome: LoanCollectionResult['outcome'],
+  confirmedName: string | null | undefined,
+  expectedName: string | undefined,
+): string | undefined {
+  if (outcome === 'WRONG_PERSON') {
+    return filledField(confirmedName) ? confirmedName!.trim() : undefined;
+  }
+  return confirmedName ?? expectedName;
+}
+
 /**
  * PROMISED must include a pay date and a delay reason so the model cannot
- * complete after “today” without asking why it was late. Other outcomes pass.
+ * complete after “today” without asking why it was late.
+ * WRONG_PERSON / ALREADY_PAID (and any outcome on filler audio) need a real
+ * last user turn — “Hello.” / empty is not evidence.
  */
 export function loanCollectionCompleteBlocker(args: {
   outcome: LoanCollectionResult['outcome'];
   promisedPayDate?: string | null;
   delayReason?: string | null;
+  lastUserText?: string | null;
+  notes?: string | null;
 }): string | null {
+  const kind = classifyUserTurn(args.lastUserText);
+  if (kind === 'empty' || kind === 'filler') {
+    return 'The last thing they said was not a clear answer (hello / noise / clipped). Ask the current question again. Do not complete yet.';
+  }
+  if (args.outcome === 'WRONG_PERSON' && kind !== 'wrong_person') {
+    if (
+      kind === 'content' &&
+      typeof args.notes === 'string' &&
+      /wrong person|गलत व्यक्ति|गलत नंबर/i.test(args.notes)
+    ) {
+      return null;
+    }
+    return 'Identity is not clearly the wrong person. Ask if you are speaking with the expected name once more. Do not complete WRONG_PERSON on unclear audio.';
+  }
+  if (args.outcome === 'ALREADY_PAID' && kind !== 'already_paid') {
+    return 'They have not clearly said this installment is already paid. Ask when they will pay (or confirm paid), then complete again.';
+  }
   if (args.outcome !== 'PROMISED') {
     return null;
   }
@@ -138,6 +175,7 @@ export function buildLoanCollectionInstructions(
       ? `- Confirm it is a good time, then verify identity: ask if you are speaking with ${name}.`
       : '- Confirm it is a good time, then ask once for their name.',
     '- If it is the wrong person, do not discuss the debt, amount, or CIBIL. Complete with WRONG_PERSON, or CALLBACK if they volunteer how to reach the right person.',
+    '- If their answer is unclear (hello, noise, a clipped word), ask the identity question once more. Do not complete WRONG_PERSON on unclear audio. After one retry, if they still do not clearly say it is the wrong person, assume they are the expected contact and continue.',
     '',
     'PHASE 2 — DUE NOTICE (only after identity is confirmed):',
     `- State that their ${dueLabel} is due. Present the details in natural language, once:`,
@@ -221,7 +259,10 @@ export const createLoanCollectionTask: TaskFactory = ({
             'complete_loan_collection_task',
             args,
             async () => {
-              const blocked = loanCollectionCompleteBlocker(args);
+              const blocked = loanCollectionCompleteBlocker({
+                ...args,
+                lastUserText: lastUserTranscript(task.session),
+              });
               if (blocked) {
                 return {
                   ok: false,
@@ -231,7 +272,11 @@ export const createLoanCollectionTask: TaskFactory = ({
               }
               const result: LoanCollectionResult = {
                 outcome: args.outcome,
-                confirmedName: args.confirmedName ?? expectedName,
+                confirmedName: confirmedNameForOutcome(
+                  args.outcome,
+                  args.confirmedName,
+                  expectedName,
+                ),
                 email: args.email ?? email,
                 dueType: args.dueType ?? dueType,
                 dueDate: args.dueDate ?? dueDate,

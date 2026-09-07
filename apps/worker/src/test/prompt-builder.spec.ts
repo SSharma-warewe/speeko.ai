@@ -2,9 +2,11 @@ import type { AgentJobMetadata } from '../job-metadata';
 import {
   COMPLETE_AFTER_LAST_ANSWER_RULE,
   buildClosingSpeech,
+  buildOpeningInstructions,
   buildRealtimeClosingInstructions,
   buildRealtimeTurnRule,
   composeTaskInstructions,
+  personaSpeaksHindi,
   shouldParentSpeakOpening,
   REALTIME_TURN_RULE_BODY,
 } from '../builders/prompt-builder';
@@ -163,6 +165,57 @@ describe('composeTaskInstructions', () => {
     expect(text).not.toMatch(/system already spoke the opening/);
     expect(text).toContain(REALTIME_TURN_RULE_BODY);
     expect(buildRealtimeTurnRule(silentMeta)).toMatch(/=== REALTIME TURNS ===/);
+  });
+});
+
+describe('Hindi persona language lock', () => {
+  const hindiPrompt = {
+    systemPrompt: 'You are bank call center agent named naksh. you talk in hindi',
+    onEnterInstructions: null,
+    onExitInstructions: null,
+  };
+
+  it('detects Hindi from the persona prompt', () => {
+    expect(personaSpeaksHindi(meta({ prompt: hindiPrompt }))).toBe(true);
+    expect(personaSpeaksHindi(meta())).toBe(false);
+  });
+
+  it('uses a Devanagari canned goodbye', () => {
+    expect(
+      buildClosingSpeech(meta({ prompt: hindiPrompt })),
+    ).toBe('धन्यवाद, आपका दिन शुभ हो।');
+    expect(
+      buildRealtimeClosingInstructions(
+        meta({
+          model: 'xai/grok-voice-think-fast-2.0',
+          prompt: hindiPrompt,
+        }),
+      ),
+    ).toMatch(/धन्यवाद, आपका दिन शुभ हो।$/);
+  });
+
+  it('instructs Devanagari opening and realtime turns', () => {
+    const opening = buildOpeningInstructions(
+      meta({
+        task: 'loan_collection',
+        prompt: hindiPrompt,
+        context: { name: 'शिवम' },
+      }),
+    );
+    expect(opening).toMatch(/Devanagari/);
+    expect(opening).toMatch(/not romanized Hinglish/);
+    const rule = buildRealtimeTurnRule(
+      meta({
+        model: 'xai/grok-voice-think-fast-2.0',
+        prompt: hindiPrompt,
+      }),
+    );
+    expect(rule).toMatch(/Stay in Hindi Devanagari/);
+    expect(
+      buildRealtimeTurnRule(
+        meta({ model: 'xai/grok-voice-think-fast-2.0' }),
+      ),
+    ).not.toMatch(/Stay in Hindi Devanagari/);
   });
 });
 
