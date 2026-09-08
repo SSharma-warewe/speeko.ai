@@ -110,6 +110,17 @@ export type {
 } from './demo.js';
 
 export {
+  DEMO_PERSON_NAME_MAX_LENGTH,
+  DEMO_PERSON_NAME_MESSAGE,
+  DEMO_PERSON_NAME_MIN_LENGTH,
+  DEMO_WORK_EMAIL_MESSAGE,
+  isDemoEmailShape,
+  isDemoFullName,
+  isDemoPersonName,
+  isDemoWorkEmail,
+} from './demo-lead.js';
+
+export {
   CALL_BUCKET_STATUSES,
   CallBucket,
   CallFailureCode,

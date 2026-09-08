@@ -3,7 +3,13 @@ import {
   DEMO_COUNTRIES,
   DEMO_DIRECTIONS,
   DEMO_INTEGRATION_OPTIONS,
+  DEMO_PERSON_NAME_MESSAGE,
   DEMO_TEAM_SIZES,
+  DEMO_WORK_EMAIL_MESSAGE,
+  isDemoEmailShape,
+  isDemoFullName,
+  isDemoPersonName,
+  isDemoWorkEmail,
 } from "@call-agent/contracts";
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -133,14 +139,6 @@ const initialForm: FormState = {
   integrations: [],
 };
 
-/** Basic email shape check (mirrors server IsEmail intent for UX). */
-function isValidEmail(value: string): boolean {
-  const email = value.trim();
-  if (!email || email.length > 255) return false;
-  // RFC 5322-lite: local@domain with a TLD
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
 function ProductMock() {
   return (
     <div className="gd-mock" aria-hidden>
@@ -250,6 +248,14 @@ export default function GetDemoPage() {
       setError("Enter your first and last name.");
       return;
     }
+    if (
+      !isDemoPersonName(form.firstName) ||
+      !isDemoPersonName(form.lastName) ||
+      !isDemoFullName(form.firstName, form.lastName)
+    ) {
+      setError(DEMO_PERSON_NAME_MESSAGE);
+      return;
+    }
     if (!form.company.trim()) {
       setError("Enter your company name.");
       return;
@@ -258,8 +264,12 @@ export default function GetDemoPage() {
       setError("Enter your work email.");
       return;
     }
-    if (!isValidEmail(form.email)) {
+    if (!isDemoEmailShape(form.email)) {
       setError("Enter a valid email address.");
+      return;
+    }
+    if (!isDemoWorkEmail(form.email)) {
+      setError(DEMO_WORK_EMAIL_MESSAGE);
       return;
     }
     if (!form.country) {

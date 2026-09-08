@@ -1,6 +1,7 @@
 /**
  * Marketing get-demo form allowlists.
  * Used by the API RequestDemoDto and apps/web GetDemoPage.
+ * Name / work-email quality lives in `demo-lead.ts`.
  */
 export const DEMO_COUNTRIES = [
   'United States',

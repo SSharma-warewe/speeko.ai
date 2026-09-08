@@ -20,6 +20,9 @@ import {
   DEMO_TEAM_SIZES,
   stripDemoPhone,
 } from '../demo-form.constants';
+import { IsDemoFullName } from '../validators/is-demo-full-name';
+import { IsDemoPersonName } from '../validators/is-demo-person-name';
+import { IsDemoWorkEmail } from '../validators/is-demo-work-email';
 
 /**
  * Marketing get-demo form payload. Proxied to the integration enqueue endpoint.
@@ -28,15 +31,18 @@ export class RequestDemoDto {
   @ApiProperty({ example: 'Alex' })
   @Transform(trimString)
   @IsString()
-  @MinLength(1)
+  @MinLength(2)
   @MaxLength(100)
+  @IsDemoPersonName()
   firstName!: string;
 
   @ApiProperty({ example: 'Morgan' })
   @Transform(trimString)
   @IsString()
-  @MinLength(1)
+  @MinLength(2)
   @MaxLength(100)
+  @IsDemoPersonName()
+  @IsDemoFullName()
   lastName!: string;
 
   @ApiProperty({ example: 'Acme Health' })
@@ -50,6 +56,7 @@ export class RequestDemoDto {
   @Transform(trimString)
   @IsEmail()
   @MaxLength(255)
+  @IsDemoWorkEmail()
   email!: string;
 
   @ApiProperty({
