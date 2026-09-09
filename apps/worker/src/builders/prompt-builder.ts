@@ -473,6 +473,16 @@ function defaultOpeningInstructions(meta: AgentJobMetadata): string {
       ]
         .filter(Boolean)
         .join(' ');
+    case 'real_estate_outreach':
+      return [
+        'Greet the person briefly as an automated outbound call about a property inquiry.',
+        demoName
+          ? `Ask if you are speaking with ${demoName} before presenting the location or budget.`
+          : 'Ask for their name before presenting the location or budget.',
+        'Do not read the location or budget until they confirm they are the right person (or they have given their name).',
+      ]
+        .filter(Boolean)
+        .join(' ');
     case 'general':
     default:
       return meta.direction === 'outbound'

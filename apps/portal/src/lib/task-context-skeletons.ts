@@ -36,6 +36,12 @@ export const TASK_CONTEXT_SKELETONS: Record<string, Record<string, unknown>> = {
     dueDate: "",
     loanAmount: "",
   },
+  real_estate_outreach: {
+    name: "",
+    email: "",
+    location: "",
+    budget: "",
+  },
 };
 
 export function getTaskContextSkeleton(
