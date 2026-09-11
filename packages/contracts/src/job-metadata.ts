@@ -44,7 +44,7 @@ export type AgentJobMetadata = {
   model?: string | null;
   /** TTS catalog id. null = Inworld. Ignored when `model` is realtime. */
   ttsModel?: string | null;
-  /** STT catalog id. null = Deepgram Nova-3. Ignored when `model` is realtime. */
+  /** STT catalog id. null = Deepgram Nova-3. Ignored when `model` is a speech-to-speech realtime id. */
   sttModel?: string | null;
   /**
    * BCP-47 speech language for Sarvam STT/TTS (`hi-IN`, `en-IN`, `unknown`, …).

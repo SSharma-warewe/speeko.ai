@@ -79,6 +79,12 @@ export async function buildAgentRuntime(
             );
             const openHandle = ctx.session.generateReply({
               instructions: opening,
+              toolChoice: 'none',
+              // Default barge-in (500ms / 0 words) chops TTS on Deepgram
+              // ghosts and a callee "hello"; waitForPlayout then returns and
+              // the task re-greets. Keep overlapping audio for the next turn
+              // (pipeline discardAudioIfUninterruptible: false).
+              allowInterruptions: false,
             });
             await openHandle.waitForPlayout();
             console.log(`[agent] onEnter opening playout done callId=${meta.callId ?? 'n/a'}`);

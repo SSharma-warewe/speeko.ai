@@ -17,6 +17,7 @@ import * as sarvam from '@livekit/agents-plugin-sarvam';
 import * as xai from '@livekit/agents-plugin-xai';
 import type { AgentJobMetadata } from '../job-metadata.js';
 import { INFERENCE_MODELS } from '../models.js';
+import { SarvamRealtimeSTT } from '../sarvam/realtime-stt.js';
 import { personaSpeaksHindi } from './prompt-builder.js';
 import {
   SpeekoOpenaiRealtimeModel,
@@ -168,6 +169,7 @@ export function createTts(
       model: spec.runtimeModel as 'bulbul:v3',
       speaker: voice,
       targetLanguageCode: resolveTtsLanguage(meta) as 'en-IN',
+      outputAudioCodec: 'linear16',
       ...(pace !== undefined ? { pace } : {}),
     });
   }
@@ -262,8 +264,15 @@ export function createStt(
 ): stt.STT {
   const spec = resolveSttSpec(meta);
   if (spec.backend === 'sarvam-plugin') {
+    const apiKey = requireEnv(env, 'SARVAM_API_KEY', spec.id);
+    if (spec.realtime) {
+      return new SarvamRealtimeSTT({
+        apiKey,
+        language: resolveSttLanguage(meta),
+      });
+    }
     return new sarvam.STT({
-      apiKey: requireEnv(env, 'SARVAM_API_KEY', spec.id),
+      apiKey,
       model: spec.runtimeModel as 'saaras:v3',
       languageCode: resolveSttLanguage(meta) as 'unknown',
       mode: 'transcribe',
@@ -297,7 +306,9 @@ export function buildModels(
     stt: createStt(meta, env),
     llm: createLlm(meta, env),
     tts: createTts(meta, env),
-    turnDetection: new inference.TurnDetector({ version: 'v1' }),
+    turnDetection: resolveSttSpec(meta).realtime
+      ? ('stt' as const)
+      : new inference.TurnDetector({ version: 'v1' }),
   };
 }
 

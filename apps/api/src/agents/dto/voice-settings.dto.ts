@@ -42,7 +42,7 @@ export class VoiceSettingsDto {
   @ApiPropertyOptional({
     nullable: true,
     description:
-      'STT catalog id (deepgram/nova-3, sarvam/saaras-v3). null = worker / template default (Deepgram Nova-3). Ignored when model is a realtime id.',
+      'STT catalog id (deepgram/nova-3, sarvam/saaras-v3, sarvam/saaras-v3-realtime). null = worker / template default (Deepgram Nova-3). Ignored when model is a realtime id.',
   })
   @IsOptional()
   @IsString()

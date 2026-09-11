@@ -1,6 +1,7 @@
 import type { AgentJobMetadata } from '../job-metadata';
 import {
   COMPLETE_AFTER_LAST_ANSWER_RULE,
+  OPENING_ALREADY_SPOKEN_RULE,
   buildClosingSpeech,
   buildOpeningInstructions,
   buildRealtimeClosingInstructions,
@@ -141,14 +142,28 @@ describe('composeTaskInstructions', () => {
       'Collect the EMI.',
     );
     expect(realtime).toMatch(/=== REALTIME TURNS ===/);
-    expect(realtime).toMatch(/system already spoke the opening/);
+    expect(realtime).toContain(OPENING_ALREADY_SPOKEN_RULE);
     expect(realtime).toContain(REALTIME_TURN_RULE_BODY);
     expect(realtime).not.toMatch(/=== FIRST TURN ===/);
     expect(realtime).not.toMatch(/parent agent will not greet/);
 
     const pipeline = composeTaskInstructions(meta(), 'Help the person.');
+    expect(pipeline).toContain(OPENING_ALREADY_SPOKEN_RULE);
     expect(pipeline).not.toMatch(/=== REALTIME TURNS ===/);
     expect(pipeline).not.toMatch(/=== FIRST TURN ===/);
+  });
+
+  it('pipeline silent onEnter does not claim opening was spoken', () => {
+    const silentMeta = meta({
+      prompt: {
+        systemPrompt: 'You are a test agent.',
+        onEnterInstructions: '',
+        onExitInstructions: null,
+      },
+    });
+    expect(composeTaskInstructions(silentMeta, 'Help the person.')).not.toContain(
+      OPENING_ALREADY_SPOKEN_RULE,
+    );
   });
 
   it('realtime silent onEnter keeps turn rule but does not claim opening was spoken', () => {
@@ -162,7 +177,7 @@ describe('composeTaskInstructions', () => {
     });
     const text = composeTaskInstructions(silentMeta, 'Help the person.');
     expect(text).toMatch(/=== REALTIME TURNS ===/);
-    expect(text).not.toMatch(/system already spoke the opening/);
+    expect(text).not.toContain(OPENING_ALREADY_SPOKEN_RULE);
     expect(text).toContain(REALTIME_TURN_RULE_BODY);
     expect(buildRealtimeTurnRule(silentMeta)).toMatch(/=== REALTIME TURNS ===/);
   });

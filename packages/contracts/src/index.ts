@@ -47,6 +47,7 @@ export {
   STT_MODELS,
   canonicalizeSttModelId,
   isKnownSttModel,
+  isSarvamRealtimeSttModel,
   isSarvamSttModel,
   sttModelSpec,
 } from './stt.js';

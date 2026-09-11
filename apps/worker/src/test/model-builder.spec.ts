@@ -8,11 +8,13 @@ import {
   resolveLlmModelOptions,
   resolveRealtimeVoice,
   resolveSttLanguage,
+  resolveSttSpec,
   resolveTtsLanguage,
   resolveTtsModelOptions,
   resolveTtsSpec,
   resolveTtsVoice,
 } from '../builders/model-builder';
+import { SarvamRealtimeSTT } from '../sarvam/realtime-stt';
 import { INFERENCE_MODELS } from '../models';
 import * as openai from '@livekit/agents-plugin-openai';
 import * as sarvam from '@livekit/agents-plugin-sarvam';
@@ -106,6 +108,9 @@ describe('model-builder voice / temp helpers', () => {
       createStt(meta({ sttModel: 'sarvam/saaras-v3' }), {}),
     ).toThrow(/SARVAM_API_KEY/);
     expect(() =>
+      createStt(meta({ sttModel: 'sarvam/saaras-v3-realtime' }), {}),
+    ).toThrow(/SARVAM_API_KEY/);
+    expect(() =>
       createRealtimeLlm(
         meta({ model: 'xai/grok-voice-think-fast-2.0' }),
         {},
@@ -137,6 +142,21 @@ describe('model-builder voice / temp helpers', () => {
       { SARVAM_API_KEY: 'sk_test' },
     );
     expect(sarvamStt).toBeInstanceOf(sarvam.STT);
+
+    const sarvamRealtimeStt = createStt(
+      meta({ sttModel: 'sarvam/saaras-v3-realtime' }),
+      { SARVAM_API_KEY: 'sk_test' },
+    );
+    expect(sarvamRealtimeStt).toBeInstanceOf(SarvamRealtimeSTT);
+  });
+
+  it('Sarvam realtime STT is flagged so the session can skip cloud EOT', () => {
+    expect(
+      resolveSttSpec(meta({ sttModel: 'sarvam/saaras-v3-realtime' })).realtime,
+    ).toBe(true);
+    expect(resolveSttSpec(meta({ sttModel: 'sarvam/saaras-v3' })).realtime).toBe(
+      undefined,
+    );
   });
 
   it('Sarvam maps speakingRate to pace', () => {

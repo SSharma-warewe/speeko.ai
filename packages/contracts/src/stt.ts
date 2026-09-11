@@ -10,6 +10,7 @@ export type SttBackend = (typeof STT_BACKENDS)[number];
 export const STT_MODEL_IDS = {
   deepgramNova3: 'deepgram/nova-3',
   sarvamSaarasV3: 'sarvam/saaras-v3',
+  sarvamSaarasV3Realtime: 'sarvam/saaras-v3-realtime',
 } as const;
 
 export type SttModelId = (typeof STT_MODEL_IDS)[keyof typeof STT_MODEL_IDS];
@@ -17,6 +18,7 @@ export type SttModelId = (typeof STT_MODEL_IDS)[keyof typeof STT_MODEL_IDS];
 export const KNOWN_STT_MODEL_IDS = [
   STT_MODEL_IDS.deepgramNova3,
   STT_MODEL_IDS.sarvamSaarasV3,
+  STT_MODEL_IDS.sarvamSaarasV3Realtime,
 ] as const satisfies readonly SttModelId[];
 
 export const DEFAULT_STT_MODEL_ID = STT_MODEL_IDS.deepgramNova3;
@@ -29,6 +31,10 @@ export const STT_MODEL_ALIASES: Record<string, SttModelId> = {
   'saaras:v3': STT_MODEL_IDS.sarvamSaarasV3,
   'sarvam/saaras': STT_MODEL_IDS.sarvamSaarasV3,
   'sarvam-stt': STT_MODEL_IDS.sarvamSaarasV3,
+  'sarvam/saaras-v3-realtime': STT_MODEL_IDS.sarvamSaarasV3Realtime,
+  'saaras:v3-realtime': STT_MODEL_IDS.sarvamSaarasV3Realtime,
+  'sarvam/saaras-realtime': STT_MODEL_IDS.sarvamSaarasV3Realtime,
+  'sarvam-stt-realtime': STT_MODEL_IDS.sarvamSaarasV3Realtime,
 };
 
 export type SttModelSpec = {
@@ -37,6 +43,8 @@ export type SttModelSpec = {
   shortLabel: string;
   backend: SttBackend;
   runtimeModel: string;
+  /** Sarvam `saaras:v3-realtime` WebSocket (partials + server VAD). */
+  realtime?: boolean;
 };
 
 export const STT_MODELS: Record<SttModelId, SttModelSpec> = {
@@ -53,6 +61,14 @@ export const STT_MODELS: Record<SttModelId, SttModelSpec> = {
     shortLabel: 'Sarvam',
     backend: 'sarvam-plugin',
     runtimeModel: 'saaras:v3',
+  },
+  [STT_MODEL_IDS.sarvamSaarasV3Realtime]: {
+    id: STT_MODEL_IDS.sarvamSaarasV3Realtime,
+    label: 'Sarvam Saaras v3 Realtime',
+    shortLabel: 'Sarvam RT',
+    backend: 'sarvam-plugin',
+    runtimeModel: 'saaras:v3-realtime',
+    realtime: true,
   },
 };
 
@@ -84,4 +100,10 @@ export function sttModelSpec(
 
 export function isSarvamSttModel(id: string | null | undefined): boolean {
   return sttModelSpec(id).backend === 'sarvam-plugin';
+}
+
+export function isSarvamRealtimeSttModel(
+  id: string | null | undefined,
+): boolean {
+  return sttModelSpec(id).realtime === true;
 }

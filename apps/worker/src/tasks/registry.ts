@@ -4,6 +4,7 @@ import { createInterviewBookingTask } from './interview-booking.task.js';
 import { createLoanCollectionTask } from './loan-collection.task.js';
 import { createPersonalLoanOutreachTask } from './personal-loan-outreach.task.js';
 import { createRealEstateOutreachTask } from './real-estate-outreach.task.js';
+import { createRealEstateVisitConfirmationTask } from './real-estate-visit-confirmation.task.js';
 import { TASK_KEYS } from './task-ids.js';
 import type { TaskFactory, TaskFactoryContext } from './types.js';
 import type { voice } from '@livekit/agents';
@@ -15,6 +16,7 @@ const factories = new Map<string, TaskFactory>([
   [TASK_KEYS.personalLoanOutreach, createPersonalLoanOutreachTask],
   [TASK_KEYS.loanCollection, createLoanCollectionTask],
   [TASK_KEYS.realEstateOutreach, createRealEstateOutreachTask],
+  [TASK_KEYS.realEstateVisitConfirmation, createRealEstateVisitConfirmationTask],
 ]);
 
 export class TaskRegistry {

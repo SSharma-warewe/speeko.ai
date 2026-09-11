@@ -34,6 +34,10 @@ export function buildPersonaPrompt(meta: AgentJobMetadata): string {
 export const COMPLETE_AFTER_LAST_ANSWER_RULE =
   'Never call a complete_* tool in the same turn as a question. Wait for the answer to your last question first. After complete_* succeeds, do not speak — the system says goodbye and hangs up.';
 
+/** Parent (pipeline) or task (realtime) already spoke the opening. */
+export const OPENING_ALREADY_SPOKEN_RULE =
+  'The system already spoke the opening. Do not greet again.';
+
 /**
  * Realtime S2S is listen-first after each utterance. Without this, the model
  * states a fact and stops until the callee pokes it.
@@ -68,6 +72,9 @@ export function composeTaskInstructions(
     );
   }
   parts.push(COMPLETE_AFTER_LAST_ANSWER_RULE);
+  if (shouldParentSpeakOpening(meta) && buildOpeningInstructions(meta)) {
+    parts.push(OPENING_ALREADY_SPOKEN_RULE);
+  }
   const turnRule = buildRealtimeTurnRule(meta);
   if (turnRule) {
     parts.push(turnRule);
@@ -90,7 +97,7 @@ export function buildRealtimeTurnRule(meta: AgentJobMetadata): string | null {
   }
   const lines = ['=== REALTIME TURNS ==='];
   if (buildOpeningInstructions(meta)) {
-    lines.push('The system already spoke the opening. Do not greet again.');
+    lines.push(OPENING_ALREADY_SPOKEN_RULE);
   }
   lines.push(REALTIME_TURN_RULE_BODY);
   if (personaSpeaksHindi(meta)) {
@@ -480,6 +487,16 @@ function defaultOpeningInstructions(meta: AgentJobMetadata): string {
           ? `Ask if you are speaking with ${demoName} before presenting the location or budget.`
           : 'Ask for their name before presenting the location or budget.',
         'Do not read the location or budget until they confirm they are the right person (or they have given their name).',
+      ]
+        .filter(Boolean)
+        .join(' ');
+    case 'real_estate_visit_confirmation':
+      return [
+        'Greet the person briefly as an automated outbound call about a scheduled property visit.',
+        demoName
+          ? `Ask if you are speaking with ${demoName} before presenting the location or time.`
+          : 'Ask for their name before presenting the location or time.',
+        'Do not read the location, time, or visit notes until they confirm they are the right person (or they have given their name).',
       ]
         .filter(Boolean)
         .join(' ');

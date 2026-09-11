@@ -167,6 +167,9 @@ describe('voice-settings', () => {
       expect(parseStoredSttModel('  ')).toBeNull();
       expect(parseStoredSttModel('deepgram/nova-3')).toBeNull();
       expect(parseStoredSttModel('saaras:v3')).toBe('sarvam/saaras-v3');
+      expect(parseStoredSttModel('saaras:v3-realtime')).toBe(
+        'sarvam/saaras-v3-realtime',
+      );
       expect(() => parseStoredSttModel('whisper-1')).toThrow(
         BadRequestException,
       );
