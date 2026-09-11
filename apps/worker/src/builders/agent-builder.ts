@@ -1,8 +1,9 @@
 import { voice } from '@livekit/agents';
 import { hangUpCall } from '../hangup.js';
 import type { AgentJobMetadata } from '../job-metadata.js';
+import { resolveSarvamRealtimePluginUrl } from '../sarvam/plugin-stt.js';
 import type { SessionUserData } from '../tools/types.js';
-import { buildModels } from './model-builder.js';
+import { buildModels, resolveSttSpec } from './model-builder.js';
 import {
   buildClosingSpeech,
   buildOpeningInstructions,
@@ -47,15 +48,25 @@ export async function buildAgentRuntime(
   );
 
   const models = buildModels(meta);
+  const sttId =
+    models.kind === 'realtime' ? 'none' : (meta.sttModel ?? 'deepgram/nova-3');
+  const sttPlugin =
+    models.kind !== 'realtime' && resolveSttSpec(meta).realtime
+      ? resolveSarvamRealtimePluginUrl()
+        ? 'python'
+        : 'node-adapter'
+      : null;
   console.log(
     `[agent] models kind=${models.kind} llm=${meta.model ?? 'google/gemma-4-31b-it'} ` +
-      `stt=${models.kind === 'realtime' ? 'none' : (meta.sttModel ?? 'deepgram/nova-3')} ` +
+      `stt=${sttId}${sttPlugin ? ` plugin=${sttPlugin}` : ''} ` +
       `tts=${models.kind === 'realtime' ? 'none' : (meta.ttsModel ?? 'inworld/inworld-tts-2')} ` +
       `voice=${meta.voice ?? 'default'} lang=${meta.speechLanguage ?? 'default'}`,
   );
   const tools = await buildTools(meta, userData);
   const instructions = buildPersonaPrompt(meta);
-  const session = buildAgentSession(models, userData);
+  const session = buildAgentSession(models, userData, {
+    medium: meta.medium,
+  });
 
   const agent = voice.Agent.create<SessionUserData>({
     instructions,

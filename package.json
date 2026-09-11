@@ -20,6 +20,7 @@
     "start:worker": "tsx apps/worker/src/main.ts start",
     "start:worker:dev": "tsx apps/worker/src/main.ts dev",
     "start:worker:prod": "node dist/apps/worker/main.js start",
+    "start:stt-sarvam": "python apps/stt-sarvam/run.py",
     "start:web:dev": "npm run dev --prefix apps/web",
     "start:portal:dev": "npm run dev --prefix apps/portal",
     "build:web": "npm run build --prefix apps/web",
@@ -30,7 +31,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "test:e2e": "jest --config ./apps/api/test/jest-e2e.json"
+    "test:e2e": "jest --config ./apps/api/test/jest-e2e.json",
+    "test:stt-sarvam": "python -m pytest apps/stt-sarvam"
   },
   "dependencies": {
     "@call-agent/contracts": "file:packages/contracts",

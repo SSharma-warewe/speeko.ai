@@ -1,3 +1,4 @@
+import { CallMedium } from '@call-agent/contracts';
 import { voice } from '@livekit/agents';
 import type { ResolvedModels } from './model-builder.js';
 import type { SessionUserData } from '../tools/types.js';
@@ -13,11 +14,12 @@ export const PIPELINE_INTERRUPTION = {
 
 /**
  * Sarvam saaras:v3-realtime owns VAD. Node delays are milliseconds
- * (Python LiveKit docs use seconds).
+ * (Python LiveKit docs use seconds). Keep a short hold so preemptive LLM
+ * can start after EOS while FINAL arrives — do not restack 500–2500ms.
  */
 export const SARVAM_REALTIME_TURN_HANDLING = {
   turnDetection: 'stt' as const,
-  endpointing: { mode: 'fixed' as const, minDelay: 300, maxDelay: 2500 },
+  endpointing: { mode: 'fixed' as const, minDelay: 250, maxDelay: 400 },
   interruption: {
     enabled: true,
     mode: 'vad' as const,
@@ -25,12 +27,24 @@ export const SARVAM_REALTIME_TURN_HANDLING = {
     falseInterruptionTimeout: 1500,
     ...PIPELINE_INTERRUPTION,
   },
+  preemptiveGeneration: { enabled: true },
 };
+
+/** Carrier AEC on SIP — LiveKit's 3s warmup blocks barge-in on inbound. */
+export function resolveAecWarmupDuration(
+  medium?: string,
+): number | null | undefined {
+  if (medium === CallMedium.SIP) return null;
+  return undefined;
+}
 
 export function buildAgentSession(
   models: ResolvedModels,
   userData: SessionUserData,
+  options: { medium?: string } = {},
 ): voice.AgentSession<SessionUserData> {
+  const aecWarmupDuration = resolveAecWarmupDuration(options.medium);
+
   if (models.kind === 'realtime') {
     return new voice.AgentSession<SessionUserData>({
       llm: models.llm,
@@ -39,6 +53,7 @@ export function buildAgentSession(
       // and can publish audio while outbound SIP is still INVITEing.
       vad: null,
       turnHandling: { turnDetection: null },
+      ...(aecWarmupDuration !== undefined ? { aecWarmupDuration } : {}),
       userData,
     });
   }
@@ -50,6 +65,7 @@ export function buildAgentSession(
       tts: models.tts,
       vad: null,
       turnHandling: { ...SARVAM_REALTIME_TURN_HANDLING },
+      ...(aecWarmupDuration !== undefined ? { aecWarmupDuration } : {}),
       userData,
     });
   }
@@ -62,6 +78,7 @@ export function buildAgentSession(
       turnDetection: models.turnDetection,
       interruption: { ...PIPELINE_INTERRUPTION },
     },
+    ...(aecWarmupDuration !== undefined ? { aecWarmupDuration } : {}),
     userData,
   });
 }

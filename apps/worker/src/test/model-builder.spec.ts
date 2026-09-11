@@ -14,6 +14,7 @@ import {
   resolveTtsSpec,
   resolveTtsVoice,
 } from '../builders/model-builder';
+import { SarvamPluginSTT } from '../sarvam/plugin-stt';
 import { SarvamRealtimeSTT } from '../sarvam/realtime-stt';
 import { INFERENCE_MODELS } from '../models';
 import * as openai from '@livekit/agents-plugin-openai';
@@ -148,6 +149,15 @@ describe('model-builder voice / temp helpers', () => {
       { SARVAM_API_KEY: 'sk_test' },
     );
     expect(sarvamRealtimeStt).toBeInstanceOf(SarvamRealtimeSTT);
+
+    const pythonPluginStt = createStt(
+      meta({ sttModel: 'sarvam/saaras-v3-realtime' }),
+      {
+        SARVAM_API_KEY: 'sk_test',
+        SARVAM_STT_PLUGIN_URL: 'ws://127.0.0.1:8091/stt',
+      },
+    );
+    expect(pythonPluginStt).toBeInstanceOf(SarvamPluginSTT);
   });
 
   it('Sarvam realtime STT is flagged so the session can skip cloud EOT', () => {
@@ -171,7 +181,7 @@ describe('model-builder voice / temp helpers', () => {
     ).toEqual({ pace: 1.2 });
   });
 
-  it('Sarvam TTS language falls back from persona; STT defaults to unknown', () => {
+  it('Sarvam TTS language falls back from persona; Hindi STT skips auto', () => {
     expect(resolveSttLanguage(meta())).toBe('unknown');
     expect(resolveTtsLanguage(meta())).toBe('en-IN');
     expect(
@@ -195,6 +205,19 @@ describe('model-builder voice / temp helpers', () => {
     expect(resolveSttLanguage(meta({ speechLanguage: 'hi-IN' }))).toBe(
       'hi-IN',
     );
+    expect(
+      resolveSttLanguage(
+        meta({
+          speechLanguage: 'unknown',
+          prompt: { systemPrompt: 'You speak Hindi Devanagari.' },
+        }),
+      ),
+    ).toBe('hi-IN');
+    expect(
+      resolveSttLanguage(
+        meta({ prompt: { systemPrompt: 'You speak Hindi.' } }),
+      ),
+    ).toBe('hi-IN');
   });
 
   it('Grok realtime pins slower server VAD and does not interrupt', () => {

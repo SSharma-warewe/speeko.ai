@@ -17,6 +17,10 @@ import * as sarvam from '@livekit/agents-plugin-sarvam';
 import * as xai from '@livekit/agents-plugin-xai';
 import type { AgentJobMetadata } from '../job-metadata.js';
 import { INFERENCE_MODELS } from '../models.js';
+import {
+  SarvamPluginSTT,
+  resolveSarvamRealtimePluginUrl,
+} from '../sarvam/plugin-stt.js';
 import { SarvamRealtimeSTT } from '../sarvam/realtime-stt.js';
 import { personaSpeaksHindi } from './prompt-builder.js';
 import {
@@ -60,9 +64,15 @@ export function resolveTtsLanguage(meta: AgentJobMetadata): string {
   return DEFAULT_TTS_SPEECH_LANGUAGE_ID;
 }
 
-/** Saaras accepts `unknown` for auto-detect. */
+/**
+ * Saaras accepts `unknown` for auto-detect. Hindi personas must not stay on
+ * `unknown` → realtime `auto` (adds wait and mixed-script garbage).
+ */
 export function resolveSttLanguage(meta: AgentJobMetadata): string {
-  return resolveSpeechLanguage(meta) ?? DEFAULT_STT_SPEECH_LANGUAGE_ID;
+  const explicit = resolveSpeechLanguage(meta);
+  if (explicit && explicit !== 'unknown') return explicit;
+  if (personaSpeaksHindi(meta)) return 'hi-IN';
+  return explicit ?? DEFAULT_STT_SPEECH_LANGUAGE_ID;
 }
 
 export function resolveTtsVoice(
@@ -266,6 +276,13 @@ export function createStt(
   if (spec.backend === 'sarvam-plugin') {
     const apiKey = requireEnv(env, 'SARVAM_API_KEY', spec.id);
     if (spec.realtime) {
+      const pluginUrl = resolveSarvamRealtimePluginUrl(env);
+      if (pluginUrl) {
+        return new SarvamPluginSTT({
+          url: pluginUrl,
+          language: resolveSttLanguage(meta),
+        });
+      }
       return new SarvamRealtimeSTT({
         apiKey,
         language: resolveSttLanguage(meta),

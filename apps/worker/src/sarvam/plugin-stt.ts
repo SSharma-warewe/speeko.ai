@@ -7,99 +7,76 @@ import {
 } from '@livekit/agents';
 import type { APIConnectOptions, AudioBuffer } from '@livekit/agents';
 import { type RawData, WebSocket } from 'ws';
-import { toSarvamRealtimeLanguage } from './realtime-language.js';
 import {
-  applySarvamRealtimeMessage,
-  closeErrorFromSarvamRealtime,
-  createSarvamRealtimeSessionState,
-} from './realtime-stt-events.js';
+  applyPluginSttWireEvent,
+  createPluginSttReorderState,
+} from './plugin-stt-events.js';
+import { toSarvamRealtimeLanguage } from './realtime-language.js';
+import { TELEPHONY_DEFAULTS } from './realtime-stt.js';
 
-const SARVAM_STT_REALTIME_URL =
-  'wss://api.sarvam.ai/speech-to-text-realtime/ws';
-const REALTIME_MODEL = 'saaras:v3-realtime';
+export const DEFAULT_SARVAM_STT_PLUGIN_URL = 'ws://127.0.0.1:8091/stt';
 const SAMPLE_RATE = 16000;
 const NUM_CHANNELS = 1;
 const AUDIO_CHUNK_MS = 50;
+const REALTIME_MODEL = 'saaras:v3-realtime';
 
-export type SarvamRealtimeSttOptions = {
-  apiKey: string;
+export type SarvamPluginSttOptions = {
+  url: string;
   language: string;
   streamType?: 'fast' | 'balanced' | 'simulated';
-  mode?: 'transcribe' | 'translate' | 'verbatim' | 'translit' | 'codemix';
-  endpointing?: 'vad' | 'manual';
-  vadSotThreshold?: number;
-  vadMinSpeechMs?: number;
-  vadMinSilenceMs?: number;
 };
 
-export type ResolvedSarvamRealtimeSttOptions = {
-  apiKey: string;
-  language: string;
-  streamType: 'fast' | 'balanced' | 'simulated';
-  mode: 'transcribe' | 'translate' | 'verbatim' | 'translit' | 'codemix';
-  endpointing: 'vad' | 'manual';
-  vadSotThreshold: number;
-  vadMinSpeechMs: number;
-  vadMinSilenceMs: number;
-};
-
-/** Telephony starting point from Sarvam's LiveKit production guide (SIP). */
-export const TELEPHONY_DEFAULTS = {
-  streamType: 'fast' as const,
-  mode: 'transcribe' as const,
-  endpointing: 'vad' as const,
-  vadSotThreshold: 0.7,
-  vadMinSpeechMs: 200,
-  vadMinSilenceMs: 500,
-};
-
-export function resolveSarvamRealtimeSttOptions(
-  opts: SarvamRealtimeSttOptions,
-): ResolvedSarvamRealtimeSttOptions {
-  return {
-    apiKey: opts.apiKey,
-    language: toSarvamRealtimeLanguage(opts.language),
-    streamType: opts.streamType ?? TELEPHONY_DEFAULTS.streamType,
-    mode: opts.mode ?? TELEPHONY_DEFAULTS.mode,
-    endpointing: opts.endpointing ?? TELEPHONY_DEFAULTS.endpointing,
-    vadSotThreshold: opts.vadSotThreshold ?? TELEPHONY_DEFAULTS.vadSotThreshold,
-    vadMinSpeechMs: opts.vadMinSpeechMs ?? TELEPHONY_DEFAULTS.vadMinSpeechMs,
-    vadMinSilenceMs: opts.vadMinSilenceMs ?? TELEPHONY_DEFAULTS.vadMinSilenceMs,
-  };
+export function resolveSarvamRealtimePluginUrl(
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
+  const raw = env.SARVAM_STT_PLUGIN_URL?.trim();
+  return raw || null;
 }
 
-export function buildSarvamRealtimeWsUrl(
-  opts: ResolvedSarvamRealtimeSttOptions,
-  baseUrl = SARVAM_STT_REALTIME_URL,
+export function buildSarvamPluginSttWsUrl(
+  opts: SarvamPluginSttOptions,
 ): string {
-  const params = new URLSearchParams({
-    language_code: opts.language,
-    stream_type: opts.streamType,
-    endpointing: opts.endpointing,
-    encoding: 'linear16',
-    sample_rate: String(SAMPLE_RATE),
-    model: REALTIME_MODEL,
-    mode: opts.mode,
-  });
-  if (opts.endpointing === 'vad') {
-    params.set('threshold', String(opts.vadSotThreshold));
-    params.set('min_speech_duration_ms', String(opts.vadMinSpeechMs));
-    params.set('silence_duration_ms', String(opts.vadMinSilenceMs));
-  }
-  return `${baseUrl}?${params.toString()}`;
+  const base = opts.url.trim();
+  const url = new URL(base);
+  url.searchParams.set(
+    'language',
+    toSarvamRealtimeLanguage(opts.language),
+  );
+  url.searchParams.set(
+    'stream_type',
+    opts.streamType ?? TELEPHONY_DEFAULTS.streamType,
+  );
+  url.searchParams.set(
+    'vad_min_silence_ms',
+    String(TELEPHONY_DEFAULTS.vadMinSilenceMs),
+  );
+  url.searchParams.set(
+    'vad_min_speech_ms',
+    String(TELEPHONY_DEFAULTS.vadMinSpeechMs),
+  );
+  url.searchParams.set(
+    'vad_sot_threshold',
+    String(TELEPHONY_DEFAULTS.vadSotThreshold),
+  );
+  return url.toString();
 }
 
 function noReconnect(connOptions?: APIConnectOptions): APIConnectOptions {
   return { ...(connOptions ?? DEFAULT_API_CONNECT_OPTIONS), maxRetry: 0 };
 }
 
-export class SarvamRealtimeSTT extends stt.STT {
-  label = 'sarvam.STTRealtime';
-  private opts: ResolvedSarvamRealtimeSttOptions;
+export class SarvamPluginSTT extends stt.STT {
+  label = 'sarvam.STTRealtime.python';
+  private opts: Required<Pick<SarvamPluginSttOptions, 'streamType'>> &
+    SarvamPluginSttOptions;
 
-  constructor(opts: SarvamRealtimeSttOptions) {
+  constructor(opts: SarvamPluginSttOptions) {
     super({ streaming: true, interimResults: true, alignedTranscript: false });
-    this.opts = resolveSarvamRealtimeSttOptions(opts);
+    this.opts = {
+      url: opts.url,
+      language: opts.language,
+      streamType: opts.streamType ?? 'fast',
+    };
   }
 
   get model(): string {
@@ -118,7 +95,7 @@ export class SarvamRealtimeSTT extends stt.STT {
   }
 
   stream(options?: { connOptions?: APIConnectOptions }): stt.SpeechStream {
-    return new SarvamRealtimeSpeechStream(
+    return new SarvamPluginSpeechStream(
       this,
       this.opts,
       noReconnect(options?.connOptions),
@@ -126,13 +103,15 @@ export class SarvamRealtimeSTT extends stt.STT {
   }
 }
 
-class SarvamRealtimeSpeechStream extends stt.SpeechStream {
-  label = 'sarvam.RealtimeSpeechStream';
-  #opts: ResolvedSarvamRealtimeSttOptions;
+class SarvamPluginSpeechStream extends stt.SpeechStream {
+  label = 'sarvam.PythonRealtimeSpeechStream';
+  #opts: Required<Pick<SarvamPluginSttOptions, 'streamType'>> &
+    SarvamPluginSttOptions;
 
   constructor(
-    sttInstance: SarvamRealtimeSTT,
-    opts: ResolvedSarvamRealtimeSttOptions,
+    sttInstance: SarvamPluginSTT,
+    opts: Required<Pick<SarvamPluginSttOptions, 'streamType'>> &
+      SarvamPluginSttOptions,
     connOptions: APIConnectOptions,
   ) {
     super(sttInstance, SAMPLE_RATE, connOptions);
@@ -140,10 +119,8 @@ class SarvamRealtimeSpeechStream extends stt.SpeechStream {
   }
 
   protected async run(): Promise<void> {
-    const wsUrl = buildSarvamRealtimeWsUrl(this.#opts);
-    const ws = new WebSocket(wsUrl, {
-      headers: { 'API-SUBSCRIPTION-KEY': this.#opts.apiKey },
-    });
+    const wsUrl = buildSarvamPluginSttWsUrl(this.#opts);
+    const ws = new WebSocket(wsUrl);
 
     try {
       await new Promise<void>((resolve, reject) => {
@@ -152,7 +129,7 @@ class SarvamRealtimeSpeechStream extends stt.SpeechStream {
         ws.once('close', (code: number, reason: Buffer) => {
           reject(
             new APIStatusError({
-              message: `Sarvam realtime STT WebSocket closed before open (${code}): ${reason}`,
+              message: `Sarvam Python STT plugin closed before open (${code}): ${reason}`,
               options: { statusCode: code, retryable: false },
             }),
           );
@@ -161,14 +138,19 @@ class SarvamRealtimeSpeechStream extends stt.SpeechStream {
       await this.#runWs(ws);
     } finally {
       ws.removeAllListeners();
-      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+      if (
+        ws.readyState === WebSocket.OPEN ||
+        ws.readyState === WebSocket.CONNECTING
+      ) {
         ws.close();
       }
     }
   }
 
   async #runWs(ws: WebSocket): Promise<void> {
-    const state = createSarvamRealtimeSessionState(this.#opts.language);
+    const state = createPluginSttReorderState(
+      toSarvamRealtimeLanguage(this.#opts.language),
+    );
 
     const put = (event: stt.SpeechEvent) => {
       if (!this.queue.closed) {
@@ -200,8 +182,11 @@ class SarvamRealtimeSpeechStream extends stt.SpeechStream {
 
           const data = result.value;
           let frames;
-          if (data === SarvamRealtimeSpeechStream.FLUSH_SENTINEL) {
+          if (data === SarvamPluginSpeechStream.FLUSH_SENTINEL) {
             frames = byteStream.flush();
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ event: 'flush' }));
+            }
           } else {
             frames = byteStream.write(
               data.data.buffer.slice(
@@ -241,7 +226,7 @@ class SarvamRealtimeSpeechStream extends stt.SpeechStream {
         } catch {
           return;
         }
-        const action = applySarvamRealtimeMessage(state, payload);
+        const action = applyPluginSttWireEvent(state, payload);
         if (action.type === 'emit') {
           for (const event of action.events) put(event);
         } else if (action.type === 'fatal') {
@@ -249,7 +234,7 @@ class SarvamRealtimeSpeechStream extends stt.SpeechStream {
             new APIStatusError({
               message: action.message,
               options: {
-                statusCode: action.statusCode,
+                statusCode: -1,
                 requestId: state.requestId || null,
                 retryable: action.retryable,
               },
@@ -257,26 +242,7 @@ class SarvamRealtimeSpeechStream extends stt.SpeechStream {
           );
         }
       });
-      ws.once('close', (code: number, reason: Buffer) => {
-        const action = closeErrorFromSarvamRealtime({
-          code,
-          reason: reason.toString(),
-        });
-        if (action.type === 'fatal') {
-          reject(
-            new APIStatusError({
-              message: action.message,
-              options: {
-                statusCode: action.statusCode,
-                requestId: state.requestId || null,
-                retryable: action.retryable,
-              },
-            }),
-          );
-          return;
-        }
-        resolve();
-      });
+      ws.once('close', () => resolve());
       ws.once('error', (err: Error) => reject(err));
     });
 

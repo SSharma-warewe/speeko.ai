@@ -76,3 +76,8 @@ railway-*.txt
 *.key
 .turbo/
 .cache/
+
+# Python sidecar
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
