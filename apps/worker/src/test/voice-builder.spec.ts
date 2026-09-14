@@ -12,9 +12,9 @@ describe('PIPELINE_INTERRUPTION', () => {
 });
 
 describe('PIPELINE_ENDPOINTING', () => {
-  it('keeps the 300ms EOT floor and caps fragments at 1s', () => {
+  it('keeps the 300ms EOT floor and caps uncertain turns at 700ms', () => {
     expect(PIPELINE_ENDPOINTING.minDelay).toBe(300);
-    expect(PIPELINE_ENDPOINTING.maxDelay).toBe(1000);
+    expect(PIPELINE_ENDPOINTING.maxDelay).toBe(700);
   });
 });
 

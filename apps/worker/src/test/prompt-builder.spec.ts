@@ -1,7 +1,9 @@
 import type { AgentJobMetadata } from '../job-metadata';
 import {
   COMPLETE_AFTER_LAST_ANSWER_RULE,
+  HINDI_DEVANAGARI_TURN_RULE,
   OPENING_ALREADY_SPOKEN_RULE,
+  SPOKEN_TURN_RULE,
   buildClosingSpeech,
   buildOpeningInstructions,
   buildRealtimeClosingInstructions,
@@ -106,6 +108,8 @@ describe('composeTaskInstructions', () => {
     expect(text).toMatch(/complete_general_task/);
     expect(text).toMatch(/Persona and company facts above stay in force/);
     expect(text).toMatch(/Do not invent facts/);
+    expect(text).toContain(SPOKEN_TURN_RULE);
+    expect(text).toMatch(/never invent function names/);
   });
 
   it('empty or whitespace workflow still returns persona', () => {
@@ -233,6 +237,12 @@ describe('Hindi persona language lock', () => {
         meta({ model: 'xai/grok-voice-think-fast-2.0' }),
       ),
     ).not.toMatch(/Stay in Hindi Devanagari/);
+    expect(composeTaskInstructions(meta({ prompt: hindiPrompt }), 'Help.')).toContain(
+      HINDI_DEVANAGARI_TURN_RULE,
+    );
+    expect(composeTaskInstructions(meta(), 'Help.')).not.toContain(
+      HINDI_DEVANAGARI_TURN_RULE,
+    );
   });
 });
 

@@ -17,10 +17,20 @@ import { HINDI_HAN_ASR_RULE } from '../tasks/user-turn.js';
  *
  * Workflow objectives still belong in LiveKit Tasks, not here.
  */
+/** Pipeline + realtime: short spoken turns. Hindi also stays Devanagari. */
+export const SPOKEN_TURN_RULE =
+  'You are on a live phone-style voice call. Each spoken turn: one short sentence, then at most one question. Do not recap the conversation. Only call tools that exist in this session — never invent function names.';
+
+export const HINDI_DEVANAGARI_TURN_RULE =
+  'Stay in Hindi Devanagari for the whole call. Digits and names may be spoken as-is. Do not switch to English or romanized Hinglish.';
+
 export function buildPersonaPrompt(meta: AgentJobMetadata): string {
+  const spoken = personaSpeaksHindi(meta)
+    ? `${SPOKEN_TURN_RULE} ${HINDI_DEVANAGARI_TURN_RULE}`
+    : SPOKEN_TURN_RULE;
   const parts = [
     meta.prompt.systemPrompt.trim(),
-    'You are on a live phone-style voice call. Keep spoken replies concise and natural.',
+    spoken,
     `Call direction: ${meta.direction} (agent key: ${meta.agentKey}).`,
     buildCurrentTimeBlock(meta),
     'Follow your persona and company rules at all times.',
@@ -101,9 +111,7 @@ export function buildRealtimeTurnRule(meta: AgentJobMetadata): string | null {
   }
   lines.push(REALTIME_TURN_RULE_BODY);
   if (personaSpeaksHindi(meta)) {
-    lines.push(
-      'Stay in Hindi Devanagari for the whole call. Digits and names may be spoken as-is. Do not switch to English or romanized Hinglish.',
-    );
+    lines.push(HINDI_DEVANAGARI_TURN_RULE);
     lines.push(HINDI_HAN_ASR_RULE);
   }
   lines.push('=== END REALTIME TURNS ===');
