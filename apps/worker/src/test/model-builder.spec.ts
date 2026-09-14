@@ -160,7 +160,7 @@ describe('model-builder voice / temp helpers', () => {
     expect(pythonPluginStt).toBeInstanceOf(SarvamPluginSTT);
   });
 
-  it('Sarvam realtime STT is flagged so the session can skip cloud EOT', () => {
+  it('Sarvam realtime STT is flagged for the Python/Node plugin path', () => {
     expect(
       resolveSttSpec(meta({ sttModel: 'sarvam/saaras-v3-realtime' })).realtime,
     ).toBe(true);

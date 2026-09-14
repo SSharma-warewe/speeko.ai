@@ -12,24 +12,6 @@ export const PIPELINE_INTERRUPTION = {
   discardAudioIfUninterruptible: false,
 } as const;
 
-/**
- * Sarvam saaras:v3-realtime owns VAD. Node delays are milliseconds
- * (Python LiveKit docs use seconds). Keep a short hold so preemptive LLM
- * can start after EOS while FINAL arrives — do not restack 500–2500ms.
- */
-export const SARVAM_REALTIME_TURN_HANDLING = {
-  turnDetection: 'stt' as const,
-  endpointing: { mode: 'fixed' as const, minDelay: 250, maxDelay: 400 },
-  interruption: {
-    enabled: true,
-    mode: 'vad' as const,
-    minWords: 1,
-    falseInterruptionTimeout: 1500,
-    ...PIPELINE_INTERRUPTION,
-  },
-  preemptiveGeneration: { enabled: true },
-};
-
 /** Carrier AEC on SIP — LiveKit's 3s warmup blocks barge-in on inbound. */
 export function resolveAecWarmupDuration(
   medium?: string,
@@ -58,18 +40,10 @@ export function buildAgentSession(
     });
   }
 
-  if (models.turnDetection === 'stt') {
-    return new voice.AgentSession<SessionUserData>({
-      stt: models.stt,
-      llm: models.llm,
-      tts: models.tts,
-      vad: null,
-      turnHandling: { ...SARVAM_REALTIME_TURN_HANDLING },
-      ...(aecWarmupDuration !== undefined ? { aecWarmupDuration } : {}),
-      userData,
-    });
-  }
-
+  // Pipeline (Deepgram and Sarvam realtime STT): omit vad so AgentSession
+  // auto-provisions bundled Silero. TurnDetector v1 requires a VAD; passing
+  // vad: null disables EOT. Do not restack 250/400ms endpointing — that was
+  // only for STT-owned turns. SDK streaming EOT defaults (300/2500) apply.
   return new voice.AgentSession<SessionUserData>({
     stt: models.stt,
     llm: models.llm,

@@ -323,9 +323,10 @@ export function buildModels(
     stt: createStt(meta, env),
     llm: createLlm(meta, env),
     tts: createTts(meta, env),
-    turnDetection: resolveSttSpec(meta).realtime
-      ? ('stt' as const)
-      : new inference.TurnDetector({ version: 'v1' }),
+    // Cloud audio EOT (turn-detector-v1) for every pipeline STT, including
+    // Sarvam saaras:v3-realtime. STT START/END are transcription only —
+    // do not switch this path to turnDetection: 'stt' (that skips v1).
+    turnDetection: new inference.TurnDetector({ version: 'v1' }),
   };
 }
 
