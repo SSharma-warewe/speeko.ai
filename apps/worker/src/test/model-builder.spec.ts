@@ -3,9 +3,11 @@ import {
   XAI_REALTIME_TURN_DETECTION,
   createLlm,
   createRealtimeLlm,
+  openaiPluginExtras,
   createStt,
   createTts,
   resolveLlmModelOptions,
+  resolveLlmSpec,
   resolveRealtimeVoice,
   resolveSttLanguage,
   resolveSttSpec,
@@ -95,6 +97,9 @@ describe('model-builder voice / temp helpers', () => {
   it('OpenAI / xAI / Sarvam plugin models require worker keys', () => {
     expect(() =>
       createLlm(meta({ model: 'openai/gpt-4.1-mini' }), {}),
+    ).toThrow(/OPENAI_API_KEY/);
+    expect(() =>
+      createLlm(meta({ model: 'openai/gpt-5.6-luna-fast' }), {}),
     ).toThrow(/OPENAI_API_KEY/);
     expect(() =>
       createTts(meta({ ttsModel: 'openai/gpt-4o-mini-tts' }), {}),
@@ -218,6 +223,18 @@ describe('model-builder voice / temp helpers', () => {
         meta({ prompt: { systemPrompt: 'You speak Hindi.' } }),
       ),
     ).toBe('hi-IN');
+  });
+
+  it('Luna Fast uses OpenAI gpt-5.6-luna with fast tier and no reasoning', () => {
+    const spec = resolveLlmSpec(meta({ model: 'openai/gpt-5.6-luna-fast' }));
+    expect(spec.runtimeModel).toBe('gpt-5.6-luna');
+    expect(openaiPluginExtras(spec)).toEqual({
+      serviceTier: 'fast',
+      reasoning: { effort: 'none' },
+    });
+    expect(
+      openaiPluginExtras(resolveLlmSpec(meta({ model: 'openai/gpt-4.1-mini' }))),
+    ).toEqual({});
   });
 
   it('Grok realtime pins slower server VAD and does not interrupt', () => {

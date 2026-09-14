@@ -22,6 +22,7 @@ export const LLM_MODEL_IDS = {
   gpt41Mini: 'openai/gpt-4.1-mini',
   gpt41: 'openai/gpt-4.1',
   gpt5Mini: 'openai/gpt-5-mini',
+  gpt56LunaFast: 'openai/gpt-5.6-luna-fast',
   gpt5: 'openai/gpt-5',
   grok46: 'xai/grok-4.6',
   grok43: 'xai/grok-4.3',
@@ -37,6 +38,7 @@ export const KNOWN_LLM_MODEL_IDS = [
   LLM_MODEL_IDS.gpt41Mini,
   LLM_MODEL_IDS.gpt41,
   LLM_MODEL_IDS.gpt5Mini,
+  LLM_MODEL_IDS.gpt56LunaFast,
   LLM_MODEL_IDS.gpt5,
   LLM_MODEL_IDS.grok46,
   LLM_MODEL_IDS.grok43,
@@ -57,6 +59,11 @@ export const LLM_MODEL_ALIASES: Record<string, LlmModelId> = {
   'gpt-4.1': LLM_MODEL_IDS.gpt41,
   'openai/gpt-5-mini': LLM_MODEL_IDS.gpt5Mini,
   'gpt-5-mini': LLM_MODEL_IDS.gpt5Mini,
+  'openai/gpt-5.6-luna-fast': LLM_MODEL_IDS.gpt56LunaFast,
+  'gpt-5.6-luna-fast': LLM_MODEL_IDS.gpt56LunaFast,
+  'gpt-5.6-luna': LLM_MODEL_IDS.gpt56LunaFast,
+  'openai/gpt-5.6-luna': LLM_MODEL_IDS.gpt56LunaFast,
+  'luna-fast': LLM_MODEL_IDS.gpt56LunaFast,
   'openai/gpt-5': LLM_MODEL_IDS.gpt5,
   'gpt-5': LLM_MODEL_IDS.gpt5,
   'xai/grok-4.6': LLM_MODEL_IDS.grok46,
@@ -86,6 +93,13 @@ const OPENAI_REALTIME_VOICES: readonly TtsVoiceOption[] = [
   { id: 'verse', name: 'Verse', line: 'Expressive', initial: 'V' },
 ];
 
+export type OpenaiLlmExtras = {
+  /** OpenAI Responses `service_tier` (`fast` = Priority Processing). */
+  serviceTier?: string;
+  /** Pin reasoning so GPT-5.6 does not default to medium (slow on voice). */
+  reasoning?: { effort: 'none' | 'low' | 'medium' | 'high' };
+};
+
 export type LlmModelSpec = {
   id: LlmModelId;
   label: string;
@@ -99,6 +113,8 @@ export type LlmModelSpec = {
   controls: {
     temperature: boolean;
   };
+  /** OpenAI Responses extras. Ignored on other backends. */
+  openai?: OpenaiLlmExtras;
 };
 
 export const LLM_MODELS: Record<LlmModelId, LlmModelSpec> = {
@@ -145,6 +161,21 @@ export const LLM_MODELS: Record<LlmModelId, LlmModelSpec> = {
     defaultVoice: null,
     voices: [],
     controls: { temperature: true },
+  },
+  [LLM_MODEL_IDS.gpt56LunaFast]: {
+    id: LLM_MODEL_IDS.gpt56LunaFast,
+    label: 'GPT-5.6 Luna Fast',
+    shortLabel: 'Luna Fast',
+    kind: 'llm',
+    backend: 'openai-plugin',
+    runtimeModel: 'gpt-5.6-luna',
+    defaultVoice: null,
+    voices: [],
+    controls: { temperature: true },
+    openai: {
+      serviceTier: 'fast',
+      reasoning: { effort: 'none' },
+    },
   },
   [LLM_MODEL_IDS.gpt5]: {
     id: LLM_MODEL_IDS.gpt5,

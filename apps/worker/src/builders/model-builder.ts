@@ -9,6 +9,7 @@ import {
   sttModelSpec,
   ttsModelSpec,
   type LlmModelSpec,
+  type OpenaiLlmExtras,
   type SttModelSpec,
   type TtsModelSpec,
 } from '@call-agent/contracts';
@@ -30,6 +31,16 @@ import {
 
 export function resolveLlmSpec(meta: AgentJobMetadata): LlmModelSpec {
   return llmModelSpec(meta.model);
+}
+
+/** OpenAI Responses extras from the catalog (service tier, reasoning). */
+export function openaiPluginExtras(spec: LlmModelSpec): OpenaiLlmExtras {
+  const extras = spec.openai;
+  if (!extras) return {};
+  return {
+    ...(extras.serviceTier ? { serviceTier: extras.serviceTier } : {}),
+    ...(extras.reasoning ? { reasoning: extras.reasoning } : {}),
+  };
 }
 
 export function resolveLlmModelOptions(
@@ -204,6 +215,7 @@ export function createLlm(
       apiKey: requireEnv(env, 'OPENAI_API_KEY', spec.id),
       model: spec.runtimeModel,
       ...(temperature !== undefined ? { temperature } : {}),
+      ...openaiPluginExtras(spec),
     });
   }
 

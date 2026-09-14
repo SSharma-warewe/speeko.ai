@@ -22,7 +22,7 @@ export class VoiceSettingsDto {
   @ApiPropertyOptional({
     nullable: true,
     description:
-      'LLM / realtime catalog id (google/gemma-4-31b-it, openai/gpt-4.1-mini, xai/grok-4.6, openai/gpt-realtime-2.1, xai/grok-voice-think-fast-2.0). null = Gemma via LiveKit Inference. Realtime ids run speech-to-speech (no STT/TTS).',
+      'LLM / realtime catalog id (google/gemma-4-31b-it, openai/gpt-4.1-mini, openai/gpt-5.6-luna-fast, xai/grok-4.6, openai/gpt-realtime-2.1, xai/grok-voice-think-fast-2.0). null = Gemma via LiveKit Inference. Realtime ids run speech-to-speech (no STT/TTS). Luna Fast is pipeline OpenAI GPT-5.6 with service_tier=fast and reasoning.effort=none.',
   })
   @IsOptional()
   @IsString()

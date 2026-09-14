@@ -33,6 +33,19 @@ describe('price.catalog', () => {
     expect(resolveLlmRate('gemma-4-31b-it', 'scale')?.input).toBe(0.4);
   });
 
+  it('maps GPT-5.6 Luna Fast at 2× Luna list rates', () => {
+    const luna = resolveLlmRate('openai/gpt-5.6-luna', 'ship');
+    expect(luna?.key).toBe('gpt-5.6-luna');
+    expect(luna?.input).toBe(0.2);
+    expect(luna?.output).toBe(1.2);
+
+    const fast = resolveLlmRate('openai/gpt-5.6-luna-fast', 'ship');
+    expect(fast?.key).toBe('gpt-5.6-luna-fast');
+    expect(fast?.input).toBe(0.4);
+    expect(fast?.cached).toBe(0.04);
+    expect(fast?.output).toBe(2.4);
+  });
+
   it('parsePricingPlan defaults to ship', () => {
     expect(parsePricingPlan(undefined)).toBe('ship');
     expect(parsePricingPlan('SCALE')).toBe('scale');

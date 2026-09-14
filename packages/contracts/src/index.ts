@@ -93,6 +93,7 @@ export type {
   LlmKind,
   LlmModelId,
   LlmModelSpec,
+  OpenaiLlmExtras,
 } from './llm.js';
 
 export {

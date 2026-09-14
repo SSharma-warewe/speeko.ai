@@ -9,6 +9,12 @@ describe('LLM catalog', () => {
   it('defaults to Gemma; aliases normalize', () => {
     expect(llmModelSpec(null).id).toBe(DEFAULT_LLM_MODEL_ID);
     expect(canonicalizeLlmModelId('gpt-4.1-mini')).toBe('openai/gpt-4.1-mini');
+    expect(canonicalizeLlmModelId('gpt-5.6-luna-fast')).toBe(
+      'openai/gpt-5.6-luna-fast',
+    );
+    expect(canonicalizeLlmModelId('gpt-5.6-luna')).toBe(
+      'openai/gpt-5.6-luna-fast',
+    );
     expect(canonicalizeLlmModelId('grok-4.6')).toBe('xai/grok-4.6');
     expect(canonicalizeLlmModelId('grok-voice-latest')).toBe(
       'xai/grok-voice-think-fast-2.0',
@@ -18,11 +24,18 @@ describe('LLM catalog', () => {
   it('marks speech-to-speech ids as realtime', () => {
     expect(isRealtimeLlmModel(null)).toBe(false);
     expect(isRealtimeLlmModel('openai/gpt-4.1-mini')).toBe(false);
+    expect(isRealtimeLlmModel('openai/gpt-5.6-luna-fast')).toBe(false);
     expect(isRealtimeLlmModel('openai/gpt-realtime-2.1-mini')).toBe(true);
     expect(isRealtimeLlmModel('xai/grok-voice-think-fast-2.0')).toBe(true);
     expect(llmModelSpec('openai/gpt-realtime-2.1-mini').backend).toBe(
       'openai-plugin',
     );
+    expect(llmModelSpec('openai/gpt-5.6-luna-fast')).toMatchObject({
+      kind: 'llm',
+      backend: 'openai-plugin',
+      runtimeModel: 'gpt-5.6-luna',
+      openai: { serviceTier: 'fast', reasoning: { effort: 'none' } },
+    });
     expect(llmModelSpec('xai/grok-4.6').backend).toBe('xai-plugin');
   });
 });

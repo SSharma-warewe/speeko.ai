@@ -135,6 +135,12 @@ describe('voice-settings', () => {
       expect(parseStoredLlmModel('  ')).toBeNull();
       expect(parseStoredLlmModel('google/gemma-4-31b-it')).toBeNull();
       expect(parseStoredLlmModel('gpt-4.1-mini')).toBe('openai/gpt-4.1-mini');
+      expect(parseStoredLlmModel('gpt-5.6-luna-fast')).toBe(
+        'openai/gpt-5.6-luna-fast',
+      );
+      expect(parseStoredLlmModel('gpt-5.6-luna')).toBe(
+        'openai/gpt-5.6-luna-fast',
+      );
       expect(parseStoredLlmModel('grok-voice-latest')).toBe(
         'xai/grok-voice-think-fast-2.0',
       );
