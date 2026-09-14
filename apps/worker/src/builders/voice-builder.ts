@@ -12,6 +12,21 @@ export const PIPELINE_INTERRUPTION = {
   discardAudioIfUninterruptible: false,
 } as const;
 
+/**
+ * Streaming TurnDetector v1 defaults are 300 / 2500. Fragments sit on the
+ * 2.5s ceiling; cap at 1s so short Hindi replies do not wait that long.
+ * Keep the 300ms floor — complete turns already commit there.
+ */
+export const PIPELINE_ENDPOINTING = {
+  minDelay: 300,
+  maxDelay: 1000,
+} as const;
+
+/** Start TTS during the EOT wait so Bulbul TTFB (~700ms) is not stacked after commit. */
+export const PIPELINE_PREEMPTIVE = {
+  preemptiveTts: true,
+} as const;
+
 /** Carrier AEC on SIP — LiveKit's 3s warmup blocks barge-in on inbound. */
 export function resolveAecWarmupDuration(
   medium?: string,
@@ -43,7 +58,8 @@ export function buildAgentSession(
   // Pipeline (Deepgram and Sarvam realtime STT): omit vad so AgentSession
   // auto-provisions bundled Silero. TurnDetector v1 requires a VAD; passing
   // vad: null disables EOT. Do not restack 250/400ms endpointing — that was
-  // only for STT-owned turns. SDK streaming EOT defaults (300/2500) apply.
+  // only for STT-owned turns. Override streaming 300/2500 with 300/1000 and
+  // start TTS during the EOT wait.
   return new voice.AgentSession<SessionUserData>({
     stt: models.stt,
     llm: models.llm,
@@ -51,6 +67,8 @@ export function buildAgentSession(
     turnHandling: {
       turnDetection: models.turnDetection,
       interruption: { ...PIPELINE_INTERRUPTION },
+      endpointing: { ...PIPELINE_ENDPOINTING },
+      preemptiveGeneration: { ...PIPELINE_PREEMPTIVE },
     },
     ...(aecWarmupDuration !== undefined ? { aecWarmupDuration } : {}),
     userData,
