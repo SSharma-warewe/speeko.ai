@@ -25,7 +25,7 @@ Stack: NestJS monorepo, TypeORM, PostgreSQL, JWT Bearer auth, Swagger, LiveKit A
 | Org-user ops desk | `apps/portal` | `/login` → `/dashboard` | `POST /api/auth/login` (email + password + org slug) |
 | Platform admin | `apps/portal` | `/admin-login` → `/admin-dashboard` | `POST /api/auth/admin/login` |
 
-Org dashboard focuses on **running agents** (enqueue, dial now, queue, batches, SIP outbound, agent persona/test, **integrations** for CRM API keys) and **LiveKit list-price cost** on the calls tape / call dossier (no markup, not an invoice). Admin dashboard focuses on **tenants** (orgs, members, assign agents, **assign tools**, platform templates) plus the same cost snapshot platform-wide.
+Org dashboard focuses on **running agents** (enqueue, dial now, queue, batches, SIP outbound, agent persona/test, **integrations** for CRM dial endpoints, Nylas/GHL calendars, and WhatsApp webhook generate/copy) and **LiveKit list-price cost** on the calls tape / call dossier (no markup, not an invoice). Admin dashboard focuses on **tenants** (orgs, members, assign agents, **assign tools**, platform templates) plus the same cost snapshot platform-wide. The org Integrations page (`/dashboard/integrations`) has Dial / Calendar / WhatsApp tabs — WhatsApp is generate + copy of callback URL and verify token only (no event tape).
 
 ## Data model (Erflow)
 
@@ -744,7 +744,7 @@ controller → service → repository → TypeORM entity → Postgres
 - `email` is an infrastructure adapter (global `EmailService` only), not a repository-backed domain module. Uses Plunk `POST /v1/send`.
 - `ghl` is an infrastructure adapter (`GhlService` + worker-secret calendar controller). Calendar tools resolve org GHL connections; get-demo CRM stays env. Not a repository-backed domain module.
 - `demo` is a thin public proxy (no repository): `DemoAbuseGuard` (origin + rate limits) → GHL upsert (best-effort) → `ENDPOINT_URL` + `SPEEKO_API` → integration enqueue.
-- `whatsapp` is webhook ingest only: org-user generate/rotate (`POST /users/whatsapp/webhook-config`) + public Meta GET/POST `/webhooks/whatsapp`. Persist raw JSONB; do not call Graph or send replies. Callback URL uses `API_BASE_URL`.
+- `whatsapp` is webhook ingest only: org-user generate/rotate (`POST /users/whatsapp/webhook-config`) + public Meta GET/POST `/webhooks/whatsapp`. Persist raw JSONB; do not call Graph or send replies. Callback URL uses `API_BASE_URL`. Portal Integrations → WhatsApp tab generates/copies the callback URL and verify token.
 - `queue` uses raw SQL for atomic claim (`FOR UPDATE SKIP LOCKED`) via TypeORM `DataSource`; settings/batches use repositories.
 - `price` is a catalog + calculator (`PriceService`). Inject it; do not inline LiveKit rates in `calls`. Worker complete appends one cost attempt (including requeue). Call DTOs include `cost` (`null` until priced). Portal shows the snapshot on the org calls tape / dossier and admin all-calls / overview. `GET /api/users/costs/summary` is JWT-org only; `POST /api/admin/costs/recompute` stays admin.
 

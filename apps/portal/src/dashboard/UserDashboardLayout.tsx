@@ -43,7 +43,7 @@ const NAV: { section: string; items: readonly NavItem[] }[] = [
       {
         to: "/dashboard/integrations",
         label: "Integrations",
-        desc: "CRM endpoints & API keys",
+        desc: "CRM, calendar & WhatsApp",
       },
     ],
   },

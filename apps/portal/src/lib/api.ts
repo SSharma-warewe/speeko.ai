@@ -29,6 +29,7 @@ import type {
   CreateUserTestCallRequest,
   EnqueueCallsRequest,
   EnqueueCallsResponse,
+  GenerateWhatsAppWebhookConfigRequest,
   GhlCalendarOption,
   InboundPublishResult,
   IntegrationEndpoint,
@@ -70,6 +71,8 @@ import type {
   UpdateToolProfileRequest,
   UserCallBucket,
   UserProfile,
+  WhatsAppWebhookConfig,
+  WhatsAppWebhookConfigSecret,
 } from "@call-agent/contracts";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
@@ -111,6 +114,8 @@ export type {
   ToolProfile,
   UserCallBucket,
   UserProfile,
+  WhatsAppWebhookConfig,
+  WhatsAppWebhookConfigSecret,
 };
 
 export class ApiError extends Error {
@@ -1049,4 +1054,26 @@ export const rotateUserIntegrationEndpointKey = (id: string) =>
 
 export const deleteUserIntegrationEndpoint = (id: string) =>
   userFetch<void>(`/users/integration-endpoints/${id}`, { method: "DELETE" });
+
+/* ── User WhatsApp webhook (Meta callback + verify token) ── */
+export async function getUserWhatsAppWebhookConfig(): Promise<WhatsAppWebhookConfig | null> {
+  try {
+    return await userFetch<WhatsAppWebhookConfig>(
+      "/users/whatsapp/webhook-config",
+    );
+  } catch (err) {
+    if (err instanceof NotFoundError) {
+      return null;
+    }
+    throw err;
+  }
+}
+
+export const generateUserWhatsAppWebhookConfig = (
+  data: GenerateWhatsAppWebhookConfigRequest,
+) =>
+  userFetch<WhatsAppWebhookConfigSecret>("/users/whatsapp/webhook-config", {
+    method: "POST",
+    body: data,
+  });
 

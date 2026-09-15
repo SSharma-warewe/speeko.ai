@@ -35,8 +35,9 @@ import { ErrorBlock } from "../components/ErrorBlock";
 import { LoadingBlock } from "../components/LoadingBlock";
 import { StatusBadge } from "../components/StatusBadge";
 import { useUserAsync } from "../hooks/useAsync";
+import WhatsAppWebhookPanel from "./WhatsAppWebhookPanel";
 
-type IntegMode = "dial" | "calendar";
+type IntegMode = "dial" | "calendar" | "whatsapp";
 
 const API_ORIGIN =
   (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ||
@@ -59,7 +60,9 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 function parseMode(raw: string | null): IntegMode {
-  return raw === "calendar" ? "calendar" : "dial";
+  if (raw === "calendar") return "calendar";
+  if (raw === "whatsapp") return "whatsapp";
+  return "dial";
 }
 
 function formatAccountId(value: string | null | undefined): string {
@@ -631,6 +634,8 @@ export default function UserIntegrationsPage() {
   const agentName = (id: string) =>
     agents.find((a) => a.id === id)?.name ?? id.slice(0, 8);
   const isDial = mode === "dial";
+  const isCalendar = mode === "calendar";
+  const isWhatsApp = mode === "whatsapp";
 
   return (
     <div className="ops-desk">
@@ -650,11 +655,20 @@ export default function UserIntegrationsPage() {
             <button
               type="button"
               role="tab"
-              aria-selected={!isDial}
-              className={`ops-mode-btn${!isDial ? " is-active" : ""}`}
+              aria-selected={isCalendar}
+              className={`ops-mode-btn${isCalendar ? " is-active" : ""}`}
               onClick={() => setModeTab("calendar")}
             >
               Calendar
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={isWhatsApp}
+              className={`ops-mode-btn${isWhatsApp ? " is-active" : ""}`}
+              onClick={() => setModeTab("whatsapp")}
+            >
+              WhatsApp
             </button>
           </div>
         </div>
@@ -666,7 +680,7 @@ export default function UserIntegrationsPage() {
             </span>
           </li>
           <li>
-            <span className={`ops-desk-stat${!isDial ? " is-on" : ""}`}>
+            <span className={`ops-desk-stat${isCalendar ? " is-on" : ""}`}>
               <strong>{calendars.length}</strong>
               <span>calendars</span>
             </span>
@@ -675,7 +689,9 @@ export default function UserIntegrationsPage() {
       </div>
 
       <div className="ops-desk-board">
-        {isDial ? (
+        {isWhatsApp ? (
+          <WhatsAppWebhookPanel />
+        ) : isDial ? (
           <section className="ops-panel ops-desk-compose">
             <div className="ops-panel-head">
               <span className="ops-desk-kicker">
@@ -1161,6 +1177,7 @@ export default function UserIntegrationsPage() {
           </section>
         )}
 
+        {!isWhatsApp ? (
         <section className="ops-panel ops-desk-list">
           <div className="ops-desk-list-bar">
             <div className="ops-desk-list-bar-main">
@@ -1379,6 +1396,7 @@ export default function UserIntegrationsPage() {
             )}
           </div>
         </section>
+        ) : null}
       </div>
     </div>
   );
