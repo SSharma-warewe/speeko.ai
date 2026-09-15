@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -26,12 +27,15 @@ import {
   generateVerifyToken,
   hashVerifyToken,
   verifyTokenMatches,
+  verifyTokenPrefixFrom,
 } from './verify-token.util';
 import { WhatsAppWebhookConfigsRepository } from './whatsapp-webhook-configs.repository';
 import { WhatsAppWebhookEventsRepository } from './whatsapp-webhook-events.repository';
 
 @Injectable()
 export class WhatsAppWebhooksService {
+  private readonly logger = new Logger(WhatsAppWebhooksService.name);
+
   constructor(
     private readonly configs: WhatsAppWebhookConfigsRepository,
     private readonly events: WhatsAppWebhookEventsRepository,
@@ -66,7 +70,7 @@ export class WhatsAppWebhooksService {
 
     await this.assertIdsAvailable(organizationId, phoneNumberId, wabaId);
 
-    const generated = generateVerifyToken();
+    const generated = this.resolveGeneratedToken(dto.verifyToken);
     const existing = await this.configs.findByOrganization(organizationId);
     const row = existing
       ? existing
@@ -126,8 +130,23 @@ export class WhatsAppWebhooksService {
     const modeText = (mode ?? '').trim();
     const provided = (token ?? '').trim();
     const challengeText = (challenge ?? '').trim();
+    const tokenPrefix = provided ? verifyTokenPrefixFrom(provided) : 'empty';
     if (modeText !== 'subscribe' || !provided || !challengeText) {
+      this.logger.warn(
+        `WhatsApp GET verify rejected mode=${modeText || 'empty'} tokenPrefix=${tokenPrefix}`,
+      );
       throw new ForbiddenException('Verification failed');
+    }
+
+    const envToken = this.config.get<string>('WHATSAPP_VERIFY_TOKEN')?.trim();
+    if (
+      envToken &&
+      verifyTokenMatches(provided, hashVerifyToken(envToken))
+    ) {
+      this.logger.log(
+        `WhatsApp GET verify ok via WHATSAPP_VERIFY_TOKEN tokenPrefix=${tokenPrefix}`,
+      );
+      return challengeText;
     }
 
     const row = await this.configs.findByVerifyTokenHash(
@@ -138,8 +157,14 @@ export class WhatsAppWebhooksService {
       !row.isActive ||
       !verifyTokenMatches(provided, row.verifyTokenHash)
     ) {
+      this.logger.warn(
+        `WhatsApp GET verify rejected unknown/inactive tokenPrefix=${tokenPrefix}`,
+      );
       throw new ForbiddenException('Verification failed');
     }
+    this.logger.log(
+      `WhatsApp GET verify ok org=${row.organizationId} tokenPrefix=${tokenPrefix}`,
+    );
     return challengeText;
   }
 
@@ -197,6 +222,27 @@ export class WhatsAppWebhooksService {
       publicUrl: this.config.get<string>('API_PUBLIC_URL'),
       railwayPublicDomain: this.config.get<string>('RAILWAY_PUBLIC_DOMAIN'),
     });
+  }
+
+  private resolveGeneratedToken(provided?: string): {
+    verifyToken: string;
+    verifyTokenPrefix: string;
+    verifyTokenHash: string;
+  } {
+    const trimmed = provided?.trim() ?? '';
+    if (!trimmed) {
+      return generateVerifyToken();
+    }
+    if (trimmed.length < 8 || trimmed.length > 200) {
+      throw new BadRequestException(
+        'verifyToken must be between 8 and 200 characters',
+      );
+    }
+    return {
+      verifyToken: trimmed,
+      verifyTokenPrefix: verifyTokenPrefixFrom(trimmed),
+      verifyTokenHash: hashVerifyToken(trimmed),
+    };
   }
 }
 

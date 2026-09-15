@@ -33,6 +33,7 @@ export default function WhatsAppWebhookPanel() {
 
   const [phoneNumberId, setPhoneNumberId] = useState("");
   const [wabaId, setWabaId] = useState("");
+  const [verifyTokenInput, setVerifyTokenInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
@@ -66,9 +67,11 @@ export default function WhatsAppWebhookPanel() {
     setFormError(null);
     setActionMsg(null);
     try {
+      const token = verifyTokenInput.trim();
       const created = await generateUserWhatsAppWebhookConfig({
         ...(phone ? { phoneNumberId: phone } : {}),
         ...(waba ? { wabaId: waba } : {}),
+        ...(token ? { verifyToken: token } : {}),
       });
       setSecretReveal(created);
       setConfig(created);
@@ -126,9 +129,10 @@ export default function WhatsAppWebhookPanel() {
         {actionMsg ? <Alert tone="info">{actionMsg}</Alert> : null}
 
         <Alert tone="info">
-          Paste the callback URL and verify token into the Meta App Dashboard →
-          WhatsApp → Configuration, then subscribe to the <strong>messages</strong>{" "}
-          field. Incoming payloads are stored; the agent does not reply yet.
+          Paste the callback URL into Meta App Dashboard → WhatsApp →
+          Configuration. The Verify token there must match the token stored here
+          (paste Meta&apos;s token below, or generate one and copy it into Meta).
+          Then subscribe to the <strong>messages</strong> field.
         </Alert>
 
         {secretReveal ? (
@@ -252,6 +256,21 @@ export default function WhatsAppWebhookPanel() {
             disabled={submitting}
             className="ops-mono"
             placeholder="106540352242922"
+          />
+        </Field>
+        <Field
+          label="Meta verify token (optional)"
+          htmlFor="wa-verify-in"
+          hint="Paste the Verify token you typed in the Meta App Dashboard. Leave blank to generate a new one."
+        >
+          <Input
+            id="wa-verify-in"
+            value={verifyTokenInput}
+            onChange={(e) => setVerifyTokenInput(e.target.value)}
+            disabled={submitting}
+            className="ops-mono"
+            placeholder="same string as Meta → Verify token"
+            autoComplete="off"
           />
         </Field>
         <Field

@@ -24,4 +24,16 @@ export class GenerateWhatsAppWebhookConfigDto {
   @MinLength(1)
   @MaxLength(80)
   wabaId?: string;
+
+  @ApiPropertyOptional({
+    example: 'vibecoding',
+    description:
+      'Optional verify token to store (the string you type in the Meta App Dashboard). ' +
+      'Omit to generate a new random token.',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  @MaxLength(200)
+  verifyToken?: string;
 }

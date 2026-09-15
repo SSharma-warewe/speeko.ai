@@ -111,6 +111,25 @@ describe('WhatsAppWebhooksService', () => {
   });
 
   describe('generateConfigForOrg', () => {
+    it('1b. stores a caller-provided verify token so Meta dashboard text matches', async () => {
+      const result = await service.generateConfigForOrg(ORG_ID, {
+        phoneNumberId: PHONE_ID,
+        verifyToken: 'vibecoding',
+      });
+
+      expect(result.verifyToken).toBe('vibecoding');
+      const saved = configs.save.mock.calls[0][0] as WhatsAppWebhookConfig;
+      expect(saved.verifyTokenHash).toBe(hashVerifyToken('vibecoding'));
+
+      configs.findByVerifyTokenHash.mockResolvedValue({
+        ...saved,
+        isActive: true,
+      });
+      await expect(
+        service.verifySubscription('subscribe', 'vibecoding', '1158'),
+      ).resolves.toBe('1158');
+    });
+
     it('1a. uses RAILWAY_PUBLIC_DOMAIN when API_BASE_URL is railway.internal', async () => {
       configService.get.mockImplementation((key: string) => {
         if (key === 'API_BASE_URL') return 'http://api.railway.internal:3000';
@@ -286,6 +305,23 @@ describe('WhatsAppWebhooksService', () => {
       await expect(
         service.verifySubscription('subscribe', 'wa_dead', 'c'),
       ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('9b. accepts WHATSAPP_VERIFY_TOKEN when no org hash matches', async () => {
+      configService.get.mockImplementation((key: string) => {
+        if (key === 'WHATSAPP_VERIFY_TOKEN') return 'platform-meta-token';
+        if (key === 'API_BASE_URL') return 'https://api.example.com';
+        return undefined;
+      });
+      configs.findByVerifyTokenHash.mockResolvedValue(null);
+
+      await expect(
+        service.verifySubscription(
+          'subscribe',
+          'platform-meta-token',
+          '1158201444',
+        ),
+      ).resolves.toBe('1158201444');
     });
   });
 

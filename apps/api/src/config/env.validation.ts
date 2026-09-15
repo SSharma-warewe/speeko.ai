@@ -25,6 +25,8 @@ export const envValidationSchema = Joi.object({
   API_BASE_URL: Joi.string().uri().optional().allow(''),
   // Public HTTPS origin Meta / browsers should call (not railway.internal).
   API_PUBLIC_URL: Joi.string().uri().optional().allow(''),
+  // Optional platform-wide Meta hub.verify_token (in addition to per-org hashes).
+  WHATSAPP_VERIFY_TOKEN: Joi.string().min(8).max(200).optional().allow(''),
   // Optional SIP defaults (org trunks are preferred)
   LIVEKIT_SIP_OUTBOUND_TRUNK_ID: Joi.string().optional().allow(''),
   LIVEKIT_SIP_OUTBOUND_NUMBER: Joi.string().optional().allow(''),

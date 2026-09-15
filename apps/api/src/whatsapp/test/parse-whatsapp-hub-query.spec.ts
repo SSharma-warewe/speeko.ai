@@ -1,4 +1,8 @@
-import { parseWhatsAppHubQuery } from '../lib/parse-whatsapp-hub-query';
+import {
+  parseWhatsAppHubQuery,
+  parseWhatsAppHubRequest,
+  parseWhatsAppHubSearch,
+} from '../lib/parse-whatsapp-hub-query';
 
 describe('parseWhatsAppHubQuery', () => {
   it('1. reads dotted hub.* keys (Express 5 simple parser / Meta GET)', () => {
@@ -52,7 +56,30 @@ describe('parseWhatsAppHubQuery', () => {
     ).toEqual({ mode: 'subscribe', token: 'wa_a', challenge: '99' });
   });
 
-  it('5. returns empty fields for missing or non-object query', () => {
+  it('5. parseWhatsAppHubSearch / Request read Meta GET query string even if req.query is empty', () => {
+    expect(
+      parseWhatsAppHubSearch(
+        'hub.mode=subscribe&hub.verify_token=wa_secret&hub.challenge=1158201444',
+      ),
+    ).toEqual({
+      mode: 'subscribe',
+      token: 'wa_secret',
+      challenge: '1158201444',
+    });
+    expect(
+      parseWhatsAppHubRequest({
+        query: {},
+        originalUrl:
+          '/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=wa_secret&hub.challenge=1158201444',
+      }),
+    ).toEqual({
+      mode: 'subscribe',
+      token: 'wa_secret',
+      challenge: '1158201444',
+    });
+  });
+
+  it('6. returns empty fields for missing or non-object query', () => {
     expect(parseWhatsAppHubQuery(undefined)).toEqual({});
     expect(parseWhatsAppHubQuery(null)).toEqual({});
     expect(parseWhatsAppHubQuery('hub.mode=subscribe')).toEqual({});

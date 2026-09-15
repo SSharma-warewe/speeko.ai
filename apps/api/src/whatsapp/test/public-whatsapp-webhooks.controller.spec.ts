@@ -108,12 +108,9 @@ describe('PublicWhatsAppWebhooksController (HTTP)', () => {
 
   it('GET /api/webhooks/whatsapp echoes hub.challenge as text/plain without JWT', async () => {
     const res = await request(app.getHttpServer())
-      .get('/api/webhooks/whatsapp')
-      .query({
-        'hub.mode': 'subscribe',
-        'hub.verify_token': TOKEN,
-        'hub.challenge': CHALLENGE,
-      })
+      .get(
+        `/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=${encodeURIComponent(TOKEN)}&hub.challenge=${CHALLENGE}`,
+      )
       .expect(200);
 
     expect(res.headers['content-type']).toMatch(/text\/plain/);

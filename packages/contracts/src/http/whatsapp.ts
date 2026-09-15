@@ -18,6 +18,8 @@ export type WhatsAppWebhookConfigSecret = WhatsAppWebhookConfig & {
 export type GenerateWhatsAppWebhookConfigRequest = {
   phoneNumberId?: string;
   wabaId?: string;
+  /** Optional: store the verify token typed in Meta instead of generating one. */
+  verifyToken?: string;
 };
 
 export type WhatsAppWebhookAck = {

@@ -265,6 +265,7 @@ Default local DB credentials (see `.env.example`):
 | `WORKER_CALLBACK_SECRET` | API + worker | Shared secret for `POST /api/internal/calls/:id/complete` (`X-Worker-Secret`) |
 | `API_BASE_URL` | worker + API | Worker → API origin (may be `http://api.railway.internal:3000` in production). Local default `http://localhost:3000`. |
 | `API_PUBLIC_URL` | API | Optional public HTTPS origin for Meta WhatsApp callback URLs (e.g. `https://api-production-4df4.up.railway.app`). No trailing slash, no `/api` suffix. When unset, a public `API_BASE_URL` is used; private/internal hosts fall back to `https://{RAILWAY_PUBLIC_DOMAIN}`. |
+| `WHATSAPP_VERIFY_TOKEN` | API | Optional platform-wide Meta `hub.verify_token`. GET verify succeeds if this matches, even when no org hash matches. Per-org tokens still work. |
 | `COMPLETE_CALLBACK_TIMEOUT_MS` | worker | Per-attempt timeout for the complete POST (default `8000`). Prevents hung `fetch` from pinning the job process. |
 | `COMPLETE_CALLBACK_MAX_ATTEMPTS` | worker | Complete POST attempts (default `5`). Retries 408/429/5xx, network, and abort. Never throws after exhaustion. |
 | `COMPLETE_CALLBACK_BACKOFF_MS` | worker | Base backoff between complete retries (default `500`, exponential cap 4s, ~20% jitter). |
@@ -524,8 +525,8 @@ Worker health is “registered with LiveKit” in service logs, not a public HTM
 | DELETE | `/api/users/integrations/:id` | user JWT — delete connection (agent FKs SET NULL) |
 | POST | `/api/users/integrations/:id/test` | user JWT — smoke-test (Nylas or GHL list calendars) |
 | GET | `/api/users/whatsapp/webhook-config` | user JWT — current WhatsApp webhook config (callback URL + token prefix; no raw token) |
-| POST | `/api/users/whatsapp/webhook-config` | user JWT — generate/rotate verify token + store `phoneNumberId` / `wabaId` (at least one); raw token once |
-| GET | `/api/webhooks/whatsapp` | public (no JWT) — Meta `hub.mode` / `hub.verify_token` / `hub.challenge`; 200 `text/plain` challenge or 403 |
+| POST | `/api/users/whatsapp/webhook-config` | user JWT — generate/rotate verify token (or store optional `verifyToken` from Meta) + `phoneNumberId` / `wabaId` (at least one); raw token once |
+| GET | `/api/webhooks/whatsapp` | public (no JWT) — Meta `hub.mode` / `hub.verify_token` / `hub.challenge` parsed from the raw query string; 200 `text/plain` challenge (org hash or `WHATSAPP_VERIFY_TOKEN`) or 403 |
 | POST | `/api/webhooks/whatsapp` | public — persist raw WhatsApp webhook JSONB; 200 immediately; no replies |
 | POST | `/api/internal/calls/:callId/calendar/free-busy` | worker secret — free/busy for call’s agent calendar |
 | POST | `/api/internal/calls/:callId/calendar/events/list` | worker secret — list events |

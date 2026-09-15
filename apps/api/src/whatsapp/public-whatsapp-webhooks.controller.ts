@@ -5,7 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
-  Query,
+  Req,
   Res,
 } from '@nestjs/common';
 import {
@@ -17,11 +17,11 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { ApiBadRequestError } from '../common/swagger/api-errors';
 import { WhatsAppWebhookAckDto } from './dto/whatsapp-webhook-ack.dto';
-import { parseWhatsAppHubQuery } from './lib/parse-whatsapp-hub-query';
+import { parseWhatsAppHubRequest } from './lib/parse-whatsapp-hub-query';
 import { WhatsAppWebhooksService } from './whatsapp-webhooks.service';
 
 /**
@@ -51,20 +51,17 @@ export class PublicWhatsAppWebhooksController {
     description: 'Verification failed',
     type: ErrorResponseDto,
   })
-  async verify(
-    @Query() query: Record<string, unknown>,
-    @Res() res: Response,
-  ): Promise<void> {
-    const { mode, token, challenge } = parseWhatsAppHubQuery(query);
+  async verify(@Req() req: Request, @Res() res: Response): Promise<void> {
+    const { mode, token, challenge } = parseWhatsAppHubRequest(req);
     const echoed = await this.whatsappWebhooks.verifySubscription(
       mode,
       token,
       challenge,
     );
-    res
-      .status(HttpStatus.OK)
-      .contentType('text/plain; charset=utf-8')
-      .send(echoed);
+    // Meta compares the raw body to hub.challenge. Do not JSON-encode.
+    res.status(HttpStatus.OK);
+    res.setHeader('Content-Type', 'text/plain');
+    res.end(echoed);
   }
 
   @Post()
