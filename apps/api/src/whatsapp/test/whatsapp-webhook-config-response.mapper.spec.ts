@@ -18,12 +18,37 @@ describe('whatsapp-webhook-config-response.mapper', () => {
     updatedAt: new Date('2024-01-02T00:00:00.000Z'),
   } as WhatsAppWebhookConfig;
 
-  it('1. whatsappCallbackUrl joins API_BASE_URL and strips trailing slash', () => {
+  it('1. whatsappCallbackUrl joins a public API_BASE_URL and strips trailing slash /api', () => {
     expect(whatsappCallbackUrl('https://api.example.com/')).toBe(
+      'https://api.example.com/api/webhooks/whatsapp',
+    );
+    expect(whatsappCallbackUrl('https://api.example.com/api')).toBe(
       'https://api.example.com/api/webhooks/whatsapp',
     );
     expect(whatsappCallbackUrl('')).toBe('/api/webhooks/whatsapp');
     expect(whatsappCallbackUrl(undefined)).toBe('/api/webhooks/whatsapp');
+  });
+
+  it('1b. skips railway.internal API_BASE_URL in favor of API_PUBLIC_URL / RAILWAY_PUBLIC_DOMAIN', () => {
+    expect(
+      whatsappCallbackUrl('http://api.railway.internal:3000', {
+        publicUrl: 'https://api-production-4df4.up.railway.app',
+      }),
+    ).toBe(
+      'https://api-production-4df4.up.railway.app/api/webhooks/whatsapp',
+    );
+    expect(
+      whatsappCallbackUrl('http://api.railway.internal:3000', {
+        railwayPublicDomain: 'api-production-4df4.up.railway.app',
+      }),
+    ).toBe(
+      'https://api-production-4df4.up.railway.app/api/webhooks/whatsapp',
+    );
+    expect(
+      whatsappCallbackUrl('http://localhost:3000', {
+        railwayPublicDomain: 'api-production-4df4.up.railway.app',
+      }),
+    ).toBe('http://localhost:3000/api/webhooks/whatsapp');
   });
 
   it('2. public mapper never includes hash or raw token', () => {

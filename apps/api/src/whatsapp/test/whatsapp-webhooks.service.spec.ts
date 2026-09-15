@@ -111,6 +111,24 @@ describe('WhatsAppWebhooksService', () => {
   });
 
   describe('generateConfigForOrg', () => {
+    it('1a. uses RAILWAY_PUBLIC_DOMAIN when API_BASE_URL is railway.internal', async () => {
+      configService.get.mockImplementation((key: string) => {
+        if (key === 'API_BASE_URL') return 'http://api.railway.internal:3000';
+        if (key === 'RAILWAY_PUBLIC_DOMAIN') {
+          return 'api-production-4df4.up.railway.app';
+        }
+        return undefined;
+      });
+
+      const result = await service.generateConfigForOrg(ORG_ID, {
+        phoneNumberId: PHONE_ID,
+      });
+
+      expect(result.callbackUrl).toBe(
+        'https://api-production-4df4.up.railway.app/api/webhooks/whatsapp',
+      );
+    });
+
     it('1. stores hash only and returns raw token once', async () => {
       const result = await service.generateConfigForOrg(ORG_ID, {
         phoneNumberId: PHONE_ID,

@@ -2,11 +2,11 @@ import {
   Body,
   Controller,
   Get,
-  Header,
   HttpCode,
   HttpStatus,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
 import {
   ApiBody,
@@ -17,23 +17,28 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { ApiBadRequestError } from '../common/swagger/api-errors';
 import { WhatsAppWebhookAckDto } from './dto/whatsapp-webhook-ack.dto';
+import { parseWhatsAppHubQuery } from './lib/parse-whatsapp-hub-query';
 import { WhatsAppWebhooksService } from './whatsapp-webhooks.service';
 
+/**
+ * Public Meta webhook. Do not add JwtAuthGuard / UserGuard — Meta's GET
+ * verification and POST ingest have no org JWT.
+ */
 @ApiTags('whatsapp-webhooks')
 @Controller('webhooks/whatsapp')
 export class PublicWhatsAppWebhooksController {
   constructor(private readonly whatsappWebhooks: WhatsAppWebhooksService) {}
 
   @Get()
-  @Header('Content-Type', 'text/plain; charset=utf-8')
   @ApiProduces('text/plain')
   @ApiOperation({
     summary: 'Meta WhatsApp webhook verification',
     description:
-      'Responds with hub.challenge as plain text when hub.mode is subscribe and hub.verify_token matches an active org config.',
+      'Responds with hub.challenge as plain text when hub.mode is subscribe and hub.verify_token matches an active org config. No JWT.',
   })
   @ApiQuery({ name: 'hub.mode', required: true, example: 'subscribe' })
   @ApiQuery({ name: 'hub.verify_token', required: true })
@@ -46,12 +51,20 @@ export class PublicWhatsAppWebhooksController {
     description: 'Verification failed',
     type: ErrorResponseDto,
   })
-  verify(
-    @Query('hub.mode') mode?: string,
-    @Query('hub.verify_token') token?: string,
-    @Query('hub.challenge') challenge?: string,
-  ): Promise<string> {
-    return this.whatsappWebhooks.verifySubscription(mode, token, challenge);
+  async verify(
+    @Query() query: Record<string, unknown>,
+    @Res() res: Response,
+  ): Promise<void> {
+    const { mode, token, challenge } = parseWhatsAppHubQuery(query);
+    const echoed = await this.whatsappWebhooks.verifySubscription(
+      mode,
+      token,
+      challenge,
+    );
+    res
+      .status(HttpStatus.OK)
+      .contentType('text/plain; charset=utf-8')
+      .send(echoed);
   }
 
   @Post()

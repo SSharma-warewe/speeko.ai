@@ -123,11 +123,13 @@ export class WhatsAppWebhooksService {
     token: string | undefined,
     challenge: string | undefined,
   ): Promise<string> {
-    if (mode !== 'subscribe' || !token?.trim() || !challenge?.trim()) {
+    const modeText = (mode ?? '').trim();
+    const provided = (token ?? '').trim();
+    const challengeText = (challenge ?? '').trim();
+    if (modeText !== 'subscribe' || !provided || !challengeText) {
       throw new ForbiddenException('Verification failed');
     }
 
-    const provided = token.trim();
     const row = await this.configs.findByVerifyTokenHash(
       hashVerifyToken(provided),
     );
@@ -138,7 +140,7 @@ export class WhatsAppWebhooksService {
     ) {
       throw new ForbiddenException('Verification failed');
     }
-    return challenge;
+    return challengeText;
   }
 
   private async resolveOrganizationId(
@@ -191,7 +193,10 @@ export class WhatsAppWebhooksService {
   }
 
   private callbackUrl(): string {
-    return whatsappCallbackUrl(this.config.get<string>('API_BASE_URL'));
+    return whatsappCallbackUrl(this.config.get<string>('API_BASE_URL'), {
+      publicUrl: this.config.get<string>('API_PUBLIC_URL'),
+      railwayPublicDomain: this.config.get<string>('RAILWAY_PUBLIC_DOMAIN'),
+    });
   }
 }
 
