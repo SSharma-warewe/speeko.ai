@@ -63,6 +63,8 @@ organizations
 ├── sip_dispatch_rules                 (inbound routing drafts → LiveKit SDR_… ids)
 ├── integration_endpoints              (CRM dial-in: preconfigured agent/task/queue + API key)
 ├── organization_integrations          (org BYO third-party keys; Nylas + GoHighLevel calendar)
+├── whatsapp_webhook_configs           (1:1 Meta verify token + phone_number_id / WABA routing)
+├── whatsapp_webhook_events            (raw inbound webhook JSONB; org nullable if ids unknown)
 ├── allowed_tool_ids                   (JSONB worker tool allowlist; `null` = existing tenant keeps full catalog, new orgs `["endCall"]`)
 └── phone_numbers                      (planned)
 
@@ -87,6 +89,8 @@ tool_profiles                  (capability bundles: platform seeds + org-owned c
 - `calls` — voice call records (queued pending, web test, or SIP outbound). Links optional `organization_id` / `organization_agent_id` / `agent_id` / `sip_trunk_id` / `batch_id` (→ `call_batches`); LiveKit `room_name` (null while pending), dispatch id, optional `livekit_sip_call_id`, numbers, **`context` JSONB** (request payload: CRM/demo fields, phoneNumber, externalId — what was asked of this call), `task_key` / `task_result` / **`task_status`** (`pending` \| `completed` \| `incomplete`), transcript/usage/`session_report` (includes **`toolEvents`**: worker tool invocations with args/result/ok/duration), **`cost` JSONB** + **`cost_usd`** (LiveKit list-price snapshot, **markup 0**, frozen on worker complete; retries append attempts), queue fields (`attempt_count`, `max_attempts`, `next_attempt_at`, `priority`, `last_failure_code`, `last_failure_at`, `dial_started_at`, `queue_locked_at`), timestamps. Status: `pending` \| `creating` \| `dialing` \| `ready` \| `failed` \| **`completed`** (session ended **and** `task.complete()` ran) \| **`incomplete`** (conversation ended without `task.complete()`) \| `cancelled`. Do **not** infer task done from `task_result` JSON (unanswered/crash paths also write one). Transitions go through `call-state-machine.ts`. Buckets: **pending** / **in_progress** / **done** (`completed` \| `incomplete` \| `failed` \| `cancelled`). Medium: `web` \| `sip`. **Inbound SIP rings** are upserted by the worker on job start (`POST /api/internal/calls/inbound` by LiveKit `room_name`) then completed on the existing complete callback; dispatch-rule metadata stays static (no per-ring `callId`). Inbound rows use `max_attempts=1` and are never requeued as outbound dials. Call APIs also expose derived top-level `toolEvents` from `session_report.toolEvents` for portal history, and **`cost`** (list-price snapshot, markup 0) on both admin and org-user call DTOs (`null` until worker complete).
 - `integration_endpoints` — org CRM / external dial-in configs. Baked-in `organization_agent_id`, `task_key`, optional `sip_trunk_id`, queue overrides (`max_attempts`, `priority`, `max_concurrent`), optional `default_context` JSONB. Auth: opaque `public_id` in the URL path + per-endpoint API key (`key_prefix` display + `key_hash` SHA-256; full secret shown only on create/rotate). Soft `is_active`; `last_used_at` on successful public enqueue. Never return `key_hash` or full secret on list/get.
 - `organization_integrations` — org-owned third-party credentials (`provider=nylas` \| `ghl`): `name`, `api_key` (secret, never returned), `api_key_prefix`, `grant_id` (Nylas; null for GHL), `location_id` (GHL; null for Nylas), `calendar_id` (Nylas default `primary`, or GHL calendar id), `api_uri` / `email` (Nylas-only), `is_active`. Used by calendar tools via agent link.
+- `whatsapp_webhook_configs` — 1:1 with org. Meta webhook subscription: `phone_number_id` / `waba_id` (at least one; unique when set), SHA-256 `verify_token_hash` + display `verify_token_prefix`. Raw verify token returned only on generate/rotate. `GET /api/webhooks/whatsapp` matches `hub.verify_token` against an active hash; inbound POSTs route by phone number id then WABA id.
+- `whatsapp_webhook_events` — one row per Meta POST: `payload` JSONB, `event_type` (first `entry[].changes[].field`, else `unknown`), `received_at`, optional `organization_id` (SET NULL; null when ids do not match a config). Always HTTP 200 after persist — no replies or message processing yet.
 - `organization_agents.calendar_integration_id` — optional FK → `organization_integrations` (SET NULL). Which calendar powers calendar tools for that agent (Nylas **or** GHL); tool enablement stays on the tool profile.
 
 ### Integration endpoints (CRM dial-in)
@@ -518,6 +522,10 @@ Worker health is “registered with LiveKit” in service logs, not a public HTM
 | PATCH | `/api/users/integrations/:id` | user JWT — update fields / optional new apiKey / isActive |
 | DELETE | `/api/users/integrations/:id` | user JWT — delete connection (agent FKs SET NULL) |
 | POST | `/api/users/integrations/:id/test` | user JWT — smoke-test (Nylas or GHL list calendars) |
+| GET | `/api/users/whatsapp/webhook-config` | user JWT — current WhatsApp webhook config (callback URL + token prefix; no raw token) |
+| POST | `/api/users/whatsapp/webhook-config` | user JWT — generate/rotate verify token + store `phoneNumberId` / `wabaId` (at least one); raw token once |
+| GET | `/api/webhooks/whatsapp` | public — Meta `hub.mode` / `hub.verify_token` / `hub.challenge`; returns challenge as text/plain |
+| POST | `/api/webhooks/whatsapp` | public — persist raw WhatsApp webhook JSONB; 200 immediately; no replies |
 | POST | `/api/internal/calls/:callId/calendar/free-busy` | worker secret — free/busy for call’s agent calendar |
 | POST | `/api/internal/calls/:callId/calendar/events/list` | worker secret — list events |
 | POST | `/api/internal/calls/:callId/calendar/events` | worker secret — create event |
@@ -683,6 +691,7 @@ Test: `POST /api/admin/calls/test` accepts optional `task` + `context`. Org web 
 | `tools` | Tool profiles list/seed + org custom CRUD; org tool allowlist (`organizations.allowed_tool_ids`); resolve `enabledTools` ids for metadata (profile ∩ allowlist when org-scoped) |
 | `integration-endpoints` | Org CRM dial-in: preconfigured agent/task/trunk/queue + API key; public thin `POST …/calls` enqueue |
 | `organization-integrations` | Org BYO third-party keys (Nylas + GHL calendar); user CRUD + test; worker Nylas proxy via `CalendarToolsService` |
+| `whatsapp` | Org WhatsApp webhook config (hashed verify token + phone/WABA routing) + public Meta GET verify / POST ingest. Persist only — no Graph replies |
 | `sip-trunks` | Org SIP trunk CRUD: admin outbound; **user outbound** create/link/update/delete; user inbound draft + publish; combined inbound publish orchestrator |
 | `sip-dispatch-rules` | Org dispatch-rule draft CRUD + publish to LiveKit (`CreateSIPDispatchRule` + agent `roomConfig`) |
 | `livekit` | Thin adapter only: rooms, dispatch, tokens, **SIP** (`createSipOutboundTrunk`, `createSipInboundTrunk`, `createSipDispatchRule`, `createSipParticipant`, `deleteSipTrunk`, `deleteSipDispatchRule`) — **no** controllers or agent business logic |
@@ -725,7 +734,7 @@ controller → service → repository → TypeORM entity → Postgres
 - Inject custom repositories into services — **do not** put `@InjectRepository` in services.
 - Keep `@InjectRepository(Entity)` only inside the matching `*.repository.ts`.
 - Register repositories in the module `providers` alongside services.
-- Examples: `admins.repository.ts`, `organizations.repository.ts`, `users.repository.ts`, `agents.repository.ts`, `organization-agents.repository.ts`, `sip-trunks.repository.ts`, `sip-dispatch-rules.repository.ts`, `calls.repository.ts`, `organization-queue-settings.repository.ts`, `call-batches.repository.ts`, `integration-endpoints.repository.ts`.
+- Examples: `admins.repository.ts`, `organizations.repository.ts`, `users.repository.ts`, `agents.repository.ts`, `organization-agents.repository.ts`, `sip-trunks.repository.ts`, `sip-dispatch-rules.repository.ts`, `calls.repository.ts`, `organization-queue-settings.repository.ts`, `call-batches.repository.ts`, `integration-endpoints.repository.ts`, `whatsapp-webhook-configs.repository.ts`, `whatsapp-webhook-events.repository.ts`.
 - `users` HTTP is org **members** only (admin create/list/invite). Org-user agent CRUD (`/api/users/agents`, `/api/users/agent-templates`) lives in `agents/user-organization-agents.controller.ts` next to the admin org-agent controller. Do not put agent routes back on `UsersController`.
 - URL slugs (`organizations.slug`, org-agent `slug`, tool-profile `key`) use `slugify` / `SLUG_PATTERN` in `apps/api/src/common/slug.ts`. Org-agent empty input falls back to `agent` via `agents/slug.util.ts`. Voice/TTS override fields on template vs org-agent PATCH live in `agents/dto/voice-settings.dto.ts`.
 - Pack org-agent LiveKit job metadata with `packOrgAgentJobMetadata` (`apps/api/src/agents/job-metadata.ts`) — inbound SIP dispatch, outbound dial, and org web test. Do not copy prompt/voice/tools assembly. Inbound draft publish batch uses `runPublishBatch` (`sip-trunks/lib/publish-batch.ts`).
@@ -735,6 +744,7 @@ controller → service → repository → TypeORM entity → Postgres
 - `email` is an infrastructure adapter (global `EmailService` only), not a repository-backed domain module. Uses Plunk `POST /v1/send`.
 - `ghl` is an infrastructure adapter (`GhlService` + worker-secret calendar controller). Calendar tools resolve org GHL connections; get-demo CRM stays env. Not a repository-backed domain module.
 - `demo` is a thin public proxy (no repository): `DemoAbuseGuard` (origin + rate limits) → GHL upsert (best-effort) → `ENDPOINT_URL` + `SPEEKO_API` → integration enqueue.
+- `whatsapp` is webhook ingest only: org-user generate/rotate (`POST /users/whatsapp/webhook-config`) + public Meta GET/POST `/webhooks/whatsapp`. Persist raw JSONB; do not call Graph or send replies. Callback URL uses `API_BASE_URL`.
 - `queue` uses raw SQL for atomic claim (`FOR UPDATE SKIP LOCKED`) via TypeORM `DataSource`; settings/batches use repositories.
 - `price` is a catalog + calculator (`PriceService`). Inject it; do not inline LiveKit rates in `calls`. Worker complete appends one cost attempt (including requeue). Call DTOs include `cost` (`null` until priced). Portal shows the snapshot on the org calls tape / dossier and admin all-calls / overview. `GET /api/users/costs/summary` is JWT-org only; `POST /api/admin/costs/recompute` stays admin.
 
@@ -744,7 +754,7 @@ controller → service → repository → TypeORM entity → Postgres
 2. Put LiveKit agent job work in `apps/worker` (tsx + `@livekit/agents`, not Nest webpack).
 3. Validate all inputs with `class-validator` DTOs; document with `@nestjs/swagger`. Success **and** error HTTP codes belong on the route (`ApiJwtErrors`, `ApiNotFoundError`, `ApiConflictError`, …) using `ErrorResponseDto`.
 4. Never commit real secrets; use `.env` (gitignored) + `.env.example`.
-5. Prefer clear module boundaries: `auth`, `admins`, `organizations`, `users`, `agents`, `tools` (profiles), `integration-endpoints`, `organization-integrations` (Nylas + GHL calendar keys + worker Nylas proxy), `demo` (get-demo proxy), `sip-trunks`, `sip-dispatch-rules`, `calls`, `queue`, `price` (LiveKit list-price cost analysis, no markup), `livekit` (adapter), `email` (Plunk adapter), `ghl` (GoHighLevel adapter + worker GHL calendar proxy).
+5. Prefer clear module boundaries: `auth`, `admins`, `organizations`, `users`, `agents`, `tools` (profiles), `integration-endpoints`, `organization-integrations` (Nylas + GHL calendar keys + worker Nylas proxy), `whatsapp` (Meta webhook config + ingest), `demo` (get-demo proxy), `sip-trunks`, `sip-dispatch-rules`, `calls`, `queue`, `price` (LiveKit list-price cost analysis, no markup), `livekit` (adapter), `email` (Plunk adapter), `ghl` (GoHighLevel adapter + worker GHL calendar proxy).
 6. Persistence: one custom repository per entity; services own business logic only.
 7. When adding telephony (numbers, trunks, dispatch rules) or schema for calls/queue, update Erflow + this file in the same change set.
 8. **Update this AGENTS.md** when project conventions, scripts, schema ownership, or Railway deploy layout change.
@@ -752,7 +762,7 @@ controller → service → repository → TypeORM entity → Postgres
 10. Keep LiveKit Inference model pins in `apps/worker/src/models.ts`.
 11. Keep LiveKit SDK usage inside `livekit/`; calls, sip-trunks, and sip-dispatch-rules orchestrate via `LivekitService`.
 12. **API owns outbound SIP dial** (`CreateSIPParticipant`) **and the outbound dial queue**; worker stays voice-only + inbound-ensure + complete callback.
-13. Never return SIP `auth_password`, integration `key_hash` / full API keys (except once on create/rotate), or `organization_integrations.api_key` in API responses.
+13. Never return SIP `auth_password`, integration `key_hash` / full API keys (except once on create/rotate), `organization_integrations.api_key`, or WhatsApp `verify_token_hash` / raw verify token (except once on generate) in API responses.
 14. **System prompts = persona only**; workflows live in LiveKit Tasks; tools are worker registry code enabled by tool profiles. **Org users only enable tools the admin assigned** (`organizations.allowed_tool_ids`). New orgs get `["endCall"]`. **Existing orgs stay `null` on deploy** (full catalog) until an admin saves the Tools tab. Pack `enabledTools` through `resolveEnabledToolIds(profileId, organizationId)` so job metadata is the allowlist ∩ profile (`null` does not strip). Do not hardcode the full worker catalog in the org portal — fetch `GET /users/tool-profiles/known-tools`.
 15. Metadata is the single runtime config source for the worker — no DB access from the worker.
 16. Never put executable code or full JSON tool schemas in metadata / Postgres tool profiles (ids only).
@@ -784,6 +794,7 @@ npx jest --testPathPatterns=demo/test --no-coverage
 npx jest --testPathPatterns=users/test --no-coverage
 npx jest --testPathPatterns=organizations/test --no-coverage
 npx jest --testPathPatterns=organization-integrations/test --no-coverage
+npx jest --testPathPatterns=whatsapp/test --no-coverage
 npx jest --testPathPatterns=agents/test --no-coverage
 npx jest --testPathPatterns=sip-trunks/test --no-coverage
 npx jest --testPathPatterns=sip-dispatch-rules/test --no-coverage
@@ -849,6 +860,7 @@ Work **top-down by risk**: security → money/dial side effects → multi-tenant
 | P2 | `price` | **Done** | Gemma/Nova-3/Inworld list-price math, web vs SIP room lines, self-hosted vs Cloud agent session, 10s min, unknown models, attempt rollup, admin summary SQL, recompute skip/404, org-user summary JWT-org scoped |
 | P2 | `sip-trunks` / `sip-dispatch-rules` | **Done** | Draft vs publish, password redaction, inbound LiveKit delete (404 ignore), dispatch metadata pack, LiveKit adapter mocked |
 | P2 | `organization-integrations` | **Done** | Secrets never returned (mapper + CRUD), Nylas + GHL create/test, calendar resolve/freeBusy matrix (Nylas mocked) |
+| P2 | `whatsapp` | **Done** | Generate stores hash only; rotate invalidates old token; at-least-one id; 409 on phone/WABA collision; Meta GET verify (challenge vs 403); POST persist + route by phone_number_id / WABA; unknown ids 200 + null org; garbage body 400 |
 | P2 | `email` | **Done** | Soft-disable without key, never throws, Plunk `send` / `sendText`, never log API key |
 | P2 | `ghl` | **Done** | Soft-disable without key/location, upsert + tags/note, org calendar creds + listCalendars, never throws, never log token, free-slots map + ms query, `lookupGhlContact` / `upsertGhlContact` persist `ghlContactId`, phone-like `contactId` ignored, contact-not-found ≠ busy slot, book does not create contacts, hide existing events |
 | P2 | `livekit` | **Done** | URL helper; adapter with mocked SDK (rooms, dispatch, token/meet, SIP trunks/rules/participant, hasRemoteCallee) |

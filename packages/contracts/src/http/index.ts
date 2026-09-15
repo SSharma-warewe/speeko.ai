@@ -89,3 +89,10 @@ export type {
   UpdateIntegrationEndpointRequest,
   UpdateOrganizationIntegrationRequest,
 } from './integrations.js';
+
+export type {
+  GenerateWhatsAppWebhookConfigRequest,
+  WhatsAppWebhookAck,
+  WhatsAppWebhookConfig,
+  WhatsAppWebhookConfigSecret,
+} from './whatsapp.js';

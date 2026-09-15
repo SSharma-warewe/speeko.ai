@@ -11,6 +11,8 @@ import {
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(ApiModule);
+  // Meta WhatsApp webhooks can be up to 3 MB.
+  app.useBodyParser('json', { limit: '3mb' });
 
   // Railway / reverse proxies: trust X-Forwarded-For so login rate limits key on real client IP.
   app.set('trust proxy', 1);
@@ -89,6 +91,14 @@ async function bootstrap() {
     .addTag(
       'user-integrations',
       'Org third-party connections (Nylas calendar API key + grant) for agent tools',
+    )
+    .addTag(
+      'user-whatsapp-webhooks',
+      'Generate / inspect org WhatsApp webhook callback URL + verify token (org user)',
+    )
+    .addTag(
+      'whatsapp-webhooks',
+      'Public Meta WhatsApp webhook verification (GET) and ingest (POST)',
     )
     .addTag(
       'internal-calendar',

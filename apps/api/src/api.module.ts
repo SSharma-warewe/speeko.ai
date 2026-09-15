@@ -21,6 +21,7 @@ import { SipDispatchRulesModule } from './sip-dispatch-rules/sip-dispatch-rules.
 import { SipTrunksModule } from './sip-trunks/sip-trunks.module';
 import { ToolsModule } from './tools/tools.module';
 import { UsersModule } from './users/users.module';
+import { WhatsappModule } from './whatsapp/whatsapp.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { UsersModule } from './users/users.module';
     QueueModule,
     IntegrationEndpointsModule,
     OrganizationIntegrationsModule,
+    WhatsappModule,
     DemoModule,
     AuthModule,
   ],
