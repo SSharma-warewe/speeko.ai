@@ -6,10 +6,12 @@ import {
   speakRealtimeGoodbye,
   speakRealtimeOpening,
 } from './realtime-speech.js';
+import { speakTurnAck, userTurnText } from './turn-ack.js';
 
 /**
- * AgentTask with realtime speech hooks:
+ * AgentTask with speech hooks:
  * - onEnter generateReplys the opening after handoff (parent stays silent)
+ * - pipeline onUserTurnCompleted says जी / Okay without awaiting
  * - finishWorkflowTask speaks goodbye while the task is still current
  */
 export function createWorkflowTask<ResultT>(
@@ -30,6 +32,9 @@ export function createWorkflowTask<ResultT>(
         return;
       }
       await speakRealtimeOpening(ctx.session, meta);
+    },
+    onUserTurnCompleted(ctx, _turnCtx, newMessage) {
+      speakTurnAck(ctx.session, meta, userTurnText(newMessage));
     },
   });
 }

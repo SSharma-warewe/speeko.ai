@@ -23,7 +23,7 @@ export type HangupOptions = {
  * Parent agent onExit speaks goodbye via session.say; do not generate a second farewell here.
  */
 export function hangUpCall(
-  session: voice.AgentSession,
+  session: voice.AgentSession<SessionUserData>,
   options: HangupOptions = {},
 ): void {
   const reason = options.reason ?? 'hangup';
