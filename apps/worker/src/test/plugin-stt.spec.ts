@@ -39,7 +39,7 @@ describe('Sarvam Python plugin STT client', () => {
     });
     expect(url).toContain('language=auto');
     expect(url).toContain('stream_type=fast');
-    expect(url).toContain('vad_min_silence_ms=500');
+    expect(url).toContain('vad_min_silence_ms=350');
     expect(url).toContain('vad_min_speech_ms=200');
     expect(url).toContain('vad_sot_threshold=0.7');
   });

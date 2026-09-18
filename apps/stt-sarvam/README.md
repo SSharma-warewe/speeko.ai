@@ -7,11 +7,11 @@ The Node `@livekit/agents-plugin-sarvam` package has no realtime STT class. This
 ```
 GET  /health  → { ok: true, plugin: "sarvam.STTRealtime" }
 WS   /stt?language=auto&stream_type=fast
-     &vad_min_silence_ms=500&vad_min_speech_ms=200&vad_sot_threshold=0.7
+     &vad_min_silence_ms=350&vad_min_speech_ms=200&vad_sot_threshold=0.7
      binary in: s16le PCM 16 kHz mono
      JSON out: { type: start|interim|final|end|usage|error, ... }
 
-SIP defaults pin Sarvam server VAD (500ms end-of-turn silence). Node always sends those query params.
+SIP defaults pin Sarvam server VAD (350ms end-of-turn silence). Node always sends those query params.
 ```
 
 ```bash

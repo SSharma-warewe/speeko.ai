@@ -14,14 +14,14 @@ export const PIPELINE_INTERRUPTION = {
 
 /**
  * Streaming TurnDetector v1 defaults are 300 / 2500. Uncertain Hindi
- * fragments sat on the 2.5s ceiling (prod gap ~2363ms). Cap below 1s so
- * those turns still feel like a phone reply. Keep the 300ms floor —
- * complete turns already commit there. Do not raise minDelay for the
+ * fragments sat on the 2.5s ceiling (prod gap ~2363ms). Step 1 caps
+ * uncertain turns at 500ms. Keep the 300ms floor — complete turns
+ * already commit there. Do not raise minDelay for the
  * "transcript after commit" log: that was a second utterance, not slow STT.
  */
 export const PIPELINE_ENDPOINTING = {
   minDelay: 300,
-  maxDelay: 700,
+  maxDelay: 500,
 } as const;
 
 /** Start TTS during the EOT wait so Bulbul TTFB (~700ms) is not stacked after commit. */
@@ -60,7 +60,7 @@ export function buildAgentSession(
   // Pipeline (Deepgram and Sarvam realtime STT): omit vad so AgentSession
   // auto-provisions bundled Silero. TurnDetector v1 requires a VAD; passing
   // vad: null disables EOT. Do not restack 250/400ms endpointing — that was
-  // only for STT-owned turns. Override streaming 300/2500 with 300/700 and
+  // only for STT-owned turns. Override streaming 300/2500 with 300/500 and
   // start TTS during the EOT wait.
   return new voice.AgentSession<SessionUserData>({
     stt: models.stt,

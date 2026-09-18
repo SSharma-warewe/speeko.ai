@@ -5,8 +5,8 @@ from __future__ import annotations
 SAMPLE_RATE = 16000
 NUM_CHANNELS = 1
 
-# SIP / telephony pins from Sarvam's LiveKit production guide.
-DEFAULT_VAD_MIN_SILENCE_MS = 500
+# SIP / telephony pins. Node always sends query params; default matches worker Step 1.
+DEFAULT_VAD_MIN_SILENCE_MS = 350
 DEFAULT_VAD_MIN_SPEECH_MS = 200
 DEFAULT_VAD_SOT_THRESHOLD = 0.7
 
