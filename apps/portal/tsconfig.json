@@ -27,5 +27,6 @@
       "react-dom": ["./node_modules/@types/react-dom/index.d.ts"]
     }
   },
-  "include": ["src", "../../packages/ui/src"]
+  "include": ["src", "../../packages/ui/src"],
+  "exclude": ["**/*.spec.ts"]
 }
