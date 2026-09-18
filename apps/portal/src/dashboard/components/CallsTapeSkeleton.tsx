@@ -29,7 +29,7 @@ export function CallsTapeSkeleton({ inbound = false, rows = 8 }: TapeProps) {
         <thead>
           <tr>
             <th>Party</th>
-            <th>Status</th>
+            <th>Outcome</th>
             <th>Task</th>
             <th className="ops-calls-cost-col">Cost</th>
             {!inbound ? <th>Try</th> : null}

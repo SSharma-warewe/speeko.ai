@@ -6,6 +6,7 @@ import { EmptyState } from "../components/EmptyState";
 import { ErrorBlock } from "../components/ErrorBlock";
 import { LoadingBlock } from "../components/LoadingBlock";
 import { PageHeader } from "../components/PageHeader";
+import { CallOutcomeBadge } from "../components/CallOutcomeBadge";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAsync } from "../hooks/useAsync";
 
@@ -38,7 +39,7 @@ export default function CallsListPage() {
                 <thead>
                   <tr>
                     <th>ID</th>
-                    <th>Status</th>
+                    <th>Outcome</th>
                     <th>Medium</th>
                     <th>Direction</th>
                     <th>Party</th>
@@ -56,7 +57,7 @@ export default function CallsListPage() {
                         </Link>
                       </td>
                       <td>
-                        <StatusBadge status={c.status} />
+                        <CallOutcomeBadge call={c} />
                       </td>
                       <td className="ops-mono">{c.medium}</td>
                       <td>

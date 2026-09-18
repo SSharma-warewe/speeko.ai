@@ -4,6 +4,7 @@ import { getAdminCostSummary, getAdminQueueStats, listCalls, listOrganizations }
 import { formatRelative, formatUsd, shortId } from "../../lib/format";
 import { ErrorBlock } from "../components/ErrorBlock";
 import { LoadingBlock } from "../components/LoadingBlock";
+import { CallOutcomeBadge } from "../components/CallOutcomeBadge";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAsync } from "../hooks/useAsync";
 
@@ -138,7 +139,7 @@ export default function OverviewPage() {
                         to={`/admin-dashboard/calls/${c.id}`}
                         className={`ops-ov-tape-row${live ? " is-live" : ""}`}
                       >
-                        <StatusBadge status={c.status} />
+                        <CallOutcomeBadge call={c} />
                         <span className="ops-ov-tape-to">
                           {c.toNumber || c.participantIdentity || "—"}
                         </span>

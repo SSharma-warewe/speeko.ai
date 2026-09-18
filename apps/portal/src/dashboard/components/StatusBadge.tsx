@@ -19,6 +19,10 @@ const STATUS_TONE: Record<string, BadgeTone> = {
   paused: "warn",
   warn: "warn",
   disabled: "neutral",
+  success: "success",
+  danger: "danger",
+  info: "info",
+  neutral: "neutral",
 };
 
 type Props = {

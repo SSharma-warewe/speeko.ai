@@ -23,7 +23,7 @@ import {
 } from "../components/CallsTapeSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorBlock } from "../components/ErrorBlock";
-import { StatusBadge } from "../components/StatusBadge";
+import { CallOutcomeBadge } from "../components/CallOutcomeBadge";
 import { useUserAsync } from "../hooks/useAsync";
 
 type DirectionTab = "outbound" | "inbound";
@@ -351,7 +351,7 @@ export default function UserCallsPage() {
                 <thead>
                   <tr>
                     <th>Party</th>
-                    <th>Status</th>
+                    <th>Outcome</th>
                     <th>Task</th>
                     <th className="ops-calls-cost-col">Cost</th>
                     {!isInbound ? <th>Try</th> : null}
@@ -385,7 +385,7 @@ export default function UserCallsPage() {
                           </Link>
                         </td>
                         <td>
-                          <StatusBadge status={c.status} />
+                          <CallOutcomeBadge call={c} />
                         </td>
                         <td className="ops-mono">{c.taskKey || "—"}</td>
                         <td className="ops-calls-cost-col">

@@ -22,6 +22,7 @@ import { CallOutcomeBar } from "../components/CallOutcomeBar";
 import { CallsVolumeChart } from "../components/CallsVolumeChart";
 import { ErrorBlock } from "../components/ErrorBlock";
 import { LoadingBlock } from "../components/LoadingBlock";
+import { CallOutcomeBadge } from "../components/CallOutcomeBadge";
 import { StatusBadge } from "../components/StatusBadge";
 import { useUserAsync } from "../hooks/useAsync";
 
@@ -445,7 +446,7 @@ function TapeRow({ call }: { call: CallRecord }) {
       to={`/dashboard/calls/${call.id}`}
       className={`ops-ov-tape-row${live ? " is-live" : ""}`}
     >
-      <StatusBadge status={call.status} />
+      <CallOutcomeBadge call={call} />
       <span className="ops-ov-tape-to">
         {call.toNumber || call.participantIdentity || "—"}
       </span>
