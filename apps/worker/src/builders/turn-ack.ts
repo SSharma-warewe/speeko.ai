@@ -1,15 +1,32 @@
 import { isRealtimeLlmModel } from '@call-agent/contracts';
 import type { AgentJobMetadata } from '@call-agent/contracts';
+import { voice } from '@livekit/agents';
 import { personaSpeaksHindi } from './prompt-builder.js';
 
 export const HINDI_TURN_ACK = 'जी';
 export const ENGLISH_TURN_ACK = 'Okay';
+
+const ACK_SAY_OPTIONS = {
+  addToChatCtx: false,
+  allowInterruptions: true,
+} as const;
 
 export type TurnAckSession = {
   say: (
     text: string,
     options?: { addToChatCtx?: boolean; allowInterruptions?: boolean },
   ) => unknown;
+};
+
+export type EarlyTurnAckSession = TurnAckSession & {
+  on(
+    event: string,
+    listener: (ev: { newState?: string }) => void,
+  ): unknown;
+};
+
+export type EarlyTurnAckHandle = {
+  enable: () => void;
 };
 
 /** Canned ack while the pipeline reply generates. Realtime owns its own VAD. */
@@ -25,6 +42,14 @@ export function resolveTurnAckSpeech(
     return null;
   }
   if (!(userText ?? '').trim()) {
+    return null;
+  }
+  return turnAckLine(meta);
+}
+
+/** Pipeline only. No transcript — VAD already decided they spoke. */
+export function resolveEarlyTurnAck(meta: AgentJobMetadata): string | null {
+  if (isRealtimeLlmModel(meta.model)) {
     return null;
   }
   return turnAckLine(meta);
@@ -56,9 +81,17 @@ export function userTurnText(message: {
   return '';
 }
 
+function sayAck(session: TurnAckSession, line: string): void {
+  try {
+    session.say(line, ACK_SAY_OPTIONS);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`[agent] turn ack say failed: ${message}`);
+  }
+}
+
 /**
- * LiveKit onUserTurnCompleted: speak the ack without awaiting so generateReply
- * starts in parallel. Keep it out of chat history.
+ * Speak the ack without awaiting. Keep it out of chat history.
  */
 export function speakTurnAck(
   session: TurnAckSession,
@@ -69,10 +102,54 @@ export function speakTurnAck(
   if (!line) {
     return;
   }
-  try {
-    session.say(line, { addToChatCtx: false, allowInterruptions: true });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.warn(`[agent] turn ack say failed: ${message}`);
+  sayAck(session, line);
+}
+
+export function speakEarlyTurnAck(
+  session: TurnAckSession,
+  meta: AgentJobMetadata,
+): void {
+  const line = resolveEarlyTurnAck(meta);
+  if (!line) {
+    return;
   }
+  console.log(`[agent] turn ack early line=${line}`);
+  sayAck(session, line);
+}
+
+/**
+ * Pipeline: say जी / Okay on user speaking → listening (VAD speech end),
+ * not on turn commit. enable() after the opening so we do not talk over it.
+ */
+export function attachEarlyTurnAck(
+  session: EarlyTurnAckSession,
+  meta: AgentJobMetadata,
+): EarlyTurnAckHandle {
+  if (isRealtimeLlmModel(meta.model)) {
+    return { enable() {} };
+  }
+
+  let enabled = false;
+  let heardSpeech = false;
+
+  session.on(
+    voice.AgentSessionEventTypes.UserStateChanged,
+    (ev) => {
+      if (ev.newState === 'speaking') {
+        heardSpeech = true;
+        return;
+      }
+      if (ev.newState !== 'listening' || !enabled || !heardSpeech) {
+        return;
+      }
+      heardSpeech = false;
+      speakEarlyTurnAck(session, meta);
+    },
+  );
+
+  return {
+    enable() {
+      enabled = true;
+    },
+  };
 }

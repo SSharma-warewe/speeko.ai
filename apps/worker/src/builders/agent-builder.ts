@@ -14,6 +14,7 @@ import {
 } from './prompt-builder.js';
 import { buildTask } from './task-builder.js';
 import { buildTools } from './tool-builder.js';
+import { attachEarlyTurnAck, type EarlyTurnAckHandle } from './turn-ack.js';
 import { buildAgentSession } from './voice-builder.js';
 
 export type BuiltAgentRuntime = {
@@ -30,6 +31,8 @@ type AgentTools = Awaited<ReturnType<typeof buildTools>>;
  * parse metadata (caller) → build prompt → resolve tools → parent onEnter opens + runs task → onExit says goodbye.
  */
 export class AgentRuntimeBuilder {
+  private earlyTurnAck: EarlyTurnAckHandle | null = null;
+
   constructor(private readonly meta: AgentJobMetadata) {}
 
   async build(): Promise<BuiltAgentRuntime> {
@@ -43,6 +46,7 @@ export class AgentRuntimeBuilder {
     const session = buildAgentSession(models, userData, {
       medium: this.meta.medium,
     });
+    this.earlyTurnAck = attachEarlyTurnAck(session, this.meta);
     const agent = this.createAgent(userData, tools);
 
     return { session, agent, userData };
@@ -123,6 +127,8 @@ export class AgentRuntimeBuilder {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.warn(`[agent] onEnter opening failed: ${message}`);
+    } finally {
+      this.earlyTurnAck?.enable();
     }
   }
 
