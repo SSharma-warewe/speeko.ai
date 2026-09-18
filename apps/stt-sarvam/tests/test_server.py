@@ -109,7 +109,7 @@ class HealthAndSttTests(AioHTTPTestCase):
         self.assertEqual(self.stream.frames, ["frame"])
         self.assertEqual(self.factory_kwargs["language"], "auto")
         self.assertEqual(self.factory_kwargs["stream_type"], "fast")
-        self.assertEqual(self.factory_kwargs["vad_min_silence_ms"], 350)
+        self.assertEqual(self.factory_kwargs["vad_min_silence_ms"], 250)
         self.assertEqual(self.factory_kwargs["vad_min_speech_ms"], 200)
         self.assertEqual(self.factory_kwargs["vad_sot_threshold"], 0.7)
 

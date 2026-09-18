@@ -45,7 +45,7 @@ export type ResolvedSarvamRealtimeSttOptions = {
 
 /**
  * Telephony VAD. Sarvam's LiveKit SIP guide starts at 500ms silence.
- * Step 1 trims to 350 so FINAL/EOS (and preemptive TTS) start earlier;
+ * Step 2 trims to 250 so FINAL/EOS (and preemptive TTS) start earlier;
  * TurnDetector v1 still owns the conversational commit.
  */
 export const TELEPHONY_DEFAULTS = {
@@ -54,7 +54,7 @@ export const TELEPHONY_DEFAULTS = {
   endpointing: 'vad' as const,
   vadSotThreshold: 0.7,
   vadMinSpeechMs: 200,
-  vadMinSilenceMs: 350,
+  vadMinSilenceMs: 250,
 };
 
 export function resolveSarvamRealtimeSttOptions(

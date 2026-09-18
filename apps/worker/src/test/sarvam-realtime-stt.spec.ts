@@ -28,12 +28,12 @@ describe('Sarvam realtime WS URL', () => {
     });
     expect(opts.language).toBe('auto');
     expect(opts.streamType).toBe('fast');
-    expect(opts.vadMinSilenceMs).toBe(350);
+    expect(opts.vadMinSilenceMs).toBe(250);
     const url = buildSarvamRealtimeWsUrl(opts);
     expect(url).toContain('language_code=auto');
     expect(url).toContain('stream_type=fast');
     expect(url).toContain('model=saaras%3Av3-realtime');
-    expect(url).toContain('silence_duration_ms=350');
+    expect(url).toContain('silence_duration_ms=250');
   });
 });
 
