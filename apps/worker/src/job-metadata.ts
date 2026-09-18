@@ -3,6 +3,7 @@ import {
   CallMedium,
   isDeliveryMode,
   type AgentJobMetadata,
+  type CompleteCallPayload,
 } from '@call-agent/contracts';
 
 export type { AgentJobMetadata, AgentJobPrompt } from '@call-agent/contracts';
@@ -13,20 +14,21 @@ const FALLBACK_SYSTEM = [
   'Follow company policies and never invent facts.',
 ].join(' ');
 
+//common function 
 function parseDirection(value: unknown): AgentDirection {
   return value === AgentDirection.OUTBOUND
     ? AgentDirection.OUTBOUND
     : AgentDirection.INBOUND;
 }
-
-function parseMedium(value: unknown): CallMedium | undefined {
+export class JobMeta{
+  constructor (){}
+   private parseMedium(value: unknown): CallMedium | undefined {
   if (value === CallMedium.WEB || value === CallMedium.SIP) {
     return value;
   }
   return undefined;
 }
-
-function parseHookField(
+private parseHookField(
   value: unknown,
 ): string | null | undefined {
   if (value === undefined) return undefined;
@@ -34,12 +36,7 @@ function parseHookField(
   if (typeof value === 'string') return value;
   return undefined;
 }
-
-/**
- * Overlay live org-agent config onto the static inbound dispatch snapshot.
- * Ring-specific fields (callId, SIP identity, context) stay from the job.
- */
-export function mergeInboundJobMetadata(
+ mergeInboundJobMetadata(
   dispatched: AgentJobMetadata,
   live: AgentJobMetadata,
 ): AgentJobMetadata {
@@ -53,8 +50,7 @@ export function mergeInboundJobMetadata(
     context: dispatched.context ?? live.context,
   };
 }
-
-export function parseJobMetadata(raw: string | undefined | null): AgentJobMetadata {
+  parseJobMetadata(raw: string | undefined | null): AgentJobMetadata {
   if (!raw || !raw.trim()) {
     return {
       callId: undefined,
@@ -116,15 +112,15 @@ export function parseJobMetadata(raw: string | undefined | null): AgentJobMetada
           : undefined,
       agentKey: typeof parsed.agentKey === 'string' ? parsed.agentKey : 'unknown',
       direction: parseDirection(parsed.direction),
-      medium: parseMedium(parsed.medium),
+      medium: this.parseMedium(parsed.medium),
       task:
         typeof parsed.task === 'string' && parsed.task.trim()
           ? parsed.task.trim()
           : 'general',
       prompt: {
         systemPrompt,
-        onEnterInstructions: parseHookField(parsed.prompt?.onEnterInstructions),
-        onExitInstructions: parseHookField(parsed.prompt?.onExitInstructions),
+        onEnterInstructions: this.parseHookField(parsed.prompt?.onEnterInstructions),
+        onExitInstructions: this.parseHookField(parsed.prompt?.onExitInstructions),
       },
       enabledTools,
       context:
@@ -182,3 +178,89 @@ export function parseJobMetadata(raw: string | undefined | null): AgentJobMetada
     };
   }
 }
+
+  /** Best-effort serialize LiveKit ChatContext / session.history. */
+  serializeTranscript(history: {
+    toJSON?: (opts?: { excludeTimestamp?: boolean }) => unknown;
+    items?: unknown[];
+  }): CompleteCallPayload['transcript'] {
+    try {
+      if (typeof history.toJSON === 'function') {
+        const json = history.toJSON({ excludeTimestamp: false }) as {
+          items?: Array<Record<string, unknown>>;
+        };
+        const items = Array.isArray(json?.items) ? json.items : [];
+        return items
+          .map((item) => {
+            const role = String(item.role ?? item.type ?? 'unknown');
+            let content = '';
+            if (typeof item.content === 'string') {
+              content = item.content;
+            } else if (Array.isArray(item.content)) {
+              content = item.content
+                .map((c) => {
+                  if (typeof c === 'string') return c;
+                  if (c && typeof c === 'object' && 'text' in c) {
+                    return String((c as { text: unknown }).text ?? '');
+                  }
+                  return '';
+                })
+                .filter(Boolean)
+                .join(' ');
+            } else if (typeof item.text === 'string') {
+              content = item.text;
+            }
+            return {
+              role,
+              content,
+              createdAt:
+                typeof item.createdAt === 'number' ||
+                typeof item.createdAt === 'string'
+                  ? item.createdAt
+                  : null,
+              id: typeof item.id === 'string' ? item.id : undefined,
+            };
+          })
+          .filter((m) => m.content.trim().length > 0 || m.role === 'assistant');
+      }
+    } catch (err) {
+      console.warn('[agent] serializeTranscript failed', err);
+    }
+    return [];
+  }
+
+  serializeUsage(usage: {
+    modelUsage?: unknown[];
+  }): Record<string, unknown> | null {
+    try {
+      if (!usage) return null;
+      return {
+        models: Array.isArray(usage.modelUsage) ? usage.modelUsage : [],
+      };
+    } catch {
+      return null;
+    }
+  }
+}
+
+/*JbMetadataService
+│
+├── parse()
+│   └── JSON parsing + schema validation
+│
+├── mergeInbound()
+│   └── Combine dispatched and live metadata
+│
+├── normalize()
+│   └── Defaults + string cleanup + numeric ranges
+│
+└── createFallback()
+    └── Development-only fallback
+
+
+
+/**
+ * Overlay live org-agent config onto the static inbound dispatch snapshot.
+ * Ring-specific fields (callId, SIP identity, context) stay from the job.
+ */
+

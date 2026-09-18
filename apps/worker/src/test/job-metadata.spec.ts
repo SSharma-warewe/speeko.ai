@@ -1,8 +1,10 @@
-import { mergeInboundJobMetadata, parseJobMetadata } from '../job-metadata';
+import { JobMeta } from '../job-metadata';
 
 describe('parseJobMetadata voice extras', () => {
+  const jobMeta = new JobMeta();
+
   it('empty raw → null speakingRate / deliveryMode', () => {
-    const meta = parseJobMetadata('');
+    const meta = jobMeta.parseJobMetadata('');
     expect(meta.speakingRate).toBeNull();
     expect(meta.deliveryMode).toBeNull();
     expect(meta.voice).toBeNull();
@@ -10,7 +12,7 @@ describe('parseJobMetadata voice extras', () => {
   });
 
   it('parses organizationAgentId from dispatch JSON', () => {
-    const meta = parseJobMetadata(
+    const meta = jobMeta.parseJobMetadata(
       JSON.stringify({
         organizationId: 'org-1',
         organizationAgentId: 'oa-9',
@@ -27,7 +29,7 @@ describe('parseJobMetadata voice extras', () => {
   });
 
   it('parses speakingRate and known deliveryMode', () => {
-    const meta = parseJobMetadata(
+    const meta = jobMeta.parseJobMetadata(
       JSON.stringify({
         agentKey: 'outbound',
         direction: 'outbound',
@@ -47,7 +49,7 @@ describe('parseJobMetadata voice extras', () => {
   });
 
   it('parses ttsModel', () => {
-    const meta = parseJobMetadata(
+    const meta = jobMeta.parseJobMetadata(
       JSON.stringify({
         agentKey: 'outbound',
         direction: 'outbound',
@@ -63,13 +65,13 @@ describe('parseJobMetadata voice extras', () => {
   });
 
   it('empty raw → null ttsModel', () => {
-    expect(parseJobMetadata('').ttsModel).toBeNull();
-    expect(parseJobMetadata('').sttModel).toBeNull();
-    expect(parseJobMetadata('').speechLanguage).toBeNull();
+    expect(jobMeta.parseJobMetadata('').ttsModel).toBeNull();
+    expect(jobMeta.parseJobMetadata('').sttModel).toBeNull();
+    expect(jobMeta.parseJobMetadata('').speechLanguage).toBeNull();
   });
 
   it('parses sttModel and speechLanguage', () => {
-    const meta = parseJobMetadata(
+    const meta = jobMeta.parseJobMetadata(
       JSON.stringify({
         agentKey: 'outbound',
         direction: 'outbound',
@@ -89,7 +91,7 @@ describe('parseJobMetadata voice extras', () => {
   });
 
   it('mergeInboundJobMetadata overlays live voice/model and keeps ring fields', () => {
-    const dispatched = parseJobMetadata(
+    const dispatched = jobMeta.parseJobMetadata(
       JSON.stringify({
         organizationId: 'org-1',
         organizationAgentId: 'oa-1',
@@ -104,7 +106,7 @@ describe('parseJobMetadata voice extras', () => {
         ttsModel: null,
       }),
     );
-    const live = parseJobMetadata(
+    const live = jobMeta.parseJobMetadata(
       JSON.stringify({
         organizationId: 'org-1',
         organizationAgentId: 'oa-1',
@@ -119,7 +121,7 @@ describe('parseJobMetadata voice extras', () => {
         voice: 'marin',
       }),
     );
-    const merged = mergeInboundJobMetadata(dispatched, live);
+    const merged = jobMeta.mergeInboundJobMetadata(dispatched, live);
     expect(merged.model).toBe('openai/gpt-realtime-2.1-mini');
     expect(merged.voice).toBe('marin');
     expect(merged.prompt.systemPrompt).toBe('new');
@@ -127,8 +129,52 @@ describe('parseJobMetadata voice extras', () => {
     expect(merged.callId).toBeUndefined();
   });
 
+  it('serializeTranscript maps toJSON items', () => {
+    const transcript = jobMeta.serializeTranscript({
+      toJSON: () => ({
+        items: [
+          { role: 'user', content: 'Hello', createdAt: 1, id: 'm1' },
+          {
+            role: 'assistant',
+            content: [{ text: 'Hi there' }],
+            createdAt: '2024-01-01T00:00:00Z',
+          },
+          { role: 'user', content: '   ' },
+        ],
+      }),
+    });
+    expect(transcript).toEqual([
+      { role: 'user', content: 'Hello', createdAt: 1, id: 'm1' },
+      {
+        role: 'assistant',
+        content: 'Hi there',
+        createdAt: '2024-01-01T00:00:00Z',
+        id: undefined,
+      },
+    ]);
+  });
+
+  it('serializeTranscript returns [] when toJSON throws', () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    expect(
+      jobMeta.serializeTranscript({
+        toJSON: () => {
+          throw new Error('boom');
+        },
+      }),
+    ).toEqual([]);
+  });
+
+  it('serializeUsage wraps modelUsage', () => {
+    expect(jobMeta.serializeUsage({ modelUsage: [{ tokens: 10 }] })).toEqual({
+      models: [{ tokens: 10 }],
+    });
+    expect(jobMeta.serializeUsage({})).toEqual({ models: [] });
+    expect(jobMeta.serializeUsage(null as unknown as { modelUsage?: unknown[] })).toBeNull();
+  });
+
   it('unknown deliveryMode and non-number speakingRate → null', () => {
-    const meta = parseJobMetadata(
+    const meta = jobMeta.parseJobMetadata(
       JSON.stringify({
         agentKey: 'inbound',
         prompt: { systemPrompt: 'Hi' },

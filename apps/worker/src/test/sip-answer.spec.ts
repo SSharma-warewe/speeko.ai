@@ -1,11 +1,5 @@
 import { EventEmitter } from 'node:events';
-import {
-  formatDisconnectReason,
-  isSipAnswered,
-  sipCallStatus,
-  sipParticipantInfo,
-  waitForSipAnswer,
-} from '../sip-answer';
+import { Sipfunctions } from '../sip-answer';
 
 function participant(
   identity: string,
@@ -24,14 +18,16 @@ function participant(
 }
 
 describe('sip-answer', () => {
+  const sip = new Sipfunctions();
+
   it('reads sip.callStatus', () => {
-    expect(sipCallStatus(participant('+1', 'ringing'))).toBe('ringing');
-    expect(sipCallStatus(participant('+1'))).toBe('');
+    expect(sip.sipCallStatus(participant('+1', 'ringing'))).toBe('ringing');
+    expect(sip.sipCallStatus(participant('+1'))).toBe('');
   });
 
   it('reads SIP party attributes', () => {
     expect(
-      sipParticipantInfo({
+      sip.sipParticipantInfo({
         identity: '+1555',
         attributes: {
           'sip.phoneNumber': '+1555',
@@ -50,25 +46,25 @@ describe('sip-answer', () => {
   });
 
   it('active / automation count as answered', () => {
-    expect(isSipAnswered(participant('+1', 'active'))).toBe(true);
-    expect(isSipAnswered(participant('+1', 'automation'))).toBe(true);
+    expect(sip.isSipAnswered(participant('+1', 'active'))).toBe(true);
+    expect(sip.isSipAnswered(participant('+1', 'automation'))).toBe(true);
   });
 
   it('dialing / ringing / hangup are not answered', () => {
-    expect(isSipAnswered(participant('+1', 'dialing'))).toBe(false);
-    expect(isSipAnswered(participant('+1', 'ringing'))).toBe(false);
-    expect(isSipAnswered(participant('+1', 'hangup'))).toBe(false);
+    expect(sip.isSipAnswered(participant('+1', 'dialing'))).toBe(false);
+    expect(sip.isSipAnswered(participant('+1', 'ringing'))).toBe(false);
+    expect(sip.isSipAnswered(participant('+1', 'hangup'))).toBe(false);
   });
 
   it('missing status + published audio is answered', () => {
-    expect(isSipAnswered(participant('+1', undefined, 1))).toBe(true);
-    expect(isSipAnswered(participant('+1', undefined, 0))).toBe(false);
+    expect(sip.isSipAnswered(participant('+1', undefined, 1))).toBe(true);
+    expect(sip.isSipAnswered(participant('+1', undefined, 0))).toBe(false);
   });
 
   it('resolves immediately when already active', async () => {
     const room = new EventEmitter();
     await expect(
-      waitForSipAnswer({
+      sip.waitForSipAnswer({
         room,
         participant: participant('+1', 'active'),
         timeoutMs: 50,
@@ -79,7 +75,7 @@ describe('sip-answer', () => {
   it('resolves when sip.callStatus flips to active', async () => {
     const room = new EventEmitter();
     const p = participant('+1', 'dialing');
-    const wait = waitForSipAnswer({ room, participant: p, timeoutMs: 500 });
+    const wait = sip.waitForSipAnswer({ room, participant: p, timeoutMs: 500 });
     queueMicrotask(() => {
       const answered = participant('+1', 'active');
       room.emit('participantAttributesChanged', { 'sip.callStatus': 'active' }, answered);
@@ -93,7 +89,7 @@ describe('sip-answer', () => {
       ...participant('+1', 'ringing'),
       disconnectReason: 15,
     };
-    const wait = waitForSipAnswer({ room, participant: p, timeoutMs: 500 });
+    const wait = sip.waitForSipAnswer({ room, participant: p, timeoutMs: 500 });
     queueMicrotask(() => {
       room.emit('participantDisconnected', p);
     });
@@ -103,7 +99,7 @@ describe('sip-answer', () => {
   it('resolves when polled attributes flip to active without an event', async () => {
     const room = new EventEmitter();
     const p = participant('+1', 'dialing');
-    const wait = waitForSipAnswer({
+    const wait = sip.waitForSipAnswer({
       room,
       participant: p,
       timeoutMs: 500,
@@ -116,16 +112,16 @@ describe('sip-answer', () => {
   });
 
   it('names LiveKit media-timeout disconnect reason', () => {
-    expect(formatDisconnectReason({ identity: '+1', disconnectReason: 15 })).toBe(
+    expect(sip.formatDisconnectReason({ identity: '+1', disconnectReason: 15 })).toBe(
       'MEDIA_FAILURE',
     );
-    expect(formatDisconnectReason({ identity: '+1' })).toBe('unknown');
+    expect(sip.formatDisconnectReason({ identity: '+1' })).toBe('unknown');
   });
 
   it('rejects on hangup attribute before answer', async () => {
     const room = new EventEmitter();
     const p = participant('+1', 'ringing');
-    const wait = waitForSipAnswer({ room, participant: p, timeoutMs: 500 });
+    const wait = sip.waitForSipAnswer({ room, participant: p, timeoutMs: 500 });
     queueMicrotask(() => {
       room.emit(
         'participantAttributesChanged',
@@ -139,7 +135,7 @@ describe('sip-answer', () => {
   it('rejects on timeout', async () => {
     const room = new EventEmitter();
     await expect(
-      waitForSipAnswer({
+      sip.waitForSipAnswer({
         room,
         participant: participant('+1', 'ringing'),
         timeoutMs: 20,

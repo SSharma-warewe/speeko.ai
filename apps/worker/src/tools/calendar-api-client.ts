@@ -3,6 +3,7 @@
  * Uses the same API_BASE_URL + WORKER_CALLBACK_SECRET as call complete.
  */
 
+import { resolveWorkerApiConfig } from '../common/env.js';
 import { recordToolEvent, sanitizeForStorage } from './tool-events.js';
 import type { SessionUserData } from './types.js';
 
@@ -16,15 +17,14 @@ export type CalendarToolResult = {
 function bridgeConfig():
   | { baseUrl: string; secret: string }
   | { error: string } {
-  const baseUrl = process.env.API_BASE_URL?.replace(/\/$/, '');
-  const secret = process.env.WORKER_CALLBACK_SECRET;
-  if (!baseUrl || !secret) {
+  const cfg = resolveWorkerApiConfig();
+  if (!cfg) {
     return {
       error:
         'Calendar bridge not configured on the worker (API_BASE_URL or WORKER_CALLBACK_SECRET missing). Tell the customer you cannot access the calendar right now.',
     };
   }
-  return { baseUrl, secret };
+  return cfg;
 }
 
 export async function callCalendarApi(

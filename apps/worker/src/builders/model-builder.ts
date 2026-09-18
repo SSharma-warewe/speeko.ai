@@ -1,6 +1,9 @@
 import { inference, llm, stt, tts } from '@livekit/agents';
 import {
+  DEFAULT_LLM_MODEL_ID,
+  DEFAULT_STT_MODEL_ID,
   DEFAULT_STT_SPEECH_LANGUAGE_ID,
+  DEFAULT_TTS_MODEL_ID,
   DEFAULT_TTS_SPEECH_LANGUAGE_ID,
   canonicalizeSpeechLanguageId,
   isRealtimeLlmModel,
@@ -17,7 +20,6 @@ import * as openai from '@livekit/agents-plugin-openai';
 import * as sarvam from '@livekit/agents-plugin-sarvam';
 import * as xai from '@livekit/agents-plugin-xai';
 import type { AgentJobMetadata } from '../job-metadata.js';
-import { INFERENCE_MODELS } from '../models.js';
 import {
   SarvamPluginSTT,
   resolveSarvamRealtimePluginUrl,
@@ -196,7 +198,7 @@ export function createTts(
   }
 
   return new inference.TTS({
-    model: spec.runtimeModel as typeof INFERENCE_MODELS.tts.model,
+    model: spec.runtimeModel as typeof DEFAULT_TTS_MODEL_ID,
     voice,
     ...(Object.keys(ttsOptions).length > 0 ? { modelOptions: ttsOptions } : {}),
   });
@@ -228,7 +230,7 @@ export function createLlm(
   }
 
   return new inference.LLM({
-    model: spec.runtimeModel as typeof INFERENCE_MODELS.llm.model,
+    model: spec.runtimeModel as typeof DEFAULT_LLM_MODEL_ID,
     ...(temperature !== undefined ? { modelOptions: { temperature } } : {}),
   });
 }
@@ -310,8 +312,9 @@ export function createStt(
   }
 
   return new inference.STT({
-    model: INFERENCE_MODELS.stt.model,
-    language: INFERENCE_MODELS.stt.language,
+    model: spec.runtimeModel as typeof DEFAULT_STT_MODEL_ID,
+    // Deepgram via LiveKit Inference is multilingual; not a catalog field.
+    language: 'multi',
   });
 }
 

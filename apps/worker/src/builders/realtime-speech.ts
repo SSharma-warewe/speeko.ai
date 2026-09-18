@@ -1,5 +1,5 @@
 import { voice } from '@livekit/agents';
-import type { AgentJobMetadata } from '../job-metadata.js';
+import type { AgentJobMetadata } from '@call-agent/contracts';
 import {
   buildOpeningInstructions,
   buildRealtimeClosingInstructions,

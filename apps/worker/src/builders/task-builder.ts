@@ -1,5 +1,5 @@
 import type { llm, voice, ToolContextEntry } from '@livekit/agents';
-import type { AgentJobMetadata } from '../job-metadata.js';
+import type { AgentJobMetadata } from '@call-agent/contracts';
 import { TaskRegistry } from '../tasks/registry.js';
 import type { SessionUserData } from '../tools/types.js';
 

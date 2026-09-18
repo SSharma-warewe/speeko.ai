@@ -1,5 +1,5 @@
 import { isRealtimeLlmModel } from '@call-agent/contracts';
-import type { AgentJobMetadata } from '../job-metadata.js';
+import type { AgentJobMetadata } from '@call-agent/contracts';
 import {
   contextField,
   displayNameFromContext,

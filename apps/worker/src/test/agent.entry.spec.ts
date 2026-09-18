@@ -3,37 +3,58 @@ jest.mock('@livekit/agents', () => ({
   voice: { AgentSessionEventTypes: { Close: 'close' } },
 }));
 
-jest.mock('../builders/agent-builder', () => ({
-  buildAgentRuntime: jest.fn(),
-}));
-
-jest.mock('../sip-answer', () => {
-  const actual = jest.requireActual('../sip-answer') as Record<string, unknown>;
+jest.mock('../builders/agent-builder', () => {
+  const buildAgentRuntime = jest.fn();
   return {
-    ...actual,
-    waitForSipAnswer: jest.fn().mockResolvedValue(undefined),
+    AgentRuntimeBuilder: jest.fn().mockImplementation((meta: unknown) => ({
+      build: () => buildAgentRuntime(meta),
+    })),
+    buildAgentRuntime,
   };
 });
 
-jest.mock('../call-callback', () => {
-  const actual = jest.requireActual('../call-callback') as Record<string, unknown>;
+jest.mock('../sip-answer', () => {
+  const actual = jest.requireActual('../sip-answer') as typeof import('../sip-answer');
+  const waitForSipAnswer = jest.fn().mockResolvedValue(undefined);
+  const realSip = new actual.Sipfunctions();
   return {
     ...actual,
-    postCallComplete: jest.fn().mockResolvedValue(undefined),
-    postInboundEnsure: jest.fn().mockResolvedValue(undefined),
-    postInboundJobMetadata: jest.fn().mockResolvedValue(undefined),
+    waitForSipAnswer,
+    Sipfunctions: jest.fn().mockImplementation(() => ({
+      waitForSipAnswer,
+      sipCallStatus: realSip.sipCallStatus.bind(realSip),
+      sipParticipantInfo: realSip.sipParticipantInfo.bind(realSip),
+    })),
+  };
+});
+
+jest.mock('../callbacks/call-callbacks', () => {
+  const actual = jest.requireActual('../callbacks/call-callbacks') as Record<
+    string,
+    unknown
+  >;
+  const postCallComplete = jest.fn().mockResolvedValue(undefined);
+  const postInboundEnsure = jest.fn().mockResolvedValue(undefined);
+  const postInboundJobMetadata = jest.fn().mockResolvedValue(undefined);
+  return {
+    ...actual,
+    CallbackFunctions: jest.fn().mockImplementation(() => ({
+      postCallComplete,
+      postInboundEnsure,
+      postInboundJobMetadata,
+    })),
+    workerCallbackMocks: {
+      postCallComplete,
+      postInboundEnsure,
+      postInboundJobMetadata,
+    },
   };
 });
 
 import type { JobContext } from '@livekit/agents';
 import { runAgentJob } from '../agent';
 import { buildAgentRuntime } from '../builders/agent-builder';
-import {
-  postCallComplete,
-  postInboundEnsure,
-  postInboundJobMetadata,
-} from '../call-callback';
-import type { CompleteCallPayload } from '../call-callback';
+import type { CompleteCallPayload } from '../callbacks/call-callbacks';
 import type { AgentJobMetadata } from '../job-metadata';
 import { waitForSipAnswer } from '../sip-answer';
 import type { SessionUserData } from '../tools/types';
@@ -53,16 +74,19 @@ describe('runAgentJob', () => {
   const waitForSipAnswerMock = waitForSipAnswer as jest.MockedFunction<
     typeof waitForSipAnswer
   >;
-  const postCallCompleteMock = postCallComplete as jest.MockedFunction<
-    typeof postCallComplete
-  >;
-  const postInboundEnsureMock = postInboundEnsure as jest.MockedFunction<
-    typeof postInboundEnsure
-  >;
-  const postInboundJobMetadataMock =
-    postInboundJobMetadata as jest.MockedFunction<
-      typeof postInboundJobMetadata
-    >;
+  const {
+    workerCallbackMocks: {
+      postCallComplete: postCallCompleteMock,
+      postInboundEnsure: postInboundEnsureMock,
+      postInboundJobMetadata: postInboundJobMetadataMock,
+    },
+  } = jest.requireMock('../callbacks/call-callbacks') as {
+    workerCallbackMocks: {
+      postCallComplete: jest.Mock;
+      postInboundEnsure: jest.Mock;
+      postInboundJobMetadata: jest.Mock;
+    };
+  };
 
   type ShutdownCb = () => Promise<void> | void;
 

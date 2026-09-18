@@ -1,7 +1,7 @@
 import { isRealtimeLlmModel } from '@call-agent/contracts';
 import type { llm, ToolContextEntry } from '@livekit/agents';
 import { voice } from '@livekit/agents';
-import type { AgentJobMetadata } from '../job-metadata.js';
+import type { AgentJobMetadata } from '@call-agent/contracts';
 import {
   speakRealtimeGoodbye,
   speakRealtimeOpening,

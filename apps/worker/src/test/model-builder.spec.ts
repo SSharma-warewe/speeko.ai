@@ -16,9 +16,9 @@ import {
   resolveTtsSpec,
   resolveTtsVoice,
 } from '../builders/model-builder';
+import { ttsModelSpec } from '@call-agent/contracts';
 import { SarvamPluginSTT } from '../sarvam/plugin-stt';
 import { SarvamRealtimeSTT } from '../sarvam/realtime-stt';
-import { INFERENCE_MODELS } from '../models';
 import * as openai from '@livekit/agents-plugin-openai';
 import * as sarvam from '@livekit/agents-plugin-sarvam';
 import * as xai from '@livekit/agents-plugin-xai';
@@ -45,11 +45,11 @@ describe('model-builder voice / temp helpers', () => {
     );
   });
 
-  it('TTS voice falls back to worker pin', () => {
-    expect(resolveTtsVoice(meta())).toBe(INFERENCE_MODELS.tts.voice);
+  it('TTS voice falls back to catalog default', () => {
+    expect(resolveTtsVoice(meta())).toBe(ttsModelSpec(null).defaultVoice);
     expect(resolveTtsVoice(meta({ voice: '  Olivia  ' }))).toBe('Olivia');
     expect(resolveTtsVoice(meta({ voice: '' }))).toBe(
-      INFERENCE_MODELS.tts.voice,
+      ttsModelSpec(null).defaultVoice,
     );
   });
 
