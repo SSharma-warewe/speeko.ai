@@ -235,6 +235,7 @@ export const createLoanCollectionTask: TaskFactory = ({
   const loanAmount = collectionLoanAmountFromContext(meta.context);
 
   const task = createWorkflowTask<LoanCollectionResult>(meta, {
+    userData,
     instructions: composeTaskInstructions(
       meta,
       buildLoanCollectionInstructions(meta),

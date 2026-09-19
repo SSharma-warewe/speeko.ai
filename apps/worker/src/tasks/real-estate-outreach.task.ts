@@ -151,6 +151,7 @@ export const createRealEstateOutreachTask: TaskFactory = ({
   const budget = budgetFromContext(meta.context);
 
   const task = createWorkflowTask<RealEstateOutreachResult>(meta, {
+    userData,
     instructions: composeTaskInstructions(
       meta,
       buildRealEstateOutreachInstructions(meta),

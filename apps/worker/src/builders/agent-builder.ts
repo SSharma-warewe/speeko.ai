@@ -1,20 +1,28 @@
+import { isRealtimeLlmModel } from '@call-agent/contracts';
 import { voice } from '@livekit/agents';
 import { hangUpCall } from '../hangup.js';
 import type { AgentJobMetadata } from '@call-agent/contracts';
 import { resolveSarvamRealtimePluginUrl } from '../sarvam/plugin-stt.js';
 import type { SessionUserData } from '../tools/types.js';
+import { inboundServiceTrackLines } from './inbound-service-tracks.js';
 import { buildModels, resolveSttSpec } from './model-builder.js';
 import {
   buildClosingSpeech,
   buildOpeningInstructions,
   buildPersonaPrompt,
+  cannedClosingLine,
   hookMode,
   shouldParentSpeakOpening,
   snapshotCallClock,
 } from './prompt-builder.js';
 import { buildTask } from './task-builder.js';
 import { buildTools } from './tool-builder.js';
-import { attachEarlyTurnAck, type EarlyTurnAckHandle } from './turn-ack.js';
+import { sayCached, warmTtsPhrases, type TtsSynthesizer } from './tts-cache.js';
+import {
+  attachEarlyTurnAck,
+  turnAckLine,
+  type EarlyTurnAckHandle,
+} from './turn-ack.js';
 import { buildAgentSession } from './voice-builder.js';
 
 export type BuiltAgentRuntime = {
@@ -32,6 +40,7 @@ type AgentTools = Awaited<ReturnType<typeof buildTools>>;
  */
 export class AgentRuntimeBuilder {
   private earlyTurnAck: EarlyTurnAckHandle | null = null;
+  private tts: TtsSynthesizer | undefined;
 
   constructor(private readonly meta: AgentJobMetadata) {}
 
@@ -41,12 +50,16 @@ export class AgentRuntimeBuilder {
 
     const models = buildModels(this.meta);
     this.logModelInfo(models);
+    if (models.kind === 'pipeline') {
+      this.tts = models.tts;
+      userData.tts = models.tts;
+    }
 
     const tools = await buildTools(this.meta, userData);
     const session = buildAgentSession(models, userData, {
       medium: this.meta.medium,
     });
-    this.earlyTurnAck = attachEarlyTurnAck(session, this.meta);
+    this.earlyTurnAck = attachEarlyTurnAck(session, this.meta, this.tts);
     const agent = this.createAgent(userData, tools);
 
     return { session, agent, userData };
@@ -117,12 +130,14 @@ export class AgentRuntimeBuilder {
           // (pipeline discardAudioIfUninterruptible: false).
           allowInterruptions: false,
         });
+        void warmTtsPhrases(this.tts, this.meta, phrasesToWarm(this.meta));
         await openHandle.waitForPlayout();
         console.log(
           `[agent] onEnter opening playout done callId=${this.meta.callId ?? 'n/a'}`,
         );
       } else {
         console.log('[agent] onEnter silent (no opening speech)');
+        void warmTtsPhrases(this.tts, this.meta, phrasesToWarm(this.meta));
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -185,8 +200,14 @@ export class AgentRuntimeBuilder {
       console.log(
         `[agent] onExit say mode=${hookMode(this.meta.prompt.onExitInstructions)} prefix="${prefix}"`,
       );
-      const handle = ctx.session.say(closing, { allowInterruptions: false });
-      await handle.waitForPlayout();
+      const handle = sayCached(
+        ctx.session,
+        this.tts,
+        closing,
+        { allowInterruptions: false },
+        this.meta,
+      ) as { waitForPlayout?: () => Promise<void> };
+      await handle.waitForPlayout?.();
     } catch {
       // Session may already be closing (callee hangup).
     }
@@ -209,6 +230,22 @@ export class AgentRuntimeBuilder {
       },
     });
   }
+}
+
+export function phrasesToWarm(meta: AgentJobMetadata): string[] {
+  if (isRealtimeLlmModel(meta.model)) {
+    return [];
+  }
+  const phrases: string[] = [];
+  if (meta.direction === 'inbound') {
+    phrases.push(...inboundServiceTrackLines());
+  }
+  phrases.push(turnAckLine(meta));
+  const closing = cannedClosingLine(meta);
+  if (closing) {
+    phrases.push(closing);
+  }
+  return [...new Set(phrases)];
 }
 
 export async function buildAgentRuntime(

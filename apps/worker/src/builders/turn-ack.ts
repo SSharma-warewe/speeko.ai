@@ -2,6 +2,7 @@ import { isRealtimeLlmModel } from '@call-agent/contracts';
 import type { AgentJobMetadata } from '@call-agent/contracts';
 import { voice } from '@livekit/agents';
 import { personaSpeaksHindi } from './prompt-builder.js';
+import { sayCached, type TtsSynthesizer } from './tts-cache.js';
 
 export const HINDI_TURN_ACK = 'जी';
 export const ENGLISH_TURN_ACK = 'Okay';
@@ -81,9 +82,14 @@ export function userTurnText(message: {
   return '';
 }
 
-function sayAck(session: TurnAckSession, line: string): void {
+function sayAck(
+  session: TurnAckSession,
+  line: string,
+  meta: AgentJobMetadata,
+  tts?: TtsSynthesizer,
+): void {
   try {
-    session.say(line, ACK_SAY_OPTIONS);
+    sayCached(session, tts, line, ACK_SAY_OPTIONS, meta);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.warn(`[agent] turn ack say failed: ${message}`);
@@ -97,24 +103,26 @@ export function speakTurnAck(
   session: TurnAckSession,
   meta: AgentJobMetadata,
   userText: string | null | undefined,
+  tts?: TtsSynthesizer,
 ): void {
   const line = resolveTurnAckSpeech(meta, userText);
   if (!line) {
     return;
   }
-  sayAck(session, line);
+  sayAck(session, line, meta, tts);
 }
 
 export function speakEarlyTurnAck(
   session: TurnAckSession,
   meta: AgentJobMetadata,
+  tts?: TtsSynthesizer,
 ): void {
   const line = resolveEarlyTurnAck(meta);
   if (!line) {
     return;
   }
   console.log(`[agent] turn ack early line=${line}`);
-  sayAck(session, line);
+  sayAck(session, line, meta, tts);
 }
 
 /**
@@ -124,6 +132,7 @@ export function speakEarlyTurnAck(
 export function attachEarlyTurnAck(
   session: EarlyTurnAckSession,
   meta: AgentJobMetadata,
+  tts?: TtsSynthesizer,
 ): EarlyTurnAckHandle {
   if (isRealtimeLlmModel(meta.model)) {
     return { enable() {} };
@@ -143,7 +152,7 @@ export function attachEarlyTurnAck(
         return;
       }
       heardSpeech = false;
-      speakEarlyTurnAck(session, meta);
+      speakEarlyTurnAck(session, meta, tts);
     },
   );
 

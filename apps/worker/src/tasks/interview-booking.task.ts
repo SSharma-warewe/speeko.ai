@@ -108,6 +108,7 @@ export const createInterviewBookingTask: TaskFactory = ({
   const expectedName = displayNameFromContext(meta.context);
 
   const task = createWorkflowTask<InterviewBookingResult>(meta, {
+    userData,
     instructions: composeTaskInstructions(
       meta,
       buildInterviewBookingInstructions(meta),

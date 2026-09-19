@@ -166,6 +166,7 @@ export const createRealEstateVisitConfirmationTask: TaskFactory = ({
   const time = visitTimeFromContext(meta.context);
 
   const task = createWorkflowTask<RealEstateVisitConfirmationResult>(meta, {
+    userData,
     instructions: composeTaskInstructions(
       meta,
       buildRealEstateVisitConfirmationInstructions(meta),

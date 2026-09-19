@@ -79,6 +79,7 @@ export const createDemoBookingTask: TaskFactory = ({
   const company = contextField(meta.context, 'company', 'companyName');
 
   const task = createWorkflowTask<DemoBookingResult>(meta, {
+    userData,
     instructions: composeTaskInstructions(meta, [
       'Your objective is a two-phase outbound demo call.',
       name ? `The contact name is ${name}.` : null,

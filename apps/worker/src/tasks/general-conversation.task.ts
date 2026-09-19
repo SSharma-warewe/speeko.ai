@@ -26,6 +26,7 @@ export const createGeneralConversationTask: TaskFactory = ({
   chatCtx,
 }) => {
   const task = createWorkflowTask<GeneralConversationResult>(meta, {
+    userData,
     instructions: composeTaskInstructions(
       meta,
       [

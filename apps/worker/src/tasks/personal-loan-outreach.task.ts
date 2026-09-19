@@ -148,6 +148,7 @@ export const createPersonalLoanOutreachTask: TaskFactory = ({
   const term = loanTermFromContext(meta.context);
 
   const task = createWorkflowTask<PersonalLoanOutreachResult>(meta, {
+    userData,
     instructions: composeTaskInstructions(
       meta,
       buildPersonalLoanOutreachInstructions(meta),
