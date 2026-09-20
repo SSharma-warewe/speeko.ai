@@ -4,7 +4,10 @@ import { hangUpCall } from '../hangup.js';
 import type { AgentJobMetadata } from '@call-agent/contracts';
 import { resolveSarvamRealtimePluginUrl } from '../sarvam/plugin-stt.js';
 import type { SessionUserData } from '../tools/types.js';
-import { inboundServiceTrackLines } from './inbound-service-tracks.js';
+import {
+  inboundScriptCacheLines,
+  inboundServiceTrackLines,
+} from './inbound-service-tracks.js';
 import { buildModels, resolveSttSpec } from './model-builder.js';
 import {
   buildClosingSpeech,
@@ -238,7 +241,7 @@ export function phrasesToWarm(meta: AgentJobMetadata): string[] {
   }
   const phrases: string[] = [];
   if (meta.direction === 'inbound') {
-    phrases.push(...inboundServiceTrackLines());
+    phrases.push(...inboundServiceTrackLines(), ...inboundScriptCacheLines());
   }
   phrases.push(turnAckLine(meta));
   const closing = cannedClosingLine(meta);

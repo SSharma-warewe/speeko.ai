@@ -1,8 +1,16 @@
 import { phrasesToWarm } from '../builders/agent-builder';
 import {
+  classifyInboundBhkBudget,
+  classifyInboundLocation,
   classifyInboundServiceTrack,
+  classifyInboundTiming,
+  inboundScriptCacheLines,
   inboundServiceTrackLine,
   inboundServiceTrackLines,
+  INBOUND_BHK_BUDGET_LINE,
+  INBOUND_BUDGET_ONLY_LINE,
+  INBOUND_LOCATION_CLARIFY_LINE,
+  INBOUND_TIMING_LINE,
 } from '../builders/inbound-service-tracks';
 import type { AgentJobMetadata } from '../job-metadata';
 
@@ -37,6 +45,49 @@ describe('classifyInboundServiceTrack', () => {
   });
 });
 
+describe('classifyInboundLocation', () => {
+  it('treats any sector 1–88 as the sector keyword', () => {
+    expect(classifyInboundLocation('Sector 42')).toBe('sector');
+    expect(classifyInboundLocation('सेक्टर 7')).toBe('sector');
+    expect(classifyInboundLocation('Hector 65')).toBe('sector');
+    expect(classifyInboundLocation('88')).toBe('sector');
+    expect(classifyInboundLocation('1')).toBe('sector');
+  });
+
+  it('rejects 0 and 89+', () => {
+    expect(classifyInboundLocation('0')).toBeNull();
+    expect(classifyInboundLocation('89')).toBeNull();
+    expect(classifyInboundLocation('sector 89')).toBeNull();
+    expect(classifyInboundLocation('पत्ती थी।')).toBeNull();
+  });
+
+  it('classifies locality and anywhere', () => {
+    expect(classifyInboundLocation('golf course')).toBe('locality');
+    expect(classifyInboundLocation('DLF phase 2')).toBe('locality');
+    expect(classifyInboundLocation('कहीं भी')).toBe('anywhere');
+  });
+});
+
+describe('classifyInboundTiming', () => {
+  it('classifies this week / this month / later', () => {
+    expect(classifyInboundTiming('इस हफ्ते।')).toBe('this_week');
+    expect(classifyInboundTiming('आज')).toBe('this_week');
+    expect(classifyInboundTiming('this month')).toBe('this_month');
+    expect(classifyInboundTiming('बाद में।')).toBe('later');
+    expect(classifyInboundTiming('भाई')).toBeNull();
+  });
+});
+
+describe('classifyInboundBhkBudget', () => {
+  it('splits BHK-only from budget, both, and refuse', () => {
+    expect(classifyInboundBhkBudget('2 BHK')).toBe('bhk');
+    expect(classifyInboundBhkBudget('1 मिलियन।')).toBe('budget');
+    expect(classifyInboundBhkBudget('3 BHK 2 crore')).toBe('both');
+    expect(classifyInboundBhkBudget('नहीं बताना चाहता हूँ।')).toBe('refuse');
+    expect(classifyInboundBhkBudget('ओके।')).toBeNull();
+  });
+});
+
 describe('inboundServiceTrackLine', () => {
   it('uses the production buy line and parallel location asks', () => {
     expect(inboundServiceTrackLine('buy')).toBe(
@@ -48,6 +99,13 @@ describe('inboundServiceTrackLine', () => {
     expect(inboundServiceTrackLine('sell')).toContain('सेक्टर');
     expect(inboundServiceTrackLine('list')).toContain('लिस्ट');
     expect(inboundServiceTrackLines()).toHaveLength(4);
+    expect(inboundScriptCacheLines()).toEqual(
+      expect.arrayContaining([
+        INBOUND_TIMING_LINE,
+        INBOUND_BHK_BUDGET_LINE,
+        INBOUND_LOCATION_CLARIFY_LINE,
+      ]),
+    );
   });
 });
 
@@ -69,6 +127,10 @@ describe('phrasesToWarm', () => {
         inboundServiceTrackLine('buy'),
         inboundServiceTrackLine('sell'),
         inboundServiceTrackLine('list'),
+        INBOUND_TIMING_LINE,
+        INBOUND_BHK_BUDGET_LINE,
+        INBOUND_LOCATION_CLARIFY_LINE,
+        INBOUND_BUDGET_ONLY_LINE,
         'जी',
         'धन्यवाद, कॉल करने के लिए शुक्रिया।',
       ]),

@@ -4,8 +4,18 @@ import { voice } from '@livekit/agents';
 import type { AgentJobMetadata } from '@call-agent/contracts';
 import type { SessionUserData } from '../tools/types.js';
 import {
+  classifyInboundBhkBudget,
+  classifyInboundLocation,
   classifyInboundServiceTrack,
+  classifyInboundTiming,
+  inboundLocationFollowUpLine,
+  inboundLocationNextStep,
   inboundServiceTrackLine,
+  INBOUND_BHK_BUDGET_LINE,
+  INBOUND_BUDGET_ONLY_LINE,
+  INBOUND_LOCATION_CLARIFY_LINE,
+  INBOUND_TIMING_LINE,
+  type InboundScriptStep,
 } from './inbound-service-tracks.js';
 import {
   speakRealtimeGoodbye,
@@ -18,7 +28,7 @@ import { userTurnText } from './turn-ack.js';
  * AgentTask with speech hooks:
  * - onEnter generateReplys the opening after handoff (parent stays silent)
  * - pipeline जी / Okay is session UserStateChanged (speaking → listening), not here
- * - inbound first service answer may be a cached session.say + StopResponse
+ * - inbound script may cache location → timing → BHK/budget via session.say + StopResponse
  * - finishWorkflowTask speaks goodbye while the task is still current
  */
 export function createWorkflowTask<ResultT>(
@@ -80,16 +90,82 @@ export async function handleInboundServiceTrackTurn(options: {
   if (options.meta.direction !== 'inbound') {
     return;
   }
-  if (options.userData.serviceTrack) {
+  const step = resolveInboundScriptStep(options.userData);
+  if (step === 'done') {
     return;
   }
-  const track = classifyInboundServiceTrack(options.userText);
-  if (!track) {
+  if (step === 'service') {
+    const track = classifyInboundServiceTrack(options.userText);
+    if (!track) {
+      return;
+    }
+    options.userData.serviceTrack = track;
+    options.userData.inboundScriptStep = 'location';
+    const line = inboundServiceTrackLine(track);
+    console.log(`[agent] inbound service track=${track} line=${line}`);
+    speakInboundScriptLine(options, line);
     return;
   }
-  const line = inboundServiceTrackLine(track);
-  options.userData.serviceTrack = track;
-  console.log(`[agent] inbound service track=${track} line=${line}`);
+  if (step === 'location') {
+    const location = classifyInboundLocation(options.userText);
+    if (location) {
+      const next = inboundLocationNextStep(options.userData.serviceTrack);
+      const line = inboundLocationFollowUpLine(options.userData.serviceTrack);
+      options.userData.inboundScriptStep = next;
+      console.log(
+        `[agent] inbound script step=${next} location=${location}`,
+      );
+      speakInboundScriptLine(options, line);
+      return;
+    }
+    console.log('[agent] inbound script step=location location=miss');
+    speakInboundScriptLine(options, INBOUND_LOCATION_CLARIFY_LINE);
+    return;
+  }
+  if (step === 'timing') {
+    const timing = classifyInboundTiming(options.userText);
+    if (timing) {
+      options.userData.inboundScriptStep = 'bhk_budget';
+      console.log(`[agent] inbound script step=bhk_budget timing=${timing}`);
+      speakInboundScriptLine(options, INBOUND_BHK_BUDGET_LINE);
+      return;
+    }
+    console.log('[agent] inbound script step=timing timing=miss');
+    speakInboundScriptLine(options, INBOUND_TIMING_LINE);
+    return;
+  }
+  const kind = classifyInboundBhkBudget(options.userText);
+  if (kind === 'bhk') {
+    options.userData.inboundScriptStep = 'done';
+    console.log('[agent] inbound script step=done bhk=only');
+    speakInboundScriptLine(options, INBOUND_BUDGET_ONLY_LINE);
+    return;
+  }
+  if (kind === 'budget' || kind === 'both' || kind === 'refuse') {
+    options.userData.inboundScriptStep = 'done';
+  }
+}
+
+function resolveInboundScriptStep(
+  userData: SessionUserData,
+): InboundScriptStep {
+  if (userData.inboundScriptStep) {
+    return userData.inboundScriptStep;
+  }
+  if (userData.serviceTrack) {
+    return 'location';
+  }
+  return 'service';
+}
+
+function speakInboundScriptLine(
+  options: {
+    session: TrackTurnSession;
+    meta: AgentJobMetadata;
+    userData: SessionUserData;
+  },
+  line: string,
+): never {
   try {
     options.session.interrupt?.();
   } catch (err) {

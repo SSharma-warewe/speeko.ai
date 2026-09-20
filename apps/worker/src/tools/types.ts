@@ -1,6 +1,9 @@
 import type { ToolContextEntry } from '@livekit/agents';
 import type { AgentJobMetadata, ToolEvent } from '@call-agent/contracts';
-import type { InboundServiceTrack } from '../builders/inbound-service-tracks.js';
+import type {
+  InboundScriptStep,
+  InboundServiceTrack,
+} from '../builders/inbound-service-tracks.js';
 import type { TtsSynthesizer } from '../builders/tts-cache.js';
 
 export type { ToolEvent };
@@ -12,6 +15,8 @@ export type SessionUserData = {
   context: Record<string, unknown>;
   /** First inbound list/sell/buy/rent branch; scripted reply runs once. */
   serviceTrack?: InboundServiceTrack;
+  /** Inbound cached-script step after the service track (location → timing → BHK). */
+  inboundScriptStep?: InboundScriptStep;
   /** Pipeline TTS instance for cached session.say (same object as AgentSession). */
   tts?: TtsSynthesizer;
   /** Structured result from the active LiveKit task. */
