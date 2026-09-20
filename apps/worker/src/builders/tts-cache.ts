@@ -108,13 +108,17 @@ export function sayCached(
 ): unknown {
   const key = ttsCacheKey(meta, text);
   const frames = ttsCache.get(key);
-  const say = session.say as (
+  // bind() keeps AgentSession as `this`. A detached session.say throws
+  // "Cannot read properties of undefined (reading 'activity')".
+  const say = session.say.bind(session) as (
     text: string,
     options?: CachedSayOptions & { audio?: ReadableStream<AudioFrame> },
   ) => unknown;
   if (frames && frames.length > 0) {
+    console.log(`[agent] tts cache hit chars=${text.length}`);
     return say(text, { ...options, audio: framesToStream(frames) });
   }
+  console.log(`[agent] tts cache miss chars=${text.length}`);
   const handle = say(text, options);
   if (tts) {
     void ensureCached(tts, key, text).catch((err) => {

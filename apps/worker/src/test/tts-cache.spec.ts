@@ -54,6 +54,17 @@ describe('ensureCached / sayCached', () => {
     expect(synthesize).toHaveBeenCalledTimes(1);
   });
 
+  it('invokes say as a method so this stays bound', () => {
+    const session = {
+      seen: false,
+      say(this: { seen: boolean }, _text: string) {
+        this.seen = true;
+      },
+    };
+    sayCached(session, undefined, 'जी', { addToChatCtx: false }, meta());
+    expect(session.seen).toBe(true);
+  });
+
   it('passes audio on a cache hit and not on a miss', async () => {
     const tts = {
       synthesize: jest.fn(async function* () {
