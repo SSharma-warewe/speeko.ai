@@ -9,6 +9,7 @@ import type { AgentJobMetadata } from '../job-metadata';
 describe('classifyInboundServiceTrack', () => {
   it('classifies buy / sell / list / rent', () => {
     expect(classifyInboundServiceTrack('बाय करनी है।')).toBe('buy');
+    expect(classifyInboundServiceTrack('मैं कोई बाए करनी है।')).toBe('buy');
     expect(classifyInboundServiceTrack('I want to buy')).toBe('buy');
     expect(classifyInboundServiceTrack('खरीदना है')).toBe('buy');
     expect(classifyInboundServiceTrack('सेल करनी है')).toBe('sell');

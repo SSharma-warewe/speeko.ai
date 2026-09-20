@@ -96,13 +96,19 @@ export async function handleInboundServiceTrackTurn(options: {
     const message = err instanceof Error ? err.message : String(err);
     console.warn(`[agent] inbound track interrupt failed: ${message}`);
   }
-  sayCached(
-    options.session,
-    options.userData.tts,
-    line,
-    { addToChatCtx: true, allowInterruptions: true },
-    options.meta,
-  );
+  try {
+    sayCached(
+      options.session,
+      options.userData.tts,
+      line,
+      { addToChatCtx: true, allowInterruptions: true },
+      options.meta,
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`[agent] inbound track say failed: ${message}`);
+    throw err;
+  }
   throw new voice.StopResponse();
 }
 

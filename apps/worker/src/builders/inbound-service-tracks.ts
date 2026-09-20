@@ -19,7 +19,10 @@ const TRACK_LINES: Record<InboundServiceTrack, string> = {
 const TRACK_TOKENS: { track: InboundServiceTrack; tokens: string[] }[] = [
   { track: 'list', tokens: ['लिस्टिंग', 'लिस्ट', 'listing', 'list'] },
   { track: 'sell', tokens: ['बेचना', 'बेच', 'सेल', 'sell'] },
-  { track: 'buy', tokens: ['खरीदना', 'खरीद', 'बाय', 'purchase', 'buy'] },
+  {
+    track: 'buy',
+    tokens: ['खरीदना', 'खरीद', 'बाय', 'बाए', 'बये', 'purchase', 'buy'],
+  },
   { track: 'rent', tokens: ['किराये', 'किराया', 'रेंट', 'rent'] },
 ];
 
