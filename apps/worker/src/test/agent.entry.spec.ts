@@ -331,12 +331,19 @@ describe('runAgentJob', () => {
       expect(runtime.session.start).toHaveBeenCalledTimes(1);
     });
 
-    it('awaits TTS warm before session.start', async () => {
+    it('overlaps TTS warm with runtime build and awaits both before session.start', async () => {
       let finishWarm: (() => void) | undefined;
+      let finishBuild: ((runtime: unknown) => void) | undefined;
       warmTtsBeforeStartMock.mockImplementation(
         () =>
           new Promise<void>((resolve) => {
             finishWarm = resolve;
+          }),
+      );
+      buildAgentRuntimeMock.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finishBuild = resolve;
           }),
       );
       const ctx = makeCtx(
@@ -357,10 +364,13 @@ describe('runAgentJob', () => {
       const job = runJob(ctx);
       await delay(20);
       expect(runtime.session.start).not.toHaveBeenCalled();
-      expect(buildAgentRuntimeMock).not.toHaveBeenCalled();
-      finishWarm?.();
-      await job;
       expect(buildAgentRuntimeMock).toHaveBeenCalled();
+      expect(warmTtsBeforeStartMock).toHaveBeenCalled();
+      finishWarm?.();
+      await delay(10);
+      expect(runtime.session.start).not.toHaveBeenCalled();
+      finishBuild?.(runtime);
+      await job;
       expect(runtime.session.start).toHaveBeenCalledTimes(1);
     });
 

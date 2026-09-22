@@ -201,7 +201,7 @@ export class AgentJob {
     if (status === 'hangup') {
       throw new Error('SIP callee hung up before answer (no answer)');
     }
-    // Pipeline + Bulbul realtime: REST-synthesize ack / script / goodbye
+    // Pipeline + Bulbul realtime: REST-synthesize script / goodbye
     // while still ringing (inbound) or waiting for the callee (outbound).
     // Do not build the full runtime here — unanswered outbound must not
     // open STT / realtime.
@@ -228,15 +228,16 @@ export class AgentJob {
   }
 
   private async startRuntime(): Promise<void> {
-    // Web jobs skip waitForSipParty; still warm before session.start.
+    // Overlap REST phrase warm with STT/LLM/TTS construction. session.start
+    // still waits for both so inbound script lines are cached at pickup.
     this.startTtsWarm();
-    if (this.ttsWarm) {
-      await this.ttsWarm;
-    }
-    const runtime = await new AgentRuntimeBuilder({
-      ...this.meta,
-      ...(this.callId ? { callId: this.callId } : {}),
-    }).build();
+    const [runtime] = await Promise.all([
+      new AgentRuntimeBuilder({
+        ...this.meta,
+        ...(this.callId ? { callId: this.callId } : {}),
+      }).build(),
+      this.ttsWarm ?? Promise.resolve(),
+    ]);
     this.session = runtime.session;
     this.userData = runtime.userData;
     if (this.callId) {

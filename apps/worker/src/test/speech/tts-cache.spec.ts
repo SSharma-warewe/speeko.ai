@@ -5,6 +5,7 @@ import {
   getCachedFrames,
   sayCached,
   ttsCacheKey,
+  warmTtsPhrases,
 } from '../../speech/tts-cache';
 
 function meta(
@@ -87,5 +88,21 @@ describe('ensureCached / sayCached', () => {
       }),
     );
     expect(getCachedFrames(ttsCacheKey(inbound, 'जी'))).toHaveLength(1);
+  });
+
+  it('warms phrases in parallel', async () => {
+    const inFlight = { n: 0, max: 0 };
+    const synthesize = jest.fn(async function* (text: string) {
+      inFlight.n += 1;
+      inFlight.max = Math.max(inFlight.max, inFlight.n);
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      inFlight.n -= 1;
+      yield { frame: { id: text } };
+    });
+    const started = Date.now();
+    await warmTtsPhrases({ synthesize }, meta(), ['a', 'b', 'c']);
+    expect(inFlight.max).toBe(3);
+    expect(synthesize).toHaveBeenCalledTimes(3);
+    expect(Date.now() - started).toBeLessThan(100);
   });
 });

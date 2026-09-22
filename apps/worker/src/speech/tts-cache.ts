@@ -79,17 +79,19 @@ export async function warmTtsPhrases(
   if (!tts) {
     return;
   }
-  for (const phrase of phrases) {
-    if (!phrase.trim()) {
-      continue;
-    }
-    try {
-      await ensureCached(tts, ttsCacheKey(meta, phrase), phrase);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.warn(`[agent] tts cache warm failed: ${message}`);
-    }
-  }
+  await Promise.all(
+    phrases.map(async (phrase) => {
+      if (!phrase.trim()) {
+        return;
+      }
+      try {
+        await ensureCached(tts, ttsCacheKey(meta, phrase), phrase);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(`[agent] tts cache warm failed: ${message}`);
+      }
+    }),
+  );
 }
 
 /**
