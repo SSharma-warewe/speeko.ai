@@ -16,6 +16,9 @@ import {
 import {
   finishWorkflowTask,
   handleInboundServiceTrackTurn,
+  resolveInboundTurnHookArgs,
+  runInboundScriptHook,
+  truncateLogText,
 } from '../builders/workflow-task';
 import { speakRealtimeGoodbye } from '../builders/realtime-speech';
 import type { SessionUserData } from '../tools/types';
@@ -319,5 +322,208 @@ describe('handleInboundServiceTrackTurn', () => {
       INBOUND_TIMING_LINE,
       expect.objectContaining({ addToChatCtx: true }),
     );
+  });
+
+  it('plays the cached timing line after buy then सेक्टर 42 on the same userData', async () => {
+    const inbound = meta({ direction: 'inbound', agentKey: 'inbound' });
+    const session = { say: jest.fn(), interrupt: jest.fn() };
+    const data = userData();
+
+    await expect(
+      handleInboundServiceTrackTurn({
+        session,
+        meta: inbound,
+        userData: data,
+        userText: 'बाय करनी है।',
+      }),
+    ).rejects.toBeInstanceOf(voice.StopResponse);
+    expect(data.inboundScriptStep).toBe('location');
+
+    await expect(
+      handleInboundServiceTrackTurn({
+        session,
+        meta: inbound,
+        userData: data,
+        userText: 'सेक्टर 42।',
+      }),
+    ).rejects.toBeInstanceOf(voice.StopResponse);
+
+    expect(data.inboundScriptStep).toBe('timing');
+    expect(session.say).toHaveBeenLastCalledWith(
+      INBOUND_TIMING_LINE,
+      expect.objectContaining({ addToChatCtx: true }),
+    );
+  });
+
+  it('logs skip=no-track and skip=done without speaking', async () => {
+    const inbound = meta({ direction: 'inbound', agentKey: 'inbound' });
+    const session = { say: jest.fn(), interrupt: jest.fn() };
+    const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+    await handleInboundServiceTrackTurn({
+      session,
+      meta: inbound,
+      userData: userData(),
+      userText: 'सेक्टर 42।',
+    });
+    await handleInboundServiceTrackTurn({
+      session,
+      meta: inbound,
+      userData: userData({ inboundScriptStep: 'done', serviceTrack: 'buy' }),
+      userText: 'सेक्टर 42।',
+    });
+
+    const lines = log.mock.calls.map((call) => String(call[0]));
+    log.mockRestore();
+    expect(lines.some((line) => line.includes('skip=no-track'))).toBe(true);
+    expect(lines.some((line) => line.includes('skip=done'))).toBe(true);
+    expect(session.say).not.toHaveBeenCalled();
+  });
+
+  it('logs leave-to-llm when BHK/budget is handed to Gemma', async () => {
+    const inbound = meta({ direction: 'inbound', agentKey: 'inbound' });
+    const session = { say: jest.fn(), interrupt: jest.fn() };
+    const data = userData({
+      serviceTrack: 'buy',
+      inboundScriptStep: 'bhk_budget',
+    });
+    const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+    await handleInboundServiceTrackTurn({
+      session,
+      meta: inbound,
+      userData: data,
+      userText: 'नहीं बताना चाहता हूँ।',
+    });
+
+    const lines = log.mock.calls.map((call) => String(call[0]));
+    log.mockRestore();
+    expect(data.inboundScriptStep).toBe('done');
+    expect(
+      lines.some((line) =>
+        line.includes('inbound script step=done leave-to-llm kind=refuse'),
+      ),
+    ).toBe(true);
+    expect(session.say).not.toHaveBeenCalled();
+  });
+});
+
+describe('resolveInboundTurnHookArgs', () => {
+  it('reads ctx.session and newMessage.textContent', () => {
+    const session = { say: jest.fn() };
+    const resolved = resolveInboundTurnHookArgs(
+      { session },
+      { items: [{ content: 'ignore chatCtx' }] },
+      { textContent: 'सेक्टर 42।' },
+    );
+    expect(resolved.session).toBe(session);
+    expect(resolved.userText).toBe('सेक्टर 42।');
+  });
+
+  it('falls back to a say() object on ctx itself', () => {
+    const session = { say: jest.fn() };
+    const resolved = resolveInboundTurnHookArgs(
+      session,
+      undefined,
+      { content: 'Sector 42' },
+    );
+    expect(resolved.session).toBe(session);
+    expect(resolved.userText).toBe('Sector 42');
+  });
+
+  it('returns a null session when ctx has no say()', () => {
+    const resolved = resolveInboundTurnHookArgs(
+      { agent: {} },
+      { textContent: 'do not use chatCtx' },
+      { textContent: 'सेक्टर 42।' },
+    );
+    expect(resolved.session).toBeNull();
+    expect(resolved.userText).toBe('सेक्टर 42।');
+  });
+});
+
+describe('runInboundScriptHook', () => {
+  function userData(
+    extras: Partial<SessionUserData> = {},
+  ): SessionUserData {
+    return {
+      context: {},
+      taskResult: null,
+      taskCompleted: false,
+      toolEvents: [],
+      ...extras,
+    };
+  }
+
+  it('plays the timing line from official hook args', async () => {
+    const inbound = meta({ direction: 'inbound', agentKey: 'inbound' });
+    const session = { say: jest.fn(), interrupt: jest.fn() };
+    const data = userData({
+      serviceTrack: 'buy',
+      inboundScriptStep: 'location',
+    });
+
+    await expect(
+      runInboundScriptHook({
+        ctx: { session },
+        chatCtx: { items: [] },
+        newMessage: { textContent: 'सेक्टर 42।' },
+        meta: inbound,
+        userData: data,
+      }),
+    ).rejects.toBeInstanceOf(voice.StopResponse);
+
+    expect(data.inboundScriptStep).toBe('timing');
+    expect(session.say).toHaveBeenCalledWith(
+      INBOUND_TIMING_LINE,
+      expect.objectContaining({ addToChatCtx: true }),
+    );
+  });
+
+  it('logs skip=no-session and does not speak', async () => {
+    const inbound = meta({ direction: 'inbound', agentKey: 'inbound' });
+    const data = userData({
+      serviceTrack: 'buy',
+      inboundScriptStep: 'location',
+    });
+    const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+    await runInboundScriptHook({
+      ctx: { agent: {} },
+      newMessage: { textContent: 'सेक्टर 42।' },
+      meta: inbound,
+      userData: data,
+    });
+
+    const lines = log.mock.calls.map((call) => String(call[0]));
+    log.mockRestore();
+    expect(data.inboundScriptStep).toBe('location');
+    expect(lines.some((line) => line.includes('session=missing'))).toBe(true);
+    expect(lines.some((line) => line.includes('skip=no-session'))).toBe(true);
+  });
+
+  it('logs skip=no-userData and does not speak', async () => {
+    const inbound = meta({ direction: 'inbound', agentKey: 'inbound' });
+    const session = { say: jest.fn(), interrupt: jest.fn() };
+    const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+    await runInboundScriptHook({
+      ctx: { session },
+      newMessage: { textContent: 'सेक्टर 42।' },
+      meta: inbound,
+    });
+
+    const lines = log.mock.calls.map((call) => String(call[0]));
+    log.mockRestore();
+    expect(lines.some((line) => line.includes('skip=no-userData'))).toBe(true);
+    expect(session.say).not.toHaveBeenCalled();
+  });
+});
+
+describe('truncateLogText', () => {
+  it('keeps short text and trims long one-liners', () => {
+    expect(truncateLogText('  सेक्टर 42।  ')).toBe('सेक्टर 42।');
+    expect(truncateLogText('x'.repeat(81)).endsWith('…')).toBe(true);
+    expect(truncateLogText('x'.repeat(81)).length).toBe(81);
   });
 });

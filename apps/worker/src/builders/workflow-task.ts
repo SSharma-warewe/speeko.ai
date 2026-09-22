@@ -51,20 +51,16 @@ export function createWorkflowTask<ResultT>(
       }
       await speakRealtimeOpening(ctx.session, meta);
     },
-    async onUserTurnCompleted(...args: unknown[]) {
+    async onUserTurnCompleted(ctx, chatCtx, newMessage) {
       if (realtime) {
         return;
       }
-      const session = sessionFromTurnArgs(args);
-      const message = messageFromTurnArgs(args);
-      if (!session || !options.userData) {
-        return;
-      }
-      await handleInboundServiceTrackTurn({
-        session,
+      await runInboundScriptHook({
+        ctx,
+        chatCtx,
+        newMessage,
         meta,
         userData: options.userData,
-        userText: userTurnText(message),
       });
     },
   });
@@ -77,6 +73,70 @@ type TrackTurnSession = {
     options?: { addToChatCtx?: boolean; allowInterruptions?: boolean },
   ) => unknown;
 };
+
+export type InboundTurnHookArgs = {
+  session: TrackTurnSession | null;
+  userText: string;
+};
+
+const LOG_TEXT_MAX = 80;
+
+/**
+ * Official LiveKit args: onUserTurnCompleted(ctx, chatCtx, newMessage).
+ * Prefer ctx.session; last-resort fallback is a say() object on ctx itself.
+ * Do not scan chatCtx for the user utterance.
+ */
+export function resolveInboundTurnHookArgs(
+  ctx: unknown,
+  _chatCtx: unknown,
+  newMessage: unknown,
+): InboundTurnHookArgs {
+  return {
+    session: sessionFromOfficialCtx(ctx),
+    userText: userTurnText(asTurnMessage(newMessage)),
+  };
+}
+
+export async function runInboundScriptHook(options: {
+  ctx: unknown;
+  chatCtx?: unknown;
+  newMessage: unknown;
+  meta: AgentJobMetadata;
+  userData?: SessionUserData;
+}): Promise<void> {
+  const { session, userText } = resolveInboundTurnHookArgs(
+    options.ctx,
+    options.chatCtx,
+    options.newMessage,
+  );
+  const inboundPipeline =
+    options.meta.direction === 'inbound' &&
+    !isRealtimeLlmModel(options.meta.model);
+  if (inboundPipeline) {
+    const step = options.userData
+      ? resolveInboundScriptStep(options.userData)
+      : 'service';
+    const track = options.userData?.serviceTrack ?? 'none';
+    console.log(
+      `[agent] inbound script hook step=${step} track=${track} ` +
+        `text="${truncateLogText(userText)}" session=${session ? 'ok' : 'missing'}`,
+    );
+    if (!options.userData) {
+      console.log('[agent] inbound script skip=no-userData');
+    } else if (!session) {
+      console.log('[agent] inbound script skip=no-session');
+    }
+  }
+  if (!session || !options.userData) {
+    return;
+  }
+  await handleInboundServiceTrackTurn({
+    session,
+    meta: options.meta,
+    userData: options.userData,
+    userText,
+  });
+}
 
 export async function handleInboundServiceTrackTurn(options: {
   session: TrackTurnSession;
@@ -92,11 +152,15 @@ export async function handleInboundServiceTrackTurn(options: {
   }
   const step = resolveInboundScriptStep(options.userData);
   if (step === 'done') {
+    console.log('[agent] inbound script skip=done');
     return;
   }
   if (step === 'service') {
     const track = classifyInboundServiceTrack(options.userText);
     if (!track) {
+      console.log(
+        `[agent] inbound script skip=no-track text="${truncateLogText(options.userText)}"`,
+      );
       return;
     }
     options.userData.serviceTrack = track;
@@ -143,6 +207,7 @@ export async function handleInboundServiceTrackTurn(options: {
   }
   if (kind === 'budget' || kind === 'both' || kind === 'refuse') {
     options.userData.inboundScriptStep = 'done';
+    console.log(`[agent] inbound script step=done leave-to-llm kind=${kind}`);
   }
 }
 
@@ -188,44 +253,48 @@ function speakInboundScriptLine(
   throw new voice.StopResponse();
 }
 
-function sessionFromTurnArgs(args: unknown[]): TrackTurnSession | null {
-  for (const arg of args) {
-    if (!arg || typeof arg !== 'object') {
-      continue;
-    }
-    const rec = arg as { session?: TrackTurnSession };
-    if (rec.session && typeof rec.session.say === 'function') {
-      return rec.session;
-    }
-    if (typeof (arg as TrackTurnSession).say === 'function') {
-      return arg as TrackTurnSession;
-    }
+function sessionFromOfficialCtx(ctx: unknown): TrackTurnSession | null {
+  if (!ctx || typeof ctx !== 'object') {
+    return null;
+  }
+  const rec = ctx as { session?: unknown };
+  if (isTrackTurnSession(rec.session)) {
+    return rec.session;
+  }
+  if (isTrackTurnSession(ctx)) {
+    return ctx;
   }
   return null;
 }
 
-function messageFromTurnArgs(args: unknown[]): {
+function isTrackTurnSession(value: unknown): value is TrackTurnSession {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    typeof (value as TrackTurnSession).say === 'function'
+  );
+}
+
+function asTurnMessage(newMessage: unknown): {
   textContent?: string | null;
   content?: unknown;
 } {
-  for (const arg of args) {
-    if (!arg || typeof arg !== 'object') {
-      continue;
-    }
-    const rec = arg as { textContent?: unknown; content?: unknown; role?: unknown };
-    if (
-      typeof rec.textContent === 'string' ||
-      rec.content !== undefined ||
-      rec.role === 'user'
-    ) {
-      return {
-        textContent:
-          typeof rec.textContent === 'string' ? rec.textContent : null,
-        content: rec.content,
-      };
-    }
+  if (!newMessage || typeof newMessage !== 'object') {
+    return {};
   }
-  return {};
+  const rec = newMessage as { textContent?: unknown; content?: unknown };
+  return {
+    textContent: typeof rec.textContent === 'string' ? rec.textContent : null,
+    content: rec.content,
+  };
+}
+
+export function truncateLogText(text: string): string {
+  const oneLine = text.replace(/\s+/g, ' ').trim();
+  if (oneLine.length <= LOG_TEXT_MAX) {
+    return oneLine;
+  }
+  return `${oneLine.slice(0, LOG_TEXT_MAX)}…`;
 }
 
 /**
