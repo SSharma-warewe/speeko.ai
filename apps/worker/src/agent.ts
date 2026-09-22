@@ -1,4 +1,4 @@
-import { isRealtimeLlmModel, isSarvamRealtimeTtsModel } from '@call-agent/contracts';
+import { isRealtimeLlmModel } from '@call-agent/contracts';
 import { type JobContext, defineAgent, voice } from '@livekit/agents';
 import {
   AgentRuntimeBuilder,
@@ -201,9 +201,10 @@ export class AgentJob {
     if (status === 'hangup') {
       throw new Error('SIP callee hung up before answer (no answer)');
     }
-    // Pipeline: REST-synthesize ack / script / goodbye while still ringing
-    // (inbound) or waiting for the callee (outbound). Do not build the
-    // full runtime here — unanswered outbound must not open STT / realtime.
+    // Pipeline + Bulbul realtime: REST-synthesize ack / script / goodbye
+    // while still ringing (inbound) or waiting for the callee (outbound).
+    // Do not build the full runtime here — unanswered outbound must not
+    // open STT / realtime.
     this.startTtsWarm();
     if (this.waitForCallee) {
       await this.sip.waitForSipAnswer({
@@ -220,11 +221,7 @@ export class AgentJob {
   }
 
   private startTtsWarm(): void {
-    if (
-      this.ttsWarm ||
-      isRealtimeLlmModel(this.meta.model) ||
-      isSarvamRealtimeTtsModel(this.meta.ttsModel)
-    ) {
+    if (this.ttsWarm || isRealtimeLlmModel(this.meta.model)) {
       return;
     }
     this.ttsWarm = warmTtsBeforeStart(this.meta);

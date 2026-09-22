@@ -154,6 +154,14 @@ describe('model-builder voice / temp helpers', () => {
     expect(sarvamRealtimeTts).toBeInstanceOf(sarvam.TTS);
     expect(sarvamRealtimeTts.capabilities.streaming).toBe(true);
 
+    const sarvamRealtimeWarm = createTts(
+      meta({ ttsModel: 'sarvam/bulbul-v3-realtime', voice: 'ritu' }),
+      { SARVAM_API_KEY: 'sk_test' },
+      { streaming: false },
+    );
+    expect(sarvamRealtimeWarm).toBeInstanceOf(sarvam.TTS);
+    expect(sarvamRealtimeWarm.capabilities.streaming).toBe(false);
+
     const sarvamStt = createStt(
       meta({ sttModel: 'sarvam/saaras-v3' }),
       { SARVAM_API_KEY: 'sk_test' },

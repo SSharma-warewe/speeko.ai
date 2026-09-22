@@ -174,6 +174,30 @@ describe('phrasesToWarm', () => {
     expect(synthesize.mock.calls.some(([text]) => text === 'जी')).toBe(true);
   });
 
+  it('warmTtsBeforeStart synthesizes Bulbul realtime via the given synth', async () => {
+    clearTtsCache();
+    const synthesize = jest.fn(async function* (text: string) {
+      yield { frame: { id: text } };
+    });
+    await warmTtsBeforeStart(
+      {
+        agentKey: 'inbound',
+        direction: 'inbound',
+        task: 'general',
+        ttsModel: 'sarvam/bulbul-v3-realtime',
+        prompt: {
+          systemPrompt: 'हिंदी में बात करें।',
+          onEnterInstructions: null,
+          onExitInstructions: null,
+        },
+        enabledTools: ['endCall'],
+      } as AgentJobMetadata,
+      { synthesize },
+    );
+    expect(synthesize).toHaveBeenCalled();
+    expect(synthesize.mock.calls.some(([text]) => text === 'जी')).toBe(true);
+  });
+
   it('warmTtsBeforeStart is a no-op on realtime', async () => {
     const synthesize = jest.fn();
     await warmTtsBeforeStart(
@@ -211,20 +235,26 @@ describe('phrasesToWarm', () => {
     ).toEqual([]);
   });
 
-  it('skips Sarvam Bulbul realtime TTS', () => {
-    expect(
-      phrasesToWarm({
-        agentKey: 'inbound',
-        direction: 'inbound',
-        task: 'general',
-        ttsModel: 'sarvam/bulbul-v3-realtime',
-        prompt: {
-          systemPrompt: 'हिंदी में बात करें।',
-          onEnterInstructions: null,
-          onExitInstructions: null,
-        },
-        enabledTools: ['endCall'],
-      } as AgentJobMetadata),
-    ).toEqual([]);
+  it('warms inbound phrases for Sarvam Bulbul realtime TTS', () => {
+    const phrases = phrasesToWarm({
+      agentKey: 'inbound',
+      direction: 'inbound',
+      task: 'general',
+      ttsModel: 'sarvam/bulbul-v3-realtime',
+      prompt: {
+        systemPrompt: 'हिंदी में बात करें।',
+        onEnterInstructions: null,
+        onExitInstructions: null,
+      },
+      enabledTools: ['endCall'],
+    } as AgentJobMetadata);
+    expect(phrases).toEqual(
+      expect.arrayContaining([
+        inboundServiceTrackLine('buy'),
+        INBOUND_TIMING_LINE,
+        INBOUND_BHK_BUDGET_LINE,
+        'जी',
+      ]),
+    );
   });
 });

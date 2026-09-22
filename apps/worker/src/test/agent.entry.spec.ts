@@ -307,7 +307,7 @@ describe('runAgentJob', () => {
       expect(runtime.session.start).toHaveBeenCalledTimes(1);
     });
 
-    it('inbound SIP with Bulbul realtime skips TTS warm', async () => {
+    it('inbound SIP with Bulbul realtime warms TTS before session.start', async () => {
       const ctx = makeCtx(
         metadata({
           callId: undefined,
@@ -327,7 +327,7 @@ describe('runAgentJob', () => {
       await runJob(ctx);
 
       expect(waitForSipAnswerMock).not.toHaveBeenCalled();
-      expect(warmTtsBeforeStartMock).not.toHaveBeenCalled();
+      expect(warmTtsBeforeStartMock).toHaveBeenCalled();
       expect(runtime.session.start).toHaveBeenCalledTimes(1);
     });
 

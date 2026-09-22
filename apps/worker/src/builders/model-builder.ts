@@ -157,9 +157,15 @@ function requireEnv(
   return value;
 }
 
+export type CreateTtsOptions = {
+  /** Override catalog streaming (REST warm for `sarvam/bulbul-v3-realtime`). */
+  streaming?: boolean;
+};
+
 export function createTts(
   meta: AgentJobMetadata,
   env: NodeJS.ProcessEnv = process.env,
+  options?: CreateTtsOptions,
 ): tts.TTS {
   const spec = resolveTtsSpec(meta);
   const voice = resolveTtsVoice(meta, spec);
@@ -187,7 +193,7 @@ export function createTts(
   }
 
   if (spec.backend === 'sarvam-plugin') {
-    const streaming = spec.streaming === true;
+    const streaming = options?.streaming ?? spec.streaming === true;
     return new sarvam.TTS({
       apiKey: requireEnv(env, 'SARVAM_API_KEY', spec.id),
       model: spec.runtimeModel as 'bulbul:v3',

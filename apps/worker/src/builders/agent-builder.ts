@@ -1,4 +1,4 @@
-import { isRealtimeLlmModel, isSarvamRealtimeTtsModel } from '@call-agent/contracts';
+import { isRealtimeLlmModel } from '@call-agent/contracts';
 import { voice } from '@livekit/agents';
 import { hangUpCall } from '../speech/hangup.js';
 import type { AgentJobMetadata } from '@call-agent/contracts';
@@ -242,7 +242,8 @@ export class AgentRuntimeBuilder {
 }
 
 export function phrasesToWarm(meta: AgentJobMetadata): string[] {
-  if (isRealtimeLlmModel(meta.model) || isSarvamRealtimeTtsModel(meta.ttsModel)) {
+  // S2S realtime has no pipeline TTS. Bulbul realtime still warms via REST.
+  if (isRealtimeLlmModel(meta.model)) {
     return [];
   }
   const phrases: string[] = [];
@@ -259,8 +260,8 @@ export function phrasesToWarm(meta: AgentJobMetadata): string[] {
 
 /**
  * REST-synthesize ack / inbound script / goodbye before session.start so
- * pickup is not waiting on Bulbul. Uses a standalone TTS instance — do not
- * construct the full runtime (STT / realtime) while outbound is still
+ * pickup is not waiting on Bulbul WS. Uses a standalone REST TTS instance —
+ * do not construct the full runtime (STT / realtime) while outbound is still
  * ringing. Opening stays generateReply. Never throws.
  */
 export async function warmTtsBeforeStart(
@@ -272,7 +273,9 @@ export async function warmTtsBeforeStart(
     return;
   }
   try {
-    const synth = tts ?? createTts(meta);
+    // Force REST even when the session TTS is `sarvam/bulbul-v3-realtime`.
+    // Cached frames play via session.say({ audio }) and skip the WS path.
+    const synth = tts ?? createTts(meta, process.env, { streaming: false });
     await warmTtsPhrases(synth, meta, phrases);
     console.log(`[agent] tts warmed before start count=${phrases.length}`);
   } catch (err) {
