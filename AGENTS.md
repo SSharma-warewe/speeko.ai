@@ -91,6 +91,7 @@ tool_profiles                  (capability bundles: platform seeds + org-owned c
 - `organization_integrations` — org-owned third-party credentials (`provider=nylas` \| `ghl`): `name`, `api_key` (secret, never returned), `api_key_prefix`, `grant_id` (Nylas; null for GHL), `location_id` (GHL; null for Nylas), `calendar_id` (Nylas default `primary`, or GHL calendar id), `api_uri` / `email` (Nylas-only), `is_active`. Used by calendar tools via agent link.
 - `whatsapp_webhook_configs` — 1:1 with org. Meta webhook subscription: `phone_number_id` / `waba_id` (at least one; unique when set), SHA-256 `verify_token_hash` + display `verify_token_prefix`. Raw verify token returned only on generate/rotate. `GET /api/webhooks/whatsapp` is public (no JWT): `hub.mode=subscribe` + matching `hub.verify_token` returns `hub.challenge` as `text/plain` 200; otherwise 403. Callback URL is `{API_PUBLIC_URL|/public API_BASE_URL|https://RAILWAY_PUBLIC_DOMAIN}/api/webhooks/whatsapp` (never `*.railway.internal`). Inbound POSTs route by phone number id then WABA id.
 - `whatsapp_webhook_events` — one row per Meta POST: `payload` JSONB, `event_type` (first `entry[].changes[].field`, else `unknown`), `received_at`, optional `organization_id` (SET NULL; null when ids do not match a config). Always HTTP 200 after persist — no replies or message processing yet.
+- `otp_challenges` — public get-demo WhatsApp OTP (not org-scoped, not the webhook module). `phone_digits`, `code_hash` (HMAC-SHA256 with `OTP_HASH_SECRET`), `expires_at` (5 min), `attempt_count` (max 5 then burn), `consumed_at`. After a correct code: `verification_token_hash` + `verification_expires_at` (10 min) + `verification_used_at` (single-use on demo request). Raw code and token are never stored or returned together. A new send burns older unused rows for that phone.
 - `organization_agents.calendar_integration_id` — optional FK → `organization_integrations` (SET NULL). Which calendar powers calendar tools for that agent (Nylas **or** GHL); tool enablement stays on the tool profile.
 
 ### Integration endpoints (CRM dial-in)
@@ -266,6 +267,10 @@ Default local DB credentials (see `.env.example`):
 | `API_BASE_URL` | worker + API | Worker → API origin (may be `http://api.railway.internal:3000` in production). Local default `http://localhost:3000`. |
 | `API_PUBLIC_URL` | API | Optional public HTTPS origin for Meta WhatsApp callback URLs (e.g. `https://api-production-4df4.up.railway.app`). No trailing slash, no `/api` suffix. When unset, a public `API_BASE_URL` is used; private/internal hosts fall back to `https://{RAILWAY_PUBLIC_DOMAIN}`. |
 | `WHATSAPP_VERIFY_TOKEN` | API | Optional platform-wide Meta `hub.verify_token`. GET verify succeeds if this matches, even when no org hash matches. Per-org tokens still work. |
+| `WHATSAPP_URL` | API | Full WhatsApp Cloud API messages URL for get-demo OTP (`https://graph.facebook.com/…/messages`). OTP module only. |
+| `WHATSAPP_API_KEY` | API | Bearer token for that messages URL. Never logged, never in Vite. |
+| `OTP_HASH_SECRET` | API | HMAC pepper for OTP codes and verification tokens. Not the WhatsApp key. |
+| `WHATSAPP_OTP_TEMPLATE_NAME` | API | Template name (default `speeko_ai`). |
 | `COMPLETE_CALLBACK_TIMEOUT_MS` | worker | Per-attempt timeout for the complete POST (default `8000`). Prevents hung `fetch` from pinning the job process. |
 | `COMPLETE_CALLBACK_MAX_ATTEMPTS` | worker | Complete POST attempts (default `5`). Retries 408/429/5xx, network, and abort. Never throws after exhaustion. |
 | `COMPLETE_CALLBACK_BACKOFF_MS` | worker | Base backoff between complete retries (default `500`, exponential cap 4s, ~20% jitter). |
@@ -411,10 +416,13 @@ Do **not** redeploy every service by default — match the surface you changed.
 ### Marketing get-demo → dial + CRM
 
 ```
-Web form → POST /api/demo/request → DemoAbuseGuard (origin + rate limits)
+Web form → POST /api/otp/send → WhatsApp template speeko_ai
+  → user enters the code → POST /api/otp/verify → verificationToken
+  → POST /api/demo/request → DemoAbuseGuard (origin + rate limits)
   → API DemoService
-  1. GhlService.upsertLead (best-effort contact in GoHighLevel)
-  2. POST ENDPOINT_URL + Bearer SPEEKO_API
+  1. Consume the single-use token (same phone digits)
+  2. GhlService.upsertLead (best-effort contact in GoHighLevel)
+  3. POST ENDPOINT_URL + Bearer SPEEKO_API
   → integration enqueue → queue dialer → agent SIP call
 ```
 
@@ -480,7 +488,9 @@ Worker health is “registered with LiveKit” in service logs, not a public HTM
 | POST | `/api/auth/reset-password` | public — complete user reset |
 | POST | `/api/auth/admin/forgot-password` | public — always `{ ok: true }` |
 | POST | `/api/auth/admin/reset-password` | public — complete admin reset |
-| POST | `/api/demo/request` | public — marketing get-demo; `DemoAbuseGuard` (origin + rate limits); real person name + work email (`isDemoPersonName` / `isDemoWorkEmail`); best-effort GHL contact upsert, then proxy to `ENDPOINT_URL` with `SPEEKO_API` (integration enqueue → queue dial) |
+| POST | `/api/otp/send` | public — get-demo WhatsApp code (`OtpAbuseGuard`); returns `challengeId` only. Template `speeko_ai` via `WHATSAPP_URL` |
+| POST | `/api/otp/verify` | public — checks the code server-side; returns a single-use `verificationToken` bound to that phone. Wrong/expired/locked share one error |
+| POST | `/api/demo/request` | public — marketing get-demo; requires `verificationToken` from `/otp/verify` for the same phone; `DemoAbuseGuard` (origin + rate limits); real person name + work email (`isDemoPersonName` / `isDemoWorkEmail`); best-effort GHL contact upsert, then proxy to `ENDPOINT_URL` with `SPEEKO_API` (integration enqueue → queue dial) |
 | POST | `/api/admin/organizations` | admin JWT |
 | GET | `/api/admin/organizations` | admin JWT |
 | GET | `/api/admin/organizations/:id` | admin JWT |
@@ -747,7 +757,8 @@ controller → service → repository → TypeORM entity → Postgres
 - `livekit` is an infrastructure adapter (service only), not a repository-backed domain module.
 - `email` is an infrastructure adapter (global `EmailService` only), not a repository-backed domain module. Uses Plunk `POST /v1/send`.
 - `ghl` is an infrastructure adapter (`GhlService` + worker-secret calendar controller). Calendar tools resolve org GHL connections; get-demo CRM stays env. Not a repository-backed domain module.
-- `demo` is a thin public proxy (no repository): `DemoAbuseGuard` (origin + rate limits) → GHL upsert (best-effort) → `ENDPOINT_URL` + `SPEEKO_API` → integration enqueue.
+- `otp` is public get-demo phone verification (own module, not `whatsapp/`): `POST /otp/send` + `POST /otp/verify`, HMAC storage, WhatsApp template send via `WHATSAPP_URL` / `WHATSAPP_API_KEY`. Never log or return the code. `DemoService` consumes the single-use token before CRM or dial.
+- `demo` is a thin public proxy (no repository): `DemoAbuseGuard` (origin + rate limits) → consume OTP verification token → GHL upsert (best-effort) → `ENDPOINT_URL` + `SPEEKO_API` → integration enqueue.
 - `whatsapp` is webhook ingest only: org-user generate/rotate (`POST /users/whatsapp/webhook-config`) + public Meta GET/POST `/webhooks/whatsapp` (no JWT). Persist raw JSONB; do not call Graph or send replies. GET verify echoes `hub.challenge` as `text/plain`. Callback URL uses `API_PUBLIC_URL` (then public `API_BASE_URL`, then `RAILWAY_PUBLIC_DOMAIN`) + `/api/webhooks/whatsapp`. Portal Integrations → WhatsApp tab generates/copies the callback URL and verify token.
 - `queue` uses raw SQL for atomic claim (`FOR UPDATE SKIP LOCKED`) via TypeORM `DataSource`; settings/batches use repositories.
 - `price` is a catalog + calculator (`PriceService`). Inject it; do not inline LiveKit rates in `calls`. Worker complete appends one cost attempt (including requeue). Call DTOs include `cost` (`null` until priced). Portal shows the snapshot on the org calls tape / dossier and admin all-calls / overview. `GET /api/users/costs/summary` is JWT-org only; `POST /api/admin/costs/recompute` stays admin.
@@ -758,7 +769,7 @@ controller → service → repository → TypeORM entity → Postgres
 2. Put LiveKit agent job work in `apps/worker` (tsx + `@livekit/agents`, not Nest webpack).
 3. Validate all inputs with `class-validator` DTOs; document with `@nestjs/swagger`. Success **and** error HTTP codes belong on the route (`ApiJwtErrors`, `ApiNotFoundError`, `ApiConflictError`, …) using `ErrorResponseDto`.
 4. Never commit real secrets; use `.env` (gitignored) + `.env.example`.
-5. Prefer clear module boundaries: `auth`, `admins`, `organizations`, `users`, `agents`, `tools` (profiles), `integration-endpoints`, `organization-integrations` (Nylas + GHL calendar keys + worker Nylas proxy), `whatsapp` (Meta webhook config + ingest), `demo` (get-demo proxy), `sip-trunks`, `sip-dispatch-rules`, `calls`, `queue`, `price` (LiveKit list-price cost analysis, no markup), `livekit` (adapter), `email` (Plunk adapter), `ghl` (GoHighLevel adapter + worker GHL calendar proxy).
+5. Prefer clear module boundaries: `auth`, `admins`, `organizations`, `users`, `agents`, `tools` (profiles), `integration-endpoints`, `organization-integrations` (Nylas + GHL calendar keys + worker Nylas proxy), `whatsapp` (Meta webhook config + ingest), `otp` (get-demo WhatsApp code; not the webhook module), `demo` (get-demo proxy), `sip-trunks`, `sip-dispatch-rules`, `calls`, `queue`, `price` (LiveKit list-price cost analysis, no markup), `livekit` (adapter), `email` (Plunk adapter), `ghl` (GoHighLevel adapter + worker GHL calendar proxy).
 6. Persistence: one custom repository per entity; services own business logic only.
 7. When adding telephony (numbers, trunks, dispatch rules) or schema for calls/queue, update Erflow + this file in the same change set.
 8. **Update this AGENTS.md** when project conventions, scripts, schema ownership, or Railway deploy layout change.
@@ -795,6 +806,7 @@ npm test
 npx jest --testPathPatterns=auth/test --no-coverage
 npx jest --testPathPatterns=admins/test --no-coverage
 npx jest --testPathPatterns=demo/test --no-coverage
+npx jest --testPathPatterns=otp/test --no-coverage
 npx jest --testPathPatterns=users/test --no-coverage
 npx jest --testPathPatterns=organizations/test --no-coverage
 npx jest --testPathPatterns=organization-integrations/test --no-coverage
@@ -852,7 +864,8 @@ Work **top-down by risk**: security → money/dial side effects → multi-tenant
 |----------|--------|--------|----------------|
 | P0 | `auth` | **Done** | Login isolation, inactive admin/user/org, JWT live revalidation, Admin/User/WorkerSecret guards, login rate limit, protected routes, self-service display-name PATCH |
 | P0 | `admins` | **Done** | Email normalize, findById/email, create defaults (`isActive`, name) |
-| P0 | `demo` | **Done** | Config gate (503), body shaping, `fetch` proxy, 401/403 vs generic 502, GHL upsert before enqueue (CRM fail does not block dial), origin + IP/phone/email/global rate limits, lead quality (real person name + work email; `test` / `test@example.com` rejected) |
+| P0 | `demo` | **Done** | Config gate (503), body shaping, `fetch` proxy, 401/403 vs generic 502, GHL upsert before enqueue (CRM fail does not block dial), origin + IP/phone/email/global rate limits, lead quality (real person name + work email; `test` / `test@example.com` rejected), unverified phone does not enqueue |
+| P0 | `otp` | **Done** | HMAC code never returned, wrong/expired/locked codes, resend burns the previous code, Graph template body (mocked `fetch`), token single-use and phone mismatch, origin + send/verify rate limits |
 | P0 | `users` | **Done** | Create user, org scope, password hash, unique email per org, toSafeUser redaction |
 | P0 | `organizations` | **Done** | Create org, slug uniqueness/lowercase, name trim, `isActive` default, `allowedToolIds: ['endCall']` seed, findById/Slug/IdOrSlug |
 | P0 | `common` (HTTP errors) | **Done** | Exception filter body (`code` + `statusCode`), unknown throws do not leak, `ParseResourceIdPipe` 404 on non-UUID path ids |
@@ -893,7 +906,7 @@ Update the **Status** column when a module suite lands or expands.
 ## What not to do
 
 - Do not mix platform admin and org-user identity tables or JWT `typ` checks.
-- Do not log passwords, JWT secrets, SIP auth passwords, integration API keys, `GHL_API_KEY`, or `GHL_CALENDAR`.
+- Do not log passwords, JWT secrets, SIP auth passwords, integration API keys, `GHL_API_KEY`, `GHL_CALENDAR`, `WHATSAPP_API_KEY`, `OTP_HASH_SECRET`, or OTP codes / verification tokens.
 - Do not skip Erflow updates after schema edits.
 - Do not confuse user role `agent` with the `agents` / `organization_agents` AI tables.
 - Do not put agent resolution or call lifecycle into `LivekitService` — keep it a thin adapter.

@@ -7,6 +7,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { normalizeEmail } from '../common/password.util';
 import { GhlService } from '../ghl/ghl.service';
+import { OtpService } from '../otp/otp.service';
+import { demoPhoneDigits } from './demo-form.constants';
 import { RequestDemoDto } from './dto/request-demo.dto';
 import { RequestDemoResponseDto } from './dto/request-demo-response.dto';
 
@@ -17,6 +19,7 @@ export class DemoService {
   constructor(
     private readonly config: ConfigService,
     private readonly ghl: GhlService,
+    private readonly otp: OtpService,
   ) {}
 
   /**
@@ -25,6 +28,10 @@ export class DemoService {
    */
   async requestDemo(dto: RequestDemoDto): Promise<RequestDemoResponseDto> {
     const phoneNumber = dto.phone.trim();
+    await this.otp.consumeVerification(
+      dto.verificationToken,
+      demoPhoneDigits(phoneNumber),
+    );
     const email = normalizeEmail(dto.email);
     const firstName = dto.firstName.trim();
     const lastName = dto.lastName.trim();

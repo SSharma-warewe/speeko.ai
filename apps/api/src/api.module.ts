@@ -15,6 +15,7 @@ import { GhlModule } from './ghl/ghl.module';
 import { IntegrationEndpointsModule } from './integration-endpoints/integration-endpoints.module';
 import { OrganizationIntegrationsModule } from './organization-integrations/organization-integrations.module';
 import { OrganizationsModule } from './organizations/organizations.module';
+import { OtpModule } from './otp/otp.module';
 import { PriceModule } from './price/price.module';
 import { QueueModule } from './queue/queue.module';
 import { SipDispatchRulesModule } from './sip-dispatch-rules/sip-dispatch-rules.module';
@@ -60,6 +61,7 @@ import { WhatsappModule } from './whatsapp/whatsapp.module';
     IntegrationEndpointsModule,
     OrganizationIntegrationsModule,
     WhatsappModule,
+    OtpModule,
     DemoModule,
     AuthModule,
   ],

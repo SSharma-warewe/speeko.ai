@@ -27,6 +27,17 @@ export const envValidationSchema = Joi.object({
   API_PUBLIC_URL: Joi.string().uri().optional().allow(''),
   // Optional platform-wide Meta hub.verify_token (in addition to per-org hashes).
   WHATSAPP_VERIFY_TOKEN: Joi.string().min(8).max(200).optional().allow(''),
+  // Get-demo WhatsApp OTP (otp module). Soft-required: send/verify return 503 when unset.
+  WHATSAPP_URL: Joi.string().uri().optional().allow(''),
+  WHATSAPP_API_KEY: Joi.string().optional().allow(''),
+  OTP_HASH_SECRET: Joi.string().min(16).optional().allow(''),
+  WHATSAPP_OTP_TEMPLATE_NAME: Joi.string().optional().allow(''),
+  OTP_SEND_MAX_PER_IP: Joi.number().integer().min(1).default(8),
+  OTP_SEND_IP_WINDOW_MS: Joi.number().integer().min(1000).default(900_000),
+  OTP_SEND_MAX_PER_PHONE: Joi.number().integer().min(1).default(3),
+  OTP_SEND_PHONE_WINDOW_MS: Joi.number().integer().min(1000).default(3_600_000),
+  OTP_VERIFY_MAX_PER_IP: Joi.number().integer().min(1).default(20),
+  OTP_VERIFY_IP_WINDOW_MS: Joi.number().integer().min(1000).default(900_000),
   // Optional SIP defaults (org trunks are preferred)
   LIVEKIT_SIP_OUTBOUND_TRUNK_ID: Joi.string().optional().allow(''),
   LIVEKIT_SIP_OUTBOUND_NUMBER: Joi.string().optional().allow(''),

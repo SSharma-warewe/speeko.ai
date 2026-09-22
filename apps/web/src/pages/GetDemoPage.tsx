@@ -209,15 +209,34 @@ const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(
   "",
 ) || "/api";
 
+async function readApiMessage(res: Response): Promise<string | null> {
+  try {
+    const data = (await res.json()) as { message?: string | string[] };
+    const raw = data.message;
+    return Array.isArray(raw)
+      ? raw.join(" ")
+      : typeof raw === "string"
+        ? raw
+        : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Marketing get-demo form.
- * Submits to POST /api/demo/request → server proxies to integration enqueue (agent dials).
+ * Valid form → POST /api/otp/send (WhatsApp code) → POST /api/otp/verify →
+ * POST /api/demo/request with the single-use token.
  */
 export default function GetDemoPage() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [step, setStep] = useState<"form" | "code">("form");
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [otpCode, setOtpCode] = useState("");
+  const [pendingPhone, setPendingPhone] = useState("");
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -300,8 +319,74 @@ export default function GetDemoPage() {
 
     setSubmitting(true);
     setError(null);
+    await requestCode(phone);
+  };
 
+  const requestCode = async (phone: string) => {
+    setSubmitting(true);
+    setError(null);
     try {
+      const res = await fetch(`${API_BASE}/otp/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone }),
+      });
+      const message = res.ok ? null : await readApiMessage(res);
+      if (res.status === 429) {
+        setError(message || "Too many codes. Please try again in a few minutes.");
+        return;
+      }
+      if (!res.ok) {
+        setError(message || "Could not send a WhatsApp code. Please try again.");
+        return;
+      }
+      const data = (await res.json()) as { challengeId?: string };
+      if (!data.challengeId) {
+        setError("Could not send a WhatsApp code. Please try again.");
+        return;
+      }
+      setPendingPhone(phone);
+      setChallengeId(data.challengeId);
+      setOtpCode("");
+      setStep("code");
+    } catch {
+      setError("Could not reach the server. Check your connection and try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = otpCode.replace(/\D/g, "");
+    if (code.length !== 6 || !challengeId) {
+      setError("Enter the 6-digit code from WhatsApp.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      const verifyRes = await fetch(`${API_BASE}/otp/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ challengeId, code }),
+      });
+      const verifyMessage = verifyRes.ok ? null : await readApiMessage(verifyRes);
+      if (verifyRes.status === 429) {
+        setError(verifyMessage || "Too many attempts. Please try again in a few minutes.");
+        return;
+      }
+      if (!verifyRes.ok) {
+        setError(verifyMessage || "That code is incorrect or expired.");
+        return;
+      }
+      const verified = (await verifyRes.json()) as { verificationToken?: string };
+      if (!verified.verificationToken) {
+        setError("That code is incorrect or expired.");
+        return;
+      }
+
       const res = await fetch(`${API_BASE}/demo/request`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -310,53 +395,27 @@ export default function GetDemoPage() {
           lastName: form.lastName.trim(),
           company: form.company.trim(),
           email: form.email.trim(),
-          phone,
+          phone: pendingPhone,
           country: form.country,
           teamSize: form.teamSize,
           callsPerDay: form.callsPerDay,
           direction: form.direction,
           integrations: form.integrations,
+          verificationToken: verified.verificationToken,
         }),
       });
-
-      let message: string | null = null;
-      try {
-        const data = (await res.json()) as {
-          message?: string | string[];
-          ok?: boolean;
-        };
-        if (!res.ok) {
-          const raw = data.message;
-          message = Array.isArray(raw)
-            ? raw.join(" ")
-            : typeof raw === "string"
-              ? raw
-              : null;
-        }
-      } catch {
-        // non-JSON error body
-      }
-
+      const message = res.ok ? null : await readApiMessage(res);
       if (res.status === 429) {
-        setError(
-          "Too many demo requests. Please try again in a few minutes.",
-        );
+        setError(message || "Too many demo requests. Please try again in a few minutes.");
         return;
       }
-
       if (!res.ok) {
-        setError(
-          message ||
-            "Something went wrong submitting your request. Please try again.",
-        );
+        setError(message || "Something went wrong submitting your request. Please try again.");
         return;
       }
-
       setSubmitted(true);
     } catch {
-      setError(
-        "Could not reach the server. Check your connection and try again.",
-      );
+      setError("Could not reach the server. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -416,6 +475,63 @@ export default function GetDemoPage() {
                 Back to home
               </Link>
             </div>
+          ) : step === "code" ? (
+            <form className="gd-form" onSubmit={handleVerify} noValidate>
+              {error && (
+                <div className="gd-error" role="alert">
+                  {error}
+                </div>
+              )}
+              <p className="gd-otp-lead">
+                We sent a 6-digit code to WhatsApp on {pendingPhone}. Enter it to
+                confirm this number.
+              </p>
+              <label className="gd-field">
+                <span>WhatsApp code</span>
+                <input
+                  className="gd-otp-input"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={otpCode}
+                  onChange={(e) => {
+                    setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6));
+                    if (error) setError(null);
+                  }}
+                  placeholder="123456"
+                />
+              </label>
+              <div className="gd-submit-wrap">
+                <button type="submit" className="gd-submit" disabled={submitting}>
+                  <span className="gd-submit-label">
+                    {submitting ? "Checking…" : "Verify and get demo"}
+                  </span>
+                </button>
+              </div>
+              <div className="gd-otp-actions">
+                <button
+                  type="button"
+                  className="gd-text-btn"
+                  disabled={submitting}
+                  onClick={() => requestCode(pendingPhone)}
+                >
+                  Resend code
+                </button>
+                <button
+                  type="button"
+                  className="gd-text-btn"
+                  disabled={submitting}
+                  onClick={() => {
+                    setStep("form");
+                    setError(null);
+                    setOtpCode("");
+                  }}
+                >
+                  Edit details
+                </button>
+              </div>
+            </form>
           ) : (
           <form className="gd-form" onSubmit={handleSubmit} noValidate>
                 {error && (
@@ -586,7 +702,7 @@ export default function GetDemoPage() {
             <div className="gd-submit-wrap">
               <button type="submit" className="gd-submit" disabled={submitting}>
                 <span className="gd-submit-label">
-                  {submitting ? "Submitting…" : "Get demo"}
+                  {submitting ? "Sending code…" : "Send WhatsApp code"}
                 </span>
                 {!submitting && (
                   <span className="gd-submit-arrow" aria-hidden>

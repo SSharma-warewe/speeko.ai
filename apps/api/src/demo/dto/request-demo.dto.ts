@@ -92,6 +92,16 @@ export class RequestDemoDto {
   direction!: (typeof DEMO_DIRECTIONS)[number];
 
   @ApiProperty({
+    description:
+      'Single-use proof from POST /otp/verify. Bound to this phone number.',
+  })
+  @Transform(trimString)
+  @IsString()
+  @MinLength(20)
+  @MaxLength(200)
+  verificationToken!: string;
+
+  @ApiProperty({
     type: [String],
     example: ['HubSpot', 'Google Calendar'],
     enum: DEMO_INTEGRATION_OPTIONS,

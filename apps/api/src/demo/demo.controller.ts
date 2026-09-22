@@ -30,7 +30,8 @@ export class DemoController {
   @ApiOperation({
     summary: 'Request a product demo call',
     description:
-      'Public marketing form. Origin allowlist (when CORS_ORIGIN is set) + in-process ' +
+      'Public marketing form. Requires a single-use verificationToken from POST /otp/verify ' +
+      'for the same phone. Origin allowlist (when CORS_ORIGIN is set) + in-process ' +
       'rate limits, then best-effort GoHighLevel upsert and proxy to ENDPOINT_URL with ' +
       'SPEEKO_API (integration enqueue). Agent, task, and trunk are fixed on that ' +
       'endpoint. Creates a pending outbound call; the queue dialer places the SIP leg. ' +

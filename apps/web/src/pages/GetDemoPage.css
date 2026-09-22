@@ -418,6 +418,43 @@
           padding: 9px 12px;
         }
 
+        .gd-otp-lead {
+          margin: 0;
+          font-size: 14px;
+          line-height: 1.5;
+          font-weight: 400;
+          color: #525252;
+        }
+
+        .gd-otp-input {
+          letter-spacing: 0.28em;
+          font-variant-numeric: tabular-nums;
+        }
+
+        .gd-otp-actions {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+        }
+
+        .gd-text-btn {
+          padding: 0;
+          border: 0;
+          background: none;
+          font: inherit;
+          font-size: 13px;
+          font-weight: 600;
+          color: #404040;
+          cursor: pointer;
+          text-decoration: underline;
+          text-underline-offset: 3px;
+        }
+
+        .gd-text-btn:disabled {
+          opacity: 0.5;
+          cursor: default;
+        }
+
         .gd-row {
           display: grid;
           grid-template-columns: 1fr 1fr;

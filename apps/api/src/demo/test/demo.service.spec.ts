@@ -1,9 +1,11 @@
 import {
   BadGatewayException,
+  BadRequestException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GhlService } from '../../ghl/ghl.service';
+import { OtpService } from '../../otp/otp.service';
 import { DemoService } from '../demo.service';
 import { RequestDemoDto } from '../dto/request-demo.dto';
 
@@ -21,6 +23,7 @@ describe('DemoService', () => {
     teamSize: '  11–50  ',
     callsPerDay: '  50–200  ',
     direction: 'outbound',
+    verificationToken: 'verify-token-test-value-0123456789',
     integrations: [' HubSpot ', '', '  Google Calendar  ', '   '],
   };
 
@@ -39,6 +42,7 @@ describe('DemoService', () => {
 
   let configGet: jest.Mock;
   let ghlUpsert: jest.Mock;
+  let consumeVerification: jest.Mock;
   let service: DemoService;
   let fetchMock: jest.SpyInstance;
 
@@ -55,9 +59,11 @@ describe('DemoService', () => {
       return undefined;
     });
     ghlUpsert = jest.fn().mockResolvedValue(ghlResult);
+    consumeVerification = jest.fn().mockResolvedValue(undefined);
     return new DemoService(
       { get: configGet } as unknown as ConfigService,
       { upsertLead: ghlUpsert } as unknown as GhlService,
+      { consumeVerification } as unknown as OtpService,
     );
   }
 
@@ -123,6 +129,24 @@ describe('DemoService', () => {
         callId: 'call-1',
       });
       expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('4a. rejects before CRM or dial when the phone is not verified', async () => {
+      consumeVerification.mockRejectedValue(
+        new BadRequestException(
+          'Verify your phone number before requesting a demo.',
+        ),
+      );
+
+      await expect(service.requestDemo(baseDto)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(consumeVerification).toHaveBeenCalledWith(
+        'verify-token-test-value-0123456789',
+        '15550102000',
+      );
+      expect(ghlUpsert).not.toHaveBeenCalled();
+      expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it('4b. still upserts the GHL lead when dial env is missing', async () => {
