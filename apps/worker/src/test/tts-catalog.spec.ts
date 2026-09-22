@@ -2,6 +2,8 @@ import {
   DEFAULT_TTS_MODEL_ID,
   KNOWN_TTS_MODEL_IDS,
   canonicalizeTtsModelId,
+  isSarvamRealtimeTtsModel,
+  isSarvamTtsModel,
   isVoiceAllowed,
   ttsModelSpec,
 } from '@call-agent/contracts';
@@ -14,12 +16,24 @@ describe('TTS catalog', () => {
       'openai/gpt-4o-mini-tts',
       'xai/tts-1',
       'sarvam/bulbul-v3',
+      'sarvam/bulbul-v3-realtime',
     ]);
     expect(ttsModelSpec('openai/gpt-4o-mini-tts').backend).toBe(
       'openai-plugin',
     );
     expect(ttsModelSpec('xai/tts-1').backend).toBe('xai-plugin');
     expect(ttsModelSpec('bulbul:v3').backend).toBe('sarvam-plugin');
+    expect(ttsModelSpec('bulbul:v3').streaming).toBeUndefined();
+    expect(ttsModelSpec('sarvam/bulbul-realtime').id).toBe(
+      'sarvam/bulbul-v3-realtime',
+    );
+    expect(ttsModelSpec('sarvam/bulbul-v3-realtime').streaming).toBe(true);
+    expect(ttsModelSpec('sarvam/bulbul-v3-realtime').runtimeModel).toBe(
+      'bulbul:v3',
+    );
+    expect(isSarvamRealtimeTtsModel('sarvam/bulbul-realtime')).toBe(true);
+    expect(isSarvamRealtimeTtsModel('sarvam/bulbul-v3')).toBe(false);
+    expect(isSarvamTtsModel('sarvam/bulbul-v3-realtime')).toBe(true);
     expect(
       canonicalizeTtsModelId('google/gemini-3.1-flash-tts-preview'),
     ).toBeUndefined();

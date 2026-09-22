@@ -1,4 +1,4 @@
-import { isRealtimeLlmModel } from '@call-agent/contracts';
+import { isRealtimeLlmModel, isSarvamRealtimeTtsModel } from '@call-agent/contracts';
 import { type JobContext, defineAgent, voice } from '@livekit/agents';
 import {
   AgentRuntimeBuilder,
@@ -220,7 +220,11 @@ export class AgentJob {
   }
 
   private startTtsWarm(): void {
-    if (this.ttsWarm || isRealtimeLlmModel(this.meta.model)) {
+    if (
+      this.ttsWarm ||
+      isRealtimeLlmModel(this.meta.model) ||
+      isSarvamRealtimeTtsModel(this.meta.ttsModel)
+    ) {
       return;
     }
     this.ttsWarm = warmTtsBeforeStart(this.meta);

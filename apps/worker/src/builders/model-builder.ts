@@ -187,17 +187,16 @@ export function createTts(
   }
 
   if (spec.backend === 'sarvam-plugin') {
+    const streaming = spec.streaming === true;
     return new sarvam.TTS({
       apiKey: requireEnv(env, 'SARVAM_API_KEY', spec.id),
       model: spec.runtimeModel as 'bulbul:v3',
       speaker: voice,
       targetLanguageCode: resolveTtsLanguage(meta) as 'en-IN',
       outputAudioCodec: 'linear16',
-      // WS streaming often ends with "TTS stream stalled after producing
-      // audio" on SIP openings (audio never reaches the callee). REST
-      // synthesize + StreamAdapter closes cleanly; TTFB is covered by
-      // preemptiveTts + the inbound phrase cache.
-      streaming: false,
+      // REST is the SIP-safe default (`TTS stream stalled` on WS openings).
+      // `sarvam/bulbul-v3-realtime` opts into native WS `stream()`.
+      streaming,
       ...(pace !== undefined ? { pace } : {}),
     });
   }

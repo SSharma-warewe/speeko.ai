@@ -210,4 +210,21 @@ describe('phrasesToWarm', () => {
       } as AgentJobMetadata),
     ).toEqual([]);
   });
+
+  it('skips Sarvam Bulbul realtime TTS', () => {
+    expect(
+      phrasesToWarm({
+        agentKey: 'inbound',
+        direction: 'inbound',
+        task: 'general',
+        ttsModel: 'sarvam/bulbul-v3-realtime',
+        prompt: {
+          systemPrompt: 'हिंदी में बात करें।',
+          onEnterInstructions: null,
+          onExitInstructions: null,
+        },
+        enabledTools: ['endCall'],
+      } as AgentJobMetadata),
+    ).toEqual([]);
+  });
 });

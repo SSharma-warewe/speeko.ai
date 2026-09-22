@@ -30,6 +30,7 @@ export {
   defaultVoiceForTtsModel,
   featuredVoicesForTtsModel,
   isKnownTtsModel,
+  isSarvamRealtimeTtsModel,
   isSarvamTtsModel,
   isVoiceAllowed,
   ttsModelSpec,

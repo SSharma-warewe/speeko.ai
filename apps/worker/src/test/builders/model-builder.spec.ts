@@ -111,6 +111,9 @@ describe('model-builder voice / temp helpers', () => {
       createTts(meta({ ttsModel: 'sarvam/bulbul-v3' }), {}),
     ).toThrow(/SARVAM_API_KEY/);
     expect(() =>
+      createTts(meta({ ttsModel: 'sarvam/bulbul-v3-realtime' }), {}),
+    ).toThrow(/SARVAM_API_KEY/);
+    expect(() =>
       createStt(meta({ sttModel: 'sarvam/saaras-v3' }), {}),
     ).toThrow(/SARVAM_API_KEY/);
     expect(() =>
@@ -144,6 +147,13 @@ describe('model-builder voice / temp helpers', () => {
     expect(sarvamTts).toBeInstanceOf(sarvam.TTS);
     expect(sarvamTts.capabilities.streaming).toBe(false);
 
+    const sarvamRealtimeTts = createTts(
+      meta({ ttsModel: 'sarvam/bulbul-v3-realtime', voice: 'ritu' }),
+      { SARVAM_API_KEY: 'sk_test' },
+    );
+    expect(sarvamRealtimeTts).toBeInstanceOf(sarvam.TTS);
+    expect(sarvamRealtimeTts.capabilities.streaming).toBe(true);
+
     const sarvamStt = createStt(
       meta({ sttModel: 'sarvam/saaras-v3' }),
       { SARVAM_API_KEY: 'sk_test' },
@@ -173,6 +183,15 @@ describe('model-builder voice / temp helpers', () => {
     expect(resolveSttSpec(meta({ sttModel: 'sarvam/saaras-v3' })).realtime).toBe(
       undefined,
     );
+  });
+
+  it('Sarvam realtime TTS is flagged for native WS streaming', () => {
+    expect(
+      resolveTtsSpec(meta({ ttsModel: 'sarvam/bulbul-v3-realtime' })).streaming,
+    ).toBe(true);
+    expect(
+      resolveTtsSpec(meta({ ttsModel: 'sarvam/bulbul-v3' })).streaming,
+    ).toBeUndefined();
   });
 
   it('Sarvam maps speakingRate to pace', () => {

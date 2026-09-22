@@ -32,7 +32,7 @@ export class VoiceSettingsDto {
   @ApiPropertyOptional({
     nullable: true,
     description:
-      'TTS catalog id (inworld/inworld-tts-2, fishaudio/s2.1-pro-free, openai/gpt-4o-mini-tts, xai/tts-1, sarvam/bulbul-v3). null = worker / template default (Inworld). Ignored when model is a realtime id.',
+      'TTS catalog id (inworld/inworld-tts-2, fishaudio/s2.1-pro-free, openai/gpt-4o-mini-tts, xai/tts-1, sarvam/bulbul-v3, sarvam/bulbul-v3-realtime). null = worker / template default (Inworld). Ignored when model is a realtime id.',
   })
   @IsOptional()
   @IsString()

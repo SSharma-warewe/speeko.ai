@@ -1,4 +1,4 @@
-import { isRealtimeLlmModel } from '@call-agent/contracts';
+import { isRealtimeLlmModel, isSarvamRealtimeTtsModel } from '@call-agent/contracts';
 import { voice } from '@livekit/agents';
 import { hangUpCall } from '../speech/hangup.js';
 import type { AgentJobMetadata } from '@call-agent/contracts';
@@ -242,7 +242,7 @@ export class AgentRuntimeBuilder {
 }
 
 export function phrasesToWarm(meta: AgentJobMetadata): string[] {
-  if (isRealtimeLlmModel(meta.model)) {
+  if (isRealtimeLlmModel(meta.model) || isSarvamRealtimeTtsModel(meta.ttsModel)) {
     return [];
   }
   const phrases: string[] = [];

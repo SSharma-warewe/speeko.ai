@@ -307,6 +307,30 @@ describe('runAgentJob', () => {
       expect(runtime.session.start).toHaveBeenCalledTimes(1);
     });
 
+    it('inbound SIP with Bulbul realtime skips TTS warm', async () => {
+      const ctx = makeCtx(
+        metadata({
+          callId: undefined,
+          agentKey: 'inbound',
+          direction: 'inbound',
+          medium: 'sip',
+          ttsModel: 'sarvam/bulbul-v3-realtime',
+          participantIdentity: undefined,
+        }),
+      );
+      ctx.waitForParticipant.mockResolvedValue({
+        identity: PHONE,
+        attributes: { 'sip.callStatus': 'ringing' },
+      });
+      postInboundEnsureMock.mockResolvedValue('inbound-call-1');
+
+      await runJob(ctx);
+
+      expect(waitForSipAnswerMock).not.toHaveBeenCalled();
+      expect(warmTtsBeforeStartMock).not.toHaveBeenCalled();
+      expect(runtime.session.start).toHaveBeenCalledTimes(1);
+    });
+
     it('awaits TTS warm before session.start', async () => {
       let finishWarm: (() => void) | undefined;
       warmTtsBeforeStartMock.mockImplementation(

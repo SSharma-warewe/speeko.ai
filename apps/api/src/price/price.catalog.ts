@@ -319,6 +319,10 @@ const TTS_ALIASES: Record<string, string> = {
   'bulbul-v3': 'sarvam-bulbul-v3',
   'sarvam/bulbul': 'sarvam-bulbul-v3',
   'sarvam-tts': 'sarvam-bulbul-v3',
+  'sarvam/bulbul-v3-realtime': 'sarvam-bulbul-v3',
+  'bulbul-v3-realtime': 'sarvam-bulbul-v3',
+  'sarvam/bulbul-realtime': 'sarvam-bulbul-v3',
+  'sarvam-tts-realtime': 'sarvam-bulbul-v3',
 };
 
 export function normalizeModelKey(raw: string): string {

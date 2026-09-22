@@ -17,6 +17,7 @@ export const TTS_MODEL_IDS = {
   openaiGpt4oMiniTts: 'openai/gpt-4o-mini-tts',
   xaiTts1: 'xai/tts-1',
   sarvamBulbulV3: 'sarvam/bulbul-v3',
+  sarvamBulbulV3Realtime: 'sarvam/bulbul-v3-realtime',
 } as const;
 
 export type TtsModelId = (typeof TTS_MODEL_IDS)[keyof typeof TTS_MODEL_IDS];
@@ -27,6 +28,7 @@ export const KNOWN_TTS_MODEL_IDS = [
   TTS_MODEL_IDS.openaiGpt4oMiniTts,
   TTS_MODEL_IDS.xaiTts1,
   TTS_MODEL_IDS.sarvamBulbulV3,
+  TTS_MODEL_IDS.sarvamBulbulV3Realtime,
 ] as const satisfies readonly TtsModelId[];
 
 export const DEFAULT_TTS_MODEL_ID = TTS_MODEL_IDS.inworldTts2;
@@ -47,6 +49,10 @@ export const TTS_MODEL_ALIASES: Record<string, TtsModelId> = {
   'bulbul:v3': TTS_MODEL_IDS.sarvamBulbulV3,
   'sarvam/bulbul': TTS_MODEL_IDS.sarvamBulbulV3,
   'sarvam-tts': TTS_MODEL_IDS.sarvamBulbulV3,
+  'sarvam/bulbul-v3-realtime': TTS_MODEL_IDS.sarvamBulbulV3Realtime,
+  'bulbul:v3-realtime': TTS_MODEL_IDS.sarvamBulbulV3Realtime,
+  'sarvam/bulbul-realtime': TTS_MODEL_IDS.sarvamBulbulV3Realtime,
+  'sarvam-tts-realtime': TTS_MODEL_IDS.sarvamBulbulV3Realtime,
 };
 
 export type TtsVoiceOption = {
@@ -71,6 +77,8 @@ export type TtsModelSpec = {
     speakingRate: boolean;
     deliveryMode: boolean;
   };
+  /** Sarvam Bulbul WebSocket (`streaming: true` on the Node plugin). */
+  streaming?: boolean;
 };
 
 const INWORLD_VOICES: readonly TtsVoiceOption[] = [
@@ -265,6 +273,17 @@ export const TTS_MODELS: Record<TtsModelId, TtsModelSpec> = {
     voices: SARVAM_VOICES,
     controls: { speakingRate: true, deliveryMode: false },
   },
+  [TTS_MODEL_IDS.sarvamBulbulV3Realtime]: {
+    id: TTS_MODEL_IDS.sarvamBulbulV3Realtime,
+    label: 'Sarvam Bulbul v3 Realtime',
+    shortLabel: 'Sarvam RT',
+    backend: 'sarvam-plugin',
+    runtimeModel: 'bulbul:v3',
+    defaultVoice: 'shubh',
+    voices: SARVAM_VOICES,
+    controls: { speakingRate: true, deliveryMode: false },
+    streaming: true,
+  },
 };
 
 export const TTS_MODEL_LIST: readonly TtsModelSpec[] = KNOWN_TTS_MODEL_IDS.map(
@@ -326,4 +345,11 @@ export function isVoiceAllowed(
 
 export function isSarvamTtsModel(id: string | null | undefined): boolean {
   return ttsModelSpec(id).backend === 'sarvam-plugin';
+}
+
+export function isSarvamRealtimeTtsModel(
+  id: string | null | undefined,
+): boolean {
+  const canonical = canonicalizeTtsModelId(id);
+  return canonical != null && TTS_MODELS[canonical].streaming === true;
 }

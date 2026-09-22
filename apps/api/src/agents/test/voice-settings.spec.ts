@@ -158,6 +158,9 @@ describe('voice-settings', () => {
         'fishaudio/s2.1-pro-free',
       );
       expect(parseStoredTtsModel('bulbul:v3')).toBe('sarvam/bulbul-v3');
+      expect(parseStoredTtsModel('bulbul:v3-realtime')).toBe(
+        'sarvam/bulbul-v3-realtime',
+      );
       expect(() =>
         parseStoredTtsModel('google/gemini-3.1-flash-tts-preview'),
       ).toThrow(BadRequestException);

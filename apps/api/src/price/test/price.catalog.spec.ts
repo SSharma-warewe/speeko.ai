@@ -64,6 +64,12 @@ describe('price.catalog', () => {
     expect(resolveTtsRate('bulbul-v3', 'scale')?.usdPerMillionChars).toBe(
       31.308704,
     );
+    expect(resolveTtsRate('sarvam/bulbul-v3-realtime', 'ship')?.key).toBe(
+      'sarvam-bulbul-v3',
+    );
+    expect(
+      resolveTtsRate('bulbul:v3-realtime', 'scale')?.usdPerMillionChars,
+    ).toBe(31.308704);
   });
 
   it('parsePricingPlan defaults to ship', () => {
