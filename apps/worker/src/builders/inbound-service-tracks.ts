@@ -26,6 +26,8 @@ const LIST_LINE =
 
 export const INBOUND_TIMING_LINE =
   'आप कब देखना या खरीदना चाहते हो — इस हफ्ते विजिट, इस महीने, या बाद में?';
+export const INBOUND_TIMING_CLARIFY_LINE =
+  'माफ़ कीजिये, कब देखना है — इस हफ्ते, इस महीने, या बाद में?';
 export const INBOUND_BHK_BUDGET_LINE =
   'आप कितने BHK का घर देख रहे हैं और आपका बजट क्या है?';
 export const INBOUND_LOCATION_CLARIFY_LINE =
@@ -60,8 +62,26 @@ const LOCALITY_TOKENS = ['golf', 'sohna', 'dlf', 'dwarka', 'mg'];
 const ANYWHERE_TOKENS = ['कहीं भी', 'कोई भी', 'anywhere'];
 
 const TIMING_TOKENS: { kind: InboundTimingKind; tokens: string[] }[] = [
-  { kind: 'this_week', tokens: ['हफ्ते', 'week', 'आज', 'कल'] },
-  { kind: 'this_month', tokens: ['महीने', 'month'] },
+  {
+    kind: 'this_week',
+    tokens: [
+      'हफ्ते',
+      'हफ्ता',
+      'हफ़्ते',
+      'हफ़्ता',
+      'वास्ते',
+      'हस्ते',
+      'week',
+      'weeks',
+      'आज',
+      'कल',
+      'अभी',
+    ],
+  },
+  {
+    kind: 'this_month',
+    tokens: ['महीने', 'महीना', 'महिने', 'महिना', 'month'],
+  },
   { kind: 'later', tokens: ['बाद', 'later'] },
 ];
 
@@ -88,6 +108,7 @@ export function inboundServiceTrackLines(): string[] {
 export function inboundScriptCacheLines(): string[] {
   return [
     INBOUND_TIMING_LINE,
+    INBOUND_TIMING_CLARIFY_LINE,
     INBOUND_BHK_BUDGET_LINE,
     INBOUND_LOCATION_CLARIFY_LINE,
     INBOUND_BUDGET_ONLY_LINE,

@@ -14,7 +14,7 @@ import {
   INBOUND_BHK_BUDGET_LINE,
   INBOUND_BUDGET_ONLY_LINE,
   INBOUND_LOCATION_CLARIFY_LINE,
-  INBOUND_TIMING_LINE,
+  INBOUND_TIMING_CLARIFY_LINE,
   type InboundScriptStep,
 } from './inbound-service-tracks.js';
 import {
@@ -195,7 +195,7 @@ export async function handleInboundServiceTrackTurn(options: {
       return;
     }
     console.log('[agent] inbound script step=timing timing=miss');
-    speakInboundScriptLine(options, INBOUND_TIMING_LINE);
+    speakInboundScriptLine(options, INBOUND_TIMING_CLARIFY_LINE);
     return;
   }
   const kind = classifyInboundBhkBudget(options.userText);

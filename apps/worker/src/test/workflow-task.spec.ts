@@ -6,6 +6,7 @@ import {
   INBOUND_BHK_BUDGET_LINE,
   INBOUND_BUDGET_ONLY_LINE,
   INBOUND_LOCATION_CLARIFY_LINE,
+  INBOUND_TIMING_CLARIFY_LINE,
   INBOUND_TIMING_LINE,
 } from '../builders/inbound-service-tracks';
 import {
@@ -232,6 +233,54 @@ describe('handleInboundServiceTrackTurn', () => {
     expect(data.inboundScriptStep).toBe('location');
     expect(session.say).toHaveBeenCalledWith(
       INBOUND_LOCATION_CLARIFY_LINE,
+      expect.objectContaining({ addToChatCtx: true }),
+    );
+  });
+
+  it('plays BHK+budget after Sarvam इस वास्ते as this week', async () => {
+    const inbound = meta({ direction: 'inbound', agentKey: 'inbound' });
+    const session = { say: jest.fn(), interrupt: jest.fn() };
+    const data = userData({
+      serviceTrack: 'buy',
+      inboundScriptStep: 'timing',
+    });
+
+    await expect(
+      handleInboundServiceTrackTurn({
+        session,
+        meta: inbound,
+        userData: data,
+        userText: 'इस वास्ते।',
+      }),
+    ).rejects.toBeInstanceOf(voice.StopResponse);
+
+    expect(data.inboundScriptStep).toBe('bhk_budget');
+    expect(session.say).toHaveBeenCalledWith(
+      INBOUND_BHK_BUDGET_LINE,
+      expect.objectContaining({ addToChatCtx: true }),
+    );
+  });
+
+  it('stays on timing and plays the clarifier on garbled fragments', async () => {
+    const inbound = meta({ direction: 'inbound', agentKey: 'inbound' });
+    const session = { say: jest.fn(), interrupt: jest.fn() };
+    const data = userData({
+      serviceTrack: 'buy',
+      inboundScriptStep: 'timing',
+    });
+
+    await expect(
+      handleInboundServiceTrackTurn({
+        session,
+        meta: inbound,
+        userData: data,
+        userText: 'इस सब के इस सब के।',
+      }),
+    ).rejects.toBeInstanceOf(voice.StopResponse);
+
+    expect(data.inboundScriptStep).toBe('timing');
+    expect(session.say).toHaveBeenCalledWith(
+      INBOUND_TIMING_CLARIFY_LINE,
       expect.objectContaining({ addToChatCtx: true }),
     );
   });

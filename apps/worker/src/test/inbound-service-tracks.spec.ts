@@ -10,6 +10,7 @@ import {
   INBOUND_BHK_BUDGET_LINE,
   INBOUND_BUDGET_ONLY_LINE,
   INBOUND_LOCATION_CLARIFY_LINE,
+  INBOUND_TIMING_CLARIFY_LINE,
   INBOUND_TIMING_LINE,
 } from '../builders/inbound-service-tracks';
 import type { AgentJobMetadata } from '../job-metadata';
@@ -76,6 +77,16 @@ describe('classifyInboundTiming', () => {
     expect(classifyInboundTiming('बाद में।')).toBe('later');
     expect(classifyInboundTiming('भाई')).toBeNull();
   });
+
+  it('treats Sarvam हफ्ते near-misses as this week', () => {
+    expect(classifyInboundTiming('इस वास्ते।')).toBe('this_week');
+    expect(classifyInboundTiming('इस हस्ते')).toBe('this_week');
+    expect(classifyInboundTiming('इस हफ्ता')).toBe('this_week');
+    expect(classifyInboundTiming('अभी')).toBe('this_week');
+    expect(classifyInboundTiming('इस महीने।')).toBe('this_month');
+    expect(classifyInboundTiming('इस सब के इस सब के।')).toBeNull();
+    expect(classifyInboundTiming('ते।')).toBeNull();
+  });
 });
 
 describe('classifyInboundBhkBudget', () => {
@@ -102,6 +113,7 @@ describe('inboundServiceTrackLine', () => {
     expect(inboundScriptCacheLines()).toEqual(
       expect.arrayContaining([
         INBOUND_TIMING_LINE,
+        INBOUND_TIMING_CLARIFY_LINE,
         INBOUND_BHK_BUDGET_LINE,
         INBOUND_LOCATION_CLARIFY_LINE,
       ]),
@@ -128,6 +140,7 @@ describe('phrasesToWarm', () => {
         inboundServiceTrackLine('sell'),
         inboundServiceTrackLine('list'),
         INBOUND_TIMING_LINE,
+        INBOUND_TIMING_CLARIFY_LINE,
         INBOUND_BHK_BUDGET_LINE,
         INBOUND_LOCATION_CLARIFY_LINE,
         INBOUND_BUDGET_ONLY_LINE,
