@@ -14,7 +14,7 @@ import {
   turnAckLine,
   type EarlyTurnAckHandle,
 } from '../speech/turn-ack.js';
-import { buildModels, resolveSttSpec } from './model-builder.js';
+import { buildModels, createTts, resolveSttSpec } from './model-builder.js';
 import {
   buildClosingSpeech,
   buildOpeningInstructions,
@@ -137,9 +137,6 @@ export class AgentRuntimeBuilder {
         console.log(
           `[agent] onEnter opening playout done callId=${this.meta.callId ?? 'n/a'}`,
         );
-        // Warm after the greeting. Concurrent synthesize() on the same
-        // Sarvam TTS instance stalls the opening WS stream (caller hears
-        // silence; LiveKit logs "TTS stream stalled after producing audio").
         this.warmTtsAfterOpening();
       } else {
         console.log('[agent] onEnter silent (no opening speech)');
@@ -155,6 +152,7 @@ export class AgentRuntimeBuilder {
   }
 
   private warmTtsAfterOpening(): void {
+    // Pre-pickup warm already filled the cache; this is a miss-fill only.
     void warmTtsPhrases(this.tts, this.meta, phrasesToWarm(this.meta));
   }
 
@@ -257,6 +255,30 @@ export function phrasesToWarm(meta: AgentJobMetadata): string[] {
     phrases.push(closing);
   }
   return [...new Set(phrases)];
+}
+
+/**
+ * REST-synthesize ack / inbound script / goodbye before session.start so
+ * pickup is not waiting on Bulbul. Uses a standalone TTS instance — do not
+ * construct the full runtime (STT / realtime) while outbound is still
+ * ringing. Opening stays generateReply. Never throws.
+ */
+export async function warmTtsBeforeStart(
+  meta: AgentJobMetadata,
+  tts?: TtsSynthesizer,
+): Promise<void> {
+  const phrases = phrasesToWarm(meta);
+  if (phrases.length === 0) {
+    return;
+  }
+  try {
+    const synth = tts ?? createTts(meta);
+    await warmTtsPhrases(synth, meta, phrases);
+    console.log(`[agent] tts warmed before start count=${phrases.length}`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`[agent] tts warm before start failed: ${message}`);
+  }
 }
 
 export async function buildAgentRuntime(

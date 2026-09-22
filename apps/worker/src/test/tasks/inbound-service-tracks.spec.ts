@@ -1,4 +1,5 @@
-import { phrasesToWarm } from '../../builders/agent-builder';
+import { phrasesToWarm, warmTtsBeforeStart } from '../../builders/agent-builder';
+import { clearTtsCache } from '../../speech/tts-cache';
 import {
   classifyInboundBhkBudget,
   classifyInboundLocation,
@@ -148,6 +149,49 @@ describe('phrasesToWarm', () => {
         'धन्यवाद, कॉल करने के लिए शुक्रिया।',
       ]),
     );
+  });
+
+  it('warmTtsBeforeStart synthesizes the phrase list', async () => {
+    clearTtsCache();
+    const synthesize = jest.fn(async function* (text: string) {
+      yield { frame: { id: text } };
+    });
+    await warmTtsBeforeStart(
+      {
+        agentKey: 'inbound',
+        direction: 'inbound',
+        task: 'general',
+        prompt: {
+          systemPrompt: 'हिंदी में बात करें।',
+          onEnterInstructions: null,
+          onExitInstructions: null,
+        },
+        enabledTools: ['endCall'],
+      } as AgentJobMetadata,
+      { synthesize },
+    );
+    expect(synthesize).toHaveBeenCalled();
+    expect(synthesize.mock.calls.some(([text]) => text === 'जी')).toBe(true);
+  });
+
+  it('warmTtsBeforeStart is a no-op on realtime', async () => {
+    const synthesize = jest.fn();
+    await warmTtsBeforeStart(
+      {
+        agentKey: 'inbound',
+        direction: 'inbound',
+        task: 'general',
+        model: 'xai/grok-voice-think-fast-2.0',
+        prompt: {
+          systemPrompt: 'You are a test agent.',
+          onEnterInstructions: null,
+          onExitInstructions: null,
+        },
+        enabledTools: ['endCall'],
+      } as AgentJobMetadata,
+      { synthesize },
+    );
+    expect(synthesize).not.toHaveBeenCalled();
   });
 
   it('skips realtime', () => {

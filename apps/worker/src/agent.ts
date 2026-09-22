@@ -1,6 +1,8 @@
+import { isRealtimeLlmModel } from '@call-agent/contracts';
 import { type JobContext, defineAgent, voice } from '@livekit/agents';
 import {
   AgentRuntimeBuilder,
+  warmTtsBeforeStart,
   type BuiltAgentRuntime,
 } from './builders/agent-builder.js';
 import { CallbackFunctions } from './callbacks/call-callbacks.js';
@@ -28,6 +30,7 @@ export class AgentJob {
   private sipParticipant: SipAnswerParticipant | undefined;
   private session: BuiltAgentRuntime['session'] | undefined;
   private userData: BuiltAgentRuntime['userData'] | undefined;
+  private ttsWarm: Promise<void> | null = null;
 
   constructor(private readonly ctx: JobContext) {}
 
@@ -198,6 +201,10 @@ export class AgentJob {
     if (status === 'hangup') {
       throw new Error('SIP callee hung up before answer (no answer)');
     }
+    // Pipeline: REST-synthesize ack / script / goodbye while still ringing
+    // (inbound) or waiting for the callee (outbound). Do not build the
+    // full runtime here — unanswered outbound must not open STT / realtime.
+    this.startTtsWarm();
     if (this.waitForCallee) {
       await this.sip.waitForSipAnswer({
         room: this.ctx.room as unknown as SipAnswerRoom,
@@ -212,7 +219,19 @@ export class AgentJob {
     }
   }
 
+  private startTtsWarm(): void {
+    if (this.ttsWarm || isRealtimeLlmModel(this.meta.model)) {
+      return;
+    }
+    this.ttsWarm = warmTtsBeforeStart(this.meta);
+  }
+
   private async startRuntime(): Promise<void> {
+    // Web jobs skip waitForSipParty; still warm before session.start.
+    this.startTtsWarm();
+    if (this.ttsWarm) {
+      await this.ttsWarm;
+    }
     const runtime = await new AgentRuntimeBuilder({
       ...this.meta,
       ...(this.callId ? { callId: this.callId } : {}),
