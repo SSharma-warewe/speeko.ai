@@ -133,21 +133,29 @@ export class AgentRuntimeBuilder {
           // (pipeline discardAudioIfUninterruptible: false).
           allowInterruptions: false,
         });
-        void warmTtsPhrases(this.tts, this.meta, phrasesToWarm(this.meta));
         await openHandle.waitForPlayout();
         console.log(
           `[agent] onEnter opening playout done callId=${this.meta.callId ?? 'n/a'}`,
         );
+        // Warm after the greeting. Concurrent synthesize() on the same
+        // Sarvam TTS instance stalls the opening WS stream (caller hears
+        // silence; LiveKit logs "TTS stream stalled after producing audio").
+        this.warmTtsAfterOpening();
       } else {
         console.log('[agent] onEnter silent (no opening speech)');
-        void warmTtsPhrases(this.tts, this.meta, phrasesToWarm(this.meta));
+        this.warmTtsAfterOpening();
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.warn(`[agent] onEnter opening failed: ${message}`);
+      this.warmTtsAfterOpening();
     } finally {
       this.earlyTurnAck?.enable();
     }
+  }
+
+  private warmTtsAfterOpening(): void {
+    void warmTtsPhrases(this.tts, this.meta, phrasesToWarm(this.meta));
   }
 
   private async handleEnter(

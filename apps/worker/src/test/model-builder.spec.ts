@@ -142,6 +142,7 @@ describe('model-builder voice / temp helpers', () => {
       { SARVAM_API_KEY: 'sk_test' },
     );
     expect(sarvamTts).toBeInstanceOf(sarvam.TTS);
+    expect(sarvamTts.capabilities.streaming).toBe(false);
 
     const sarvamStt = createStt(
       meta({ sttModel: 'sarvam/saaras-v3' }),

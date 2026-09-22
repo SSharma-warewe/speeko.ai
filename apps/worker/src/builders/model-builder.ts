@@ -193,6 +193,11 @@ export function createTts(
       speaker: voice,
       targetLanguageCode: resolveTtsLanguage(meta) as 'en-IN',
       outputAudioCodec: 'linear16',
+      // WS streaming often ends with "TTS stream stalled after producing
+      // audio" on SIP openings (audio never reaches the callee). REST
+      // synthesize + StreamAdapter closes cleanly; TTFB is covered by
+      // preemptiveTts + the inbound phrase cache.
+      streaming: false,
       ...(pace !== undefined ? { pace } : {}),
     });
   }
