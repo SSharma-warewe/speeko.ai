@@ -2,6 +2,7 @@ import {
   classifyUserTurn,
   isShortEnglishNo,
   lastUserTranscript,
+  userTurnText,
 } from '../../tasks/user-turn';
 
 describe('classifyUserTurn', () => {
@@ -51,6 +52,21 @@ describe('classifyUserTurn', () => {
     expect(classifyUserTurn('हाँ, मैं शिवम हूँ।')).toBe('content');
     expect(classifyUserTurn('आज कर दूंगा')).toBe('content');
     expect(classifyUserTurn('पैसे नहीं थे मेरे पास')).toBe('content');
+  });
+});
+
+describe('userTurnText', () => {
+  it('prefers textContent', () => {
+    expect(userTurnText({ textContent: 'Hello there', content: 'other' })).toBe(
+      'Hello there',
+    );
+  });
+
+  it('falls back to content string or parts', () => {
+    expect(userTurnText({ content: 'From content' })).toBe('From content');
+    expect(userTurnText({ content: ['I', { text: 'will pay' }] })).toBe(
+      'I will pay',
+    );
   });
 });
 

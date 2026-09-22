@@ -123,7 +123,7 @@ describe('inboundServiceTrackLine', () => {
 });
 
 describe('phrasesToWarm', () => {
-  it('warms inbound tracks plus ack and goodbye on pipeline', () => {
+  it('warms inbound tracks plus goodbye on pipeline', () => {
     const phrases = phrasesToWarm({
       agentKey: 'inbound',
       direction: 'inbound',
@@ -145,7 +145,6 @@ describe('phrasesToWarm', () => {
         INBOUND_BHK_BUDGET_LINE,
         INBOUND_LOCATION_CLARIFY_LINE,
         INBOUND_BUDGET_ONLY_LINE,
-        'जी',
         'धन्यवाद, कॉल करने के लिए शुक्रिया।',
       ]),
     );
@@ -171,7 +170,11 @@ describe('phrasesToWarm', () => {
       { synthesize },
     );
     expect(synthesize).toHaveBeenCalled();
-    expect(synthesize.mock.calls.some(([text]) => text === 'जी')).toBe(true);
+    expect(
+      synthesize.mock.calls.some(
+        ([text]) => text === inboundServiceTrackLine('buy'),
+      ),
+    ).toBe(true);
   });
 
   it('warmTtsBeforeStart synthesizes Bulbul realtime via the given synth', async () => {
@@ -195,7 +198,11 @@ describe('phrasesToWarm', () => {
       { synthesize },
     );
     expect(synthesize).toHaveBeenCalled();
-    expect(synthesize.mock.calls.some(([text]) => text === 'जी')).toBe(true);
+    expect(
+      synthesize.mock.calls.some(
+        ([text]) => text === inboundServiceTrackLine('buy'),
+      ),
+    ).toBe(true);
   });
 
   it('warmTtsBeforeStart is a no-op on realtime', async () => {
@@ -253,7 +260,6 @@ describe('phrasesToWarm', () => {
         inboundServiceTrackLine('buy'),
         INBOUND_TIMING_LINE,
         INBOUND_BHK_BUDGET_LINE,
-        'जी',
       ]),
     );
   });

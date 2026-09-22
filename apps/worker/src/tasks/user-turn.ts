@@ -96,6 +96,17 @@ function collectChatItems(source: unknown): unknown[] {
   return [];
 }
 
+/** LiveKit turn message text (official onUserTurnCompleted newMessage). */
+export function userTurnText(message: {
+  textContent?: string | null;
+  content?: unknown;
+}): string {
+  if (typeof message.textContent === 'string' && message.textContent.trim()) {
+    return message.textContent;
+  }
+  return chatItemText(message as Record<string, unknown>);
+}
+
 function chatItemText(rec: Record<string, unknown>): string {
   const content = rec.content;
   if (typeof content === 'string') return content;

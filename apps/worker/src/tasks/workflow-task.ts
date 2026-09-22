@@ -13,7 +13,7 @@ import {
   speakRealtimeOpening,
 } from '../speech/realtime-speech.js';
 import { sayCached } from '../speech/tts-cache.js';
-import { userTurnText } from '../speech/turn-ack.js';
+import { userTurnText } from './user-turn.js';
 import {
   classifyInboundBhkBudget,
   classifyInboundLocation,

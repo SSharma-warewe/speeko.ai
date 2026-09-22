@@ -9,11 +9,6 @@ import {
   inboundServiceTrackLines,
 } from '../tasks/inbound-service-tracks.js';
 import { sayCached, warmTtsPhrases, type TtsSynthesizer } from '../speech/tts-cache.js';
-import {
-  attachEarlyTurnAck,
-  turnAckLine,
-  type EarlyTurnAckHandle,
-} from '../speech/turn-ack.js';
 import { buildModels, createTts, resolveSttSpec } from './model-builder.js';
 import {
   buildClosingSpeech,
@@ -42,7 +37,6 @@ type AgentTools = Awaited<ReturnType<typeof buildTools>>;
  * parse metadata (caller) → build prompt → resolve tools → parent onEnter opens + runs task → onExit says goodbye.
  */
 export class AgentRuntimeBuilder {
-  private earlyTurnAck: EarlyTurnAckHandle | null = null;
   private tts: TtsSynthesizer | undefined;
 
   constructor(private readonly meta: AgentJobMetadata) {}
@@ -62,7 +56,6 @@ export class AgentRuntimeBuilder {
     const session = buildAgentSession(models, userData, {
       medium: this.meta.medium,
     });
-    this.earlyTurnAck = attachEarlyTurnAck(session, this.meta, this.tts);
     const agent = this.createAgent(userData, tools);
 
     return { session, agent, userData };
@@ -146,8 +139,6 @@ export class AgentRuntimeBuilder {
       const message = err instanceof Error ? err.message : String(err);
       console.warn(`[agent] onEnter opening failed: ${message}`);
       this.warmTtsAfterOpening();
-    } finally {
-      this.earlyTurnAck?.enable();
     }
   }
 
@@ -250,7 +241,6 @@ export function phrasesToWarm(meta: AgentJobMetadata): string[] {
   if (meta.direction === 'inbound') {
     phrases.push(...inboundServiceTrackLines(), ...inboundScriptCacheLines());
   }
-  phrases.push(turnAckLine(meta));
   const closing = cannedClosingLine(meta);
   if (closing) {
     phrases.push(closing);
@@ -259,8 +249,9 @@ export function phrasesToWarm(meta: AgentJobMetadata): string[] {
 }
 
 /**
- * REST-synthesize ack / inbound script / goodbye before session.start so
- * pickup is not waiting on Bulbul WS. Uses a standalone REST TTS instance —
+ * REST-synthesize inbound script / goodbye in parallel before session.start so
+ * pickup is not waiting on sequential Bulbul REST. Uses a standalone REST TTS
+ * instance —
  * do not construct the full runtime (STT / realtime) while outbound is still
  * ringing. Opening stays generateReply. Never throws.
  */
