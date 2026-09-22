@@ -13,8 +13,8 @@ jest.mock('../builders/agent-builder', () => {
   };
 });
 
-jest.mock('../sip-answer', () => {
-  const actual = jest.requireActual('../sip-answer') as typeof import('../sip-answer');
+jest.mock('../session/sip-answer', () => {
+  const actual = jest.requireActual('../session/sip-answer') as typeof import('../session/sip-answer');
   const waitForSipAnswer = jest.fn().mockResolvedValue(undefined);
   const realSip = new actual.Sipfunctions();
   return {
@@ -55,8 +55,8 @@ import type { JobContext } from '@livekit/agents';
 import { runAgentJob } from '../agent';
 import { buildAgentRuntime } from '../builders/agent-builder';
 import type { CompleteCallPayload } from '../callbacks/call-callbacks';
-import type { AgentJobMetadata } from '../job-metadata';
-import { waitForSipAnswer } from '../sip-answer';
+import type { AgentJobMetadata } from '../session/job-metadata';
+import { waitForSipAnswer } from '../session/sip-answer';
 import type { SessionUserData } from '../tools/types';
 
 /**

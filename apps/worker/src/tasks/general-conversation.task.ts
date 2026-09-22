@@ -4,7 +4,7 @@ import { composeTaskInstructions } from '../builders/prompt-builder.js';
 import {
   createWorkflowTask,
   finishWorkflowTask,
-} from '../builders/workflow-task.js';
+} from './workflow-task.js';
 import { withToolRecording } from '../tools/tool-events.js';
 import { formatContextForInstructions } from './context-format.js';
 import { markTaskFinished, nullishString } from './task-complete.js';

@@ -1,6 +1,6 @@
 import type { llm, voice } from '@livekit/agents';
 import type { ToolContextEntry } from '@livekit/agents';
-import type { AgentJobMetadata } from '../job-metadata.js';
+import type { AgentJobMetadata } from '../session/job-metadata.js';
 import type { SessionUserData } from '../tools/types.js';
 
 export type TaskFactoryContext = {

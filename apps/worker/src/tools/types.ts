@@ -3,8 +3,8 @@ import type { AgentJobMetadata, ToolEvent } from '@call-agent/contracts';
 import type {
   InboundScriptStep,
   InboundServiceTrack,
-} from '../builders/inbound-service-tracks.js';
-import type { TtsSynthesizer } from '../builders/tts-cache.js';
+} from '../tasks/inbound-service-tracks.js';
+import type { TtsSynthesizer } from '../speech/tts-cache.js';
 
 export type { ToolEvent };
 

@@ -9,7 +9,7 @@ import type {
   InboundJobMetadataRequest,
   AgentJobMetadata,
 } from '@call-agent/contracts';
-import { JobMeta } from '../job-metadata.js';
+import { JobMeta } from '../session/job-metadata.js';
 import type { ToolEvent } from '../tools/types.js';
 import { WorkerApiClient } from './worker-api-client.js';
 

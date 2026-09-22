@@ -4,13 +4,13 @@ import {
   type BuiltAgentRuntime,
 } from './builders/agent-builder.js';
 import { CallbackFunctions } from './callbacks/call-callbacks.js';
-import { JobMeta, type AgentJobMetadata } from './job-metadata.js';
-import { classifyShutdownComplete } from './shutdown-status.js';
+import { JobMeta, type AgentJobMetadata } from './session/job-metadata.js';
+import { classifyShutdownComplete } from './session/shutdown-status.js';
 import {
   type SipAnswerParticipant,
   type SipAnswerRoom,
   Sipfunctions,
-} from './sip-answer.js';
+} from './session/sip-answer.js';
 
 export class AgentJob {
   private readonly callbacks = new CallbackFunctions();

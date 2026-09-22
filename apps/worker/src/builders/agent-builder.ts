@@ -1,13 +1,19 @@
 import { isRealtimeLlmModel } from '@call-agent/contracts';
 import { voice } from '@livekit/agents';
-import { hangUpCall } from '../hangup.js';
+import { hangUpCall } from '../speech/hangup.js';
 import type { AgentJobMetadata } from '@call-agent/contracts';
 import { resolveSarvamRealtimePluginUrl } from '../sarvam/plugin-stt.js';
 import type { SessionUserData } from '../tools/types.js';
 import {
   inboundScriptCacheLines,
   inboundServiceTrackLines,
-} from './inbound-service-tracks.js';
+} from '../tasks/inbound-service-tracks.js';
+import { sayCached, warmTtsPhrases, type TtsSynthesizer } from '../speech/tts-cache.js';
+import {
+  attachEarlyTurnAck,
+  turnAckLine,
+  type EarlyTurnAckHandle,
+} from '../speech/turn-ack.js';
 import { buildModels, resolveSttSpec } from './model-builder.js';
 import {
   buildClosingSpeech,
@@ -20,12 +26,6 @@ import {
 } from './prompt-builder.js';
 import { buildTask } from './task-builder.js';
 import { buildTools } from './tool-builder.js';
-import { sayCached, warmTtsPhrases, type TtsSynthesizer } from './tts-cache.js';
-import {
-  attachEarlyTurnAck,
-  turnAckLine,
-  type EarlyTurnAckHandle,
-} from './turn-ack.js';
 import { buildAgentSession } from './voice-builder.js';
 
 export type BuiltAgentRuntime = {

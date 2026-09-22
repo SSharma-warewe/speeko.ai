@@ -19,7 +19,7 @@ import {
 import * as openai from '@livekit/agents-plugin-openai';
 import * as sarvam from '@livekit/agents-plugin-sarvam';
 import * as xai from '@livekit/agents-plugin-xai';
-import type { AgentJobMetadata } from '../job-metadata.js';
+import type { AgentJobMetadata } from '../session/job-metadata.js';
 import {
   SarvamPluginSTT,
   resolveSarvamRealtimePluginUrl,

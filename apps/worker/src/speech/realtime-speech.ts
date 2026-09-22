@@ -1,0 +1,202 @@
+import { voice } from '@livekit/agents';
+
+export const REALTIME_OPENING_MIN_MS = 3500;
+export const REALTIME_OPENING_TIMEOUT_MS = 15000;
+export const REALTIME_GOODBYE_MIN_MS = 2500;
+export const REALTIME_GOODBYE_TIMEOUT_MS = 3500;
+export const REALTIME_SPEAKING_START_MS = 2000;
+
+export type RealtimeUtteranceWait = 'idle' | 'timeout' | 'min';
+
+const AGENT_STATE_CHANGED = voice.AgentSessionEventTypes.AgentStateChanged;
+
+export type RealtimeWaitSession = {
+  agentState: string;
+  on(
+    event: string,
+    listener: (ev: { newState?: string }) => void,
+  ): unknown;
+  off?(
+    event: string,
+    listener: (ev: { newState?: string }) => void,
+  ): unknown;
+};
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+export function isRealtimeAgentBusy(state: string): boolean {
+  return state === 'speaking' || state === 'thinking';
+}
+
+export function isRealtimeAgentIdle(state: string): boolean {
+  return state === 'idle' || state === 'listening';
+}
+
+/**
+ * waitForPlayout() returns in ~0.5s on xAI realtime without audio finishing.
+ * xAI often never reports agentState=speaking (stays idle). Do not treat
+ * “already idle” as playout done — that logged wait=idle on the opening
+ * before the greeting finished.
+ *
+ * Returns:
+ * - `idle` — saw speaking/thinking, then idle/listening
+ * - `min` — never became busy; slept wall-clock minMs
+ * - `timeout` — saw busy and it never returned to idle
+ */
+export async function waitForRealtimeUtterance(
+  session: RealtimeWaitSession,
+  options: {
+    minMs?: number;
+    timeoutMs?: number;
+    speakingStartMs?: number;
+  } = {},
+): Promise<RealtimeUtteranceWait> {
+  const minMs = options.minMs ?? REALTIME_GOODBYE_MIN_MS;
+  const timeoutMs = options.timeoutMs ?? REALTIME_GOODBYE_TIMEOUT_MS;
+  const speakingStartMs = options.speakingStartMs ?? REALTIME_SPEAKING_START_MS;
+  const started = Date.now();
+  const deadline = started + timeoutMs;
+
+  const remaining = () => Math.max(0, deadline - Date.now());
+  const padMin = async () => {
+    const elapsed = Date.now() - started;
+    if (elapsed < minMs) {
+      await sleep(Math.min(minMs - elapsed, remaining()));
+    }
+  };
+
+  const sawBusy =
+    isRealtimeAgentBusy(session.agentState) ||
+    (await waitForAgentState(
+      session,
+      isRealtimeAgentBusy,
+      Math.min(speakingStartMs, remaining()),
+    ));
+
+  if (!sawBusy) {
+    await padMin();
+    return 'min';
+  }
+
+  const becameIdle = await waitForAgentState(
+    session,
+    isRealtimeAgentIdle,
+    remaining(),
+  );
+  await padMin();
+  if (becameIdle || isRealtimeAgentIdle(session.agentState)) {
+    return 'idle';
+  }
+  return 'timeout';
+}
+
+function waitForAgentState(
+  session: RealtimeWaitSession,
+  predicate: (state: string) => boolean,
+  ms: number,
+): Promise<boolean> {
+  if (predicate(session.agentState)) {
+    return Promise.resolve(true);
+  }
+  if (ms <= 0) {
+    return Promise.resolve(false);
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      session.off?.(AGENT_STATE_CHANGED, onChange);
+      resolve(ok);
+    };
+    const onChange = (ev: { newState?: string }) => {
+      const state = typeof ev?.newState === 'string' ? ev.newState : session.agentState;
+      if (predicate(state)) {
+        finish(true);
+      }
+    };
+    const timer = setTimeout(() => finish(false), ms);
+    session.on(AGENT_STATE_CHANGED, onChange);
+  });
+}
+
+export type RealtimeSpeechSession = RealtimeWaitSession & {
+  generateReply: (options: {
+    instructions: string;
+    toolChoice?: 'auto' | 'none' | 'required';
+    allowInterruptions?: boolean;
+  }) => unknown;
+};
+
+/**
+ * First spoken turn on realtime after AgentTask handoff.
+ * Parent generateReply is skipped (handoff abandons in-flight audio).
+ * Never throws — the task still runs if opening speech fails.
+ */
+export async function speakRealtimeOpening(
+  session: RealtimeSpeechSession,
+  args: { instructions: string | null; hookMode: string },
+): Promise<void> {
+  const { instructions, hookMode } = args;
+  if (!instructions) {
+    console.log('[agent] realtime task opening skipped (silent onEnter)');
+    return;
+  }
+  const prefix = instructions.replace(/\s+/g, ' ').slice(0, 80);
+  try {
+    console.log(
+      `[agent] onEnter realtime: task opening mode=${hookMode} prefix="${prefix}"`,
+    );
+    session.generateReply({
+      instructions,
+      toolChoice: 'none',
+    });
+    const wait = await waitForRealtimeUtterance(session, {
+      minMs: REALTIME_OPENING_MIN_MS,
+      timeoutMs: REALTIME_OPENING_TIMEOUT_MS,
+    });
+    console.log(`[agent] realtime task opening wait=${wait}`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`[agent] realtime task opening failed: ${message}`);
+  }
+}
+
+/**
+ * Spoken goodbye on realtime while the task is still the active agent.
+ * session.say is skipped on native realtime. Never throws.
+ */
+export async function speakRealtimeGoodbye(
+  session: RealtimeSpeechSession,
+  args: { instructions: string | null; hookMode: string },
+): Promise<void> {
+  const { instructions, hookMode } = args;
+  if (!instructions) {
+    console.log('[agent] realtime goodbye skipped (silent onExit)');
+    return;
+  }
+  const line = instructions.replace(/\s+/g, ' ').slice(0, 80);
+  try {
+    console.log(
+      `[agent] realtime goodbye generateReply mode=${hookMode} prefix="${line}"`,
+    );
+    session.generateReply({
+      instructions,
+      toolChoice: 'none',
+    });
+    const wait = await waitForRealtimeUtterance(session, {
+      minMs: REALTIME_GOODBYE_MIN_MS,
+      timeoutMs: REALTIME_GOODBYE_TIMEOUT_MS,
+    });
+    console.log(`[agent] realtime goodbye wait=${wait}`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`[agent] realtime goodbye failed: ${message}`);
+  }
+}

@@ -5,7 +5,10 @@ import {
   displayNameFromContext,
   formatContextForInstructions,
 } from '../tasks/context-format.js';
+import { personaSpeaksHindi } from '../common/persona.js';
 import { HINDI_HAN_ASR_RULE } from '../tasks/user-turn.js';
+
+export { personaSpeaksHindi };
 
 /**
  * Build full parent-agent instructions for LiveKit.
@@ -116,12 +119,6 @@ export function buildRealtimeTurnRule(meta: AgentJobMetadata): string | null {
   }
   lines.push('=== END REALTIME TURNS ===');
   return lines.join('\n');
-}
-
-/** Persona asked for Hindi (portal system prompt). Used for opening/goodbye/script lock. */
-export function personaSpeaksHindi(meta: AgentJobMetadata): boolean {
-  const prompt = meta.prompt?.systemPrompt ?? '';
-  return /hindi|हिंदी|हिन्दी|devanagari/i.test(prompt);
 }
 
 export type CallClockSnapshot = {

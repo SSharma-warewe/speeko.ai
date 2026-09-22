@@ -7,8 +7,8 @@ import {
 import {
   createWorkflowTask,
   finishWorkflowTask,
-} from '../builders/workflow-task.js';
-import type { AgentJobMetadata } from '../job-metadata.js';
+} from './workflow-task.js';
+import type { AgentJobMetadata } from '../session/job-metadata.js';
 import { withToolRecording } from '../tools/tool-events.js';
 import {
   contextField,
