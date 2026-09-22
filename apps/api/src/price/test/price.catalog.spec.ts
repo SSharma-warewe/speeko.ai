@@ -46,6 +46,26 @@ describe('price.catalog', () => {
     expect(fast?.output).toBe(2.4);
   });
 
+  it('maps Sarvam Saaras and Bulbul, including plugin colon ids', () => {
+    const stt = resolveSttRate('Sarvam/saaras:v3', 'ship');
+    expect(stt?.key).toBe('sarvam-saaras-v3');
+    expect(stt?.usdPerMinute).toBe(0.005218);
+    expect(resolveSttRate('sarvam/saaras-v3', 'scale')?.usdPerMinute).toBe(
+      0.005218,
+    );
+
+    const realtime = resolveSttRate('saaras:v3-realtime', 'ship');
+    expect(realtime?.key).toBe('sarvam-saaras-v3-realtime');
+    expect(realtime?.usdPerMinute).toBe(0.005218);
+
+    const tts = resolveTtsRate('sarvam/bulbul:v3', 'ship');
+    expect(tts?.key).toBe('sarvam-bulbul-v3');
+    expect(tts?.usdPerMillionChars).toBe(31.308704);
+    expect(resolveTtsRate('bulbul-v3', 'scale')?.usdPerMillionChars).toBe(
+      31.308704,
+    );
+  });
+
   it('parsePricingPlan defaults to ship', () => {
     expect(parsePricingPlan(undefined)).toBe('ship');
     expect(parsePricingPlan('SCALE')).toBe('scale');

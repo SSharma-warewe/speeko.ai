@@ -1,7 +1,11 @@
 import type { PricingPlan } from './price.types';
 
-/** Date of the LiveKit public list prices copied into this file. */
-export const PRICE_CATALOG_AS_OF = '2026-08-21';
+/**
+ * LiveKit inference list prices are as of 2026-08-21.
+ * Sarvam STT/TTS (INR list, docs.sarvam.ai) were added 2026-09-22
+ * and converted at that day’s USDINR close (95.82).
+ */
+export const PRICE_CATALOG_AS_OF = '2026-09-22';
 
 export const DEFAULT_PRICING_PLAN: PricingPlan = 'ship';
 
@@ -134,6 +138,9 @@ const STT_RATES: Record<string, PlanRate> = {
   'speechmatics-enhanced': all(0.0117),
   'speechmatics-standard': all(0.005),
   'xai-stt': all(0.003333),
+  // ₹30/hour ÷ 95.82. Saaras v3 and v3-realtime share Sarvam’s STT rate.
+  'sarvam-saaras-v3': all(0.005218),
+  'sarvam-saaras-v3-realtime': all(0.005218),
 };
 
 /** USD per 1M characters. */
@@ -156,6 +163,8 @@ const TTS_RATES: Record<string, PlanRate> = {
   'rime-coda': all(50),
   'rime-mist': { build: 30, ship: 30, scale: 20 },
   'xai-tts': all(15),
+  // ₹30 / 10k characters → ₹3,000 per 1M ÷ 95.82 (Bulbul v3).
+  'sarvam-bulbul-v3': all(31.308704),
 };
 
 const LLM_ALIASES: Record<string, string> = {
@@ -262,6 +271,14 @@ const STT_ALIASES: Record<string, string> = {
   'cartesia/ink-2': 'cartesia-ink-2',
   'elevenlabs/scribe-v2-realtime': 'elevenlabs-scribe-v2-realtime',
   'xai/stt': 'xai-stt',
+  'sarvam/saaras-v3': 'sarvam-saaras-v3',
+  'saaras-v3': 'sarvam-saaras-v3',
+  'sarvam-stt': 'sarvam-saaras-v3',
+  'sarvam/saaras': 'sarvam-saaras-v3',
+  'sarvam/saaras-v3-realtime': 'sarvam-saaras-v3-realtime',
+  'saaras-v3-realtime': 'sarvam-saaras-v3-realtime',
+  'sarvam/saaras-realtime': 'sarvam-saaras-v3-realtime',
+  'sarvam-stt-realtime': 'sarvam-saaras-v3-realtime',
 };
 
 const TTS_ALIASES: Record<string, string> = {
@@ -298,10 +315,19 @@ const TTS_ALIASES: Record<string, string> = {
   'rime/mist-v3': 'rime-mist',
   'xai/tts': 'xai-tts',
   'xai/tts-1': 'xai-tts',
+  'sarvam/bulbul-v3': 'sarvam-bulbul-v3',
+  'bulbul-v3': 'sarvam-bulbul-v3',
+  'sarvam/bulbul': 'sarvam-bulbul-v3',
+  'sarvam-tts': 'sarvam-bulbul-v3',
 };
 
 export function normalizeModelKey(raw: string): string {
-  return raw.trim().toLowerCase().replace(/_/g, '-').replace(/\s+/g, ' ');
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, '-')
+    .replace(/:/g, '-')
+    .replace(/\s+/g, ' ');
 }
 
 function canonicalKey(

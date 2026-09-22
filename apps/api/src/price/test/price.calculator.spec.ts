@@ -184,6 +184,40 @@ describe('priceAttempt', () => {
     expect(line(web, 'webrtc')[0].quantity).toBe(1);
   });
 
+  it('prices Sarvam Saaras realtime and Bulbul instead of unknown', () => {
+    const result = priceAttempt(
+      session({
+        usage: {
+          models: [
+            {
+              type: 'stt_usage',
+              provider: 'Sarvam',
+              model: 'saaras:v3-realtime',
+              audioDurationMs: 60_000,
+            },
+            {
+              type: 'tts_usage',
+              provider: 'Sarvam',
+              model: 'bulbul:v3',
+              charactersCount: 10_000,
+            },
+          ],
+        },
+      }),
+      SHIP,
+    );
+    expect(result.unknownModels).toEqual([]);
+    const stt = line(result, 'stt')[0];
+    expect(stt.label).toBe('STT (sarvam-saaras-v3-realtime)');
+    expect(stt.unitPriceUsd).toBe(0.005218);
+    expect(stt.amountUsd).toBe(0.005218);
+    const tts = line(result, 'tts')[0];
+    expect(tts.label).toBe('TTS (sarvam-bulbul-v3)');
+    expect(tts.quantity).toBe(10_000);
+    expect(tts.unitPriceUsd).toBe(31.308704);
+    expect(tts.amountUsd).toBe(0.313087);
+  });
+
   it('unknown model → $0 + unknownModels', () => {
     const result = priceAttempt(
       session({

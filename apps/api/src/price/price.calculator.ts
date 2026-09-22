@@ -210,6 +210,7 @@ function priceStt(
     });
     return lines;
   }
+  const sarvam = rate.key.startsWith('sarvam-');
   pushLine(lines, {
     key: 'stt',
     label: `STT (${rate.key})`,
@@ -218,8 +219,11 @@ function priceStt(
     unit: 'minutes',
     unitPriceUsd: rate.usdPerMinute,
     amountUsd: amountFromPerMinute(minutes, rate.usdPerMinute),
-    notes:
-      audioMs > 0
+    notes: sarvam
+      ? audioMs > 0
+        ? 'Sarvam list price (₹30/hour, INR→USD); metered from usage audioDurationMs (1s min)'
+        : 'Sarvam list price (₹30/hour, INR→USD); audioDurationMs missing, fell back to session clock'
+      : audioMs > 0
         ? 'metered from usage audioDurationMs (1s min); LiveKit bills STT connection time'
         : 'audioDurationMs missing; fell back to session clock',
   });
@@ -258,6 +262,9 @@ function priceTts(
     unit: 'characters',
     unitPriceUsd: rate.usdPerMillionChars,
     amountUsd: amountFromPerMillion(chars, rate.usdPerMillionChars),
+    ...(rate.key.startsWith('sarvam-')
+      ? { notes: 'Sarvam Bulbul v3 list price (₹30/10k characters, INR→USD)' }
+      : {}),
   });
   return lines;
 }
