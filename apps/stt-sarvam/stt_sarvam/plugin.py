@@ -14,6 +14,7 @@ DEFAULT_VAD_SOT_THRESHOLD = 0.7
 def create_realtime_stt(
     *,
     language: str,
+    api_key: str,
     stream_type: str = "fast",
     endpointing: str = "vad",
     vad_min_silence_ms: int = DEFAULT_VAD_MIN_SILENCE_MS,
@@ -22,8 +23,13 @@ def create_realtime_stt(
 ):
     from livekit.plugins import sarvam
 
+    key = api_key.strip()
+    if not key:
+        raise ValueError("Sarvam API key is required")
+
     return sarvam.STTRealtime(
         language=language,
+        api_key=key,
         stream_type=stream_type,
         endpointing=endpointing,
         vad_min_silence_ms=vad_min_silence_ms,

@@ -299,6 +299,7 @@ export function createStt(
       if (pluginUrl) {
         return new SarvamPluginSTT({
           url: pluginUrl,
+          apiKey,
           language: resolveSttLanguage(meta),
         });
       }

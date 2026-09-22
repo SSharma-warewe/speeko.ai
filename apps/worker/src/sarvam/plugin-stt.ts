@@ -15,6 +15,8 @@ import { toSarvamRealtimeLanguage } from './realtime-language.js';
 import { TELEPHONY_DEFAULTS } from './realtime-stt.js';
 
 export const DEFAULT_SARVAM_STT_PLUGIN_URL = 'ws://127.0.0.1:8091/stt';
+/** Loopback only. Never put this on the URL (access logs). */
+export const SARVAM_PLUGIN_API_KEY_HEADER = 'X-Sarvam-Api-Key';
 const SAMPLE_RATE = 16000;
 const NUM_CHANNELS = 1;
 const AUDIO_CHUNK_MS = 50;
@@ -22,9 +24,16 @@ const REALTIME_MODEL = 'saaras:v3-realtime';
 
 export type SarvamPluginSttOptions = {
   url: string;
+  apiKey: string;
   language: string;
   streamType?: 'fast' | 'balanced' | 'simulated';
 };
+
+export function sarvamPluginSttHeaders(
+  apiKey: string,
+): Record<string, string> {
+  return { [SARVAM_PLUGIN_API_KEY_HEADER]: apiKey.trim() };
+}
 
 export function resolveSarvamRealtimePluginUrl(
   env: NodeJS.ProcessEnv = process.env,
@@ -34,7 +43,7 @@ export function resolveSarvamRealtimePluginUrl(
 }
 
 export function buildSarvamPluginSttWsUrl(
-  opts: SarvamPluginSttOptions,
+  opts: Omit<SarvamPluginSttOptions, 'apiKey'>,
 ): string {
   const base = opts.url.trim();
   const url = new URL(base);
@@ -74,6 +83,7 @@ export class SarvamPluginSTT extends stt.STT {
     super({ streaming: true, interimResults: true, alignedTranscript: false });
     this.opts = {
       url: opts.url,
+      apiKey: opts.apiKey.trim(),
       language: opts.language,
       streamType: opts.streamType ?? 'fast',
     };
@@ -120,7 +130,9 @@ class SarvamPluginSpeechStream extends stt.SpeechStream {
 
   protected async run(): Promise<void> {
     const wsUrl = buildSarvamPluginSttWsUrl(this.#opts);
-    const ws = new WebSocket(wsUrl);
+    const ws = new WebSocket(wsUrl, {
+      headers: sarvamPluginSttHeaders(this.#opts.apiKey),
+    });
 
     try {
       await new Promise<void>((resolve, reject) => {

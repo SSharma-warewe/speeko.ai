@@ -51,6 +51,7 @@ SUPPORTED_LANGUAGES = {
 }
 
 logger = logging.getLogger("stt_sarvam")
+API_KEY_HEADER = "X-Sarvam-Api-Key"
 
 SttFactory = Callable[..., Any]
 
@@ -83,6 +84,17 @@ def _int_query(raw: str | None, name: str, default: int, lo: int, hi: int) -> in
     if value < lo or value > hi:
         raise web.HTTPBadRequest(text=f"unsupported {name} {value}")
     return value
+
+
+def _api_key(request: web.Request) -> tuple[str, str]:
+    """Prefer the loopback header (Node already trimmed the worker key)."""
+    header = request.headers.get(API_KEY_HEADER, "").strip()
+    if header:
+        return header, "header"
+    env_key = os.environ.get("SARVAM_API_KEY", "").strip()
+    if env_key:
+        return env_key, "env"
+    return "", ""
 
 
 def _float_query(
@@ -124,7 +136,8 @@ async def _pump_events(stream: Any, ws: web.WebSocketResponse) -> None:
 
 
 async def stt_ws(request: web.Request) -> web.WebSocketResponse:
-    if not os.environ.get("SARVAM_API_KEY", "").strip():
+    api_key, api_key_source = _api_key(request)
+    if not api_key:
         raise web.HTTPServiceUnavailable(text="SARVAM_API_KEY is required")
 
     language = _language(request.query.get("language"))
@@ -157,6 +170,7 @@ async def stt_ws(request: web.Request) -> web.WebSocketResponse:
 
     stt = factory(
         language=language,
+        api_key=api_key,
         stream_type=stream_type,
         endpointing="vad",
         vad_min_silence_ms=vad_min_silence_ms,
@@ -165,10 +179,11 @@ async def stt_ws(request: web.Request) -> web.WebSocketResponse:
     )
     stream = stt.stream()
     logger.info(
-        "stt session start language=%s stream_type=%s "
+        "stt session start language=%s stream_type=%s api_key_source=%s "
         "vad_min_silence_ms=%s vad_min_speech_ms=%s vad_sot_threshold=%s",
         language,
         stream_type,
+        api_key_source,
         vad_min_silence_ms,
         vad_min_speech_ms,
         vad_sot_threshold,
@@ -245,7 +260,9 @@ def main() -> None:
     _require_plugin()
     host = os.environ.get("SARVAM_STT_PLUGIN_HOST", DEFAULT_HOST)
     port = int(os.environ.get("SARVAM_STT_PLUGIN_PORT", str(DEFAULT_PORT)))
-    if not os.environ.get("SARVAM_API_KEY", "").strip():
-        logger.warning("SARVAM_API_KEY is empty; /stt will return 503")
+    logger.info(
+        "SARVAM_API_KEY present=%s",
+        bool(os.environ.get("SARVAM_API_KEY", "").strip()),
+    )
     logger.info("listening on %s:%s (sarvam.STTRealtime)", host, port)
     web.run_app(create_app(), host=host, port=port, print=None)

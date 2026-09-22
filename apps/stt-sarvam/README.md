@@ -11,7 +11,7 @@ WS   /stt?language=auto&stream_type=fast
      binary in: s16le PCM 16 kHz mono
      JSON out: { type: start|interim|final|end|usage|error, ... }
 
-SIP defaults pin Sarvam server VAD (250ms end-of-turn silence). Node always sends those query params.
+SIP defaults pin Sarvam server VAD (250ms end-of-turn silence). Node always sends those query params and the trimmed worker key on header `X-Sarvam-Api-Key` (never the URL). The sidecar prefers that header, then `SARVAM_API_KEY`, and passes `api_key` into `sarvam.STTRealtime`.
 ```
 
 ```bash

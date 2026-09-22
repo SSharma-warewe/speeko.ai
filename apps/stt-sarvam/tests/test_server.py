@@ -108,10 +108,34 @@ class HealthAndSttTests(AioHTTPTestCase):
         self.assertEqual(messages[1]["text"], "hello")
         self.assertEqual(self.stream.frames, ["frame"])
         self.assertEqual(self.factory_kwargs["language"], "auto")
+        self.assertEqual(self.factory_kwargs["api_key"], "sk_test")
         self.assertEqual(self.factory_kwargs["stream_type"], "fast")
         self.assertEqual(self.factory_kwargs["vad_min_silence_ms"], 250)
         self.assertEqual(self.factory_kwargs["vad_min_speech_ms"], 200)
         self.assertEqual(self.factory_kwargs["vad_sot_threshold"], 0.7)
+
+    async def test_stt_header_key_when_env_empty(self):
+        with patch.dict(os.environ, {"SARVAM_API_KEY": ""}, clear=False):
+            os.environ.pop("SARVAM_API_KEY", None)
+            async with self.client.ws_connect(
+                "/stt?language=en-IN",
+                headers={"X-Sarvam-Api-Key": " sk_from_node "},
+            ) as ws:
+                await ws.send_str(json.dumps({"event": "end"}))
+                async for _msg in ws:
+                    break
+        self.assertEqual(self.factory_kwargs["api_key"], "sk_from_node")
+
+    async def test_stt_header_key_wins_over_env(self):
+        with patch.dict(os.environ, {"SARVAM_API_KEY": "sk_env"}):
+            async with self.client.ws_connect(
+                "/stt?language=en-IN",
+                headers={"X-Sarvam-Api-Key": "sk_header"},
+            ) as ws:
+                await ws.send_str(json.dumps({"event": "end"}))
+                async for _msg in ws:
+                    break
+        self.assertEqual(self.factory_kwargs["api_key"], "sk_header")
 
     async def test_stt_websocket_forwards_vad_query(self):
         with patch.dict(os.environ, {"SARVAM_API_KEY": "sk_test"}):

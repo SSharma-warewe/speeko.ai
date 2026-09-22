@@ -7,6 +7,7 @@ import {
   SarvamPluginSTT,
   buildSarvamPluginSttWsUrl,
   resolveSarvamRealtimePluginUrl,
+  sarvamPluginSttHeaders,
 } from '../sarvam/plugin-stt';
 
 function typesOf(payloads: unknown[]) {
@@ -42,6 +43,13 @@ describe('Sarvam Python plugin STT client', () => {
     expect(url).toContain('vad_min_silence_ms=250');
     expect(url).toContain('vad_min_speech_ms=200');
     expect(url).toContain('vad_sot_threshold=0.7');
+    expect(url).not.toContain('sk_secret');
+  });
+
+  it('sends the API key on the loopback header, not the URL', () => {
+    expect(sarvamPluginSttHeaders('  sk_secret  ')).toEqual({
+      'X-Sarvam-Api-Key': 'sk_secret',
+    });
   });
 
   it('emits EOS before FINAL when an interim already has text', () => {
@@ -103,6 +111,7 @@ describe('Sarvam Python plugin STT client', () => {
   it('labels the STT as the Python plugin', () => {
     const plugin = new SarvamPluginSTT({
       url: 'ws://127.0.0.1:8091/stt',
+      apiKey: 'sk_test',
       language: 'auto',
     });
     expect(plugin.label).toBe('sarvam.STTRealtime.python');
