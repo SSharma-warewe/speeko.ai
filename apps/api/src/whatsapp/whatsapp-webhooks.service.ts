@@ -10,13 +10,14 @@ import { ConfigService } from '@nestjs/config';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { GenerateWhatsAppWebhookConfigDto } from './dto/generate-whatsapp-webhook-config.dto';
 import { WhatsAppWebhookAckDto } from './dto/whatsapp-webhook-ack.dto';
+import { WhatsAppWebhookEventResponseDto } from './dto/whatsapp-webhook-event-response.dto';
 import {
   WhatsAppWebhookConfigResponseDto,
   WhatsAppWebhookConfigSecretResponseDto,
 } from './dto/whatsapp-webhook-config-response.dto';
 import {
   extractWhatsAppWebhook,
-  isWebhookPayloadObject,
+  previewWhatsAppWebhook,
 } from './lib/extract-whatsapp-webhook';
 import {
   toWhatsAppWebhookConfigResponse,
@@ -31,6 +32,8 @@ import {
 } from './verify-token.util';
 import { WhatsAppWebhookConfigsRepository } from './whatsapp-webhook-configs.repository';
 import { WhatsAppWebhookEventsRepository } from './whatsapp-webhook-events.repository';
+
+const WEBHOOK_EVENT_LIST_LIMIT = 50;
 
 @Injectable()
 export class WhatsAppWebhooksService {
@@ -101,12 +104,30 @@ export class WhatsAppWebhooksService {
     return this.verifySubscriptionAsync(mode, token, challenge);
   }
 
-  async ingestWebhook(payload: unknown): Promise<WhatsAppWebhookAckDto> {
-    if (!isWebhookPayloadObject(payload)) {
-      throw new BadRequestException('Invalid webhook payload');
-    }
+  async listEventsForOrg(
+    organizationId: string,
+  ): Promise<WhatsAppWebhookEventResponseDto[]> {
+    await this.organizationsService.findById(organizationId);
+    const rows = await this.events.findRecentForOrganization(
+      organizationId,
+      WEBHOOK_EVENT_LIST_LIMIT,
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      organizationId: row.organizationId,
+      eventType: row.eventType,
+      payload: row.payload,
+      receivedAt: row.receivedAt,
+      preview: previewWhatsAppWebhook(row.payload),
+    }));
+  }
 
-    const extracted = extractWhatsAppWebhook(payload);
+  async ingestWebhook(payload: unknown): Promise<WhatsAppWebhookAckDto> {
+    const stored = payloadForStorage(payload);
+    const extracted =
+      stored !== null && typeof stored === 'object' && !Array.isArray(stored)
+        ? extractWhatsAppWebhook(stored as Record<string, unknown>)
+        : { eventType: 'unknown', phoneNumberId: null, wabaId: null };
     const organizationId = await this.resolveOrganizationId(
       extracted.phoneNumberId,
       extracted.wabaId,
@@ -114,11 +135,14 @@ export class WhatsAppWebhooksService {
 
     const row = this.events.create({
       organizationId,
-      eventType: extracted.eventType,
-      payload,
+      eventType: extracted.eventType.slice(0, 80) || 'unknown',
+      payload: stored,
       receivedAt: new Date(),
     });
     await this.events.save(row);
+    this.logger.log(
+      `WhatsApp webhook saved eventType=${extracted.eventType} org=${organizationId ?? 'none'} phoneNumberId=${extracted.phoneNumberId ?? 'none'}`,
+    );
     return { success: true };
   }
 
@@ -244,6 +268,17 @@ export class WhatsAppWebhooksService {
       verifyTokenHash: hashVerifyToken(trimmed),
     };
   }
+}
+
+/**
+ * JSONB column is NOT NULL. Keep objects, arrays, and scalars as sent.
+ * Empty or unparsed bodies become `{ raw: null | text }` so the row still inserts.
+ */
+function payloadForStorage(payload: unknown): unknown {
+  if (payload === undefined || payload === null) {
+    return { raw: null };
+  }
+  return payload;
 }
 
 function normalizeOptionalId(value?: string): string | null {

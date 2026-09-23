@@ -187,6 +187,22 @@ describe('PublicWhatsAppWebhooksController (HTTP)', () => {
     expect(events.save.mock.calls[0][0].payload).toEqual(payload);
     expect(events.save.mock.calls[0][0].eventType).toBe('messages');
   });
+
+  it('POST persists an array body and a non-array entry', async () => {
+    await request(app.getHttpServer())
+      .post('/api/webhooks/whatsapp')
+      .send([{ field: 'messages' }])
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post('/api/webhooks/whatsapp')
+      .send({ entry: {} })
+      .expect(200);
+
+    expect(events.save).toHaveBeenCalledTimes(2);
+    expect(events.save.mock.calls[0][0].payload).toEqual([{ field: 'messages' }]);
+    expect(events.save.mock.calls[1][0].payload).toEqual({ entry: {} });
+  });
 });
 
 describe('PublicWhatsAppWebhooksController verify wiring', () => {

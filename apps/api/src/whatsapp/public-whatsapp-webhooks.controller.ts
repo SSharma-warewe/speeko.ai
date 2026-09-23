@@ -19,7 +19,6 @@ import {
 } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
-import { ApiBadRequestError } from '../common/swagger/api-errors';
 import { WhatsAppWebhookAckDto } from './dto/whatsapp-webhook-ack.dto';
 import { parseWhatsAppHubRequest } from './lib/parse-whatsapp-hub-query';
 import { WhatsAppWebhooksService } from './whatsapp-webhooks.service';
@@ -69,14 +68,14 @@ export class PublicWhatsAppWebhooksController {
   @ApiOperation({
     summary: 'Receive a WhatsApp webhook payload from Meta',
     description:
-      'Persists the raw JSON body and returns 200 immediately. Does not send replies or process messages.',
+      'Persists whatever body arrived and returns 200 immediately. Does not send replies or process messages.',
   })
   @ApiBody({
-    description: 'Meta WhatsApp webhook JSON (up to 3 MB)',
-    schema: { type: 'object', additionalProperties: true },
+    description:
+      'Any JSON body (up to 3 MB). Objects, arrays, and scalars are stored as sent. An empty body is stored as { raw: null }.',
+    schema: {},
   })
   @ApiOkResponse({ type: WhatsAppWebhookAckDto })
-  @ApiBadRequestError('Invalid webhook payload')
   ingest(@Body() payload: unknown): Promise<WhatsAppWebhookAckDto> {
     return this.whatsappWebhooks.ingestWebhook(payload);
   }

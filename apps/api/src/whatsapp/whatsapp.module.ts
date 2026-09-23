@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { PublicWhatsAppWebhooksController } from './public-whatsapp-webhooks.controller';
+import { UserWhatsAppWebhookEventsController } from './user-whatsapp-webhook-events.controller';
 import { UserWhatsAppWebhooksController } from './user-whatsapp-webhooks.controller';
 import { WhatsAppWebhookConfig } from './whatsapp-webhook-config.entity';
 import { WhatsAppWebhookEvent } from './whatsapp-webhook-event.entity';
@@ -16,6 +17,7 @@ import { WhatsAppWebhooksService } from './whatsapp-webhooks.service';
   ],
   controllers: [
     UserWhatsAppWebhooksController,
+    UserWhatsAppWebhookEventsController,
     PublicWhatsAppWebhooksController,
   ],
   providers: [

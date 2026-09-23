@@ -95,4 +95,5 @@ export type {
   WhatsAppWebhookAck,
   WhatsAppWebhookConfig,
   WhatsAppWebhookConfigSecret,
+  WhatsAppWebhookEventSummary,
 } from './whatsapp.js';

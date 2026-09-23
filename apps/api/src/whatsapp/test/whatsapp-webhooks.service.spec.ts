@@ -30,6 +30,7 @@ describe('WhatsAppWebhooksService', () => {
   let events: {
     create: jest.Mock;
     save: jest.Mock;
+    findRecentForOrganization: jest.Mock;
   };
   let organizationsService: { findById: jest.Mock };
   let configService: { get: jest.Mock };
@@ -87,6 +88,7 @@ describe('WhatsAppWebhooksService', () => {
         id: 'evt-id',
         ...row,
       })),
+      findRecentForOrganization: jest.fn().mockResolvedValue([]),
     };
     organizationsService = {
       findById: jest.fn().mockResolvedValue(org),
@@ -366,17 +368,79 @@ describe('WhatsAppWebhooksService', () => {
       expect(saved.eventType).toBe('messages');
     });
 
-    it('13. rejects garbage bodies without inserting', async () => {
-      await expect(service.ingestWebhook(null)).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
-      await expect(service.ingestWebhook('nope')).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
-      await expect(service.ingestWebhook({ entry: {} })).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
-      expect(events.save).not.toHaveBeenCalled();
+    it('13. persists empty, scalar, array, and odd-shaped bodies', async () => {
+      await expect(service.ingestWebhook(null)).resolves.toEqual({
+        success: true,
+      });
+      await expect(service.ingestWebhook('nope')).resolves.toEqual({
+        success: true,
+      });
+      await expect(service.ingestWebhook([{ field: 'messages' }])).resolves.toEqual({
+        success: true,
+      });
+      await expect(service.ingestWebhook({ entry: {} })).resolves.toEqual({
+        success: true,
+      });
+
+      expect(events.save).toHaveBeenCalledTimes(4);
+      expect(events.save.mock.calls[0][0].payload).toEqual({ raw: null });
+      expect(events.save.mock.calls[0][0].eventType).toBe('unknown');
+      expect(events.save.mock.calls[1][0].payload).toBe('nope');
+      expect(events.save.mock.calls[2][0].payload).toEqual([{ field: 'messages' }]);
+      expect(events.save.mock.calls[3][0].payload).toEqual({ entry: {} });
+      expect(events.save.mock.calls[3][0].organizationId).toBeNull();
+    });
+
+    it('14. routes numeric phone_number_id and a single entry object', async () => {
+      configs.findActiveByPhoneNumberId.mockResolvedValue({
+        organizationId: ORG_ID,
+        isActive: true,
+      });
+
+      await service.ingestWebhook({
+        entry: {
+          id: Number(WABA_ID),
+          changes: {
+            field: 'messages',
+            value: { metadata: { phone_number_id: Number(PHONE_ID) } },
+          },
+        },
+      });
+
+      expect(configs.findActiveByPhoneNumberId).toHaveBeenCalledWith(PHONE_ID);
+      const saved = events.save.mock.calls[0][0] as WhatsAppWebhookEvent;
+      expect(saved.organizationId).toBe(ORG_ID);
+      expect(saved.eventType).toBe('messages');
+    });
+  });
+
+  describe('listEventsForOrg', () => {
+    it('15. lists this org and unmatched posts, and asks only for that org', async () => {
+      events.findRecentForOrganization.mockResolvedValue([
+        {
+          id: 'evt-new',
+          organizationId: ORG_ID,
+          eventType: 'messages',
+          payload: samplePayload,
+          receivedAt: new Date('2026-01-02T00:00:00.000Z'),
+        },
+        {
+          id: 'evt-unmatched',
+          organizationId: null,
+          eventType: 'unknown',
+          payload: { raw: null },
+          receivedAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+      ]);
+
+      const rows = await service.listEventsForOrg(ORG_ID);
+
+      expect(organizationsService.findById).toHaveBeenCalledWith(ORG_ID);
+      expect(events.findRecentForOrganization).toHaveBeenCalledWith(ORG_ID, 50);
+      expect(rows.map((row) => row.id)).toEqual(['evt-new', 'evt-unmatched']);
+      expect(rows[0].preview).toBe('Hi');
+      expect(rows[1].organizationId).toBeNull();
+      expect(rows[1].preview).toBeNull();
     });
   });
 });

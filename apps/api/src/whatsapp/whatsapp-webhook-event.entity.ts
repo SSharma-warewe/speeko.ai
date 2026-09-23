@@ -30,8 +30,9 @@ export class WhatsAppWebhookEvent {
   @Column({ name: 'event_type', type: 'varchar', length: 80 })
   eventType!: string;
 
+  /** Raw JSON body. Non-JSON / empty posts are stored as `{ raw: null | string }`. */
   @Column({ type: 'jsonb' })
-  payload!: Record<string, unknown>;
+  payload!: unknown;
 
   @Column({ name: 'received_at', type: 'timestamptz' })
   receivedAt!: Date;

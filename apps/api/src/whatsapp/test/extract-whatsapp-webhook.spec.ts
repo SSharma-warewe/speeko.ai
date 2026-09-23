@@ -1,6 +1,7 @@
 import {
   extractWhatsAppWebhook,
   isWebhookPayloadObject,
+  previewWhatsAppWebhook,
 } from '../lib/extract-whatsapp-webhook';
 
 const samplePayload = {
@@ -48,6 +49,45 @@ describe('extract-whatsapp-webhook', () => {
       true,
     );
     expect(isWebhookPayloadObject({})).toBe(true);
+  });
+
+  it('4b. coerces numeric ids and a single entry object', () => {
+    expect(
+      extractWhatsAppWebhook({
+        entry: {
+          id: 102290129340398,
+          changes: {
+            field: 'messages',
+            value: { metadata: { phone_number_id: 106540352242922 } },
+          },
+        },
+      }),
+    ).toEqual({
+      eventType: 'messages',
+      phoneNumberId: '106540352242922',
+      wabaId: '102290129340398',
+    });
+  });
+
+  it('5. previews the first inbound text message', () => {
+    expect(previewWhatsAppWebhook(samplePayload)).toBe('Hello');
+    expect(
+      previewWhatsAppWebhook({
+        entry: [
+          {
+            changes: [
+              {
+                value: {
+                  messages: [{ from: '16315551181', type: 'text', text: { body: 'Hi' } }],
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    ).toBe('16315551181: Hi');
+    expect(previewWhatsAppWebhook({ raw: null })).toBeNull();
+    expect(previewWhatsAppWebhook('plain')).toBe('plain');
   });
 
   it('4. isWebhookPayloadObject rejects non-objects and non-array entry', () => {

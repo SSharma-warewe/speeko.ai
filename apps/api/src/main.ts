@@ -94,7 +94,7 @@ async function bootstrap() {
     )
     .addTag(
       'user-whatsapp-webhooks',
-      'Generate / inspect org WhatsApp webhook callback URL + verify token (org user)',
+      'Generate / inspect org WhatsApp webhook callback URL + verify token, and list recent inbound posts (org user)',
     )
     .addTag(
       'whatsapp-webhooks',

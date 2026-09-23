@@ -73,6 +73,7 @@ import type {
   UserProfile,
   WhatsAppWebhookConfig,
   WhatsAppWebhookConfigSecret,
+  WhatsAppWebhookEventSummary,
 } from "@call-agent/contracts";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
@@ -116,6 +117,7 @@ export type {
   UserProfile,
   WhatsAppWebhookConfig,
   WhatsAppWebhookConfigSecret,
+  WhatsAppWebhookEventSummary,
 };
 
 export class ApiError extends Error {
@@ -1076,4 +1078,7 @@ export const generateUserWhatsAppWebhookConfig = (
     method: "POST",
     body: data,
   });
+
+export const listUserWhatsAppWebhookEvents = () =>
+  userFetch<WhatsAppWebhookEventSummary[]>("/users/whatsapp/webhook-events");
 

@@ -4,10 +4,12 @@ import {
   ApiError,
   generateUserWhatsAppWebhookConfig,
   getUserWhatsAppWebhookConfig,
+  listUserWhatsAppWebhookEvents,
   UnauthorizedError,
   type WhatsAppWebhookConfig,
   type WhatsAppWebhookConfigSecret,
 } from "../../lib/api";
+import { formatRelative } from "../../lib/format";
 import { useUserAuth } from "../../lib/auth";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorBlock } from "../components/ErrorBlock";
@@ -30,6 +32,7 @@ export default function WhatsAppWebhookPanel() {
     getUserWhatsAppWebhookConfig,
     [],
   );
+  const eventsState = useUserAsync(listUserWhatsAppWebhookEvents, []);
 
   const [phoneNumberId, setPhoneNumberId] = useState("");
   const [wabaId, setWabaId] = useState("");
@@ -113,7 +116,10 @@ export default function WhatsAppWebhookPanel() {
 
   const hasConfig = config != null;
 
+  const events = eventsState.data ?? [];
+
   return (
+    <>
     <section className="ops-panel ops-desk-compose">
       <div className="ops-panel-head">
         <span className="ops-desk-kicker">
@@ -306,5 +312,71 @@ export default function WhatsAppWebhookPanel() {
         </div>
       </form>
     </section>
+    <section className="ops-panel ops-desk-list">
+      <div className="ops-desk-list-bar">
+        <div className="ops-desk-list-bar-main">
+          <span className="ops-desk-kicker">Inbound posts</span>
+          <span className="ops-desk-hint">{events.length} recent</span>
+        </div>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() => eventsState.reload()}
+        >
+          Refresh
+        </Button>
+      </div>
+      <div className="ops-panel-body is-flush ops-desk-list-body">
+        {eventsState.loading && eventsState.data === null ? (
+          <LoadingBlock label="Loading inbound posts" />
+        ) : eventsState.error ? (
+          <ErrorBlock message={eventsState.error} onRetry={eventsState.reload} />
+        ) : events.length === 0 ? (
+          <EmptyState
+            title="No inbound posts yet"
+            description="Meta posts show up here after they hit the callback. Unmatched phone number or WABA ids are included."
+          />
+        ) : (
+          <div className="ops-table-wrap">
+            <table className="ops-table ops-desk-table">
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Type</th>
+                  <th>Preview</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {events.map((event) => (
+                  <tr key={event.id}>
+                    <td className="ops-faint">{formatRelative(event.receivedAt)}</td>
+                    <td>
+                      <div className="ops-desk-entity">
+                        <span className="ops-mono">{event.eventType}</span>
+                        {event.organizationId == null ? (
+                          <span className="ops-desk-entity-meta">
+                            <StatusBadge status="failed" label="Unmatched" />
+                          </span>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td>{event.preview ?? "—"}</td>
+                    <td>
+                      <details>
+                        <summary>Payload</summary>
+                        <pre className="ops-mono ops-call-tool-pre">{JSON.stringify(event.payload, null, 2)}</pre>
+                      </details>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </section>
+    </>
   );
 }

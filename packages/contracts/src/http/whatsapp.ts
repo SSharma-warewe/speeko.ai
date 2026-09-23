@@ -25,3 +25,15 @@ export type GenerateWhatsAppWebhookConfigRequest = {
 export type WhatsAppWebhookAck = {
   success: true;
 };
+
+/** One stored Meta POST, newest first on the org WhatsApp tab. */
+export type WhatsAppWebhookEventSummary = {
+  id: string;
+  /** Null when the phone number id and WABA id did not match a config. */
+  organizationId: string | null;
+  eventType: string;
+  payload: unknown;
+  receivedAt: string;
+  /** Short text pulled from the first inbound message, when present. */
+  preview: string | null;
+};
