@@ -1,5 +1,12 @@
 import { llm } from '@livekit/agents';
 import { z } from 'zod';
+import {
+  demoCrmAlreadySavedMessage,
+  demoCrmPendingMessage,
+  enqueueDemoCrm,
+  readGhlContactId,
+} from '../tasks/demo-booking-crm.js';
+import { isOutboundDemoBooking } from '../tasks/demo-booking-tracks.js';
 import { callCalendarApi } from './calendar-api-client.js';
 import type { ToolFactory } from './types.js';
 
@@ -44,7 +51,7 @@ function readLookupData(data: unknown): {
   };
 }
 
-export const createLookupGhlContactTool: ToolFactory = ({ userData }) => {
+export const createLookupGhlContactTool: ToolFactory = ({ meta, userData }) => {
   return llm.tool({
     name: 'lookup_ghl_contact',
     description: BASE_DESCRIPTION,
@@ -64,24 +71,37 @@ export const createLookupGhlContactTool: ToolFactory = ({ userData }) => {
       console.log(
         `[tool:lookupGhlContact] callId=${userData.callId ?? 'n/a'}`,
       );
-      const body: Record<string, unknown> = {};
-      if (args.participantEmail) body.participantEmail = args.participantEmail;
-      if (args.phone) body.phone = args.phone;
-      const result = await callCalendarApi(
-        userData.callId,
-        'contacts/lookup',
-        body,
-        {
-          userData,
-          toolId: 'lookupGhlContact',
-          namespace: 'ghl-calendar',
-        },
-      );
-      const { found, contactId } = readLookupData(result.data);
-      if (result.ok && found && contactId) {
-        userData.context.ghlContactId = contactId;
+      const existing = readGhlContactId(userData);
+      if (existing) {
+        return demoCrmAlreadySavedMessage(existing);
       }
-      return result;
+      const run = async () => {
+        const body: Record<string, unknown> = {};
+        if (args.participantEmail) body.participantEmail = args.participantEmail;
+        if (args.phone) body.phone = args.phone;
+        const result = await callCalendarApi(
+          userData.callId,
+          'contacts/lookup',
+          body,
+          {
+            userData,
+            toolId: 'lookupGhlContact',
+            namespace: 'ghl-calendar',
+          },
+        );
+        const { found, contactId } = readLookupData(result.data);
+        if (result.ok && found && contactId) {
+          userData.context.ghlContactId = contactId;
+        }
+        return result;
+      };
+      if (isOutboundDemoBooking(meta)) {
+        enqueueDemoCrm(userData, async () => {
+          await run();
+        });
+        return demoCrmPendingMessage();
+      }
+      return run();
     },
   });
 };

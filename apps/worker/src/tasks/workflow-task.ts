@@ -12,8 +12,16 @@ import {
   speakRealtimeGoodbye,
   speakRealtimeOpening,
 } from '../speech/realtime-speech.js';
+import { personaSpeaksHindi } from '../common/persona.js';
 import { sayCached } from '../speech/tts-cache.js';
-import { userTurnText } from './user-turn.js';
+import { isUnusableUserTurn, userTurnText } from './user-turn.js';
+import {
+  classifyDemoGoodTime,
+  demoAskWhenLine,
+  demoCallbackLine,
+  isOutboundDemoPipeline,
+  resolveDemoScriptStep,
+} from './demo-booking-tracks.js';
 import {
   classifyInboundBhkBudget,
   classifyInboundLocation,
@@ -34,6 +42,7 @@ import {
  * - onEnter generateReplys the opening after handoff (parent stays silent)
  * - pipeline जी / Okay is session UserStateChanged (speaking → listening), not here
  * - inbound script may cache location → timing → BHK/budget via session.say + StopResponse
+ * - outbound demo_booking may cache good-time / callback via session.say + StopResponse
  * - finishWorkflowTask speaks goodbye while the task is still current
  */
 export function createWorkflowTask<ResultT>(
@@ -64,6 +73,13 @@ export function createWorkflowTask<ResultT>(
         return;
       }
       await runInboundScriptHook({
+        ctx,
+        chatCtx,
+        newMessage,
+        meta,
+        userData: options.userData,
+      });
+      await runDemoBookingScriptHook({
         ctx,
         chatCtx,
         newMessage,
@@ -146,6 +162,97 @@ export async function runInboundScriptHook(options: {
   });
 }
 
+export async function runDemoBookingScriptHook(options: {
+  ctx: unknown;
+  chatCtx?: unknown;
+  newMessage: unknown;
+  meta: AgentJobMetadata;
+  userData?: SessionUserData;
+}): Promise<void> {
+  const { session, userText } = resolveInboundTurnHookArgs(
+    options.ctx,
+    options.chatCtx,
+    options.newMessage,
+  );
+  const demoPipeline = isOutboundDemoPipeline(options.meta);
+  if (demoPipeline) {
+    const step = options.userData
+      ? resolveDemoScriptStep(options.userData)
+      : 'good_time';
+    console.log(
+      `[agent] demo script hook step=${step} ` +
+        `text="${truncateLogText(userText)}" session=${session ? 'ok' : 'missing'}`,
+    );
+    if (!options.userData) {
+      console.log('[agent] demo script skip=no-userData');
+    } else if (!session) {
+      console.log('[agent] demo script skip=no-session');
+    }
+  }
+  if (!session || !options.userData) {
+    return;
+  }
+  await handleDemoBookingTurn({
+    session,
+    meta: options.meta,
+    userData: options.userData,
+    userText,
+  });
+}
+
+export async function handleDemoBookingTurn(options: {
+  session: TrackTurnSession;
+  meta: AgentJobMetadata;
+  userData: SessionUserData;
+  userText: string;
+}): Promise<void> {
+  if (!isOutboundDemoPipeline(options.meta)) {
+    return;
+  }
+  const step = resolveDemoScriptStep(options.userData);
+  if (step === 'done') {
+    console.log('[agent] demo script skip=done');
+    return;
+  }
+  const kind = classifyDemoGoodTime(options.userText, {
+    hindiHanHomophone: personaSpeaksHindi(options.meta),
+  });
+  if (step === 'good_time') {
+    if (kind === 'yes') {
+      options.userData.demoScriptStep = 'ask_when';
+      console.log('[agent] demo script step=ask_when kind=yes');
+      speakCachedScriptLine(options, demoAskWhenLine(options.meta));
+    }
+    if (kind === 'callback') {
+      options.userData.demoScriptStep = 'done';
+      console.log('[agent] demo script step=done kind=callback');
+      speakCachedScriptLine(options, demoCallbackLine(options.meta));
+    }
+    if (kind === 'declined') {
+      options.userData.demoScriptStep = 'done';
+      console.log('[agent] demo script step=done leave-to-llm kind=declined');
+      return;
+    }
+    if (!kind && !isUnusableUserTurn(options.userText)) {
+      options.userData.demoScriptStep = 'done';
+      console.log('[agent] demo script step=done leave-to-llm kind=content');
+    }
+    return;
+  }
+  if (kind === 'callback') {
+    options.userData.demoScriptStep = 'done';
+    console.log('[agent] demo script step=done kind=callback');
+    speakCachedScriptLine(options, demoCallbackLine(options.meta));
+  }
+  if (kind === 'declined') {
+    options.userData.demoScriptStep = 'done';
+    console.log('[agent] demo script step=done leave-to-llm kind=declined');
+    return;
+  }
+  options.userData.demoScriptStep = 'done';
+  console.log('[agent] demo script step=done leave-to-llm kind=ask_when');
+}
+
 export async function handleInboundServiceTrackTurn(options: {
   session: TrackTurnSession;
   meta: AgentJobMetadata;
@@ -175,7 +282,7 @@ export async function handleInboundServiceTrackTurn(options: {
     options.userData.inboundScriptStep = 'location';
     const line = inboundServiceTrackLine(track);
     console.log(`[agent] inbound service track=${track} line=${line}`);
-    speakInboundScriptLine(options, line);
+    speakCachedScriptLine(options, line);
     return;
   }
   if (step === 'location') {
@@ -187,11 +294,11 @@ export async function handleInboundServiceTrackTurn(options: {
       console.log(
         `[agent] inbound script step=${next} location=${location}`,
       );
-      speakInboundScriptLine(options, line);
+      speakCachedScriptLine(options, line);
       return;
     }
     console.log('[agent] inbound script step=location location=miss');
-    speakInboundScriptLine(options, INBOUND_LOCATION_CLARIFY_LINE);
+    speakCachedScriptLine(options, INBOUND_LOCATION_CLARIFY_LINE);
     return;
   }
   if (step === 'timing') {
@@ -199,18 +306,18 @@ export async function handleInboundServiceTrackTurn(options: {
     if (timing) {
       options.userData.inboundScriptStep = 'bhk_budget';
       console.log(`[agent] inbound script step=bhk_budget timing=${timing}`);
-      speakInboundScriptLine(options, INBOUND_BHK_BUDGET_LINE);
+      speakCachedScriptLine(options, INBOUND_BHK_BUDGET_LINE);
       return;
     }
     console.log('[agent] inbound script step=timing timing=miss');
-    speakInboundScriptLine(options, INBOUND_TIMING_CLARIFY_LINE);
+    speakCachedScriptLine(options, INBOUND_TIMING_CLARIFY_LINE);
     return;
   }
   const kind = classifyInboundBhkBudget(options.userText);
   if (kind === 'bhk') {
     options.userData.inboundScriptStep = 'done';
     console.log('[agent] inbound script step=done bhk=only');
-    speakInboundScriptLine(options, INBOUND_BUDGET_ONLY_LINE);
+    speakCachedScriptLine(options, INBOUND_BUDGET_ONLY_LINE);
     return;
   }
   if (kind === 'budget' || kind === 'both' || kind === 'refuse') {
@@ -231,7 +338,7 @@ function resolveInboundScriptStep(
   return 'service';
 }
 
-function speakInboundScriptLine(
+function speakCachedScriptLine(
   options: {
     session: TrackTurnSession;
     meta: AgentJobMetadata;
@@ -243,7 +350,7 @@ function speakInboundScriptLine(
     options.session.interrupt?.();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.warn(`[agent] inbound track interrupt failed: ${message}`);
+    console.warn(`[agent] script interrupt failed: ${message}`);
   }
   try {
     sayCached(
@@ -255,7 +362,7 @@ function speakInboundScriptLine(
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.warn(`[agent] inbound track say failed: ${message}`);
+    console.warn(`[agent] script say failed: ${message}`);
     throw err;
   }
   throw new voice.StopResponse();

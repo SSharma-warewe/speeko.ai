@@ -1,6 +1,7 @@
 import { llm } from '@livekit/agents';
 import { z } from 'zod';
 import { buildToolClockHint } from '../builders/prompt-builder.js';
+import { withDemoToolFiller } from '../speech/demo-tool-filler.js';
 import { callCalendarApi } from './calendar-api-client.js';
 import type { ToolFactory } from './types.js';
 
@@ -96,10 +97,12 @@ export const createCreateCalendarEventTool: ToolFactory = ({ meta, userData }) =
       if (args.location) body.location = args.location;
       if (args.participantEmail) body.participantEmail = args.participantEmail;
       if (args.participantName) body.participantName = args.participantName;
-      return callCalendarApi(userData.callId, 'events', body, {
-        userData,
-        toolId: 'createCalendarEvent',
-      });
+      return withDemoToolFiller(meta, userData, 'book', () =>
+        callCalendarApi(userData.callId, 'events', body, {
+          userData,
+          toolId: 'createCalendarEvent',
+        }),
+      );
     },
   });
 };

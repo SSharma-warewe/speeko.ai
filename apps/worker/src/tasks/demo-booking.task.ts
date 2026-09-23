@@ -13,6 +13,7 @@ import {
 } from './context-format.js';
 import { markTaskFinished, nullishString } from './task-complete.js';
 import type { TaskFactory } from './types.js';
+import type { AgentJobMetadata } from '../session/job-metadata.js';
 
 export type DemoBookingResult = {
   outcome:
@@ -53,6 +54,7 @@ function bookingToolLines(enabledTools: string[]): string[] {
     lines.push(
       '- ALWAYS call check_ghl_free_slots for the proposed day or window before confirming a time.',
       '- If free, book with schedule_ghl_meeting (title like “Demo — {name}”, include email when known). Pass the exact startIso from check_ghl_free_slots.',
+      '- CRM lookup/upsert runs in the background. Skip those tools when context already has ghlContactId. Do not mention CRM. If schedule returns missing_contact, then look up or upsert and retry.',
       '- NEVER claim the demo is booked unless schedule_ghl_meeting returned ok. If tools fail, say so and offer another time or a human callback.',
     );
     return lines;
@@ -62,6 +64,49 @@ function bookingToolLines(enabledTools: string[]): string[] {
     '- If free, create the event with create_calendar_event / createCalendarEvent (title like “Demo — {name}”, include email when known).',
     '- NEVER claim the demo is booked unless create_calendar_event returned ok/success. If tools fail, say so and offer another time or a human callback.',
   ];
+}
+
+export function buildDemoBookingInstructions(meta: AgentJobMetadata): string {
+  const name = displayNameFromContext(meta.context);
+  const email = contextField(meta.context, 'email', 'participantEmail');
+  const company = contextField(meta.context, 'company', 'companyName');
+  return [
+    'Your objective is a two-phase outbound demo call.',
+    name ? `The contact name is ${name}.` : null,
+    company ? `Their company is ${company}.` : null,
+    email
+      ? `They provided email ${email} — use it for the calendar invite when booking.`
+      : 'If you need an email for the invite and it is missing, ask once after agreeing a time.',
+    '',
+    'PHASE 1 — BOOKING (do this first):',
+    '- Confirm it is a good time to talk briefly.',
+    '- Ask for a preferred date and time for a demo (default duration 30 minutes if unspecified).',
+    '- Resolve relative times using the authoritative call clock in system instructions. Never append Z to a local wall-clock time.',
+    ...bookingToolLines(meta.enabledTools),
+    '- After a successful book, read back the confirmed time in natural language once.',
+    '',
+    'CACHED SPEECH (pipeline outbound):',
+    '- The system already speaks yes/callback acks and the check-calendar / booking filler lines. Do not repeat “let me check”, “booking that”, or re-ask when they just said yes.',
+    '- A real date/time from them is yours: call the availability tool. Do not invent slots.',
+    '- If they are not interested, complete with DECLINED. Do not mention CRM.',
+    '',
+    'PHASE 2 — PRODUCT DISCOVERY (only after booking succeeds, or if they refuse to book but still want to talk):',
+    '- Do NOT end the call after booking. Do NOT ask “anything else?” as a way to skip this phase.',
+    '- Ask about 2 short questions, one at a time (skip any already answered in context):',
+    '  1) What do they want out of the product / voice automation? (main goal or use case: outbound dialing, inbound answering, both, support, etc.)',
+    '  2) What would success look like in the next 30–60 days? (optional third: biggest current friction if time allows)',
+    '- Keep answers brief; paraphrase and confirm only if unclear.',
+    '',
+    'COMPLETION:',
+    '- When booking is done (or clearly not happening) AND you have discovery answers (or they declined questions), call complete_demo_booking_task.',
+    '- Prefer outcome BOOKED_AND_QUALIFIED when an event was created and you captured goals or useCase.',
+    '- Use BOOKED_ONLY if booked but they refused discovery. NOT_BOOKED if no event. CALLBACK if they asked to reschedule the call. DECLINED if not interested.',
+    '- After complete_demo_booking_task succeeds, the system hangs up automatically — do not also call end_call.',
+    '- If they say goodbye or ask to stop mid-flow, prefer completing with the best-fit outcome (DECLINED / BOOKED_ONLY / etc.) then hangup; else call end_call.',
+    `Runtime context: ${formatContextForInstructions(meta.context)}`,
+  ]
+    .filter((line) => line !== null)
+    .join(' ');
 }
 
 /**
@@ -74,44 +119,13 @@ export const createDemoBookingTask: TaskFactory = ({
   tools,
   chatCtx,
 }) => {
-  const name = displayNameFromContext(meta.context);
   const email = contextField(meta.context, 'email', 'participantEmail');
-  const company = contextField(meta.context, 'company', 'companyName');
 
   const task = createWorkflowTask<DemoBookingResult>(meta, {
     userData,
-    instructions: composeTaskInstructions(meta, [
-      'Your objective is a two-phase outbound demo call.',
-      name ? `The contact name is ${name}.` : null,
-      company ? `Their company is ${company}.` : null,
-      email
-        ? `They provided email ${email} — use it for the calendar invite when booking.`
-        : 'If you need an email for the invite and it is missing, ask once after agreeing a time.',
-      '',
-      'PHASE 1 — BOOKING (do this first):',
-      '- Confirm it is a good time to talk briefly.',
-      '- Ask for a preferred date and time for a demo (default duration 30 minutes if unspecified).',
-      '- Resolve relative times using the authoritative call clock in system instructions. Never append Z to a local wall-clock time.',
-      ...bookingToolLines(meta.enabledTools),
-      '- After a successful book, read back the confirmed time in natural language once.',
-      '',
-      'PHASE 2 — PRODUCT DISCOVERY (only after booking succeeds, or if they refuse to book but still want to talk):',
-      '- Do NOT end the call after booking. Do NOT ask “anything else?” as a way to skip this phase.',
-      '- Ask about 2 short questions, one at a time (skip any already answered in context):',
-      '  1) What do they want out of the product / voice automation? (main goal or use case: outbound dialing, inbound answering, both, support, etc.)',
-      '  2) What would success look like in the next 30–60 days? (optional third: biggest current friction if time allows)',
-      '- Keep answers brief; paraphrase and confirm only if unclear.',
-      '',
-      'COMPLETION:',
-      '- When booking is done (or clearly not happening) AND you have discovery answers (or they declined questions), call complete_demo_booking_task.',
-      '- Prefer outcome BOOKED_AND_QUALIFIED when an event was created and you captured goals or useCase.',
-      '- Use BOOKED_ONLY if booked but they refused discovery. NOT_BOOKED if no event. CALLBACK if they asked to reschedule the call. DECLINED if not interested.',
-      '- After complete_demo_booking_task succeeds, the system hangs up automatically — do not also call end_call.',
-      '- If they say goodbye or ask to stop mid-flow, prefer completing with the best-fit outcome (DECLINED / BOOKED_ONLY / etc.) then hangup; else call end_call.',
-      `Runtime context: ${formatContextForInstructions(meta.context)}`,
-    ]
-      .filter((line) => line !== null)
-      .join(' '),
+    instructions: composeTaskInstructions(
+      meta,
+      buildDemoBookingInstructions(meta),
     ),
     chatCtx,
     tools: [

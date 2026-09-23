@@ -1,6 +1,7 @@
 import { llm } from '@livekit/agents';
 import { z } from 'zod';
 import { buildToolClockHint } from '../builders/prompt-builder.js';
+import { withDemoToolFiller } from '../speech/demo-tool-filler.js';
 import { callCalendarApi } from './calendar-api-client.js';
 import type { ToolFactory } from './types.js';
 
@@ -65,11 +66,13 @@ export const createCheckGhlFreeSlotsTool: ToolFactory = ({
       );
       const body: Record<string, unknown> = { startTime, endTime };
       if (timezone) body.timezone = timezone;
-      return callCalendarApi(userData.callId, 'free-slots', body, {
-        userData,
-        toolId: 'checkGhlFreeSlots',
-        namespace: 'ghl-calendar',
-      });
+      return withDemoToolFiller(meta, userData, 'check', () =>
+        callCalendarApi(userData.callId, 'free-slots', body, {
+          userData,
+          toolId: 'checkGhlFreeSlots',
+          namespace: 'ghl-calendar',
+        }),
+      );
     },
   });
 };

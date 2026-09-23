@@ -4,6 +4,11 @@ import { hangUpCall } from '../speech/hangup.js';
 import type { AgentJobMetadata } from '@call-agent/contracts';
 import { resolveSarvamRealtimePluginUrl } from '../sarvam/plugin-stt.js';
 import type { SessionUserData } from '../tools/types.js';
+import { startDemoCrmPrefetch } from '../tasks/demo-booking-crm.js';
+import {
+  demoBookingCacheLines,
+  isOutboundDemoBooking,
+} from '../tasks/demo-booking-tracks.js';
 import {
   inboundScriptCacheLines,
   inboundServiceTrackLines,
@@ -152,6 +157,8 @@ export class AgentRuntimeBuilder {
     userData: SessionUserData,
     tools: AgentTools,
   ): Promise<void> {
+    userData.saySession = ctx.session;
+    startDemoCrmPrefetch(this.meta, userData);
     await this.playOpening(ctx);
 
     try {
@@ -234,12 +241,16 @@ export class AgentRuntimeBuilder {
 
 export function phrasesToWarm(meta: AgentJobMetadata): string[] {
   // S2S realtime has no pipeline TTS. Bulbul realtime still warms via REST.
+  // Inbound script + outbound demo fillers / keyword lines + goodbye.
   if (isRealtimeLlmModel(meta.model)) {
     return [];
   }
   const phrases: string[] = [];
   if (meta.direction === 'inbound') {
     phrases.push(...inboundServiceTrackLines(), ...inboundScriptCacheLines());
+  }
+  if (isOutboundDemoBooking(meta)) {
+    phrases.push(...demoBookingCacheLines(meta));
   }
   const closing = cannedClosingLine(meta);
   if (closing) {

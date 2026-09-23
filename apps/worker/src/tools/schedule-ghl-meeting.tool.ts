@@ -1,6 +1,8 @@
 import { llm } from '@livekit/agents';
 import { z } from 'zod';
 import { buildToolClockHint } from '../builders/prompt-builder.js';
+import { withDemoToolFiller } from '../speech/demo-tool-filler.js';
+import { awaitDemoCrmPrefetch } from '../tasks/demo-booking-crm.js';
 import { callCalendarApi } from './calendar-api-client.js';
 import type { ToolFactory } from './types.js';
 
@@ -103,10 +105,13 @@ export const createScheduleGhlMeetingTool: ToolFactory = ({
       if (args.contactId && !looksLikePhoneContactId(args.contactId)) {
         body.contactId = args.contactId;
       }
-      return callCalendarApi(userData.callId, 'appointments', body, {
-        userData,
-        toolId: 'scheduleGhlMeeting',
-        namespace: 'ghl-calendar',
+      return withDemoToolFiller(meta, userData, 'book', async () => {
+        await awaitDemoCrmPrefetch(userData);
+        return callCalendarApi(userData.callId, 'appointments', body, {
+          userData,
+          toolId: 'scheduleGhlMeeting',
+          namespace: 'ghl-calendar',
+        });
       });
     },
   });

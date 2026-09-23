@@ -15,9 +15,15 @@ import {
   ttsCacheKey,
 } from '../../speech/tts-cache';
 import {
+  DEMO_ASK_WHEN_LINE_EN,
+  DEMO_CALLBACK_LINE_EN,
+} from '../../tasks/demo-booking-tracks';
+import {
   finishWorkflowTask,
+  handleDemoBookingTurn,
   handleInboundServiceTrackTurn,
   resolveInboundTurnHookArgs,
+  runDemoBookingScriptHook,
   runInboundScriptHook,
   truncateLogText,
 } from '../../tasks/workflow-task';
@@ -454,6 +460,166 @@ describe('handleInboundServiceTrackTurn', () => {
       ),
     ).toBe(true);
     expect(session.say).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleDemoBookingTurn', () => {
+  beforeEach(() => {
+    clearTtsCache();
+  });
+
+  function userData(
+    extras: Partial<SessionUserData> = {},
+  ): SessionUserData {
+    return {
+      context: {},
+      taskResult: null,
+      taskCompleted: false,
+      toolEvents: [],
+      ...extras,
+    };
+  }
+
+  it('plays the cached ask-when line on yes and throws StopResponse', async () => {
+    const outbound = meta({ task: 'demo_booking' });
+    const tts = {
+      synthesize: jest.fn(async function* () {
+        yield { frame: { id: 'yes-1' } };
+      }),
+    };
+    await ensureCached(
+      tts,
+      ttsCacheKey(outbound, DEMO_ASK_WHEN_LINE_EN),
+      DEMO_ASK_WHEN_LINE_EN,
+    );
+    const session = { say: jest.fn(), interrupt: jest.fn() };
+    const data = userData({ tts });
+
+    await expect(
+      handleDemoBookingTurn({
+        session,
+        meta: outbound,
+        userData: data,
+        userText: 'Yes.',
+      }),
+    ).rejects.toBeInstanceOf(voice.StopResponse);
+
+    expect(data.demoScriptStep).toBe('ask_when');
+    expect(session.interrupt).toHaveBeenCalled();
+    expect(session.say).toHaveBeenCalledWith(
+      DEMO_ASK_WHEN_LINE_EN,
+      expect.objectContaining({
+        addToChatCtx: true,
+        audio: expect.any(ReadableStream),
+      }),
+    );
+  });
+
+  it('plays the callback line when they are busy', async () => {
+    const outbound = meta({ task: 'demo_booking' });
+    const session = { say: jest.fn(), interrupt: jest.fn() };
+    const data = userData();
+
+    await expect(
+      handleDemoBookingTurn({
+        session,
+        meta: outbound,
+        userData: data,
+        userText: 'I am busy',
+      }),
+    ).rejects.toBeInstanceOf(voice.StopResponse);
+
+    expect(data.demoScriptStep).toBe('done');
+    expect(session.say).toHaveBeenCalledWith(
+      DEMO_CALLBACK_LINE_EN,
+      expect.objectContaining({ addToChatCtx: true }),
+    );
+  });
+
+  it('leaves declined and datetimes to the LLM', async () => {
+    const outbound = meta({ task: 'demo_booking' });
+    const session = { say: jest.fn(), interrupt: jest.fn() };
+    const declined = userData();
+    const timed = userData();
+
+    await handleDemoBookingTurn({
+      session,
+      meta: outbound,
+      userData: declined,
+      userText: 'not interested',
+    });
+    await handleDemoBookingTurn({
+      session,
+      meta: outbound,
+      userData: timed,
+      userText: 'tomorrow at 3',
+    });
+
+    expect(declined.demoScriptStep).toBe('done');
+    expect(timed.demoScriptStep).toBe('done');
+    expect(session.say).not.toHaveBeenCalled();
+  });
+
+  it('skips inbound, realtime, and a second scripted turn', async () => {
+    const session = { say: jest.fn(), interrupt: jest.fn() };
+    await handleDemoBookingTurn({
+      session,
+      meta: meta({ direction: 'inbound', task: 'demo_booking' }),
+      userData: userData(),
+      userText: 'Yes.',
+    });
+    await handleDemoBookingTurn({
+      session,
+      meta: meta({
+        task: 'demo_booking',
+        model: 'xai/grok-voice-think-fast-2.0',
+      }),
+      userData: userData(),
+      userText: 'Yes.',
+    });
+    await handleDemoBookingTurn({
+      session,
+      meta: meta({ task: 'demo_booking' }),
+      userData: userData({ demoScriptStep: 'done' }),
+      userText: 'Yes.',
+    });
+    expect(session.say).not.toHaveBeenCalled();
+  });
+});
+
+describe('runDemoBookingScriptHook', () => {
+  function userData(
+    extras: Partial<SessionUserData> = {},
+  ): SessionUserData {
+    return {
+      context: {},
+      taskResult: null,
+      taskCompleted: false,
+      toolEvents: [],
+      ...extras,
+    };
+  }
+
+  it('plays ask-when from official hook args', async () => {
+    const outbound = meta({ task: 'demo_booking' });
+    const session = { say: jest.fn(), interrupt: jest.fn() };
+    const data = userData();
+
+    await expect(
+      runDemoBookingScriptHook({
+        ctx: { session },
+        chatCtx: { items: [] },
+        newMessage: { textContent: 'Yes.' },
+        meta: outbound,
+        userData: data,
+      }),
+    ).rejects.toBeInstanceOf(voice.StopResponse);
+
+    expect(data.demoScriptStep).toBe('ask_when');
+    expect(session.say).toHaveBeenCalledWith(
+      DEMO_ASK_WHEN_LINE_EN,
+      expect.objectContaining({ addToChatCtx: true }),
+    );
   });
 });
 

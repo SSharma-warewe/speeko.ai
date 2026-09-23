@@ -1,10 +1,11 @@
 import type { ToolContextEntry } from '@livekit/agents';
 import type { AgentJobMetadata, ToolEvent } from '@call-agent/contracts';
+import type { DemoScriptStep } from '../tasks/demo-booking-tracks.js';
 import type {
   InboundScriptStep,
   InboundServiceTrack,
 } from '../tasks/inbound-service-tracks.js';
-import type { TtsSynthesizer } from '../speech/tts-cache.js';
+import type { CachedSaySession, TtsSynthesizer } from '../speech/tts-cache.js';
 
 export type { ToolEvent };
 
@@ -17,6 +18,12 @@ export type SessionUserData = {
   serviceTrack?: InboundServiceTrack;
   /** Inbound cached-script step after the service track (location → timing → BHK). */
   inboundScriptStep?: InboundScriptStep;
+  /** Outbound demo_booking keyword-script step (good time → ask when). */
+  demoScriptStep?: DemoScriptStep;
+  /** Pipeline session.say target for cached demo tool fillers. */
+  saySession?: CachedSaySession;
+  /** In-flight GHL lookup/upsert for outbound demo (await before schedule). */
+  crmPrefetch?: Promise<void>;
   /** Pipeline TTS instance for cached session.say (same object as AgentSession). */
   tts?: TtsSynthesizer;
   /** Structured result from the active LiveKit task. */

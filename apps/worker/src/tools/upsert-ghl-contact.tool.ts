@@ -1,5 +1,12 @@
 import { llm } from '@livekit/agents';
 import { z } from 'zod';
+import {
+  demoCrmAlreadySavedMessage,
+  demoCrmPendingMessage,
+  enqueueDemoCrm,
+  readGhlContactId,
+} from '../tasks/demo-booking-crm.js';
+import { isOutboundDemoBooking } from '../tasks/demo-booking-tracks.js';
 import { callCalendarApi } from './calendar-api-client.js';
 import type { ToolFactory } from './types.js';
 
@@ -37,7 +44,7 @@ function readContactId(data: unknown): string | undefined {
   return typeof id === 'string' && id.trim() ? id.trim() : undefined;
 }
 
-export const createUpsertGhlContactTool: ToolFactory = ({ userData }) => {
+export const createUpsertGhlContactTool: ToolFactory = ({ meta, userData }) => {
   return llm.tool({
     name: 'upsert_ghl_contact',
     description: BASE_DESCRIPTION,
@@ -77,24 +84,37 @@ export const createUpsertGhlContactTool: ToolFactory = ({ userData }) => {
       console.log(
         `[tool:upsertGhlContact] callId=${userData.callId ?? 'n/a'}`,
       );
-      const body: Record<string, unknown> = {};
-      if (args.firstName) body.firstName = args.firstName;
-      if (args.lastName) body.lastName = args.lastName;
-      if (args.participantName) body.participantName = args.participantName;
-      if (args.participantEmail) body.participantEmail = args.participantEmail;
-      if (args.phone) body.phone = args.phone;
-      if (args.company) body.company = args.company;
-      if (args.notes) body.notes = args.notes;
-      const result = await callCalendarApi(userData.callId, 'contacts', body, {
-        userData,
-        toolId: 'upsertGhlContact',
-        namespace: 'ghl-calendar',
-      });
-      const contactId = readContactId(result.data);
-      if (result.ok && contactId) {
-        userData.context.ghlContactId = contactId;
+      const existing = readGhlContactId(userData);
+      if (existing && !args.notes) {
+        return demoCrmAlreadySavedMessage(existing);
       }
-      return result;
+      const run = async () => {
+        const body: Record<string, unknown> = {};
+        if (args.firstName) body.firstName = args.firstName;
+        if (args.lastName) body.lastName = args.lastName;
+        if (args.participantName) body.participantName = args.participantName;
+        if (args.participantEmail) body.participantEmail = args.participantEmail;
+        if (args.phone) body.phone = args.phone;
+        if (args.company) body.company = args.company;
+        if (args.notes) body.notes = args.notes;
+        const result = await callCalendarApi(userData.callId, 'contacts', body, {
+          userData,
+          toolId: 'upsertGhlContact',
+          namespace: 'ghl-calendar',
+        });
+        const contactId = readContactId(result.data);
+        if (result.ok && contactId) {
+          userData.context.ghlContactId = contactId;
+        }
+        return result;
+      };
+      if (isOutboundDemoBooking(meta)) {
+        enqueueDemoCrm(userData, async () => {
+          await run();
+        });
+        return demoCrmPendingMessage();
+      }
+      return run();
     },
   });
 };

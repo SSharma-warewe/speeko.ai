@@ -1,6 +1,7 @@
 import { llm } from '@livekit/agents';
 import { z } from 'zod';
 import { buildToolClockHint } from '../builders/prompt-builder.js';
+import { withDemoToolFiller } from '../speech/demo-tool-filler.js';
 import { callCalendarApi } from './calendar-api-client.js';
 import type { ToolFactory } from './types.js';
 
@@ -60,11 +61,13 @@ export const createCheckCalendarAvailabilityTool: ToolFactory = ({
       console.log(
         `[tool:checkCalendarAvailability] callId=${userData.callId ?? 'n/a'} start=${startTime} end=${endTime}`,
       );
-      return callCalendarApi(
-        userData.callId,
-        'free-busy',
-        { startTime, endTime },
-        { userData, toolId: 'checkCalendarAvailability' },
+      return withDemoToolFiller(meta, userData, 'check', () =>
+        callCalendarApi(
+          userData.callId,
+          'free-busy',
+          { startTime, endTime },
+          { userData, toolId: 'checkCalendarAvailability' },
+        ),
       );
     },
   });
