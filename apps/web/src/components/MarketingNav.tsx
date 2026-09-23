@@ -4,14 +4,14 @@ import { KEYWORD_NAV } from "../data/keyword-pages";
 
 const SOLUTIONS = [
   {
-    to: "/solutions/customer-service",
-    title: "Customer Service",
-    sub: "24×7 appointments & inbound resolution",
+    to: "/solutions/ai-calling-agents",
+    title: "AI calling agents",
+    sub: "Inbound, outbound, and the tools that finish the call",
   },
   {
-    to: "/solutions/marketing-sales",
-    title: "Marketing & Sales",
-    sub: "Lead gen, outreach & retention",
+    to: "/solutions/whatsapp-services",
+    title: "WhatsApp services",
+    sub: "Templates, and replies inside the 24-hour window",
   },
 ] as const;
 

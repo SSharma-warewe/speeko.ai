@@ -23,9 +23,9 @@ Request a demo: https://speeko.ai/get-demo
 
 - [How it works](https://speeko.ai/how-it-works): Virtual number, named agents, tools, persona — no code
 - [Voice](https://speeko.ai/voice): Neural speech, talent, pace, delivery, barge-in
-- [Solutions](https://speeko.ai/solutions): Tool profiles — hang up, lookup, calendar, book, cancel, transfer
-- [Customer service](https://speeko.ai/solutions/customer-service): Clinic stack — confirm, calendar, transfer
-- [Marketing and sales](https://speeko.ai/solutions/marketing-sales): Demo-setter stack — GoHighLevel contacts, free slots, schedule
+- [Solutions](https://speeko.ai/solutions): AI calling agents and WhatsApp services
+- [AI calling agents](https://speeko.ai/solutions/ai-calling-agents): Inbound and outbound calls — confirm, book, calendar, transfer, hang up
+- [WhatsApp services](https://speeko.ai/solutions/whatsapp-services): Meta Cloud API — marketing, utility, and authentication templates, plus replies inside the 24-hour window
 
 ## Optional
 

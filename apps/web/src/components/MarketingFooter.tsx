@@ -18,8 +18,8 @@ export default function MarketingFooter() {
           <div className="lp-footer-col">
             <p className="lp-footer-col-title">Product</p>
             <Link to="/solutions">Solutions</Link>
-            <Link to="/solutions/customer-service">Customer Service</Link>
-            <Link to="/solutions/marketing-sales">Marketing &amp; Sales</Link>
+            <Link to="/solutions/ai-calling-agents">AI calling agents</Link>
+            <Link to="/solutions/whatsapp-services">WhatsApp services</Link>
             <Link to="/how-it-works">How it works</Link>
             <Link to="/voice">Voice</Link>
             <a href="/#faq">FAQ</a>

@@ -450,9 +450,9 @@ export const KEYWORD_PAGES: KeywordPageCopy[] = [
     ],
     related: [
       {
-        to: "/solutions/marketing-sales",
-        kicker: "Tools",
-        title: "Marketing & sales stack",
+        to: "/solutions/ai-calling-agents",
+        kicker: "Solutions",
+        title: "AI calling agents",
         body: "GHL contacts, free slots, schedule — how a meeting actually lands.",
       },
       {
@@ -559,9 +559,9 @@ export const KEYWORD_PAGES: KeywordPageCopy[] = [
         body: "Overflow and after-hours inbound on the clinic line.",
       },
       {
-        to: "/solutions/customer-service",
-        kicker: "Tools",
-        title: "Customer service tools",
+        to: "/solutions/ai-calling-agents",
+        kicker: "Solutions",
+        title: "AI calling agents",
         body: "The kit: hangup, lookup, confirm, calendar, transfer.",
       },
     ],

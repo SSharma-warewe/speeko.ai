@@ -5,6 +5,8 @@ export { MARKETING_ORIGIN };
 
 const PATH_ALIASES: Record<string, string> = {
   "/signup": "/get-demo",
+  "/solutions/customer-service": "/solutions/ai-calling-agents",
+  "/solutions/marketing-sales": "/solutions/ai-calling-agents",
 };
 
 export function normalizePath(pathname: string): string {

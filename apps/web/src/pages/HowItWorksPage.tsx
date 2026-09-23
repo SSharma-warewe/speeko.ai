@@ -103,7 +103,7 @@ export default function HowItWorksPage() {
                   {step.id === "tools" ? (
                     <p className="hiw-tools-note">
                       The catalog of verbs lives on{" "}
-                      <Link to="/solutions">Solutions</Link>. Talent, pace, and
+                      <Link to="/solutions/ai-calling-agents">AI calling agents</Link>. Talent, pace, and
                       delivery are on{" "}
                       <Link to="/voice">Voice</Link>.
                     </p>
@@ -119,16 +119,16 @@ export default function HowItWorksPage() {
       </div>
 
       <div className="sol-wrap sol-band sol-band--last">
-        <Link to="/solutions" className="sol-cross">
+        <Link to="/solutions/ai-calling-agents" className="sol-cross">
           <div>
-            <p className="sol-kicker">Tools</p>
-            <h2>The verbs on the call.</h2>
+            <p className="sol-kicker">Calling</p>
+            <h2>AI calling agents.</h2>
             <p>
               Hang up, look someone up, check a calendar, book, cancel, transfer. Assemble a
               profile — you do not upload code.
             </p>
           </div>
-          <span className="sol-cross-go">See the catalog →</span>
+          <span className="sol-cross-go">See the jobs →</span>
         </Link>
       </div>
 

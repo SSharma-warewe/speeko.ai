@@ -7,8 +7,9 @@ import GetDemoPage from "./pages/GetDemoPage";
 import HowItWorksPage from "./pages/HowItWorksPage";
 import KeywordPage from "./pages/KeywordPage";
 import LandingPage from "./pages/LandingPage";
-import SolutionPage from "./pages/SolutionPage";
+import AiCallingPage from "./pages/AiCallingPage";
 import SolutionsIndexPage from "./pages/SolutionsIndexPage";
+import WhatsAppServicesPage from "./pages/WhatsAppServicesPage";
 import VoicePage from "./pages/VoicePage";
 
 function ScrollToTop() {
@@ -38,13 +39,15 @@ export default function App() {
         <Route path="/how-it-works" element={<HowItWorksPage />} />
         <Route path="/voice" element={<VoicePage />} />
         <Route path="/solutions" element={<SolutionsIndexPage />} />
+        <Route path="/solutions/ai-calling-agents" element={<AiCallingPage />} />
+        <Route path="/solutions/whatsapp-services" element={<WhatsAppServicesPage />} />
         <Route
           path="/solutions/customer-service"
-          element={<SolutionPage slug="customer-service" />}
+          element={<Navigate to="/solutions/ai-calling-agents" replace />}
         />
         <Route
           path="/solutions/marketing-sales"
-          element={<SolutionPage slug="marketing-sales" />}
+          element={<Navigate to="/solutions/ai-calling-agents" replace />}
         />
         {KEYWORD_PATHS.map((path) => (
           <Route

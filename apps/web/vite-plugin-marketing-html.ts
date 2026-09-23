@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { Plugin } from "vite";
 import { KEYWORD_PAGE_BY_PATH } from "./src/data/keyword-pages";
 import {
+  MARKETING_REDIRECTS,
   MARKETING_ROUTES,
   marketingUrl,
   type KeywordPath,
@@ -145,6 +146,25 @@ function applyRouteHead(html: string, route: MarketingRoute): string {
   return out;
 }
 
+function redirectHtml(to: string): string {
+  const dest = marketingUrl(to);
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="robots" content="noindex" />
+    <link rel="canonical" href="${dest}" />
+    <meta http-equiv="refresh" content="0;url=${to}" />
+    <title>Redirecting…</title>
+    <script>location.replace(${JSON.stringify(to)});</script>
+  </head>
+  <body>
+    <p><a href="${to}">Continue</a></p>
+  </body>
+</html>
+`;
+}
+
 export function sitemapXml(): string {
   const urls = MARKETING_ROUTES.map((route) => {
     const loc = marketingUrl(route.path);
@@ -185,6 +205,12 @@ export function marketingHtmlPlugin(): Plugin {
         const dir = path.join(dist, route.path.replace(/^\//, ""));
         fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(path.join(dir, "index.html"), html);
+      }
+
+      for (const redirect of MARKETING_REDIRECTS) {
+        const dir = path.join(dist, redirect.from.replace(/^\//, ""));
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, "index.html"), redirectHtml(redirect.to));
       }
 
       fs.writeFileSync(path.join(dist, "sitemap.xml"), sitemapXml());

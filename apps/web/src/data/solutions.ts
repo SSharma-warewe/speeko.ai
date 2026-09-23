@@ -487,28 +487,28 @@ export const AGENT_HELPS: AgentHelpCard[] = [
     kicker: "Coverage",
     title: "Answer when the desk is dark",
     body: "After-hours inbound still looks someone up, offers a real free slot, or transfers. The book is updated before anyone is back in the morning.",
-    href: "/solutions/customer-service",
+    href: "/solutions/ai-calling-agents",
   },
   {
     id: "list",
     kicker: "Outbound",
     title: "Work tomorrow’s list",
     body: "Confirm, reschedule, or cancel against the booking id. Voicemail is not a workflow — the list row is done when the call ends.",
-    href: "/solutions/customer-service",
+    href: "/solutions/ai-calling-agents",
   },
   {
     id: "pipeline",
     kicker: "Sales",
     title: "Put the next meeting on the calendar",
     body: "Find or create the GHL contact, read open slots, book. Qualification is the task; the tools are how the demo actually lands.",
-    href: "/solutions/marketing-sales",
+    href: "/solutions/ai-calling-agents",
   },
   {
     id: "humans",
     kicker: "Handoff",
     title: "Leave humans the exceptions",
     body: "Billing disputes, clinical questions, “I want a person” — transfer with a reason. Everything else hangs up clean.",
-    href: "/solutions/customer-service",
+    href: "/solutions/ai-calling-agents",
   },
 ];
 

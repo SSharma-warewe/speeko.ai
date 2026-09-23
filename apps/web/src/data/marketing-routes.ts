@@ -39,23 +39,23 @@ export const MARKETING_ROUTES: MarketingRoute[] = [
   },
   {
     path: "/solutions",
-    title: "Speeko Solutions — Voice Agent Tools for Real Call Jobs",
+    title: "Speeko Solutions — AI Calling Agents and WhatsApp",
     description:
-      "Agents only run tools you enable — hang up, look someone up, check a calendar, book, cancel, transfer. Assemble a profile. You do not upload code.",
+      "Two services: AI calling agents that place and answer calls, and WhatsApp that follows Meta’s template and 24-hour window rules.",
     priority: 0.8,
   },
   {
-    path: "/solutions/customer-service",
-    title: "Customer Service Voice Agents — Speeko Clinic Call Tools",
+    path: "/solutions/ai-calling-agents",
+    title: "AI Calling Agents — Speeko Inbound and Outbound",
     description:
-      "Assemble a clinic agent from hangup, lookup, confirm, calendar, and transfer. Speeko voice agents finish the visit, not the voicemail.",
+      "Speeko AI calling agents answer and place calls, then write the outcome with the tools you enable — confirm, book, transfer, or hang up.",
     priority: 0.7,
   },
   {
-    path: "/solutions/marketing-sales",
-    title: "Marketing & Sales Voice Agent Tools — Speeko Demo Setters",
+    path: "/solutions/whatsapp-services",
+    title: "WhatsApp Services — Templates and the 24-Hour Window — Speeko",
     description:
-      "A demo-setter profile: GHL contact tools, free slots, and schedule. Qualification is the task; the tools are how a meeting actually lands.",
+      "WhatsApp on Speeko follows Meta’s Cloud API: approved marketing, utility, and authentication templates, plus replies inside the customer service window.",
     priority: 0.7,
   },
   {
@@ -98,6 +98,18 @@ export const MARKETING_ROUTES: MarketingRoute[] = [
 export const MARKETING_PATHS = new Set(
   MARKETING_ROUTES.map((route) => route.path),
 );
+
+/** Old public paths. Not in the sitemap. Static shells redirect; React does too. */
+export const MARKETING_REDIRECTS: { from: string; to: string }[] = [
+  {
+    from: "/solutions/customer-service",
+    to: "/solutions/ai-calling-agents",
+  },
+  {
+    from: "/solutions/marketing-sales",
+    to: "/solutions/ai-calling-agents",
+  },
+];
 
 export const KEYWORD_PATHS = [
   "/ai-voice-agent",
