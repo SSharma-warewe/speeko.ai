@@ -1,5 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import {
+  visibleReplyText,
+  withoutThoughtParts,
+  type ReplyPart,
+} from './lib/visible-reply';
 import { RECEPTIONIST_INSTRUCTION } from './receptionist-instruction';
 import type { ReceptionistReply } from './receptionist-reply';
 
@@ -7,7 +12,11 @@ const LUNA_MODEL = 'openai/gpt-5.6-luna';
 const APP_NAME = 'warewe-receptionist';
 
 type AdkEvent = {
-  content?: { parts?: Array<{ text?: string }> };
+  content?: { parts?: ReplyPart[] };
+};
+
+type AdkLlmResponse = {
+  content?: { role?: string; parts?: ReplyPart[] };
 };
 
 type AdkSessionKey = {
@@ -34,6 +43,9 @@ type AdkModule = {
     description: string;
     model: unknown;
     instruction: string;
+    afterModelCallback: (params: {
+      response: AdkLlmResponse;
+    }) => AdkLlmResponse | undefined;
   }) => unknown;
   InMemoryRunner: new (params: { agent: unknown; appName: string }) => AdkRunner;
   isFinalResponse: (event: AdkEvent) => boolean;
@@ -55,11 +67,6 @@ function importEsm(specifier: string): Promise<Record<string, unknown>> {
     'return import(specifier)',
   ) as (specifier: string) => Promise<Record<string, unknown>>;
   return load(specifier);
-}
-
-function textFromEvent(event: AdkEvent): string {
-  const parts = event.content?.parts ?? [];
-  return parts.map((part) => part.text ?? '').join('');
 }
 
 /**
@@ -95,7 +102,7 @@ export class WhatsAppLunaRunner implements ReceptionistReply {
       if (!isFinalResponse(event)) {
         continue;
       }
-      const next = textFromEvent(event).trim();
+      const next = visibleReplyText(event);
       if (next) {
         reply = next;
       }
@@ -135,6 +142,7 @@ export class WhatsAppLunaRunner implements ReceptionistReply {
         'WhatsApp receptionist for Warewe AI, AgentsHub.ai, and Speeko.ai.',
       model: OpenRouter(LUNA_MODEL, { apiKey }),
       instruction: RECEPTIONIST_INSTRUCTION,
+      afterModelCallback: ({ response }) => withoutThoughtParts(response),
     });
     this.logger.log(`WhatsApp receptionist model=${LUNA_MODEL}`);
     return new adk.InMemoryRunner({ agent, appName: APP_NAME });
