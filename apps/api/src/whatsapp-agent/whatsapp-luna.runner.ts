@@ -10,13 +10,16 @@ type AdkEvent = {
   content?: { parts?: Array<{ text?: string }> };
 };
 
+type AdkSessionKey = {
+  appName: string;
+  userId: string;
+  sessionId: string;
+};
+
 type AdkRunner = {
   sessionService: {
-    getOrCreateSession(request: {
-      appName: string;
-      userId: string;
-      sessionId: string;
-    }): Promise<unknown>;
+    getOrCreateSession(request: AdkSessionKey): Promise<unknown>;
+    deleteSession(request: AdkSessionKey): Promise<void>;
   };
   runAsync(params: {
     userId: string;
@@ -98,6 +101,18 @@ export class WhatsAppLunaRunner implements ReceptionistReply {
       }
     }
     return reply;
+  }
+
+  async reset(from: string): Promise<void> {
+    if (!this.runnerPromise) {
+      return;
+    }
+    const runner = await this.runnerPromise;
+    await runner.sessionService.deleteSession({
+      appName: APP_NAME,
+      userId: from,
+      sessionId: from,
+    });
   }
 
   private runner(apiKey: string): Promise<AdkRunner> {

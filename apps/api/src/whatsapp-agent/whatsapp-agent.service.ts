@@ -5,6 +5,10 @@ import {
   phoneNumberIdFromMessagesUrl,
 } from './lib/inbound-text';
 import {
+  isNewSessionCommand,
+  NEW_SESSION_REPLY,
+} from './lib/session-command';
+import {
   RECEPTIONIST_REPLY,
   type ReceptionistReply,
 } from './receptionist-reply';
@@ -37,12 +41,6 @@ export class WhatsAppAgentService {
       return;
     }
 
-    const openRouterKey =
-      this.config.get<string>('OPENROUTER_API_KEY')?.trim() ?? '';
-    if (!openRouterKey) {
-      this.warnOnce('OPENROUTER_API_KEY is not set');
-      return;
-    }
     if (!this.text.isConfigured()) {
       this.warnOnce('WHATSAPP_URL or WHATSAPP_API_KEY is not set');
       return;
@@ -56,6 +54,9 @@ export class WhatsAppAgentService {
       return;
     }
 
+    const openRouterKey =
+      this.config.get<string>('OPENROUTER_API_KEY')?.trim() ?? '';
+
     for (const message of messages) {
       if (message.phoneNumberId !== configuredPhone) {
         this.warnOnce(
@@ -68,6 +69,21 @@ export class WhatsAppAgentService {
       }
       this.inflight.add(message.id);
       try {
+        if (isNewSessionCommand(message.body)) {
+          await this.receptionist.reset(message.from);
+          const sent = await this.text.sendText(message.from, NEW_SESSION_REPLY);
+          if (sent) {
+            this.remember(message.id);
+            this.logger.log(
+              `WhatsApp receptionist new session to=…${message.from.slice(-4)}`,
+            );
+          }
+          continue;
+        }
+        if (!openRouterKey) {
+          this.warnOnce('OPENROUTER_API_KEY is not set');
+          continue;
+        }
         const reply = (
           await this.receptionist.reply(message.from, message.body)
         ).trim();

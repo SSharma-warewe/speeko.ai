@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+import { NEW_SESSION_REPLY } from '../lib/session-command';
 import {
   RECEPTIONIST_REPLY,
   type ReceptionistReply,
@@ -11,7 +12,11 @@ const PHONE_ID = '106540352242922';
 const MESSAGES_URL = `https://graph.facebook.com/v25.0/${PHONE_ID}/messages`;
 const FROM = '919876543210';
 
-function textPayload(id = 'wamid.1', phoneNumberId: string = PHONE_ID) {
+function textPayload(
+  id = 'wamid.1',
+  phoneNumberId: string = PHONE_ID,
+  body = 'We need voice calls',
+) {
   return {
     entry: [
       {
@@ -25,7 +30,7 @@ function textPayload(id = 'wamid.1', phoneNumberId: string = PHONE_ID) {
                   from: FROM,
                   id,
                   type: 'text',
-                  text: { body: 'We need voice calls' },
+                  text: { body },
                 },
               ],
             },
@@ -56,6 +61,7 @@ describe('WhatsAppAgentService', () => {
     });
     receptionist = {
       reply: jest.fn().mockResolvedValue("Hi! I'd be happy to help."),
+      reset: jest.fn().mockResolvedValue(undefined),
     };
     fetchMock = jest.fn().mockResolvedValue({
       ok: true,
@@ -140,6 +146,7 @@ describe('WhatsAppAgentService', () => {
     await expect(service.replyToWebhook(textPayload())).resolves.toBeUndefined();
 
     expect(receptionist.reply).not.toHaveBeenCalled();
+    expect(receptionist.reset).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -148,5 +155,43 @@ describe('WhatsAppAgentService', () => {
 
     expect(receptionist.reply).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('resets the session and sends a canned reply for /new', async () => {
+    await service.replyToWebhook(textPayload('wamid.new', PHONE_ID, '/new'));
+
+    expect(receptionist.reset).toHaveBeenCalledWith(FROM);
+    expect(receptionist.reply).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({
+      messaging_product: 'whatsapp',
+      to: FROM,
+      type: 'text',
+      text: { body: NEW_SESSION_REPLY },
+    });
+  });
+
+  it('treats extra words after /new as a normal turn', async () => {
+    await service.replyToWebhook(
+      textPayload('wamid.new-words', PHONE_ID, '/new please'),
+    );
+
+    expect(receptionist.reset).not.toHaveBeenCalled();
+    expect(receptionist.reply).toHaveBeenCalledWith(FROM, '/new please');
+  });
+
+  it('resets on /new even when OpenRouter is unset', async () => {
+    configGet.mockImplementation((key: string) => {
+      if (key === 'WHATSAPP_URL') return MESSAGES_URL;
+      if (key === 'WHATSAPP_API_KEY') return 'wa-secret';
+      return undefined;
+    });
+
+    await service.replyToWebhook(textPayload('wamid.new-or', PHONE_ID, ' /NEW '));
+
+    expect(receptionist.reset).toHaveBeenCalledWith(FROM);
+    expect(receptionist.reply).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
