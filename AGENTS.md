@@ -10,7 +10,7 @@ Multi-tenant inbound/outbound **call agent platform**:
 |-----|------|------|
 | API | `apps/api` | NestJS HTTP API, JWT auth, Swagger UI, calls domain + LiveKit adapter |
 | Worker | `apps/worker` | LiveKit Agents server (`@livekit/agents`) for inbound/outbound voice |
-| Web (marketing) | `apps/web` | Public marketing Vite + React SPA (`/`, `/get-demo`, `/how-it-works`, `/voice`, `/solutions`, `/solutions/ai-calling-agents`, `/solutions/whatsapp-services`, `/ai-voice-agent`, `/appointment-confirmation-calls`, `/ai-receptionist`, `/outbound-ai-calling`, `/ai-calling-for-clinics`) |
+| Web (marketing) | `apps/web` | Public marketing Vite + React SPA (`/`, `/get-demo`, `/how-it-works`, `/voice`, `/privacy`, `/solutions`, `/solutions/ai-calling-agents`, `/solutions/whatsapp-services`, `/ai-voice-agent`, `/appointment-confirmation-calls`, `/ai-receptionist`, `/outbound-ai-calling`, `/ai-calling-for-clinics`) |
 | Portal | `apps/portal` | Authenticated Vite + React SPA (login + org/admin dashboards) |
 | UI kit | `packages/ui` | Reusable design-system primitives (`@call-agent/ui`) — buttons, forms, badges, motion |
 | Contracts | `packages/contracts` | Shared wire types + catalogs (`@call-agent/contracts`) imported by API, worker, portal, and web |
@@ -21,7 +21,7 @@ Stack: NestJS monorepo, TypeORM, PostgreSQL, JWT Bearer auth, Swagger, LiveKit A
 
 | Surface | App | URL | Auth |
 |---------|-----|-----|------|
-| Marketing site | `apps/web` | `/`, `/get-demo`, `/how-it-works`, `/voice`, `/solutions`, `/solutions/ai-calling-agents`, `/solutions/whatsapp-services`, `/ai-voice-agent`, `/appointment-confirmation-calls`, `/ai-receptionist`, `/outbound-ai-calling`, `/ai-calling-for-clinics`, `/llms.txt`, `/llm.txt` | public |
+| Marketing site | `apps/web` | `/`, `/get-demo`, `/how-it-works`, `/voice`, `/privacy`, `/solutions`, `/solutions/ai-calling-agents`, `/solutions/whatsapp-services`, `/ai-voice-agent`, `/appointment-confirmation-calls`, `/ai-receptionist`, `/outbound-ai-calling`, `/ai-calling-for-clinics`, `/llms.txt`, `/llm.txt` | public |
 | Org-user ops desk | `apps/portal` | `/login` → `/dashboard` | `POST /api/auth/login` (email + password + org slug) |
 | Platform admin | `apps/portal` | `/admin-login` → `/admin-dashboard` | `POST /api/auth/admin/login` |
 

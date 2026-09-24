@@ -31,6 +31,13 @@ export const MARKETING_ROUTES: MarketingRoute[] = [
     priority: 0.8,
   },
   {
+    path: "/privacy",
+    title: "Privacy Policy — Speeko",
+    description:
+      "How Speeko collects, uses, and protects account, call, and WhatsApp information, including Meta WhatsApp Business permissions.",
+    priority: 0.3,
+  },
+  {
     path: "/voice",
     title: "Neural Voice That People Stay On — Speeko AI Agents",
     description:

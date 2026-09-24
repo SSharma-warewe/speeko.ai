@@ -10,6 +10,7 @@ import LandingPage from "./pages/LandingPage";
 import AiCallingPage from "./pages/AiCallingPage";
 import SolutionsIndexPage from "./pages/SolutionsIndexPage";
 import WhatsAppServicesPage from "./pages/WhatsAppServicesPage";
+import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import VoicePage from "./pages/VoicePage";
 
 function ScrollToTop() {
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/signup" element={<Navigate to="/get-demo" replace />} />
         <Route path="/how-it-works" element={<HowItWorksPage />} />
         <Route path="/voice" element={<VoicePage />} />
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/solutions" element={<SolutionsIndexPage />} />
         <Route path="/solutions/ai-calling-agents" element={<AiCallingPage />} />
         <Route path="/solutions/whatsapp-services" element={<WhatsAppServicesPage />} />

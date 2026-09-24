@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Plugin } from "vite";
 import { KEYWORD_PAGE_BY_PATH } from "./src/data/keyword-pages";
+import { privacyCrawlerRootHtml } from "./src/data/privacy-document";
 import {
   MARKETING_REDIRECTS,
   MARKETING_ROUTES,
@@ -197,7 +198,13 @@ export function marketingHtmlPlugin(): Plugin {
       const template = fs.readFileSync(indexPath, "utf8");
 
       for (const route of MARKETING_ROUTES) {
-        const html = applyRouteHead(template, route);
+        let html = applyRouteHead(template, route);
+        if (route.path === "/privacy") {
+          html = html.replace(
+            '<div id="root"></div>',
+            `<div id="root">${privacyCrawlerRootHtml()}</div>`,
+          );
+        }
         if (route.path === "/") {
           fs.writeFileSync(indexPath, html);
           continue;

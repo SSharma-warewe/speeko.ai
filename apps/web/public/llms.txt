@@ -29,6 +29,7 @@ Request a demo: https://speeko.ai/get-demo
 
 ## Optional
 
+- [Privacy policy](https://speeko.ai/privacy): How Speeko handles account, call, and WhatsApp data, including Meta permissions
 - [Get a demo](https://speeko.ai/get-demo): Live walkthrough of inbound and outbound agents
 - [Speeko portal](https://portal.speeko.ai/): Sign in to run agents, queues, and call history
 - [Sitemap](https://speeko.ai/sitemap.xml): Indexable marketing URLs

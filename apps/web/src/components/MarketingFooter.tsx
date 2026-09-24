@@ -38,7 +38,7 @@ export default function MarketingFooter() {
           </div>
           <div className="lp-footer-col">
             <p className="lp-footer-col-title">Legal</p>
-            <a href="#privacy">Privacy</a>
+            <Link to="/privacy">Privacy</Link>
             <a href="#terms">Terms</a>
           </div>
         </div>
