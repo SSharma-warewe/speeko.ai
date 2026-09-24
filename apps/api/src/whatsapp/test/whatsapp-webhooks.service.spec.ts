@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Organization } from '../../organizations/organization.entity';
 import { OrganizationsService } from '../../organizations/organizations.service';
+import { WhatsAppAgentService } from '../../whatsapp-agent/whatsapp-agent.service';
 import { hashVerifyToken } from '../verify-token.util';
 import { WhatsAppWebhookConfig } from '../whatsapp-webhook-config.entity';
 import { WhatsAppWebhookConfigsRepository } from '../whatsapp-webhook-configs.repository';
@@ -34,6 +35,7 @@ describe('WhatsAppWebhooksService', () => {
   };
   let organizationsService: { findById: jest.Mock };
   let configService: { get: jest.Mock };
+  let receptionist: { replyToWebhook: jest.Mock };
 
   const ORG_ID = 'org-id';
   const OTHER_ORG = 'other-org';
@@ -98,6 +100,9 @@ describe('WhatsAppWebhooksService', () => {
         key === 'API_BASE_URL' ? 'https://api.example.com' : undefined,
       ),
     };
+    receptionist = {
+      replyToWebhook: jest.fn().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -106,6 +111,7 @@ describe('WhatsAppWebhooksService', () => {
         { provide: WhatsAppWebhookEventsRepository, useValue: events },
         { provide: OrganizationsService, useValue: organizationsService },
         { provide: ConfigService, useValue: configService },
+        { provide: WhatsAppAgentService, useValue: receptionist },
       ],
     }).compile();
 
@@ -411,6 +417,17 @@ describe('WhatsAppWebhooksService', () => {
       const saved = events.save.mock.calls[0][0] as WhatsAppWebhookEvent;
       expect(saved.organizationId).toBe(ORG_ID);
       expect(saved.eventType).toBe('messages');
+    });
+
+    it('16. returns success when the receptionist rejects', async () => {
+      receptionist.replyToWebhook.mockRejectedValue(new Error('boom'));
+
+      await expect(service.ingestWebhook(samplePayload)).resolves.toEqual({
+        success: true,
+      });
+      await Promise.resolve();
+
+      expect(receptionist.replyToWebhook).toHaveBeenCalledWith(samplePayload);
     });
   });
 

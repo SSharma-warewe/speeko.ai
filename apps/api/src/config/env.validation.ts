@@ -30,6 +30,8 @@ export const envValidationSchema = Joi.object({
   // Get-demo WhatsApp OTP (otp module). Soft-required: send/verify return 503 when unset.
   WHATSAPP_URL: Joi.string().uri().optional().allow(''),
   WHATSAPP_API_KEY: Joi.string().optional().allow(''),
+  // WhatsApp receptionist (Google ADK → OpenRouter GPT-5.6 Luna). Soft-disabled when empty.
+  OPENROUTER_API_KEY: Joi.string().optional().allow(''),
   OTP_HASH_SECRET: Joi.string().min(16).optional().allow(''),
   WHATSAPP_OTP_TEMPLATE_NAME: Joi.string().optional().allow(''),
   OTP_SEND_MAX_PER_IP: Joi.number().integer().min(1).default(8),

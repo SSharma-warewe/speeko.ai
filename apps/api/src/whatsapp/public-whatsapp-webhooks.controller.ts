@@ -68,7 +68,7 @@ export class PublicWhatsAppWebhooksController {
   @ApiOperation({
     summary: 'Receive a WhatsApp webhook payload from Meta',
     description:
-      'Persists whatever body arrived and returns 200 immediately. Does not send replies or process messages.',
+      'Persists whatever body arrived and returns 200 immediately. Inbound text on the platform WhatsApp line is answered afterward by the receptionist; that reply does not delay this response.',
   })
   @ApiBody({
     description:
