@@ -12,6 +12,7 @@ import {
   type ReplyPart,
 } from './lib/visible-reply';
 import { RECEPTIONIST_INSTRUCTION } from './receptionist-instruction';
+import { buildWhatsAppInstruction } from './whatsapp-clock';
 import type {
   ReceptionistReply,
   ReceptionistReplyOpts,
@@ -72,7 +73,7 @@ type AdkModule = {
     name: string;
     description: string;
     model: unknown;
-    instruction: string;
+    instruction: (context: { sessionId: string }) => string;
     tools?: unknown[];
     afterModelCallback: (params: {
       response: AdkLlmResponse;
@@ -134,7 +135,7 @@ export class WhatsAppLunaRunner implements ReceptionistReply {
     const sessionId = opts?.sessionKey?.trim() || from;
     const source = opts?.bookingSource;
     const runtimeInstruction = source
-      ? `${instruction}\n\nEnabled GHL tools from the selected tool profile: ${source.toolIds.join(', ')}. Use only these tools. Confirm a meeting only after scheduleGhlMeeting returns ok=true. Current UTC date: ${new Date().toISOString().slice(0, 10)}.`
+      ? `${instruction}\n\nEnabled GHL tools from the selected tool profile: ${source.toolIds.join(', ')}. Use only these tools. Confirm a meeting only after scheduleGhlMeeting returns ok=true.`
       : `${instruction}\n\nBooking tools are not connected. Do not claim a contact was saved or a meeting booked.`;
     const runner = await this.runnerFor(apiKey, runtimeInstruction, source);
     await runner.sessionService.getOrCreateSession({
@@ -225,7 +226,8 @@ export class WhatsAppLunaRunner implements ReceptionistReply {
       name: 'warewe_receptionist',
       description: 'WhatsApp inbound agent.',
       model: OpenRouter(LUNA_MODEL, { apiKey }),
-      instruction,
+      instruction: ({ sessionId }) =>
+        buildWhatsAppInstruction(instruction, sessionId),
       tools: source ? this.bookingTools(adk, source) : [],
       afterModelCallback: ({ response }) => withoutThoughtParts(response),
     });
