@@ -91,6 +91,22 @@ export type {
 } from './integrations.js';
 
 export type {
+  GhlContactRow,
+  GhlContactsResponse,
+  SendWhatsAppRecipient,
+  SendWhatsAppTemplateRequest,
+  SendWhatsAppTemplateResponse,
+  WhatsAppContactField,
+  WhatsAppOutboundMessage,
+  WhatsAppOutboundResult,
+  WhatsAppOutboundStatus,
+  WhatsAppTemplate,
+  WhatsAppTemplatesResponse,
+  WhatsAppTemplateVariable,
+  WhatsAppVariableSource,
+} from './whatsapp-outbound.js';
+
+export type {
   GenerateWhatsAppWebhookConfigRequest,
   WhatsAppWebhookAck,
   WhatsAppWebhookConfig,

@@ -27,6 +27,11 @@ const NAV: { section: string; items: readonly NavItem[] }[] = [
       { to: "/dashboard", end: true, label: "Overview", desc: "Live queue & activity" },
       { to: "/dashboard/calls", label: "Calls", desc: "History, enqueue & dial" },
       { to: "/dashboard/batches", label: "Batches", desc: "Bulk campaign groups" },
+      {
+        to: "/dashboard/whatsapp",
+        label: "WhatsApp",
+        desc: "Import contacts & send templates",
+      },
     ],
   },
   {
@@ -65,6 +70,7 @@ function crumbFromPath(pathname: string): string {
   if (pathname.startsWith("/dashboard/dial")) return "Calls";
   if (pathname.startsWith("/dashboard/calls")) return "Calls";
   if (pathname.startsWith("/dashboard/batches")) return "Batches";
+  if (pathname.startsWith("/dashboard/whatsapp")) return "WhatsApp";
   if (pathname.startsWith("/dashboard/agents")) return "Agents";
   if (pathname.startsWith("/dashboard/queue")) return "Queue";
   if (pathname.startsWith("/dashboard/sip")) return "SIP / Telephony";

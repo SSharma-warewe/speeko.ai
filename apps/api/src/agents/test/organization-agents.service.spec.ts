@@ -137,6 +137,7 @@ describe('OrganizationAgentsService', () => {
       findOne: jest.fn().mockResolvedValue({
         id: CAL_ID,
         organizationId: ORG_ID,
+        provider: 'nylas',
       }),
     };
 
@@ -472,6 +473,7 @@ describe('OrganizationAgentsService', () => {
       organizationIntegrationRepo.findOne.mockResolvedValue({
         id: CAL_ID,
         organizationId: ORG_ID,
+        provider: 'nylas',
       });
       repository.findByIdAndOrgWithAgent.mockResolvedValue(
         makeOrgAgent({ calendarIntegrationId: CAL_ID }),
@@ -787,6 +789,7 @@ describe('OrganizationAgentsService', () => {
       organizationIntegrationRepo.findOne.mockResolvedValue({
         id: 'new-cal',
         organizationId: ORG_ID,
+        provider: 'ghl',
       });
 
       await service.update(ORG_ID, ORG_AGENT_ID, {
@@ -797,6 +800,24 @@ describe('OrganizationAgentsService', () => {
         where: { id: 'new-cal', organizationId: ORG_ID },
       });
       expect(row.calendarIntegrationId).toBe('new-cal');
+    });
+
+    it('26b. a whatsapp / ghl_contacts connection cannot be linked as a calendar', async () => {
+      const row = makeOrgAgent({ calendarIntegrationId: null });
+      repository.findByIdAndOrgWithAgent.mockResolvedValue(row);
+      for (const provider of ['whatsapp', 'ghl_contacts']) {
+        organizationIntegrationRepo.findOne.mockResolvedValue({
+          id: 'wa-int',
+          organizationId: ORG_ID,
+          provider,
+        });
+        await expect(
+          service.update(ORG_ID, ORG_AGENT_ID, {
+            calendarIntegrationId: 'wa-int',
+          } as UpdateOrganizationAgentDto),
+        ).rejects.toBeInstanceOf(BadRequestException);
+      }
+      expect(repository.save).not.toHaveBeenCalled();
     });
 
     it('27. bad toolProfileId → NotFound; no save', async () => {

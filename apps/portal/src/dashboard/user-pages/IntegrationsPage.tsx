@@ -9,7 +9,7 @@ import {
   deleteUserOrgIntegration,
   listUserAgents,
   listUserIntegrationEndpoints,
-  listUserOrgIntegrations,
+  listUserCalendarIntegrations,
   listUserOutboundTrunks,
   previewGhlCalendars,
   rotateUserIntegrationEndpointKey,
@@ -92,7 +92,7 @@ export default function UserIntegrationsPage() {
       listUserIntegrationEndpoints(),
       listUserAgents(),
       listUserOutboundTrunks(),
-      listUserOrgIntegrations(),
+      listUserCalendarIntegrations(),
     ]);
     return { endpoints, agents, trunks, calendars };
   }, []);

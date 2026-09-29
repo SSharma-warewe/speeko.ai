@@ -28,6 +28,7 @@ import UserCallDetailPage from "./dashboard/user-pages/CallDetailPage";
 import UserSipTrunksPage from "./dashboard/user-pages/SipTrunksPage";
 import UserToolProfilesPage from "./dashboard/user-pages/ToolProfilesPage";
 import UserIntegrationsPage from "./dashboard/user-pages/IntegrationsPage";
+import UserWhatsAppPage from "./dashboard/user-pages/WhatsAppPage";
 import AdminLoginPage from "./pages/AdminLoginPage";
 import UserLoginPage from "./pages/UserLoginPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
@@ -80,6 +81,7 @@ export default function App() {
         <Route path="queue" element={<UserQueuePage />} />
         <Route path="sip" element={<UserSipTrunksPage />} />
         <Route path="tool-profiles" element={<UserToolProfilesPage />} />
+        <Route path="whatsapp" element={<UserWhatsAppPage />} />
         <Route path="integrations" element={<UserIntegrationsPage />} />
         <Route path="account" element={<UserAccountPage />} />
         <Route

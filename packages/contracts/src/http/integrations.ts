@@ -8,6 +8,10 @@ export type OrganizationIntegration = {
   apiKeyPrefix: string;
   grantId: string | null;
   locationId: string | null;
+  /** Meta WhatsApp Cloud phone number id (provider=whatsapp). */
+  phoneNumberId: string | null;
+  /** Meta WhatsApp Business Account id (provider=whatsapp). */
+  wabaId: string | null;
   calendarId: string;
   apiUri: string;
   email: string | null;
@@ -22,6 +26,8 @@ export type CreateOrganizationIntegrationRequest = {
   apiKey: string;
   grantId?: string;
   locationId?: string;
+  phoneNumberId?: string;
+  wabaId?: string;
   calendarId?: string;
   apiUri?: string;
   email?: string;
@@ -32,6 +38,8 @@ export type UpdateOrganizationIntegrationRequest = {
   apiKey?: string;
   grantId?: string;
   locationId?: string;
+  phoneNumberId?: string;
+  wabaId?: string;
   calendarId?: string;
   apiUri?: string;
   email?: string | null;

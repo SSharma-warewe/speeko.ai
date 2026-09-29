@@ -88,6 +88,36 @@ export type GhlContactCreds = {
   locationId: string;
 };
 
+export type GhlContactSummary = {
+  id: string;
+  name: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  phone: string | null;
+  company: string | null;
+  dnd: boolean;
+};
+
+export type GhlListContactsInput = {
+  token: string;
+  locationId: string;
+  query?: string;
+  /** Opaque cursor returned as `nextCursor` by the previous page. */
+  cursor?: string;
+  /** 1–100 (default 25). */
+  limit?: number;
+};
+
+export type GhlListContactsResult =
+  | {
+      ok: true;
+      contacts: GhlContactSummary[];
+      nextCursor: string | null;
+      total: number | null;
+    }
+  | { ok: false; error: string; message?: string };
+
 export type GhlListCalendarsResult =
   | { ok: true; calendars: { id: string; name?: string }[] }
   | { ok: false; error: string; message?: string };

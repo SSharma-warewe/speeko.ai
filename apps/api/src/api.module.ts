@@ -22,6 +22,7 @@ import { SipDispatchRulesModule } from './sip-dispatch-rules/sip-dispatch-rules.
 import { SipTrunksModule } from './sip-trunks/sip-trunks.module';
 import { ToolsModule } from './tools/tools.module';
 import { UsersModule } from './users/users.module';
+import { WhatsAppOutboundModule } from './whatsapp-outbound/whatsapp-outbound.module';
 import { WhatsappModule } from './whatsapp/whatsapp.module';
 
 @Module({
@@ -61,6 +62,7 @@ import { WhatsappModule } from './whatsapp/whatsapp.module';
     IntegrationEndpointsModule,
     OrganizationIntegrationsModule,
     WhatsappModule,
+    WhatsAppOutboundModule,
     OtpModule,
     DemoModule,
     AuthModule,

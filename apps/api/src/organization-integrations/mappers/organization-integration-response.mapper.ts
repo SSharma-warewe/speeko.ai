@@ -13,6 +13,8 @@ export function toOrganizationIntegrationResponse(
     apiKeyPrefix: row.apiKeyPrefix,
     grantId: row.grantId ?? null,
     locationId: row.locationId ?? null,
+    phoneNumberId: row.phoneNumberId ?? null,
+    wabaId: row.wabaId ?? null,
     calendarId: row.calendarId,
     apiUri: row.apiUri,
     email: row.email,

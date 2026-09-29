@@ -5,7 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { CallMedium, type AgentJobMetadata } from '@call-agent/contracts';
+import {
+  CallMedium,
+  isCalendarIntegrationProvider,
+  type AgentJobMetadata,
+} from '@call-agent/contracts';
 import { Repository } from 'typeorm';
 import { OrganizationIntegration } from '../organization-integrations/organization-integration.entity';
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -374,6 +378,11 @@ export class OrganizationAgentsService {
     if (!row) {
       throw new NotFoundException(
         `Calendar integration not found: ${integrationId}`,
+      );
+    }
+    if (!isCalendarIntegrationProvider(row.provider)) {
+      throw new BadRequestException(
+        'That connection is not a calendar. Pick a Nylas or GoHighLevel calendar.',
       );
     }
   }

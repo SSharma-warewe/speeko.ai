@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -20,7 +21,8 @@ export class CreateOrganizationIntegrationDto {
   @ApiPropertyOptional({
     enum: IntegrationProvider,
     default: IntegrationProvider.NYLAS,
-    description: 'Provider type: nylas or ghl.',
+    description:
+      'Provider type: nylas, ghl (calendar), ghl_contacts (WhatsApp contact import), or whatsapp (Meta Cloud credentials).',
   })
   @IsOptional()
   @IsEnum(IntegrationProvider)
@@ -56,6 +58,26 @@ export class CreateOrganizationIntegrationDto {
   @MinLength(1)
   @MaxLength(120)
   locationId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Meta WhatsApp Cloud phone number id. Required when provider=whatsapp.',
+    example: '123456789012345',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{5,40}$/, { message: 'phoneNumberId must be numeric' })
+  phoneNumberId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Meta WhatsApp Business Account id. Required when provider=whatsapp (used to list templates).',
+    example: '109876543210987',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{5,40}$/, { message: 'wabaId must be numeric' })
+  wabaId?: string;
 
   @ApiPropertyOptional({
     default: 'primary',

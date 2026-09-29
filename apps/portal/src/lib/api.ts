@@ -71,6 +71,16 @@ import type {
   UpdateToolProfileRequest,
   UserCallBucket,
   UserProfile,
+  GhlContactRow,
+  GhlContactsResponse,
+  SendWhatsAppRecipient,
+  SendWhatsAppTemplateRequest,
+  SendWhatsAppTemplateResponse,
+  WhatsAppOutboundMessage,
+  WhatsAppOutboundResult,
+  WhatsAppTemplate,
+  WhatsAppTemplatesResponse,
+  WhatsAppVariableSource,
   WhatsAppWebhookConfig,
   WhatsAppWebhookConfigSecret,
   WhatsAppWebhookEventSummary,
@@ -115,6 +125,16 @@ export type {
   ToolProfile,
   UserCallBucket,
   UserProfile,
+  GhlContactRow,
+  GhlContactsResponse,
+  SendWhatsAppRecipient,
+  SendWhatsAppTemplateRequest,
+  SendWhatsAppTemplateResponse,
+  WhatsAppOutboundMessage,
+  WhatsAppOutboundResult,
+  WhatsAppTemplate,
+  WhatsAppTemplatesResponse,
+  WhatsAppVariableSource,
   WhatsAppWebhookConfig,
   WhatsAppWebhookConfigSecret,
   WhatsAppWebhookEventSummary,
@@ -787,6 +807,12 @@ export const deleteUserAgent = (id: string) =>
 export const listUserOrgIntegrations = () =>
   userFetch<OrganizationIntegration[]>("/users/integrations");
 
+/** Nylas + GHL calendar connections only (excludes WhatsApp / GHL contacts). */
+export const listUserCalendarIntegrations = async () =>
+  (await listUserOrgIntegrations()).filter(
+    (row) => row.provider === "nylas" || row.provider === "ghl",
+  );
+
 export const createUserOrgIntegration = (
   data: CreateOrganizationIntegrationRequest,
 ) =>
@@ -1081,4 +1107,32 @@ export const generateUserWhatsAppWebhookConfig = (
 
 export const listUserWhatsAppWebhookEvents = () =>
   userFetch<WhatsAppWebhookEventSummary[]>("/users/whatsapp/webhook-events");
+
+/* ── User WhatsApp outbound (GHL contacts + Meta templates) ── */
+export const listUserWhatsAppTemplates = () =>
+  userFetch<WhatsAppTemplatesResponse>("/users/whatsapp/outbound/templates");
+
+export const listUserGhlContacts = (params: {
+  query?: string;
+  cursor?: string;
+}) => {
+  const qs = new URLSearchParams();
+  if (params.query?.trim()) qs.set("query", params.query.trim());
+  if (params.cursor) qs.set("cursor", params.cursor);
+  const suffix = qs.toString();
+  return userFetch<GhlContactsResponse>(
+    `/users/whatsapp/outbound/contacts${suffix ? `?${suffix}` : ""}`,
+  );
+};
+
+export const sendUserWhatsAppTemplate = (
+  data: SendWhatsAppTemplateRequest,
+) =>
+  userFetch<SendWhatsAppTemplateResponse>("/users/whatsapp/outbound/send", {
+    method: "POST",
+    body: data,
+  });
+
+export const listUserWhatsAppOutboundMessages = () =>
+  userFetch<WhatsAppOutboundMessage[]>("/users/whatsapp/outbound/messages");
 

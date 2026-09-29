@@ -60,6 +60,8 @@ describe('organization-integration-response.mapper', () => {
         apiKeyPrefix: row.apiKeyPrefix,
         grantId: row.grantId,
         locationId: null,
+        phoneNumberId: null,
+        wabaId: null,
         calendarId: row.calendarId,
         apiUri: row.apiUri,
         email: row.email,

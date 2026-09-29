@@ -4,6 +4,9 @@ import type {
   GhlCalendarCreds,
   GhlContactCreds,
   GhlContactInput,
+  GhlContactSummary,
+  GhlListContactsInput,
+  GhlListContactsResult,
   GhlCreateAppointmentInput,
   GhlCreateAppointmentResult,
   GhlGetFreeSlotsResult,
@@ -541,6 +544,72 @@ export class GhlService {
     return { ok: true, calendars };
   }
 
+  /**
+   * List (and optionally search) contacts for a location with the given PIT.
+   * Cursor pagination via GHL `startAfterId` + `startAfter`, encoded into one
+   * opaque `nextCursor`. Never throws; never logs the token or contact data.
+   * Needs the contacts.readonly scope.
+   */
+  async listContacts(
+    input: GhlListContactsInput,
+  ): Promise<GhlListContactsResult> {
+    const token = input.token.trim();
+    const locationId = input.locationId.trim();
+    if (!token || !locationId) {
+      return {
+        ok: false,
+        error: 'missing_creds',
+        message: 'GoHighLevel token and location id are required.',
+      };
+    }
+
+    const limit = Math.min(Math.max(Math.trunc(input.limit ?? 25), 1), 100);
+    const params = new URLSearchParams({
+      locationId,
+      limit: String(limit),
+    });
+    const query = input.query?.trim();
+    if (query) params.set('query', query.slice(0, 120));
+    const cursor = decodeContactCursor(input.cursor);
+    if (cursor) {
+      params.set('startAfterId', cursor.startAfterId);
+      if (cursor.startAfter) params.set('startAfter', cursor.startAfter);
+    }
+
+    const res = await this.request(
+      'GET',
+      `/contacts/?${params.toString()}`,
+      undefined,
+      'contacts',
+      token,
+    );
+    if (res.networkError) {
+      this.logger.warn(`GHL list contacts network error: ${res.networkError}`);
+      return { ok: false, error: 'network_error', message: res.networkError };
+    }
+    if (!res.ok) {
+      this.logger.warn(
+        `GHL list contacts failed: status=${res.status} body=${truncate(res.text)}`,
+      );
+      return {
+        ok: false,
+        error: `ghl_contacts_${res.status}`,
+        message: listContactsErrorMessage(res.status),
+      };
+    }
+
+    const contacts = readContacts(res.json);
+    const meta = readMeta(res.json);
+    const nextCursor =
+      contacts.length >= limit && meta.startAfterId
+        ? encodeContactCursor(meta.startAfterId, meta.startAfter)
+        : null;
+    this.logger.log(
+      `GHL list contacts location=${locationId} count=${contacts.length}`,
+    );
+    return { ok: true, contacts, nextCursor, total: meta.total };
+  }
+
   private resolveCalendarCreds(
     creds?: GhlCalendarCreds,
   ): GhlCalendarCreds | null {
@@ -741,6 +810,95 @@ function readLookupContact(json: GhlJson | null): {
       ? contact.name.trim()
       : [first, last].filter(Boolean).join(' ') || undefined;
   return { contactId, email, phone, name: full };
+}
+
+function listContactsErrorMessage(status: number): string {
+  if (status === 401) {
+    return 'Unauthorized. Check the v3 Private Integration Token and that it includes contacts.readonly.';
+  }
+  if (status === 403) {
+    return 'Forbidden. Use a sub-account token with contacts.readonly for this location.';
+  }
+  if (status === 400 || status === 422) {
+    return 'Bad request. Check the location (sub-account) id.';
+  }
+  return 'Could not load GoHighLevel contacts. Check the Private Integration Token and location id.';
+}
+
+function str(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function readContacts(json: GhlJson | null): GhlContactSummary[] {
+  const raw = json?.contacts;
+  if (!Array.isArray(raw)) return [];
+  const out: GhlContactSummary[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const c = item as Record<string, unknown>;
+    const id = str(c.id);
+    if (!id) continue;
+    const firstName = str(c.firstName);
+    const lastName = str(c.lastName);
+    const name =
+      str(c.contactName) ||
+      str(c.name) ||
+      [firstName, lastName].filter(Boolean).join(' ');
+    out.push({
+      id,
+      name,
+      firstName,
+      lastName,
+      email: str(c.email) || null,
+      phone: str(c.phone) || null,
+      company: str(c.companyName) || null,
+      dnd: c.dnd === true,
+    });
+  }
+  return out;
+}
+
+function readMeta(json: GhlJson | null): {
+  startAfterId: string;
+  startAfter: string;
+  total: number | null;
+} {
+  const meta = json?.meta;
+  if (!meta || typeof meta !== 'object' || Array.isArray(meta)) {
+    return { startAfterId: '', startAfter: '', total: null };
+  }
+  const m = meta as Record<string, unknown>;
+  const startAfter =
+    typeof m.startAfter === 'number' || typeof m.startAfter === 'string'
+      ? String(m.startAfter)
+      : '';
+  const total = typeof m.total === 'number' ? m.total : null;
+  return { startAfterId: str(m.startAfterId), startAfter, total };
+}
+
+function encodeContactCursor(startAfterId: string, startAfter: string): string {
+  return Buffer.from(JSON.stringify({ i: startAfterId, a: startAfter })).toString(
+    'base64url',
+  );
+}
+
+function decodeContactCursor(
+  raw?: string,
+): { startAfterId: string; startAfter: string } | null {
+  const value = raw?.trim();
+  if (!value) return null;
+  try {
+    const parsed: unknown = JSON.parse(
+      Buffer.from(value, 'base64url').toString('utf8'),
+    );
+    if (!parsed || typeof parsed !== 'object') return null;
+    const p = parsed as { i?: unknown; a?: unknown };
+    const startAfterId = str(p.i);
+    if (!startAfterId) return null;
+    return { startAfterId, startAfter: str(p.a) };
+  } catch {
+    return null;
+  }
 }
 
 function listCalendarsErrorMessage(status: number): string {

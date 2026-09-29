@@ -14,6 +14,7 @@ import { OrganizationIntegrationsRepository } from '../organization-integrations
 import { OrganizationIntegrationsService } from '../organization-integrations.service';
 import { GhlService } from '../../ghl/ghl.service';
 import { NylasService } from '../nylas.service';
+import { MetaWhatsAppClient } from '../../meta-whatsapp/meta-whatsapp.client';
 
 describe('OrganizationIntegrationsService', () => {
   let service: OrganizationIntegrationsService;
@@ -107,6 +108,10 @@ describe('OrganizationIntegrationsService', () => {
         { provide: OrganizationsService, useValue: organizationsService },
         { provide: NylasService, useValue: nylas },
         { provide: GhlService, useValue: ghl },
+        {
+          provide: MetaWhatsAppClient,
+          useValue: { getPhoneNumber: jest.fn(), listTemplates: jest.fn() },
+        },
       ],
     }).compile();
 

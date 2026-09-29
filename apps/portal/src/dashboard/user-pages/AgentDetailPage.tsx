@@ -20,7 +20,7 @@ import {
   createUserTestCall,
   deleteUserAgent,
   getUserAgent,
-  listUserOrgIntegrations,
+  listUserCalendarIntegrations,
   listUserToolProfiles,
   TASK_KEYS,
   type OrganizationIntegration,
@@ -55,7 +55,7 @@ export default function UserAgentDetailPage() {
     const [agent, profiles, integrations] = await Promise.all([
       getUserAgent(id),
       listUserToolProfiles(),
-      listUserOrgIntegrations(),
+      listUserCalendarIntegrations(),
     ]);
     return { agent, profiles, integrations };
   }, [id]);

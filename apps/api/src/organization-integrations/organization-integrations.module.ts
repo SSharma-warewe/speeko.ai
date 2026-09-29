@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AgentsModule } from '../agents/agents.module';
 import { CallsModule } from '../calls/calls.module';
+import { MetaWhatsAppModule } from '../meta-whatsapp/meta-whatsapp.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { CalendarToolsService } from './calendar-tools.service';
 import { InternalCalendarController } from './internal-calendar.controller';
@@ -15,6 +16,7 @@ import { UserOrganizationIntegrationsController } from './user-organization-inte
   imports: [
     TypeOrmModule.forFeature([OrganizationIntegration]),
     OrganizationsModule,
+    MetaWhatsAppModule,
     forwardRef(() => AgentsModule),
     forwardRef(() => CallsModule),
   ],

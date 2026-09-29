@@ -34,6 +34,11 @@ export const envValidationSchema = Joi.object({
   OPENROUTER_API_KEY: Joi.string().optional().allow(''),
   OTP_HASH_SECRET: Joi.string().min(16).optional().allow(''),
   WHATSAPP_OTP_TEMPLATE_NAME: Joi.string().optional().allow(''),
+  // Graph API version for org-owned WhatsApp outbound (default v25.0).
+  META_GRAPH_API_VERSION: Joi.string()
+    .pattern(/^v\d+\.\d+$/)
+    .optional()
+    .allow(''),
   OTP_SEND_MAX_PER_IP: Joi.number().integer().min(1).default(8),
   OTP_SEND_IP_WINDOW_MS: Joi.number().integer().min(1000).default(900_000),
   OTP_SEND_MAX_PER_PHONE: Joi.number().integer().min(1).default(3),

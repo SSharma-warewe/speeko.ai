@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -43,6 +44,22 @@ export class UpdateOrganizationIntegrationDto {
   @MinLength(1)
   @MaxLength(120)
   locationId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Meta WhatsApp phone number id (provider=whatsapp only).',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{5,40}$/, { message: 'phoneNumberId must be numeric' })
+  phoneNumberId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Meta WhatsApp Business Account id (provider=whatsapp only).',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{5,40}$/, { message: 'wabaId must be numeric' })
+  wabaId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

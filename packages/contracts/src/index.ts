@@ -147,7 +147,13 @@ export { CallBatchStatus, QueueBackoffStrategy } from './queue.js';
 
 export { UserRole } from './user.js';
 
-export { IntegrationProvider } from './integration.js';
+export {
+  CALENDAR_INTEGRATION_PROVIDERS,
+  IntegrationProvider,
+  isCalendarIntegrationProvider,
+} from './integration.js';
+
+export { WHATSAPP_CONTACT_FIELDS } from './http/whatsapp-outbound.js';
 
 export { COST_LINE_KEYS, COST_UNITS, PRICING_PLANS } from './price.js';
 export type {

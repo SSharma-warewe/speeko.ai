@@ -38,7 +38,7 @@ export class OrganizationIntegration {
   @Column({ type: 'varchar', length: 120 })
   name!: string;
 
-  /** Full Nylas API key or GHL PIT. Never expose in API responses. */
+  /** Nylas API key, GHL PIT, or Meta WhatsApp access token. Never expose in API responses. */
   @Column({ name: 'api_key', type: 'text' })
   apiKey!: string;
 
@@ -53,6 +53,19 @@ export class OrganizationIntegration {
   /** GHL location (sub-account) id. Null for Nylas. */
   @Column({ name: 'location_id', type: 'varchar', length: 120, nullable: true })
   locationId!: string | null;
+
+  /** Meta WhatsApp Cloud phone number id (provider=whatsapp). */
+  @Column({
+    name: 'phone_number_id',
+    type: 'varchar',
+    length: 80,
+    nullable: true,
+  })
+  phoneNumberId!: string | null;
+
+  /** Meta WhatsApp Business Account id (provider=whatsapp). */
+  @Column({ name: 'waba_id', type: 'varchar', length: 80, nullable: true })
+  wabaId!: string | null;
 
   /** Calendar id within the grant (Nylas, default primary) or GHL calendar id. */
   @Column({ name: 'calendar_id', type: 'varchar', length: 255, default: 'primary' })

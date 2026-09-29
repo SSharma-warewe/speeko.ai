@@ -32,6 +32,18 @@ export class OrganizationIntegrationResponseDto {
   })
   locationId!: string | null;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Meta WhatsApp Cloud phone number id (provider=whatsapp).',
+  })
+  phoneNumberId!: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Meta WhatsApp Business Account id (provider=whatsapp).',
+  })
+  wabaId!: string | null;
+
   @ApiProperty()
   calendarId!: string;
 
