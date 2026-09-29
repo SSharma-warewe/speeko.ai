@@ -24,9 +24,7 @@ import {
 @UseGuards(JwtAuthGuard, UserGuard)
 @Controller('users/whatsapp/agent')
 export class WhatsAppAgentController {
-  constructor(
-    private readonly integrations: OrganizationIntegrationsService,
-  ) {}
+  constructor(private readonly integrations: OrganizationIntegrationsService) {}
 
   @Get()
   @ApiOperation({
@@ -38,7 +36,9 @@ export class WhatsAppAgentController {
   async get(
     @CurrentUser() principal: AuthPrincipal,
   ): Promise<WhatsAppAgentConfigDto> {
-    const config = await this.integrations.getWhatsAppAgent(orgIdFrom(principal));
+    const config = await this.integrations.getWhatsAppAgent(
+      orgIdFrom(principal),
+    );
     return { ...config, platformPrompt: RECEPTIONIST_INSTRUCTION };
   }
 
@@ -57,6 +57,7 @@ export class WhatsAppAgentController {
     const config = await this.integrations.updateWhatsAppAgent(
       orgIdFrom(principal),
       dto.systemPrompt,
+      dto.bookingVoiceAgentId,
     );
     return { ...config, platformPrompt: RECEPTIONIST_INSTRUCTION };
   }

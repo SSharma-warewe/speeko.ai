@@ -1,8 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Alert, Button, Field, Textarea } from "@call-agent/ui";
+import type { Agent, OrganizationIntegration } from "@call-agent/contracts";
+import { Alert, Button, Field, Select, Textarea } from "@call-agent/ui";
 import {
   ApiError,
   getUserWhatsAppAgent,
+  listUserAgents,
+  listUserOrgIntegrations,
   UnauthorizedError,
   updateUserWhatsAppAgent,
 } from "../../lib/api";
@@ -22,6 +25,9 @@ export default function WhatsAppAgentTab({ hasWhatsApp, onGoConnections }: Props
   const [savedPrompt, setSavedPrompt] = useState("");
   const [draft, setDraft] = useState("");
   const [platformPrompt, setPlatformPrompt] = useState("");
+  const [savedBookingAgentId, setSavedBookingAgentId] = useState<string | null>(null);
+  const [bookingAgentId, setBookingAgentId] = useState<string | null>(null);
+  const [voiceAgents, setVoiceAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -33,13 +39,25 @@ export default function WhatsAppAgentTab({ hasWhatsApp, onGoConnections }: Props
     let active = true;
     setLoading(true);
     setLoadError(null);
-    getUserWhatsAppAgent()
-      .then((config) => {
+    Promise.all([getUserWhatsAppAgent(), listUserAgents(), listUserOrgIntegrations()])
+      .then(([config, agents, integrations]) => {
         if (!active) return;
         const prompt = config.systemPrompt ?? "";
         setSavedPrompt(prompt);
         setDraft(prompt);
         setPlatformPrompt(config.platformPrompt);
+        setSavedBookingAgentId(config.bookingVoiceAgentId);
+        setBookingAgentId(config.bookingVoiceAgentId);
+        const activeGhlIds = new Set(
+          integrations
+            .filter((item: OrganizationIntegration) => item.provider === "ghl" && item.isActive)
+            .map((item) => item.id),
+        );
+        setVoiceAgents(
+          agents.filter(
+            (agent: Agent) => agent.isActive && agent.calendarIntegrationId && activeGhlIds.has(agent.calendarIntegrationId),
+          ),
+        );
         setFormError(null);
         setSaved(false);
       })
@@ -69,7 +87,7 @@ export default function WhatsAppAgentTab({ hasWhatsApp, onGoConnections }: Props
     );
   }
 
-  const changed = draft !== savedPrompt;
+  const changed = draft !== savedPrompt || bookingAgentId !== savedBookingAgentId;
   const enabled = savedPrompt.trim().length > 0;
 
   const handleSave = async (e: FormEvent) => {
@@ -79,10 +97,12 @@ export default function WhatsAppAgentTab({ hasWhatsApp, onGoConnections }: Props
     setFormError(null);
     setSaved(false);
     try {
-      const result = await updateUserWhatsAppAgent({ systemPrompt: draft });
+      const result = await updateUserWhatsAppAgent({ systemPrompt: draft, bookingVoiceAgentId: bookingAgentId });
       const prompt = result.systemPrompt ?? "";
       setSavedPrompt(prompt);
       setDraft(prompt);
+      setSavedBookingAgentId(result.bookingVoiceAgentId);
+      setBookingAgentId(result.bookingVoiceAgentId);
       setSaved(true);
     } catch (err) {
       if (err instanceof UnauthorizedError) {
@@ -201,6 +221,26 @@ export default function WhatsAppAgentTab({ hasWhatsApp, onGoConnections }: Props
                 placeholder="You are the WhatsApp assistant for [your organization]. Help customers with..."
               />
             </Field>
+            <Field label="Booking tools from voice agent" htmlFor="wa-agent-booking">
+              <Select
+                id="wa-agent-booking"
+                value={bookingAgentId ?? ""}
+                onChange={(e) => {
+                  setBookingAgentId(e.target.value || null);
+                  setSaved(false);
+                }}
+                disabled={submitting || !hasWhatsApp}
+              >
+                <option value="">Off — collect details only</option>
+                {voiceAgents.map((agent) => (
+                  <option key={agent.id} value={agent.id}>{agent.name}</option>
+                ))}
+              </Select>
+            </Field>
+            <p className="ops-desk-note">
+              Uses the selected voice agent’s existing GHL calendar connection to create contacts,
+              check open times, and book meetings. No new integration is needed.
+            </p>
             <div className="ops-wa-agent-editor-foot">
               <span className="ops-desk-note">
                 {draft.length.toLocaleString()} / {MAX_PROMPT_LENGTH.toLocaleString()} characters
@@ -215,6 +255,7 @@ export default function WhatsAppAgentTab({ hasWhatsApp, onGoConnections }: Props
                     disabled={submitting}
                     onClick={() => {
                       setDraft(savedPrompt);
+                      setBookingAgentId(savedBookingAgentId);
                       setFormError(null);
                     }}
                   >

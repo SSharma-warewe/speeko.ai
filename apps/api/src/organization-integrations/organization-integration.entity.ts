@@ -11,6 +11,7 @@ import {
 import { IntegrationProvider } from '@call-agent/contracts';
 import { Organization } from '../organizations/organization.entity';
 import { User } from '../users/user.entity';
+import { OrganizationAgent } from '../agents/organization-agent.entity';
 
 export { IntegrationProvider };
 
@@ -20,7 +21,10 @@ export { IntegrationProvider };
  */
 @Entity({ name: 'organization_integrations' })
 @Index('idx_organization_integrations_organization_id', ['organizationId'])
-@Index('idx_organization_integrations_org_provider', ['organizationId', 'provider'])
+@Index('idx_organization_integrations_org_provider', [
+  'organizationId',
+  'provider',
+])
 export class OrganizationIntegration {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -74,8 +78,21 @@ export class OrganizationIntegration {
   @Column({ name: 'system_prompt', type: 'text', nullable: true })
   systemPrompt!: string | null;
 
+  /** Existing voice agent whose GHL calendar powers WhatsApp booking. */
+  @Column({ name: 'booking_voice_agent_id', type: 'uuid', nullable: true })
+  bookingVoiceAgentId!: string | null;
+
+  @ManyToOne(() => OrganizationAgent, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'booking_voice_agent_id' })
+  bookingVoiceAgent!: OrganizationAgent | null;
+
   /** Calendar id within the grant (Nylas, default primary) or GHL calendar id. */
-  @Column({ name: 'calendar_id', type: 'varchar', length: 255, default: 'primary' })
+  @Column({
+    name: 'calendar_id',
+    type: 'varchar',
+    length: 255,
+    default: 'primary',
+  })
   calendarId!: string;
 
   /** Nylas API base URI (US or EU). */

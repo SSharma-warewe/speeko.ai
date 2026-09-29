@@ -72,6 +72,7 @@ railway-out.txt
 railway-*.txt
 
 # Optional local tooling
+.kilo/
 *.pem
 *.key
 .turbo/

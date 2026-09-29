@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, MaxLength } from 'class-validator';
+import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class WhatsAppAgentConfigDto {
   @ApiProperty({
@@ -8,6 +8,13 @@ export class WhatsAppAgentConfigDto {
       'Inbound agent system prompt. Null when unset; empty clears and disables auto-reply.',
   })
   systemPrompt!: string | null;
+
+  @ApiProperty({
+    nullable: true,
+    description:
+      'Existing org voice agent providing the GHL calendar and booking credentials.',
+  })
+  bookingVoiceAgentId!: string | null;
 
   @ApiProperty({
     description:
@@ -25,4 +32,14 @@ export class UpdateWhatsAppAgentDto {
   @IsString()
   @MaxLength(20000)
   systemPrompt!: string;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description:
+      'Existing org voice agent to use for GHL booking; null disables booking tools.',
+  })
+  @IsOptional()
+  @IsUUID()
+  bookingVoiceAgentId?: string | null;
 }

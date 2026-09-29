@@ -1,8 +1,7 @@
-import {
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { OrganizationAgent } from '../../agents/organization-agent.entity';
 import { Organization } from '../../organizations/organization.entity';
 import { OrganizationsService } from '../../organizations/organizations.service';
 import { CreateOrganizationIntegrationDto } from '../dto/create-organization-integration.dto';
@@ -111,6 +110,10 @@ describe('OrganizationIntegrationsService', () => {
         {
           provide: MetaWhatsAppClient,
           useValue: { getPhoneNumber: jest.fn(), listTemplates: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(OrganizationAgent),
+          useValue: { findOne: jest.fn() },
         },
       ],
     }).compile();

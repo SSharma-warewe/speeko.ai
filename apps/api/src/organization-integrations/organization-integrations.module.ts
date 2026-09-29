@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AgentsModule } from '../agents/agents.module';
+import { OrganizationAgent } from '../agents/organization-agent.entity';
 import { CallsModule } from '../calls/calls.module';
 import { MetaWhatsAppModule } from '../meta-whatsapp/meta-whatsapp.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
@@ -14,7 +15,7 @@ import { UserOrganizationIntegrationsController } from './user-organization-inte
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([OrganizationIntegration]),
+    TypeOrmModule.forFeature([OrganizationIntegration, OrganizationAgent]),
     OrganizationsModule,
     MetaWhatsAppModule,
     forwardRef(() => AgentsModule),

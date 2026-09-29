@@ -6,10 +6,7 @@ import {
   listInboundTextMessages,
   phoneNumberIdFromMessagesUrl,
 } from './lib/inbound-text';
-import {
-  isNewSessionCommand,
-  NEW_SESSION_REPLY,
-} from './lib/session-command';
+import { isNewSessionCommand, NEW_SESSION_REPLY } from './lib/session-command';
 import { RECEPTIONIST_INSTRUCTION } from './receptionist-instruction';
 import {
   RECEPTIONIST_REPLY,
@@ -103,6 +100,12 @@ export class WhatsAppAgentService {
             await this.receptionist.reply(message.from, message.body, {
               instruction: prompt,
               sessionKey,
+              bookingSource: orgConnection.bookingVoiceAgentId
+                ? {
+                    organizationId: orgConnection.organizationId,
+                    voiceAgentId: orgConnection.bookingVoiceAgentId,
+                  }
+                : undefined,
             })
           ).trim();
           if (!reply) {

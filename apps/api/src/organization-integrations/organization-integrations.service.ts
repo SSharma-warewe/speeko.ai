@@ -25,6 +25,9 @@ import {
 } from './organization-integration.entity';
 import { OrganizationIntegrationsRepository } from './organization-integrations.repository';
 import { GhlService } from '../ghl/ghl.service';
+import { OrganizationAgent } from '../agents/organization-agent.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { MetaWhatsAppClient } from '../meta-whatsapp/meta-whatsapp.client';
 import { NylasService } from './nylas.service';
 
@@ -52,6 +55,8 @@ export class OrganizationIntegrationsService {
     @Inject(forwardRef(() => GhlService))
     private readonly ghl: GhlService,
     private readonly meta: MetaWhatsAppClient,
+    @InjectRepository(OrganizationAgent)
+    private readonly voiceAgents: Repository<OrganizationAgent>,
   ) {}
 
   async listForOrg(
@@ -163,9 +168,10 @@ export class OrganizationIntegrationsService {
     return this.repository.findActiveWhatsAppByPhoneNumberId(id);
   }
 
-  async getWhatsAppAgent(
-    organizationId: string,
-  ): Promise<{ systemPrompt: string | null }> {
+  async getWhatsAppAgent(organizationId: string): Promise<{
+    systemPrompt: string | null;
+    bookingVoiceAgentId: string | null;
+  }> {
     await this.organizationsService.findById(organizationId);
     const rows = await this.repository.findByOrganization(organizationId);
     const row = rows.find(
@@ -173,21 +179,62 @@ export class OrganizationIntegrationsService {
         integration.provider === IntegrationProvider.WHATSAPP &&
         integration.isActive,
     );
-    return { systemPrompt: row?.systemPrompt ?? null };
+    return {
+      systemPrompt: row?.systemPrompt ?? null,
+      bookingVoiceAgentId: row?.bookingVoiceAgentId ?? null,
+    };
   }
 
   async updateWhatsAppAgent(
     organizationId: string,
     systemPrompt: string,
-  ): Promise<{ systemPrompt: string | null }> {
+    bookingVoiceAgentId?: string | null,
+  ): Promise<{
+    systemPrompt: string | null;
+    bookingVoiceAgentId: string | null;
+  }> {
     const row = await this.getActiveEntityByProvider(
       organizationId,
       IntegrationProvider.WHATSAPP,
     );
     const trimmed = systemPrompt.trim();
+    if (bookingVoiceAgentId !== undefined) {
+      if (bookingVoiceAgentId) {
+        const agent = await this.voiceAgents.findOne({
+          where: { id: bookingVoiceAgentId, organizationId },
+        });
+        if (!agent || !agent.isActive)
+          throw new NotFoundException(
+            'Active voice agent not found in this organization.',
+          );
+        if (!agent.calendarIntegrationId)
+          throw new BadRequestException(
+            'Select a voice agent with a linked GHL calendar.',
+          );
+        const calendar = await this.loadForOrg(
+          organizationId,
+          agent.calendarIntegrationId,
+        );
+        if (
+          calendar.provider !== IntegrationProvider.GHL ||
+          !calendar.isActive ||
+          !calendar.apiKey?.trim() ||
+          !calendar.locationId?.trim() ||
+          !calendar.calendarId?.trim()
+        ) {
+          throw new BadRequestException(
+            'The selected voice agent needs a complete active GHL calendar connection.',
+          );
+        }
+      }
+      row.bookingVoiceAgentId = bookingVoiceAgentId;
+    }
     row.systemPrompt = trimmed.length > 0 ? trimmed : null;
     const saved = await this.repository.save(row);
-    return { systemPrompt: saved.systemPrompt ?? null };
+    return {
+      systemPrompt: saved.systemPrompt ?? null,
+      bookingVoiceAgentId: saved.bookingVoiceAgentId ?? null,
+    };
   }
 
   async updateForOrg(
@@ -347,14 +394,10 @@ export class OrganizationIntegrationsService {
     const locationId = dto.locationId?.trim() ?? '';
     const calendarId = dto.calendarId?.trim() ?? '';
     if (!locationId) {
-      throw new BadRequestException(
-        'locationId is required for GoHighLevel.',
-      );
+      throw new BadRequestException('locationId is required for GoHighLevel.');
     }
     if (!calendarId) {
-      throw new BadRequestException(
-        'calendarId is required for GoHighLevel.',
-      );
+      throw new BadRequestException('calendarId is required for GoHighLevel.');
     }
     return this.repository.create({
       organizationId,
@@ -413,9 +456,7 @@ export class OrganizationIntegrationsService {
     const phoneNumberId = dto.phoneNumberId?.trim() ?? '';
     const wabaId = dto.wabaId?.trim() ?? '';
     if (!phoneNumberId) {
-      throw new BadRequestException(
-        'phoneNumberId is required for WhatsApp.',
-      );
+      throw new BadRequestException('phoneNumberId is required for WhatsApp.');
     }
     if (!wabaId) {
       throw new BadRequestException('wabaId is required for WhatsApp.');
@@ -444,7 +485,10 @@ export class OrganizationIntegrationsService {
   ): Promise<OrganizationIntegrationTestResponseDto> {
     const locationId = row.locationId?.trim() ?? '';
     if (!locationId) {
-      return { ok: false, message: 'Location ID is missing on this connection.' };
+      return {
+        ok: false,
+        message: 'Location ID is missing on this connection.',
+      };
     }
     const result = await this.ghl.listContacts({
       token: row.apiKey,
@@ -482,7 +526,10 @@ export class OrganizationIntegrationsService {
       phoneNumberId,
     });
     if (!phone.ok) {
-      return { ok: false, message: `Phone number check failed: ${phone.message}` };
+      return {
+        ok: false,
+        message: `Phone number check failed: ${phone.message}`,
+      };
     }
     const templates = await this.meta.listTemplates({
       token: row.apiKey,
@@ -494,7 +541,9 @@ export class OrganizationIntegrationsService {
         message: `Template list failed (needs whatsapp_business_management): ${templates.message}`,
       };
     }
-    const approved = templates.data.filter((t) => t.status === 'APPROVED').length;
+    const approved = templates.data.filter(
+      (t) => t.status === 'APPROVED',
+    ).length;
     const from = phone.data.displayPhoneNumber
       ? ` Sending from ${phone.data.displayPhoneNumber}.`
       : '';
@@ -509,7 +558,10 @@ export class OrganizationIntegrationsService {
   ): Promise<OrganizationIntegrationTestResponseDto> {
     const locationId = row.locationId?.trim() ?? '';
     if (!locationId) {
-      return { ok: false, message: 'Location ID is missing on this connection.' };
+      return {
+        ok: false,
+        message: 'Location ID is missing on this connection.',
+      };
     }
 
     const result = await this.ghl.listCalendars({

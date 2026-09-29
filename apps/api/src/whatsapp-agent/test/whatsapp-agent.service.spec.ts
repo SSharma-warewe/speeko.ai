@@ -131,7 +131,9 @@ describe('WhatsAppAgentService', () => {
         {
           changes: [
             {
-              value: { statuses: [{ id: 'wamid.status', status: 'delivered' }] },
+              value: {
+                statuses: [{ id: 'wamid.status', status: 'delivered' }],
+              },
             },
           ],
         },
@@ -162,14 +164,18 @@ describe('WhatsAppAgentService', () => {
     configGet.mockImplementation((key: string) =>
       key === 'WHATSAPP_URL' ? MESSAGES_URL : undefined,
     );
-    await expect(service.replyToWebhook(textPayload())).resolves.toBeUndefined();
+    await expect(
+      service.replyToWebhook(textPayload()),
+    ).resolves.toBeUndefined();
 
     configGet.mockImplementation((key: string) => {
       if (key === 'OPENROUTER_API_KEY') return 'or-secret';
       if (key === 'WHATSAPP_API_KEY') return 'wa-secret';
       return '';
     });
-    await expect(service.replyToWebhook(textPayload())).resolves.toBeUndefined();
+    await expect(
+      service.replyToWebhook(textPayload()),
+    ).resolves.toBeUndefined();
 
     expect(receptionist.reply).not.toHaveBeenCalled();
     expect(receptionist.reset).not.toHaveBeenCalled();
@@ -219,7 +225,9 @@ describe('WhatsAppAgentService', () => {
       return undefined;
     });
 
-    await service.replyToWebhook(textPayload('wamid.new-or', PHONE_ID, ' /NEW '));
+    await service.replyToWebhook(
+      textPayload('wamid.new-or', PHONE_ID, ' /NEW '),
+    );
 
     expect(receptionist.reset).toHaveBeenCalledWith(FROM);
     expect(receptionist.reply).not.toHaveBeenCalled();
@@ -240,9 +248,7 @@ describe('WhatsAppAgentService', () => {
     });
 
     it('replies with the org prompt via Meta sendText', async () => {
-      await service.replyToWebhook(
-        textPayload('wamid.org', orgPhone, 'Hello'),
-      );
+      await service.replyToWebhook(textPayload('wamid.org', orgPhone, 'Hello'));
 
       expect(receptionist.reply).toHaveBeenCalledWith(FROM, 'Hello', {
         instruction: ORG_PROMPT,
@@ -255,6 +261,30 @@ describe('WhatsAppAgentService', () => {
         body: "Hi! I'd be happy to help.",
       });
       expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('passes the selected voice agent to the receptionist booking runner', async () => {
+      integrations.findActiveWhatsAppByPhoneNumberId.mockResolvedValue({
+        organizationId: ORG_ID,
+        apiKey: ORG_TOKEN,
+        phoneNumberId: orgPhone,
+        systemPrompt: ORG_PROMPT,
+        bookingVoiceAgentId: 'voice-agent-1',
+        isActive: true,
+      });
+
+      await service.replyToWebhook(
+        textPayload('wamid.booking', orgPhone, 'Can I book?'),
+      );
+
+      expect(receptionist.reply).toHaveBeenCalledWith(FROM, 'Can I book?', {
+        instruction: ORG_PROMPT,
+        sessionKey: `${ORG_ID}:${FROM}`,
+        bookingSource: {
+          organizationId: ORG_ID,
+          voiceAgentId: 'voice-agent-1',
+        },
+      });
     });
 
     it('skips when the org prompt is empty', async () => {

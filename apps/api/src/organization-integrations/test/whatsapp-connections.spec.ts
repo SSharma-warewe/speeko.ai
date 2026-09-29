@@ -4,6 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { OrganizationAgent } from '../../agents/organization-agent.entity';
 import { GhlService } from '../../ghl/ghl.service';
 import { MetaWhatsAppClient } from '../../meta-whatsapp/meta-whatsapp.client';
 import { Organization } from '../../organizations/organization.entity';
@@ -28,6 +30,7 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
   };
   let ghl: { listContacts: jest.Mock; listCalendars: jest.Mock };
   let meta: { getPhoneNumber: jest.Mock; listTemplates: jest.Mock };
+  let voiceAgents: { findOne: jest.Mock };
 
   const ORG_ID = 'org-id';
   const TOKEN = 'EAAG_super_secret_meta_token';
@@ -71,6 +74,7 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
     };
     ghl = { listContacts: jest.fn(), listCalendars: jest.fn() };
     meta = { getPhoneNumber: jest.fn(), listTemplates: jest.fn() };
+    voiceAgents = { findOne: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -83,6 +87,10 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
         { provide: NylasService, useValue: { listCalendars: jest.fn() } },
         { provide: GhlService, useValue: ghl },
         { provide: MetaWhatsAppClient, useValue: meta },
+        {
+          provide: getRepositoryToken(OrganizationAgent),
+          useValue: voiceAgents,
+        },
       ],
     }).compile();
     service = module.get(OrganizationIntegrationsService);
@@ -200,20 +208,26 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
         waRow({ systemPrompt: 'Be brief.' }),
       ]);
       const result = await service.getWhatsAppAgent(ORG_ID);
-      expect(result).toEqual({ systemPrompt: 'Be brief.' });
+      expect(result).toEqual({
+        systemPrompt: 'Be brief.',
+        bookingVoiceAgentId: null,
+      });
       expect(JSON.stringify(result)).not.toContain(TOKEN);
     });
 
     it('returns no org prompt when there is no WhatsApp connection', async () => {
       await expect(service.getWhatsAppAgent(ORG_ID)).resolves.toEqual({
         systemPrompt: null,
+        bookingVoiceAgentId: null,
       });
     });
 
     it('saves a trimmed prompt and clears empty to null', async () => {
       const row = waRow({ systemPrompt: null });
       repository.findByOrganization.mockResolvedValue([row]);
-      repository.save.mockImplementation(async (r: OrganizationIntegration) => r);
+      repository.save.mockImplementation(
+        async (r: OrganizationIntegration) => r,
+      );
 
       const saved = await service.updateWhatsAppAgent(ORG_ID, '  Hello  ');
       expect(saved.systemPrompt).toBe('Hello');
@@ -223,6 +237,47 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
       const cleared = await service.updateWhatsAppAgent(ORG_ID, '   ');
       expect(cleared.systemPrompt).toBeNull();
       expect(row.systemPrompt).toBeNull();
+    });
+
+    it('links only a same-org voice agent with an active GHL calendar', async () => {
+      const row = waRow({
+        systemPrompt: 'Book meetings',
+        bookingVoiceAgentId: null,
+      });
+      repository.findByOrganization.mockResolvedValue([row]);
+      repository.save.mockImplementation(
+        async (r: OrganizationIntegration) => r,
+      );
+      voiceAgents.findOne.mockResolvedValue({
+        id: 'voice-1',
+        organizationId: ORG_ID,
+        isActive: true,
+        calendarIntegrationId: 'calendar-1',
+      });
+      repository.findByIdAndOrg.mockResolvedValue({
+        id: 'calendar-1',
+        provider: IntegrationProvider.GHL,
+        isActive: true,
+        apiKey: 'pit',
+        locationId: 'location-1',
+        calendarId: 'calendar-1',
+      });
+
+      const saved = await service.updateWhatsAppAgent(
+        ORG_ID,
+        'Book meetings',
+        'voice-1',
+      );
+      expect(saved.bookingVoiceAgentId).toBe('voice-1');
+      expect(voiceAgents.findOne).toHaveBeenCalledWith({
+        where: { id: 'voice-1', organizationId: ORG_ID },
+      });
+
+      voiceAgents.findOne.mockResolvedValue(null);
+      await expect(
+        service.updateWhatsAppAgent(ORG_ID, 'Book meetings', 'foreign-voice'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(row.bookingVoiceAgentId).toBe('voice-1');
     });
   });
 
