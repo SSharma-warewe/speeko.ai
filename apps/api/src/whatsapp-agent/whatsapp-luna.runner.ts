@@ -24,6 +24,8 @@ type BookingToolSource = BookingSource & { toolIds: string[] };
 
 type AdkEvent = {
   content?: { parts?: ReplyPart[] };
+  errorCode?: string;
+  finishReason?: string;
 };
 
 type AdkLlmResponse = {
@@ -143,18 +145,30 @@ export class WhatsAppLunaRunner implements ReceptionistReply {
 
     const { isFinalResponse } = await this.adk();
     let reply = '';
+    let finalEvents = 0;
+    let lastFinishReason = 'none';
     for await (const event of runner.runAsync({
       userId: sessionId,
       sessionId,
       newMessage: { role: 'user', parts: [{ text }] },
     })) {
+      if (event.errorCode) {
+        throw new Error(`WhatsApp model failed (${event.errorCode})`);
+      }
       if (!isFinalResponse(event)) {
         continue;
       }
+      finalEvents += 1;
+      lastFinishReason = event.finishReason ?? 'none';
       const next = visibleReplyText(event);
       if (next) {
         reply = next;
       }
+    }
+    if (!reply) {
+      this.logger.warn(
+        `WhatsApp model produced no visible reply finalEvents=${finalEvents} finishReason=${lastFinishReason}`,
+      );
     }
     return reply;
   }
@@ -220,6 +234,17 @@ export class WhatsAppLunaRunner implements ReceptionistReply {
   }
 
   private bookingTools(adk: AdkModule, source: BookingToolSource): unknown[] {
+    // ADK serializes Zod max() as a string maxLength. OpenRouter's OpenAI
+    // tool schema requires a number and rejects the whole request with 400.
+    // Advertise provider-compatible schemas and enforce lengths on execution.
+    const lookupArgs = z.object({ email: z.string().max(255).optional() });
+    const upsertArgs = z.object({
+      firstName: z.string().max(120).optional(),
+      lastName: z.string().max(120).optional(),
+      email: z.string().max(255).optional(),
+      company: z.string().max(255).optional(),
+      notes: z.string().max(4000).optional(),
+    });
     const tool = (
       name: string,
       description: string,
@@ -254,8 +279,15 @@ export class WhatsAppLunaRunner implements ReceptionistReply {
       tool(
         'lookupGhlContact',
         'Look up an existing customer in the linked voice agent GHL account by the WhatsApp sender phone and optional email.',
-        z.object({ email: z.string().max(255).optional() }),
+        z.object({ email: z.string().optional() }),
         async (args, context) => {
+          const parsed = lookupArgs.safeParse(args);
+          if (!parsed.success)
+            return {
+              ok: false,
+              error: 'invalid_arguments',
+              message: 'Contact email must be at most 255 characters.',
+            };
           const phone = context?.sessionId.startsWith(
             `${source.organizationId}:`,
           )
@@ -268,7 +300,7 @@ export class WhatsAppLunaRunner implements ReceptionistReply {
               message: 'WhatsApp sender phone is unavailable.',
             };
           const result = await this.booking.lookupContact(source, {
-            email: args.email,
+            email: parsed.data.email,
             phone,
           });
           if (result.ok && result.found)
@@ -280,13 +312,20 @@ export class WhatsAppLunaRunner implements ReceptionistReply {
         'upsertGhlContact',
         'Create or update the customer in the linked voice agent GHL account. Get their name and email. The WhatsApp sender number is supplied automatically.',
         z.object({
-          firstName: z.string().max(120).optional(),
-          lastName: z.string().max(120).optional(),
-          email: z.string().max(255).optional(),
-          company: z.string().max(255).optional(),
-          notes: z.string().max(4000).optional(),
+          firstName: z.string().optional(),
+          lastName: z.string().optional(),
+          email: z.string().optional(),
+          company: z.string().optional(),
+          notes: z.string().optional(),
         }),
         async (args, context) => {
+          const parsed = upsertArgs.safeParse(args);
+          if (!parsed.success)
+            return {
+              ok: false,
+              error: 'invalid_arguments',
+              message: 'Contact details exceed the allowed length.',
+            };
           const phone = context?.sessionId.startsWith(
             `${source.organizationId}:`,
           )
@@ -299,7 +338,7 @@ export class WhatsAppLunaRunner implements ReceptionistReply {
               message: 'WhatsApp sender phone is unavailable.',
             };
           const result = await this.booking.upsertContact(source, {
-            ...args,
+            ...parsed.data,
             phone,
           });
           if (result.ok)

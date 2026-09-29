@@ -281,6 +281,37 @@ describe('WhatsAppAgentService', () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
 
+    it('sends a safe fallback when the model has no visible reply', async () => {
+      receptionist.reply.mockResolvedValue('');
+
+      await service.replyToWebhook(textPayload('wamid.empty-reply', orgPhone));
+
+      expect(meta.sendText).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: FROM,
+          body: "Sorry, I'm having trouble responding right now. Please try again in a moment.",
+        }),
+      );
+      await service.replyToWebhook(textPayload('wamid.empty-reply', orgPhone));
+      expect(meta.sendText).toHaveBeenCalledTimes(1);
+    });
+
+    it('sends a safe fallback when the model reports an API error', async () => {
+      receptionist.reply.mockRejectedValue(
+        new Error('WhatsApp model failed (API_ERROR_400)'),
+      );
+
+      await expect(
+        service.replyToWebhook(textPayload('wamid.model-error', orgPhone)),
+      ).resolves.toBeUndefined();
+      expect(meta.sendText).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: FROM,
+          body: "Sorry, I'm having trouble responding right now. Please try again in a moment.",
+        }),
+      );
+    });
+
     it('passes the selected voice agent to the receptionist booking runner', async () => {
       integrations.findActiveWhatsAppByPhoneNumberId.mockResolvedValue({
         organizationId: ORG_ID,

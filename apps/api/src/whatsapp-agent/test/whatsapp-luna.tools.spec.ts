@@ -38,4 +38,65 @@ describe('WhatsAppLunaRunner booking tools', () => {
       'scheduleGhlMeeting',
     ]);
   });
+
+  it('keeps string length limits out of OpenRouter schemas and enforces them before GHL', async () => {
+    const booking = {
+      lookupContact: jest.fn(),
+      upsertContact: jest.fn(),
+    };
+    const runner = new WhatsAppLunaRunner(
+      {} as ConfigService,
+      booking as unknown as WhatsAppBookingService,
+    );
+    const adk = {
+      FunctionTool: class {
+        name: string;
+        parameters: { safeParse: (input: unknown) => { success: boolean } };
+        execute: (args: Record<string, string>, context?: unknown) => Promise<unknown>;
+        constructor(config: {
+          name: string;
+          parameters: { safeParse: (input: unknown) => { success: boolean } };
+          execute: (args: Record<string, string>, context?: unknown) => Promise<unknown>;
+        }) {
+          Object.assign(this, config);
+        }
+      },
+    };
+    const tools = (
+      runner as unknown as {
+        bookingTools: (
+          adk: unknown,
+          source: {
+            organizationId: string;
+            voiceAgentId: string;
+            toolIds: string[];
+          },
+        ) => Array<{
+          name: string;
+          parameters: { safeParse: (input: unknown) => { success: boolean } };
+          execute: (args: Record<string, string>, context?: unknown) => Promise<unknown>;
+        }>;
+      }
+    ).bookingTools(adk, {
+      organizationId: 'org-1',
+      voiceAgentId: 'agent-1',
+      toolIds: ['lookupGhlContact', 'upsertGhlContact'],
+    });
+
+    const lookup = tools.find((tool) => tool.name === 'lookupGhlContact')!;
+    const upsert = tools.find((tool) => tool.name === 'upsertGhlContact')!;
+    const longEmail = 'x'.repeat(256);
+    expect(lookup.parameters.safeParse({ email: longEmail }).success).toBe(true);
+    expect(upsert.parameters.safeParse({ email: longEmail }).success).toBe(true);
+    await expect(lookup.execute({ email: longEmail })).resolves.toMatchObject({
+      ok: false,
+      error: 'invalid_arguments',
+    });
+    await expect(upsert.execute({ email: longEmail })).resolves.toMatchObject({
+      ok: false,
+      error: 'invalid_arguments',
+    });
+    expect(booking.lookupContact).not.toHaveBeenCalled();
+    expect(booking.upsertContact).not.toHaveBeenCalled();
+  });
 });

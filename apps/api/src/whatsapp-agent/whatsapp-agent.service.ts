@@ -12,11 +12,14 @@ import { RECEPTIONIST_INSTRUCTION } from './receptionist-instruction';
 import {
   RECEPTIONIST_REPLY,
   type ReceptionistReply,
+  type ReceptionistReplyOpts,
 } from './receptionist-reply';
 import { WhatsAppTextClient } from './whatsapp-text.client';
 import { whatsappGhlToolIds } from './whatsapp-booking-tool-ids';
 
 const SEEN_LIMIT = 500;
+const UNAVAILABLE_REPLY =
+  "Sorry, I'm having trouble responding right now. Please try again in a moment.";
 
 /**
  * Answers inbound WhatsApp texts saved by the webhook.
@@ -133,17 +136,11 @@ export class WhatsAppAgentService {
               );
             }
           }
-          const reply = (
-            await this.receptionist.reply(message.from, message.body, {
-              instruction: prompt,
-              sessionKey,
-              bookingSource,
-            })
-          ).trim();
-          if (!reply) {
-            this.logger.warn('WhatsApp org agent returned an empty reply');
-            continue;
-          }
+          const reply = await this.generateReply(message.from, message.body, {
+            instruction: prompt,
+            sessionKey,
+            bookingSource,
+          });
           const sent = await this.meta.sendText({
             token: orgConnection.apiKey,
             phoneNumberId: orgConnection.phoneNumberId ?? phoneNumberId,
@@ -192,15 +189,9 @@ export class WhatsAppAgentService {
           this.warnOnce('OPENROUTER_API_KEY is not set');
           continue;
         }
-        const reply = (
-          await this.receptionist.reply(message.from, message.body, {
-            instruction: RECEPTIONIST_INSTRUCTION,
-          })
-        ).trim();
-        if (!reply) {
-          this.logger.warn('WhatsApp receptionist returned an empty reply');
-          continue;
-        }
+        const reply = await this.generateReply(message.from, message.body, {
+          instruction: RECEPTIONIST_INSTRUCTION,
+        });
         const sent = await this.text.sendText(message.from, reply);
         if (sent) {
           this.remember(message.id);
@@ -212,6 +203,22 @@ export class WhatsAppAgentService {
         this.inflight.delete(message.id);
       }
     }
+  }
+
+  private async generateReply(
+    from: string,
+    body: string,
+    options: ReceptionistReplyOpts,
+  ): Promise<string> {
+    try {
+      const reply = (await this.receptionist.reply(from, body, options)).trim();
+      if (reply) return reply;
+      this.logger.warn('WhatsApp agent returned an empty reply');
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'unknown';
+      this.logger.error(`WhatsApp agent generation failed: ${reason}`);
+    }
+    return UNAVAILABLE_REPLY;
   }
 
   private remember(id: string): void {
