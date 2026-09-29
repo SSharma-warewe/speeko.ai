@@ -67,6 +67,13 @@ export class OrganizationIntegration {
   @Column({ name: 'waba_id', type: 'varchar', length: 80, nullable: true })
   wabaId!: string | null;
 
+  /**
+   * WhatsApp inbound agent persona (provider=whatsapp only).
+   * Null/empty = auto-replies disabled for this org line.
+   */
+  @Column({ name: 'system_prompt', type: 'text', nullable: true })
+  systemPrompt!: string | null;
+
   /** Calendar id within the grant (Nylas, default primary) or GHL calendar id. */
   @Column({ name: 'calendar_id', type: 'varchar', length: 255, default: 'primary' })
   calendarId!: string;

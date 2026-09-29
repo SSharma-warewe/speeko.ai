@@ -155,6 +155,11 @@ export {
 
 export { WHATSAPP_CONTACT_FIELDS } from './http/whatsapp-outbound.js';
 
+export type {
+  UpdateWhatsAppAgentRequest,
+  WhatsAppAgentConfig,
+} from './http/whatsapp-agent.js';
+
 export { COST_LINE_KEYS, COST_UNITS, PRICING_PLANS } from './price.js';
 export type {
   CallCostAttempt,

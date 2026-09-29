@@ -22,6 +22,7 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
   let repository: {
     findByOrganization: jest.Mock;
     findByIdAndOrg: jest.Mock;
+    findActiveWhatsAppByPhoneNumberId: jest.Mock;
     create: jest.Mock;
     save: jest.Mock;
   };
@@ -59,6 +60,7 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
     repository = {
       findByOrganization: jest.fn().mockResolvedValue([]),
       findByIdAndOrg: jest.fn(),
+      findActiveWhatsAppByPhoneNumberId: jest.fn().mockResolvedValue(null),
       create: jest.fn((d) => ({ ...d }) as OrganizationIntegration),
       save: jest.fn(async (row: OrganizationIntegration) => ({
         id: 'new-id',
@@ -103,6 +105,7 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
           apiKey: TOKEN,
           phoneNumberId: '1065403522',
           wabaId: '1022901293',
+          systemPrompt: null,
         }),
       );
       expect(result.phoneNumberId).toBe('1065403522');
@@ -188,6 +191,38 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
           IntegrationProvider.GHL_CONTACTS,
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('whatsapp agent prompt', () => {
+    it('returns systemPrompt and never the api key', async () => {
+      repository.findByOrganization.mockResolvedValue([
+        waRow({ systemPrompt: 'Be brief.' }),
+      ]);
+      const result = await service.getWhatsAppAgent(ORG_ID);
+      expect(result).toEqual({ systemPrompt: 'Be brief.' });
+      expect(JSON.stringify(result)).not.toContain(TOKEN);
+    });
+
+    it('404s when there is no WhatsApp connection', async () => {
+      await expect(service.getWhatsAppAgent(ORG_ID)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('saves a trimmed prompt and clears empty to null', async () => {
+      const row = waRow({ systemPrompt: null });
+      repository.findByOrganization.mockResolvedValue([row]);
+      repository.save.mockImplementation(async (r: OrganizationIntegration) => r);
+
+      const saved = await service.updateWhatsAppAgent(ORG_ID, '  Hello  ');
+      expect(saved.systemPrompt).toBe('Hello');
+      expect(row.systemPrompt).toBe('Hello');
+      expect(JSON.stringify(saved)).not.toContain(TOKEN);
+
+      const cleared = await service.updateWhatsAppAgent(ORG_ID, '   ');
+      expect(cleared.systemPrompt).toBeNull();
+      expect(row.systemPrompt).toBeNull();
     });
   });
 

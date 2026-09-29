@@ -49,6 +49,16 @@ export type MetaSendTemplateInput = {
   components: unknown[];
 };
 
+export type MetaSendTextInput = {
+  token: string;
+  phoneNumberId: string;
+  /** Recipient, digits only. */
+  to: string;
+  body: string;
+};
+
+const MAX_TEXT_CHARS = 4096;
+
 /**
  * Thin Meta WhatsApp Cloud (Graph) client for org-owned credentials.
  * Only talks to graph.facebook.com, refuses redirects, and never logs the
@@ -127,6 +137,34 @@ export class MetaWhatsAppClient {
           ? { components: input.components }
           : {}),
       },
+    };
+    const res = await this.request<{ messages?: { id?: unknown }[] }>(
+      'POST',
+      `/${encodeURIComponent(input.phoneNumberId)}/messages`,
+      input.token,
+      body,
+    );
+    if (!res.ok) return res;
+    const id = res.data.messages?.[0]?.id;
+    return {
+      ok: true,
+      data: { wamid: typeof id === 'string' && id ? id : null },
+    };
+  }
+
+  /** Session text reply (inbound agent). Never logs token, recipient, or body. */
+  async sendText(
+    input: MetaSendTextInput,
+  ): Promise<MetaResult<{ wamid: string | null }>> {
+    const text = input.body.trim().slice(0, MAX_TEXT_CHARS);
+    if (!text) {
+      return { ok: false, status: 0, message: 'Empty text body.' };
+    }
+    const body = {
+      messaging_product: 'whatsapp',
+      to: input.to,
+      type: 'text',
+      text: { body: text },
     };
     const res = await this.request<{ messages?: { id?: unknown }[] }>(
       'POST',

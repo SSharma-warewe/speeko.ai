@@ -154,6 +154,39 @@ export class OrganizationIntegrationsService {
     return row;
   }
 
+  /** Active WhatsApp connection for an inbound phone_number_id (includes apiKey). */
+  findActiveWhatsAppByPhoneNumberId(
+    phoneNumberId: string,
+  ): Promise<OrganizationIntegration | null> {
+    const id = phoneNumberId.trim();
+    if (!id) return Promise.resolve(null);
+    return this.repository.findActiveWhatsAppByPhoneNumberId(id);
+  }
+
+  async getWhatsAppAgent(
+    organizationId: string,
+  ): Promise<{ systemPrompt: string | null }> {
+    const row = await this.getActiveEntityByProvider(
+      organizationId,
+      IntegrationProvider.WHATSAPP,
+    );
+    return { systemPrompt: row.systemPrompt ?? null };
+  }
+
+  async updateWhatsAppAgent(
+    organizationId: string,
+    systemPrompt: string,
+  ): Promise<{ systemPrompt: string | null }> {
+    const row = await this.getActiveEntityByProvider(
+      organizationId,
+      IntegrationProvider.WHATSAPP,
+    );
+    const trimmed = systemPrompt.trim();
+    row.systemPrompt = trimmed.length > 0 ? trimmed : null;
+    const saved = await this.repository.save(row);
+    return { systemPrompt: saved.systemPrompt ?? null };
+  }
+
   async updateForOrg(
     organizationId: string,
     id: string,
@@ -394,6 +427,7 @@ export class OrganizationIntegrationsService {
       locationId: null,
       phoneNumberId,
       wabaId,
+      systemPrompt: null,
       calendarId: 'primary',
       apiUri: DEFAULT_API_URI,
       email: null,

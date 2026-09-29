@@ -140,6 +140,38 @@ describe('MetaWhatsAppClient', () => {
     expect(body.template).not.toHaveProperty('components');
   });
 
+  it('sends a text payload and returns the wamid', async () => {
+    fetchMock.mockResolvedValue(json({ messages: [{ id: 'wamid.TXT' }] }));
+    const result = await makeClient().sendText({
+      token: TOKEN,
+      phoneNumberId: '1065403522',
+      to: '919876543210',
+      body: '  Hello there  ',
+    });
+    expect(result).toEqual({ ok: true, data: { wamid: 'wamid.TXT' } });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(new URL(url).pathname).toBe('/v25.0/1065403522/messages');
+    expect(JSON.parse(init.body as string)).toEqual({
+      messaging_product: 'whatsapp',
+      to: '919876543210',
+      type: 'text',
+      text: { body: 'Hello there' },
+    });
+    expect(String(init.body)).not.toContain(TOKEN);
+  });
+
+  it('rejects an empty text body without calling Graph', async () => {
+    const result = await makeClient().sendText({
+      token: TOKEN,
+      phoneNumberId: '1065403522',
+      to: '919876543210',
+      body: '   ',
+    });
+    expect(result.ok).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('turns a Meta error into a safe message without the token', async () => {
     fetchMock.mockResolvedValue(
       json(

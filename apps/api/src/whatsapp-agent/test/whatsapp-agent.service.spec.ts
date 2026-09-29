@@ -1,6 +1,9 @@
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+import { MetaWhatsAppClient } from '../../meta-whatsapp/meta-whatsapp.client';
+import { OrganizationIntegrationsService } from '../../organization-integrations/organization-integrations.service';
 import { NEW_SESSION_REPLY } from '../lib/session-command';
+import { RECEPTIONIST_INSTRUCTION } from '../receptionist-instruction';
 import {
   RECEPTIONIST_REPLY,
   type ReceptionistReply,
@@ -11,6 +14,9 @@ import { WhatsAppTextClient } from '../whatsapp-text.client';
 const PHONE_ID = '106540352242922';
 const MESSAGES_URL = `https://graph.facebook.com/v25.0/${PHONE_ID}/messages`;
 const FROM = '919876543210';
+const ORG_ID = 'org-wa-1';
+const ORG_TOKEN = 'EAAG_org_token';
+const ORG_PROMPT = 'You are Acme support on WhatsApp.';
 
 function textPayload(
   id = 'wamid.1',
@@ -44,6 +50,10 @@ function textPayload(
 describe('WhatsAppAgentService', () => {
   let service: WhatsAppAgentService;
   let receptionist: jest.Mocked<ReceptionistReply>;
+  let integrations: {
+    findActiveWhatsAppByPhoneNumberId: jest.Mock;
+  };
+  let meta: { sendText: jest.Mock };
   let configGet: jest.Mock;
   let fetchMock: jest.Mock;
   const originalFetch = global.fetch;
@@ -63,6 +73,12 @@ describe('WhatsAppAgentService', () => {
       reply: jest.fn().mockResolvedValue("Hi! I'd be happy to help."),
       reset: jest.fn().mockResolvedValue(undefined),
     };
+    integrations = {
+      findActiveWhatsAppByPhoneNumberId: jest.fn().mockResolvedValue(null),
+    };
+    meta = {
+      sendText: jest.fn().mockResolvedValue({ ok: true, data: { wamid: 'w' } }),
+    };
     fetchMock = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -76,15 +92,25 @@ describe('WhatsAppAgentService', () => {
         WhatsAppTextClient,
         { provide: ConfigService, useValue: { get: configGet } },
         { provide: RECEPTIONIST_REPLY, useValue: receptionist },
+        {
+          provide: OrganizationIntegrationsService,
+          useValue: integrations,
+        },
+        { provide: MetaWhatsAppClient, useValue: meta },
       ],
     }).compile();
     service = moduleRef.get(WhatsAppAgentService);
   });
 
-  it('posts a Cloud API text body to the sender', async () => {
+  it('posts a Cloud API text body to the sender (platform path)', async () => {
     await service.replyToWebhook(textPayload());
 
-    expect(receptionist.reply).toHaveBeenCalledWith(FROM, 'We need voice calls');
+    expect(receptionist.reply).toHaveBeenCalledWith(
+      FROM,
+      'We need voice calls',
+      expect.objectContaining({ instruction: RECEPTIONIST_INSTRUCTION }),
+    );
+    expect(meta.sendText).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(MESSAGES_URL);
@@ -150,11 +176,12 @@ describe('WhatsAppAgentService', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('skips a webhook for a different phone number id', async () => {
+  it('skips a webhook for a different phone number id (platform)', async () => {
     await service.replyToWebhook(textPayload('wamid.other', '999'));
 
     expect(receptionist.reply).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(meta.sendText).not.toHaveBeenCalled();
   });
 
   it('resets the session and sends a canned reply for /new', async () => {
@@ -178,7 +205,11 @@ describe('WhatsAppAgentService', () => {
     );
 
     expect(receptionist.reset).not.toHaveBeenCalled();
-    expect(receptionist.reply).toHaveBeenCalledWith(FROM, '/new please');
+    expect(receptionist.reply).toHaveBeenCalledWith(
+      FROM,
+      '/new please',
+      expect.objectContaining({ instruction: RECEPTIONIST_INSTRUCTION }),
+    );
   });
 
   it('resets on /new even when OpenRouter is unset', async () => {
@@ -193,5 +224,70 @@ describe('WhatsAppAgentService', () => {
     expect(receptionist.reset).toHaveBeenCalledWith(FROM);
     expect(receptionist.reply).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  describe('org WhatsApp agent', () => {
+    const orgPhone = '555000111';
+
+    beforeEach(() => {
+      integrations.findActiveWhatsAppByPhoneNumberId.mockResolvedValue({
+        organizationId: ORG_ID,
+        apiKey: ORG_TOKEN,
+        phoneNumberId: orgPhone,
+        systemPrompt: ORG_PROMPT,
+        isActive: true,
+      });
+    });
+
+    it('replies with the org prompt via Meta sendText', async () => {
+      await service.replyToWebhook(
+        textPayload('wamid.org', orgPhone, 'Hello'),
+      );
+
+      expect(receptionist.reply).toHaveBeenCalledWith(FROM, 'Hello', {
+        instruction: ORG_PROMPT,
+        sessionKey: `${ORG_ID}:${FROM}`,
+      });
+      expect(meta.sendText).toHaveBeenCalledWith({
+        token: ORG_TOKEN,
+        phoneNumberId: orgPhone,
+        to: FROM,
+        body: "Hi! I'd be happy to help.",
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('skips when the org prompt is empty', async () => {
+      integrations.findActiveWhatsAppByPhoneNumberId.mockResolvedValue({
+        organizationId: ORG_ID,
+        apiKey: ORG_TOKEN,
+        phoneNumberId: orgPhone,
+        systemPrompt: '  ',
+        isActive: true,
+      });
+
+      await service.replyToWebhook(textPayload('wamid.empty', orgPhone));
+
+      expect(receptionist.reply).not.toHaveBeenCalled();
+      expect(meta.sendText).not.toHaveBeenCalled();
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('resets with an org-scoped session key on /new', async () => {
+      await service.replyToWebhook(
+        textPayload('wamid.org-new', orgPhone, '/new'),
+      );
+
+      expect(receptionist.reset).toHaveBeenCalledWith(FROM, {
+        sessionKey: `${ORG_ID}:${FROM}`,
+      });
+      expect(receptionist.reply).not.toHaveBeenCalled();
+      expect(meta.sendText).toHaveBeenCalledWith({
+        token: ORG_TOKEN,
+        phoneNumberId: orgPhone,
+        to: FROM,
+        body: NEW_SESSION_REPLY,
+      });
+    });
   });
 });

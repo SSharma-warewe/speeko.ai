@@ -113,3 +113,8 @@ export type {
   WhatsAppWebhookConfigSecret,
   WhatsAppWebhookEventSummary,
 } from './whatsapp.js';
+
+export type {
+  UpdateWhatsAppAgentRequest,
+  WhatsAppAgentConfig,
+} from './whatsapp-agent.js';

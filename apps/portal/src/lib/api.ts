@@ -81,6 +81,8 @@ import type {
   WhatsAppTemplate,
   WhatsAppTemplatesResponse,
   WhatsAppVariableSource,
+  WhatsAppAgentConfig,
+  UpdateWhatsAppAgentRequest,
   WhatsAppWebhookConfig,
   WhatsAppWebhookConfigSecret,
   WhatsAppWebhookEventSummary,
@@ -135,6 +137,8 @@ export type {
   WhatsAppTemplate,
   WhatsAppTemplatesResponse,
   WhatsAppVariableSource,
+  WhatsAppAgentConfig,
+  UpdateWhatsAppAgentRequest,
   WhatsAppWebhookConfig,
   WhatsAppWebhookConfigSecret,
   WhatsAppWebhookEventSummary,
@@ -1135,4 +1139,14 @@ export const sendUserWhatsAppTemplate = (
 
 export const listUserWhatsAppOutboundMessages = () =>
   userFetch<WhatsAppOutboundMessage[]>("/users/whatsapp/outbound/messages");
+
+/* ── User WhatsApp inbound agent (system prompt) ── */
+export const getUserWhatsAppAgent = () =>
+  userFetch<WhatsAppAgentConfig>("/users/whatsapp/agent");
+
+export const updateUserWhatsAppAgent = (data: UpdateWhatsAppAgentRequest) =>
+  userFetch<WhatsAppAgentConfig>("/users/whatsapp/agent", {
+    method: "PATCH",
+    body: data,
+  });
 

@@ -4,21 +4,24 @@ import { listUserOrgIntegrations } from "../../lib/api";
 import { ErrorBlock } from "../components/ErrorBlock";
 import { LoadingBlock } from "../components/LoadingBlock";
 import { useUserAsync } from "../hooks/useAsync";
+import WhatsAppAgentTab from "./WhatsAppAgentTab";
 import WhatsAppConnectionsTab from "./WhatsAppConnectionsTab";
 import WhatsAppHistoryTab from "./WhatsAppHistoryTab";
 import WhatsAppSendTab from "./WhatsAppSendTab";
 
-type WaMode = "send" | "connections" | "history";
+type WaMode = "send" | "connections" | "history" | "agent";
 
 function parseMode(raw: string | null): WaMode {
   if (raw === "connections") return "connections";
   if (raw === "history") return "history";
+  if (raw === "agent") return "agent";
   return "send";
 }
 
 const TABS: { id: WaMode; label: string }[] = [
   { id: "send", label: "Send" },
   { id: "connections", label: "Connections" },
+  { id: "agent", label: "Agent" },
   { id: "history", label: "History" },
 ];
 
@@ -90,7 +93,11 @@ export default function UserWhatsAppPage() {
         </ul>
       </div>
 
-      <div className={`ops-desk-board${mode === "history" ? " is-single" : ""}`}>
+      <div
+        className={`ops-desk-board${
+          mode === "history" || mode === "agent" ? " is-single" : ""
+        }`}
+      >
         {mode === "send" ? (
           <WhatsAppSendTab
             hasWhatsApp={hasWhatsApp}
@@ -100,6 +107,11 @@ export default function UserWhatsAppPage() {
           />
         ) : mode === "connections" ? (
           <WhatsAppConnectionsTab connections={data} onChanged={reload} />
+        ) : mode === "agent" ? (
+          <WhatsAppAgentTab
+            hasWhatsApp={hasWhatsApp}
+            onGoConnections={() => setModeTab("connections")}
+          />
         ) : (
           <WhatsAppHistoryTab refreshKey={historyKey} />
         )}
