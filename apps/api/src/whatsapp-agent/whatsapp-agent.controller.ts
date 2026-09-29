@@ -12,6 +12,7 @@ import { UserGuard } from '../auth/guards/user.guard';
 import { orgIdFrom } from '../auth/org-id';
 import { ApiJwtErrors, ApiNotFoundError } from '../common/swagger/api-errors';
 import { OrganizationIntegrationsService } from '../organization-integrations/organization-integrations.service';
+import { RECEPTIONIST_INSTRUCTION } from './receptionist-instruction';
 import {
   UpdateWhatsAppAgentDto,
   WhatsAppAgentConfigDto,
@@ -31,14 +32,14 @@ export class WhatsAppAgentController {
   @ApiOperation({
     summary: 'Get the org WhatsApp inbound agent system prompt',
     description:
-      'Requires an active WhatsApp connection. Null prompt means auto-replies are off.',
+      'Returns the saved org prompt and the platform receptionist example. Null org prompt means auto-replies are off.',
   })
   @ApiOkResponse({ type: WhatsAppAgentConfigDto })
-  @ApiNotFoundError('No active WhatsApp connection')
-  get(
+  async get(
     @CurrentUser() principal: AuthPrincipal,
   ): Promise<WhatsAppAgentConfigDto> {
-    return this.integrations.getWhatsAppAgent(orgIdFrom(principal));
+    const config = await this.integrations.getWhatsAppAgent(orgIdFrom(principal));
+    return { ...config, platformPrompt: RECEPTIONIST_INSTRUCTION };
   }
 
   @Patch()
@@ -49,13 +50,14 @@ export class WhatsAppAgentController {
   })
   @ApiOkResponse({ type: WhatsAppAgentConfigDto })
   @ApiNotFoundError('No active WhatsApp connection')
-  update(
+  async update(
     @CurrentUser() principal: AuthPrincipal,
     @Body() dto: UpdateWhatsAppAgentDto,
   ): Promise<WhatsAppAgentConfigDto> {
-    return this.integrations.updateWhatsAppAgent(
+    const config = await this.integrations.updateWhatsAppAgent(
       orgIdFrom(principal),
       dto.systemPrompt,
     );
+    return { ...config, platformPrompt: RECEPTIONIST_INSTRUCTION };
   }
 }

@@ -545,7 +545,7 @@ Worker health is “registered with LiveKit” in service logs, not a public HTM
 | GET | `/api/users/whatsapp/outbound/contacts` | user JWT — GHL contacts via the org `ghl_contacts` connection (`?query=&cursor=`, 25/page, opaque `nextCursor`) |
 | POST | `/api/users/whatsapp/outbound/send` | user JWT — send an approved template to 1–50 selected contacts from the org `phone_number_id` (200). Per-recipient results; DND / invalid / duplicate / empty-variable contacts are `skipped`, Meta errors are `failed` (never aborts the batch). Variables map to contact fields or custom text |
 | GET | `/api/users/whatsapp/outbound/messages` | user JWT — latest 100 outbound rows for the caller org |
-| GET | `/api/users/whatsapp/agent` | user JWT — org WhatsApp inbound agent `systemPrompt` (null if unset); 404 if no active `whatsapp` connection |
+| GET | `/api/users/whatsapp/agent` | user JWT — org WhatsApp inbound agent `systemPrompt` (null if unset) and read-only `platformPrompt` example; available before an org connection is added |
 | PATCH | `/api/users/whatsapp/agent` | user JWT — set/clear inbound agent `systemPrompt` (max 20000; empty string clears and disables auto-reply) |
 | GET | `/api/webhooks/whatsapp` | public (no JWT) — Meta `hub.mode` / `hub.verify_token` / `hub.challenge` parsed from the raw query string; 200 `text/plain` challenge (org hash or `WHATSAPP_VERIFY_TOKEN`) or 403 |
 | POST | `/api/webhooks/whatsapp` | public — persist any JSON body (empty → `{ raw: null }`); 200 immediately. After save, inbound text is answered by `whatsapp-agent` when it matches an org `whatsapp` connection with a non-empty `system_prompt` (org Meta token) or the platform `WHATSAPP_URL` line (not awaited). Exact `/new` resets that sender's in-memory session |

@@ -4571,6 +4571,186 @@
   padding: 0.6rem;
 }
 
+/* WhatsApp inbound agent: saved prompt, reference prompt, and editor. */
+.ops-wa-agent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.ops-wa-agent-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--ops-line);
+  border-radius: 10px;
+  background: linear-gradient(135deg, #fffaf0, #fff 65%);
+}
+
+.ops-wa-agent-intro h2 {
+  margin: 0.2rem 0 0.4rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.1rem, 2vw, 1.45rem);
+  color: var(--ops-ink);
+}
+
+.ops-wa-agent-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid var(--ops-line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ops-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.ops-wa-agent-status.is-on {
+  border-color: var(--ops-amber-hot);
+  background: var(--ops-amber);
+  color: var(--ops-amber-ink);
+}
+
+.ops-wa-agent-status-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.ops-wa-agent-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.ops-wa-agent-grid .ops-panel {
+  min-width: 0;
+}
+
+.ops-wa-agent-grid .ops-panel + .ops-panel {
+  margin-top: 0;
+}
+
+.ops-wa-agent-grid .ops-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.ops-wa-agent-grid .ops-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0.9rem;
+}
+
+.ops-wa-agent-prompt {
+  box-sizing: border-box;
+  max-height: 18rem;
+  overflow: auto;
+  margin: 0;
+  padding: 0.8rem;
+  border: 1px solid var(--ops-line);
+  border-radius: 8px;
+  background: #fafafa;
+  color: var(--ops-ink);
+  font-family: inherit;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ops-wa-agent-example {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--ops-line);
+}
+
+.ops-wa-agent-example-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.ops-wa-agent-example-head strong {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--ops-ink);
+}
+
+.ops-wa-agent-example-head .ca-btn {
+  flex-shrink: 0;
+}
+
+.ops-wa-agent-prompt-example {
+  max-height: 21rem;
+}
+
+.ops-wa-agent-editor .ca-textarea {
+  min-height: 22rem;
+  line-height: 1.55;
+}
+
+.ops-wa-agent-connect {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.8rem;
+  border: 1px solid var(--ops-amber-hot);
+  border-radius: 8px;
+  background: #fffbeb;
+}
+
+.ops-wa-agent-connect strong {
+  font-size: 0.8rem;
+  color: var(--ops-ink);
+}
+
+.ops-wa-agent-editor-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--ops-line);
+}
+
+.ops-wa-agent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+@media (max-width: 900px) {
+  .ops-wa-agent-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .ops-wa-agent-intro,
+  .ops-wa-agent-example-head {
+    flex-direction: column;
+  }
+}
+
 @media (max-width: 720px) {
   .ops-voice-compact,
   .ops-voice-compact-mix {

@@ -8,6 +8,12 @@ export class WhatsAppAgentConfigDto {
       'Inbound agent system prompt. Null when unset; empty clears and disables auto-reply.',
   })
   systemPrompt!: string | null;
+
+  @ApiProperty({
+    description:
+      'Read-only platform receptionist prompt, offered as an example for org agents.',
+  })
+  platformPrompt!: string;
 }
 
 export class UpdateWhatsAppAgentDto {

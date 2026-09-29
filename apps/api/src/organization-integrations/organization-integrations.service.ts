@@ -166,11 +166,14 @@ export class OrganizationIntegrationsService {
   async getWhatsAppAgent(
     organizationId: string,
   ): Promise<{ systemPrompt: string | null }> {
-    const row = await this.getActiveEntityByProvider(
-      organizationId,
-      IntegrationProvider.WHATSAPP,
+    await this.organizationsService.findById(organizationId);
+    const rows = await this.repository.findByOrganization(organizationId);
+    const row = rows.find(
+      (integration) =>
+        integration.provider === IntegrationProvider.WHATSAPP &&
+        integration.isActive,
     );
-    return { systemPrompt: row.systemPrompt ?? null };
+    return { systemPrompt: row?.systemPrompt ?? null };
   }
 
   async updateWhatsAppAgent(

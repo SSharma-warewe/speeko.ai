@@ -204,10 +204,10 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
       expect(JSON.stringify(result)).not.toContain(TOKEN);
     });
 
-    it('404s when there is no WhatsApp connection', async () => {
-      await expect(service.getWhatsAppAgent(ORG_ID)).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+    it('returns no org prompt when there is no WhatsApp connection', async () => {
+      await expect(service.getWhatsAppAgent(ORG_ID)).resolves.toEqual({
+        systemPrompt: null,
+      });
     });
 
     it('saves a trimmed prompt and clears empty to null', async () => {
