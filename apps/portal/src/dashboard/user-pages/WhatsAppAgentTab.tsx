@@ -106,9 +106,9 @@ export default function WhatsAppAgentTab({
           texts in. Leave it empty to disable the agent. Send{" "}
           <code>/new</code> to reset a conversation.
         </p>
-        {formError ? <Alert variant="danger">{formError}</Alert> : null}
+        {formError ? <Alert tone="error">{formError}</Alert> : null}
         {saved && !formError ? (
-          <Alert variant="success">Saved.</Alert>
+          <Alert tone="success">Saved.</Alert>
         ) : null}
         <Field
           label="System prompt"
