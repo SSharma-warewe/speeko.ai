@@ -26,6 +26,8 @@ import {
 import { OrganizationIntegrationsRepository } from './organization-integrations.repository';
 import { GhlService } from '../ghl/ghl.service';
 import { OrganizationAgent } from '../agents/organization-agent.entity';
+import { ToolProfilesService } from '../tools/tool-profiles.service';
+import { whatsappGhlToolIds } from '../whatsapp-agent/whatsapp-booking-tool-ids';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MetaWhatsAppClient } from '../meta-whatsapp/meta-whatsapp.client';
@@ -57,6 +59,7 @@ export class OrganizationIntegrationsService {
     private readonly meta: MetaWhatsAppClient,
     @InjectRepository(OrganizationAgent)
     private readonly voiceAgents: Repository<OrganizationAgent>,
+    private readonly toolProfiles: ToolProfilesService,
   ) {}
 
   async listForOrg(
@@ -171,6 +174,7 @@ export class OrganizationIntegrationsService {
   async getWhatsAppAgent(organizationId: string): Promise<{
     systemPrompt: string | null;
     bookingVoiceAgentId: string | null;
+    whatsappToolProfileId: string | null;
   }> {
     await this.organizationsService.findById(organizationId);
     const rows = await this.repository.findByOrganization(organizationId);
@@ -182,6 +186,7 @@ export class OrganizationIntegrationsService {
     return {
       systemPrompt: row?.systemPrompt ?? null,
       bookingVoiceAgentId: row?.bookingVoiceAgentId ?? null,
+      whatsappToolProfileId: row?.whatsappToolProfileId ?? null,
     };
   }
 
@@ -189,15 +194,56 @@ export class OrganizationIntegrationsService {
     organizationId: string,
     systemPrompt: string,
     bookingVoiceAgentId?: string | null,
+    whatsappToolProfileId?: string | null,
   ): Promise<{
     systemPrompt: string | null;
     bookingVoiceAgentId: string | null;
+    whatsappToolProfileId: string | null;
   }> {
     const row = await this.getActiveEntityByProvider(
       organizationId,
       IntegrationProvider.WHATSAPP,
     );
     const trimmed = systemPrompt.trim();
+    const nextAgentId =
+      bookingVoiceAgentId === undefined
+        ? row.bookingVoiceAgentId
+        : bookingVoiceAgentId;
+    const nextProfileId =
+      whatsappToolProfileId === undefined
+        ? row.whatsappToolProfileId
+        : whatsappToolProfileId;
+    if (nextProfileId && !nextAgentId) {
+      throw new BadRequestException(
+        'Select a voice agent with a GHL calendar for this tool profile.',
+      );
+    }
+    if (whatsappToolProfileId) {
+      await this.toolProfiles.getResponseForOrganization(
+        organizationId,
+        whatsappToolProfileId,
+      );
+      const ids = await this.toolProfiles.resolveEnabledToolIds(
+        whatsappToolProfileId,
+        organizationId,
+      );
+      const ghlIds = whatsappGhlToolIds(ids);
+      if (ghlIds.length === 0) {
+        throw new BadRequestException(
+          'This tool profile has no assigned GHL contact or calendar tools.',
+        );
+      }
+      if (
+        ghlIds.includes('scheduleGhlMeeting') &&
+        (!ghlIds.includes('checkGhlFreeSlots') ||
+          (!ghlIds.includes('lookupGhlContact') &&
+            !ghlIds.includes('upsertGhlContact')))
+      ) {
+        throw new BadRequestException(
+          'WhatsApp booking profiles need free slots and a GHL contact tool alongside scheduleGhlMeeting.',
+        );
+      }
+    }
     if (bookingVoiceAgentId !== undefined) {
       if (bookingVoiceAgentId) {
         const agent = await this.voiceAgents.findOne({
@@ -229,11 +275,15 @@ export class OrganizationIntegrationsService {
       }
       row.bookingVoiceAgentId = bookingVoiceAgentId;
     }
+    if (whatsappToolProfileId !== undefined) {
+      row.whatsappToolProfileId = whatsappToolProfileId;
+    }
     row.systemPrompt = trimmed.length > 0 ? trimmed : null;
     const saved = await this.repository.save(row);
     return {
       systemPrompt: saved.systemPrompt ?? null,
       bookingVoiceAgentId: saved.bookingVoiceAgentId ?? null,
+      whatsappToolProfileId: saved.whatsappToolProfileId ?? null,
     };
   }
 

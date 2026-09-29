@@ -18,6 +18,7 @@ import {
 import { OrganizationIntegrationsRepository } from '../organization-integrations.repository';
 import { OrganizationIntegrationsService } from '../organization-integrations.service';
 import { NylasService } from '../nylas.service';
+import { ToolProfilesService } from '../../tools/tool-profiles.service';
 
 describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
   let service: OrganizationIntegrationsService;
@@ -31,6 +32,10 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
   let ghl: { listContacts: jest.Mock; listCalendars: jest.Mock };
   let meta: { getPhoneNumber: jest.Mock; listTemplates: jest.Mock };
   let voiceAgents: { findOne: jest.Mock };
+  let toolProfiles: {
+    getResponseForOrganization: jest.Mock;
+    resolveEnabledToolIds: jest.Mock;
+  };
 
   const ORG_ID = 'org-id';
   const TOKEN = 'EAAG_super_secret_meta_token';
@@ -75,6 +80,18 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
     ghl = { listContacts: jest.fn(), listCalendars: jest.fn() };
     meta = { getPhoneNumber: jest.fn(), listTemplates: jest.fn() };
     voiceAgents = { findOne: jest.fn() };
+    toolProfiles = {
+      getResponseForOrganization: jest
+        .fn()
+        .mockResolvedValue({ id: 'profile-1' }),
+      resolveEnabledToolIds: jest
+        .fn()
+        .mockResolvedValue([
+          'upsertGhlContact',
+          'checkGhlFreeSlots',
+          'scheduleGhlMeeting',
+        ]),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -87,6 +104,7 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
         { provide: NylasService, useValue: { listCalendars: jest.fn() } },
         { provide: GhlService, useValue: ghl },
         { provide: MetaWhatsAppClient, useValue: meta },
+        { provide: ToolProfilesService, useValue: toolProfiles },
         {
           provide: getRepositoryToken(OrganizationAgent),
           useValue: voiceAgents,
@@ -211,6 +229,7 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
       expect(result).toEqual({
         systemPrompt: 'Be brief.',
         bookingVoiceAgentId: null,
+        whatsappToolProfileId: null,
       });
       expect(JSON.stringify(result)).not.toContain(TOKEN);
     });
@@ -219,6 +238,7 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
       await expect(service.getWhatsAppAgent(ORG_ID)).resolves.toEqual({
         systemPrompt: null,
         bookingVoiceAgentId: null,
+        whatsappToolProfileId: null,
       });
     });
 
@@ -278,6 +298,61 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
         service.updateWhatsAppAgent(ORG_ID, 'Book meetings', 'foreign-voice'),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(row.bookingVoiceAgentId).toBe('voice-1');
+    });
+
+    it('requires a visible assigned GHL tool profile and a calendar source', async () => {
+      const row = waRow({
+        systemPrompt: 'Book meetings',
+        bookingVoiceAgentId: 'voice-1',
+        whatsappToolProfileId: null,
+      });
+      repository.findByOrganization.mockResolvedValue([row]);
+      repository.save.mockImplementation(
+        async (r: OrganizationIntegration) => r,
+      );
+
+      const saved = await service.updateWhatsAppAgent(
+        ORG_ID,
+        'Book meetings',
+        undefined,
+        'profile-1',
+      );
+      expect(saved.whatsappToolProfileId).toBe('profile-1');
+      expect(toolProfiles.getResponseForOrganization).toHaveBeenCalledWith(
+        ORG_ID,
+        'profile-1',
+      );
+      expect(toolProfiles.resolveEnabledToolIds).toHaveBeenCalledWith(
+        'profile-1',
+        ORG_ID,
+      );
+
+      toolProfiles.resolveEnabledToolIds.mockResolvedValue(['endCall']);
+      await expect(
+        service.updateWhatsAppAgent(
+          ORG_ID,
+          'Book meetings',
+          undefined,
+          'profile-2',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(row.whatsappToolProfileId).toBe('profile-1');
+
+      toolProfiles.resolveEnabledToolIds.mockResolvedValue([
+        'scheduleGhlMeeting',
+      ]);
+      await expect(
+        service.updateWhatsAppAgent(
+          ORG_ID,
+          'Book meetings',
+          undefined,
+          'profile-3',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      await expect(
+        service.updateWhatsAppAgent(ORG_ID, 'Book meetings', null, 'profile-1'),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 

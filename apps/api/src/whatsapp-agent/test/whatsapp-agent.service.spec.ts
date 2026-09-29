@@ -10,6 +10,7 @@ import {
 } from '../receptionist-reply';
 import { WhatsAppAgentService } from '../whatsapp-agent.service';
 import { WhatsAppTextClient } from '../whatsapp-text.client';
+import { ToolProfilesService } from '../../tools/tool-profiles.service';
 
 const PHONE_ID = '106540352242922';
 const MESSAGES_URL = `https://graph.facebook.com/v25.0/${PHONE_ID}/messages`;
@@ -54,6 +55,10 @@ describe('WhatsAppAgentService', () => {
     findActiveWhatsAppByPhoneNumberId: jest.Mock;
   };
   let meta: { sendText: jest.Mock };
+  let toolProfiles: {
+    getResponseForOrganization: jest.Mock;
+    resolveEnabledToolIds: jest.Mock;
+  };
   let configGet: jest.Mock;
   let fetchMock: jest.Mock;
   const originalFetch = global.fetch;
@@ -79,6 +84,18 @@ describe('WhatsAppAgentService', () => {
     meta = {
       sendText: jest.fn().mockResolvedValue({ ok: true, data: { wamid: 'w' } }),
     };
+    toolProfiles = {
+      getResponseForOrganization: jest
+        .fn()
+        .mockResolvedValue({ id: 'profile-1' }),
+      resolveEnabledToolIds: jest
+        .fn()
+        .mockResolvedValue([
+          'upsertGhlContact',
+          'checkGhlFreeSlots',
+          'scheduleGhlMeeting',
+        ]),
+    };
     fetchMock = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -97,6 +114,7 @@ describe('WhatsAppAgentService', () => {
           useValue: integrations,
         },
         { provide: MetaWhatsAppClient, useValue: meta },
+        { provide: ToolProfilesService, useValue: toolProfiles },
       ],
     }).compile();
     service = moduleRef.get(WhatsAppAgentService);
@@ -270,6 +288,7 @@ describe('WhatsAppAgentService', () => {
         phoneNumberId: orgPhone,
         systemPrompt: ORG_PROMPT,
         bookingVoiceAgentId: 'voice-agent-1',
+        whatsappToolProfileId: 'profile-1',
         isActive: true,
       });
 
@@ -283,8 +302,54 @@ describe('WhatsAppAgentService', () => {
         bookingSource: {
           organizationId: ORG_ID,
           voiceAgentId: 'voice-agent-1',
+          toolIds: [
+            'upsertGhlContact',
+            'checkGhlFreeSlots',
+            'scheduleGhlMeeting',
+          ],
         },
       });
+    });
+
+    it('limits WhatsApp tools to the profile and current org allowlist', async () => {
+      integrations.findActiveWhatsAppByPhoneNumberId.mockResolvedValue({
+        organizationId: ORG_ID,
+        apiKey: ORG_TOKEN,
+        phoneNumberId: orgPhone,
+        systemPrompt: ORG_PROMPT,
+        bookingVoiceAgentId: 'voice-agent-1',
+        whatsappToolProfileId: 'profile-1',
+        isActive: true,
+      });
+      toolProfiles.resolveEnabledToolIds.mockResolvedValue([
+        'endCall',
+        'checkGhlFreeSlots',
+      ]);
+
+      await service.replyToWebhook(
+        textPayload('wamid.profile-limited', orgPhone, 'Any slots?'),
+      );
+      expect(receptionist.reply).toHaveBeenCalledWith(
+        FROM,
+        'Any slots?',
+        expect.objectContaining({
+          bookingSource: {
+            organizationId: ORG_ID,
+            voiceAgentId: 'voice-agent-1',
+            toolIds: ['checkGhlFreeSlots'],
+          },
+        }),
+      );
+
+      toolProfiles.resolveEnabledToolIds.mockResolvedValue(['endCall']);
+      await service.replyToWebhook(
+        textPayload('wamid.profile-disabled', orgPhone, 'Book now'),
+      );
+      expect(receptionist.reply).toHaveBeenLastCalledWith(
+        FROM,
+        'Book now',
+        expect.objectContaining({ bookingSource: undefined }),
+      );
     });
 
     it('skips when the org prompt is empty', async () => {

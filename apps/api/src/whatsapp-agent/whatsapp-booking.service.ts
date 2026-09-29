@@ -111,6 +111,23 @@ export class WhatsAppBookingService {
     });
   }
 
+  async lookupContact(
+    source: BookingSource,
+    input: { email?: string; phone?: string },
+  ) {
+    const creds = await this.creds(source);
+    if (!creds)
+      return {
+        ok: false as const,
+        error: 'calendar_unavailable',
+        message: 'The linked voice agent has no active GHL calendar.',
+      };
+    return this.ghl.lookupContact(input, {
+      token: creds.token,
+      locationId: creds.locationId,
+    });
+  }
+
   async scheduleMeeting(
     source: BookingSource,
     input: {

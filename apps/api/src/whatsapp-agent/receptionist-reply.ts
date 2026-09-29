@@ -5,7 +5,11 @@ export type ReceptionistReplyOpts = {
   instruction?: string;
   /** In-memory session id. Defaults to `from`. Use `{orgId}:{from}` for org path. */
   sessionKey?: string;
-  bookingSource?: { organizationId: string; voiceAgentId: string };
+  bookingSource?: {
+    organizationId: string;
+    voiceAgentId: string;
+    toolIds: string[];
+  };
 };
 
 export type ReceptionistResetOpts = {

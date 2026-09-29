@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AgentsModule } from '../agents/agents.module';
+import { ToolsModule } from '../tools/tools.module';
 import { MetaWhatsAppModule } from '../meta-whatsapp/meta-whatsapp.module';
 import { OrganizationIntegrationsModule } from '../organization-integrations/organization-integrations.module';
 import { RECEPTIONIST_REPLY } from './receptionist-reply';
@@ -10,7 +11,12 @@ import { WhatsAppTextClient } from './whatsapp-text.client';
 import { WhatsAppBookingService } from './whatsapp-booking.service';
 
 @Module({
-  imports: [AgentsModule, OrganizationIntegrationsModule, MetaWhatsAppModule],
+  imports: [
+    AgentsModule,
+    ToolsModule,
+    OrganizationIntegrationsModule,
+    MetaWhatsAppModule,
+  ],
   controllers: [WhatsAppAgentController],
   providers: [
     WhatsAppTextClient,

@@ -1,11 +1,14 @@
 import { useEffect, useState, type FormEvent } from "react";
-import type { Agent, OrganizationIntegration } from "@call-agent/contracts";
+import { Link } from "react-router-dom";
+import type { Agent, OrganizationIntegration, ToolProfile } from "@call-agent/contracts";
 import { Alert, Button, Field, Select, Textarea } from "@call-agent/ui";
 import {
   ApiError,
   getUserWhatsAppAgent,
   listUserAgents,
   listUserOrgIntegrations,
+  listUserKnownTools,
+  listUserToolProfiles,
   UnauthorizedError,
   updateUserWhatsAppAgent,
 } from "../../lib/api";
@@ -14,6 +17,12 @@ import { ErrorBlock } from "../components/ErrorBlock";
 import { LoadingBlock } from "../components/LoadingBlock";
 
 const MAX_PROMPT_LENGTH = 20000;
+const GHL_TOOL_IDS = new Set([
+  "lookupGhlContact",
+  "upsertGhlContact",
+  "checkGhlFreeSlots",
+  "scheduleGhlMeeting",
+]);
 
 type Props = {
   hasWhatsApp: boolean;
@@ -28,6 +37,9 @@ export default function WhatsAppAgentTab({ hasWhatsApp, onGoConnections }: Props
   const [savedBookingAgentId, setSavedBookingAgentId] = useState<string | null>(null);
   const [bookingAgentId, setBookingAgentId] = useState<string | null>(null);
   const [voiceAgents, setVoiceAgents] = useState<Agent[]>([]);
+  const [toolProfiles, setToolProfiles] = useState<ToolProfile[]>([]);
+  const [savedToolProfileId, setSavedToolProfileId] = useState<string | null>(null);
+  const [toolProfileId, setToolProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -39,8 +51,8 @@ export default function WhatsAppAgentTab({ hasWhatsApp, onGoConnections }: Props
     let active = true;
     setLoading(true);
     setLoadError(null);
-    Promise.all([getUserWhatsAppAgent(), listUserAgents(), listUserOrgIntegrations()])
-      .then(([config, agents, integrations]) => {
+    Promise.all([getUserWhatsAppAgent(), listUserAgents(), listUserOrgIntegrations(), listUserToolProfiles(), listUserKnownTools()])
+      .then(([config, agents, integrations, profiles, knownTools]) => {
         if (!active) return;
         const prompt = config.systemPrompt ?? "";
         setSavedPrompt(prompt);
@@ -48,6 +60,19 @@ export default function WhatsAppAgentTab({ hasWhatsApp, onGoConnections }: Props
         setPlatformPrompt(config.platformPrompt);
         setSavedBookingAgentId(config.bookingVoiceAgentId);
         setBookingAgentId(config.bookingVoiceAgentId);
+        setSavedToolProfileId(config.whatsappToolProfileId);
+        setToolProfileId(config.whatsappToolProfileId);
+        const assigned = new Set(knownTools.toolIds);
+        setToolProfiles(
+          profiles
+            .map((profile) => ({ ...profile, toolIds: profile.toolIds.filter((id) => assigned.has(id)) }))
+            .filter((profile) => {
+              const ids = new Set(profile.toolIds);
+              return profile.toolIds.some((id) => GHL_TOOL_IDS.has(id)) &&
+                (!ids.has("scheduleGhlMeeting") ||
+                  (ids.has("checkGhlFreeSlots") && (ids.has("lookupGhlContact") || ids.has("upsertGhlContact"))));
+            }),
+        );
         const activeGhlIds = new Set(
           integrations
             .filter((item: OrganizationIntegration) => item.provider === "ghl" && item.isActive)
@@ -87,7 +112,7 @@ export default function WhatsAppAgentTab({ hasWhatsApp, onGoConnections }: Props
     );
   }
 
-  const changed = draft !== savedPrompt || bookingAgentId !== savedBookingAgentId;
+  const changed = draft !== savedPrompt || bookingAgentId !== savedBookingAgentId || toolProfileId !== savedToolProfileId;
   const enabled = savedPrompt.trim().length > 0;
 
   const handleSave = async (e: FormEvent) => {
@@ -97,12 +122,18 @@ export default function WhatsAppAgentTab({ hasWhatsApp, onGoConnections }: Props
     setFormError(null);
     setSaved(false);
     try {
-      const result = await updateUserWhatsAppAgent({ systemPrompt: draft, bookingVoiceAgentId: bookingAgentId });
+      const result = await updateUserWhatsAppAgent({
+        systemPrompt: draft,
+        bookingVoiceAgentId: bookingAgentId,
+        whatsappToolProfileId: toolProfileId,
+      });
       const prompt = result.systemPrompt ?? "";
       setSavedPrompt(prompt);
       setDraft(prompt);
       setSavedBookingAgentId(result.bookingVoiceAgentId);
       setBookingAgentId(result.bookingVoiceAgentId);
+      setSavedToolProfileId(result.whatsappToolProfileId);
+      setToolProfileId(result.whatsappToolProfileId);
       setSaved(true);
     } catch (err) {
       if (err instanceof UnauthorizedError) {
@@ -221,7 +252,29 @@ export default function WhatsAppAgentTab({ hasWhatsApp, onGoConnections }: Props
                 placeholder="You are the WhatsApp assistant for [your organization]. Help customers with..."
               />
             </Field>
-            <Field label="Booking tools from voice agent" htmlFor="wa-agent-booking">
+            <Field label="Tool profile" htmlFor="wa-agent-tools">
+              <Select
+                id="wa-agent-tools"
+                value={toolProfileId ?? ""}
+                onChange={(e) => {
+                  setToolProfileId(e.target.value || null);
+                  setSaved(false);
+                }}
+                disabled={submitting || !hasWhatsApp}
+              >
+                <option value="">Off — no GHL tools</option>
+                {toolProfiles.map((profile) => (
+                  <option key={profile.id} value={profile.id}>{profile.name}</option>
+                ))}
+              </Select>
+            </Field>
+            {toolProfiles.length === 0 ? <p className="ops-desk-note">
+              No assigned GHL tools are in a profile yet. <Link to="/dashboard/tool-profiles">Set up a tool profile</Link> first.
+            </p> : null}
+            {toolProfileId ? <p className="ops-desk-note">
+              Available GHL tools: {toolProfiles.find((profile) => profile.id === toolProfileId)?.toolIds.filter((id) => GHL_TOOL_IDS.has(id)).join(", ") || "none"}.
+            </p> : null}
+            {toolProfileId ? <Field label="GHL calendar from voice agent" htmlFor="wa-agent-booking">
               <Select
                 id="wa-agent-booking"
                 value={bookingAgentId ?? ""}
@@ -231,16 +284,18 @@ export default function WhatsAppAgentTab({ hasWhatsApp, onGoConnections }: Props
                 }}
                 disabled={submitting || !hasWhatsApp}
               >
-                <option value="">Off — collect details only</option>
+                <option value="">Select a voice agent with a GHL calendar</option>
                 {voiceAgents.map((agent) => (
                   <option key={agent.id} value={agent.id}>{agent.name}</option>
                 ))}
               </Select>
-            </Field>
-            <p className="ops-desk-note">
-              Uses the selected voice agent’s existing GHL calendar connection to create contacts,
-              check open times, and book meetings. No new integration is needed.
-            </p>
+            </Field> : null}
+            {toolProfileId ? <p className="ops-desk-note">
+              Uses the selected voice agent’s existing GHL calendar connection. No new integration is needed.
+            </p> : null}
+            {toolProfileId && voiceAgents.length === 0 ? <p className="ops-desk-note">
+              <Link to="/dashboard/agents">Link an active GHL calendar to a voice agent</Link> before saving.
+            </p> : null}
             <div className="ops-wa-agent-editor-foot">
               <span className="ops-desk-note">
                 {draft.length.toLocaleString()} / {MAX_PROMPT_LENGTH.toLocaleString()} characters
@@ -256,6 +311,7 @@ export default function WhatsAppAgentTab({ hasWhatsApp, onGoConnections }: Props
                     onClick={() => {
                       setDraft(savedPrompt);
                       setBookingAgentId(savedBookingAgentId);
+                      setToolProfileId(savedToolProfileId);
                       setFormError(null);
                     }}
                   >

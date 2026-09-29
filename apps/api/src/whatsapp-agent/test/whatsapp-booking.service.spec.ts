@@ -15,6 +15,7 @@ describe('WhatsAppBookingService', () => {
   const integrations = { getEntityForOrg: jest.fn() };
   const ghl = {
     upsertContact: jest.fn(),
+    lookupContact: jest.fn(),
     getFreeSlots: jest.fn(),
     createAppointment: jest.fn(),
   };
@@ -45,6 +46,11 @@ describe('WhatsAppBookingService', () => {
       contactId: 'contact-1',
       created: true,
     });
+    ghl.lookupContact.mockResolvedValue({
+      ok: true,
+      found: true,
+      contactId: 'contact-1',
+    });
     ghl.getFreeSlots.mockResolvedValue({
       ok: true,
       slotMinutes: 30,
@@ -59,6 +65,7 @@ describe('WhatsAppBookingService', () => {
     });
 
     await service.upsertContact(source, { phone: '+15550102000' });
+    await service.lookupContact(source, { phone: '+15550102000' });
     await service.freeSlots(source, {
       startTime: '2030-01-01T09:00:00Z',
       endTime: '2030-01-01T17:00:00Z',
@@ -77,6 +84,10 @@ describe('WhatsAppBookingService', () => {
       'integration-1',
     );
     expect(ghl.upsertContact).toHaveBeenCalledWith(
+      { phone: '+15550102000' },
+      { token: creds.token, locationId: creds.locationId },
+    );
+    expect(ghl.lookupContact).toHaveBeenCalledWith(
       { phone: '+15550102000' },
       { token: creds.token, locationId: creds.locationId },
     );

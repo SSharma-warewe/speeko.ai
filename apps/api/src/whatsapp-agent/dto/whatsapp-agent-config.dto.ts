@@ -17,6 +17,13 @@ export class WhatsAppAgentConfigDto {
   bookingVoiceAgentId!: string | null;
 
   @ApiProperty({
+    nullable: true,
+    description:
+      'Existing tool profile controlling available GHL booking tools.',
+  })
+  whatsappToolProfileId!: string | null;
+
+  @ApiProperty({
     description:
       'Read-only platform receptionist prompt, offered as an example for org agents.',
   })
@@ -42,4 +49,14 @@ export class UpdateWhatsAppAgentDto {
   @IsOptional()
   @IsUUID()
   bookingVoiceAgentId?: string | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description:
+      'Tool profile to grant GHL contact and calendar tools; null disables them.',
+  })
+  @IsOptional()
+  @IsUUID()
+  whatsappToolProfileId?: string | null;
 }

@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MetaWhatsAppClient } from '../meta-whatsapp/meta-whatsapp.client';
 import { OrganizationIntegrationsService } from '../organization-integrations/organization-integrations.service';
+import { ToolProfilesService } from '../tools/tool-profiles.service';
 import {
   listInboundTextMessages,
   phoneNumberIdFromMessagesUrl,
@@ -13,6 +14,7 @@ import {
   type ReceptionistReply,
 } from './receptionist-reply';
 import { WhatsAppTextClient } from './whatsapp-text.client';
+import { whatsappGhlToolIds } from './whatsapp-booking-tool-ids';
 
 const SEEN_LIMIT = 500;
 
@@ -35,6 +37,7 @@ export class WhatsAppAgentService {
     private readonly text: WhatsAppTextClient,
     private readonly meta: MetaWhatsAppClient,
     private readonly integrations: OrganizationIntegrationsService,
+    private readonly toolProfiles: ToolProfilesService,
     @Inject(RECEPTIONIST_REPLY)
     private readonly receptionist: ReceptionistReply,
   ) {}
@@ -96,16 +99,45 @@ export class WhatsAppAgentService {
             this.warnOnce('OPENROUTER_API_KEY is not set');
             continue;
           }
+          let bookingSource:
+            | {
+                organizationId: string;
+                voiceAgentId: string;
+                toolIds: string[];
+              }
+            | undefined;
+          if (
+            orgConnection.bookingVoiceAgentId &&
+            orgConnection.whatsappToolProfileId
+          ) {
+            try {
+              await this.toolProfiles.getResponseForOrganization(
+                orgConnection.organizationId,
+                orgConnection.whatsappToolProfileId,
+              );
+              const ids = await this.toolProfiles.resolveEnabledToolIds(
+                orgConnection.whatsappToolProfileId,
+                orgConnection.organizationId,
+              );
+              const toolIds = whatsappGhlToolIds(ids);
+              if (toolIds.length) {
+                bookingSource = {
+                  organizationId: orgConnection.organizationId,
+                  voiceAgentId: orgConnection.bookingVoiceAgentId,
+                  toolIds,
+                };
+              }
+            } catch {
+              this.warnOnce(
+                `org WhatsApp tool profile unavailable (${orgConnection.organizationId})`,
+              );
+            }
+          }
           const reply = (
             await this.receptionist.reply(message.from, message.body, {
               instruction: prompt,
               sessionKey,
-              bookingSource: orgConnection.bookingVoiceAgentId
-                ? {
-                    organizationId: orgConnection.organizationId,
-                    voiceAgentId: orgConnection.bookingVoiceAgentId,
-                  }
-                : undefined,
+              bookingSource,
             })
           ).trim();
           if (!reply) {

@@ -12,6 +12,7 @@ import { IntegrationProvider } from '@call-agent/contracts';
 import { Organization } from '../organizations/organization.entity';
 import { User } from '../users/user.entity';
 import { OrganizationAgent } from '../agents/organization-agent.entity';
+import { ToolProfile } from '../tools/tool-profile.entity';
 
 export { IntegrationProvider };
 
@@ -85,6 +86,14 @@ export class OrganizationIntegration {
   @ManyToOne(() => OrganizationAgent, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'booking_voice_agent_id' })
   bookingVoiceAgent!: OrganizationAgent | null;
+
+  /** Tool profile controlling the GHL tools exposed to this WhatsApp agent. */
+  @Column({ name: 'whatsapp_tool_profile_id', type: 'uuid', nullable: true })
+  whatsappToolProfileId!: string | null;
+
+  @ManyToOne(() => ToolProfile, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'whatsapp_tool_profile_id' })
+  whatsappToolProfile!: ToolProfile | null;
 
   /** Calendar id within the grant (Nylas, default primary) or GHL calendar id. */
   @Column({

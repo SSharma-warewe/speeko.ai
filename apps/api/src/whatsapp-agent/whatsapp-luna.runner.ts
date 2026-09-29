@@ -20,6 +20,7 @@ import type {
 
 const LUNA_MODEL = 'openai/gpt-5.6-luna';
 const APP_NAME = 'warewe-receptionist';
+type BookingToolSource = BookingSource & { toolIds: string[] };
 
 type AdkEvent = {
   content?: { parts?: ReplyPart[] };
@@ -64,7 +65,7 @@ type AdkModule = {
       args: Record<string, string>,
       context?: BookingToolContext,
     ) => Promise<unknown>;
-  }) => unknown;
+  }) => { name: string };
   LlmAgent: new (config: {
     name: string;
     description: string;
@@ -131,7 +132,7 @@ export class WhatsAppLunaRunner implements ReceptionistReply {
     const sessionId = opts?.sessionKey?.trim() || from;
     const source = opts?.bookingSource;
     const runtimeInstruction = source
-      ? `${instruction}\n\nBooking tools are connected. Check available GHL slots, create/update the contact, then book only the agreed slot. Confirm only after scheduleGhlMeeting returns ok=true. Current UTC date: ${new Date().toISOString().slice(0, 10)}.`
+      ? `${instruction}\n\nEnabled GHL tools from the selected tool profile: ${source.toolIds.join(', ')}. Use only these tools. Confirm a meeting only after scheduleGhlMeeting returns ok=true. Current UTC date: ${new Date().toISOString().slice(0, 10)}.`
       : `${instruction}\n\nBooking tools are not connected. Do not claim a contact was saved or a meeting booked.`;
     const runner = await this.runnerFor(apiKey, runtimeInstruction, source);
     await runner.sessionService.getOrCreateSession({
@@ -180,10 +181,10 @@ export class WhatsAppLunaRunner implements ReceptionistReply {
   private runnerFor(
     apiKey: string,
     instruction: string,
-    source?: BookingSource,
+    source?: BookingToolSource,
   ): Promise<AdkRunner> {
     const key = instructionKey(
-      `${instruction}:${source?.organizationId ?? ''}:${source?.voiceAgentId ?? ''}`,
+      `${instruction}:${source?.organizationId ?? ''}:${source?.voiceAgentId ?? ''}:${source?.toolIds.join(',') ?? ''}`,
     );
     let pending = this.runners.get(key);
     if (!pending) {
@@ -201,7 +202,7 @@ export class WhatsAppLunaRunner implements ReceptionistReply {
   private async createRunner(
     apiKey: string,
     instruction: string,
-    source?: BookingSource,
+    source?: BookingToolSource,
   ): Promise<AdkRunner> {
     const adk = await this.adk();
     const bridge = await importEsm('adk-llm-bridge');
@@ -218,7 +219,7 @@ export class WhatsAppLunaRunner implements ReceptionistReply {
     return new adk.InMemoryRunner({ agent, appName: APP_NAME });
   }
 
-  private bookingTools(adk: AdkModule, source: BookingSource): unknown[] {
+  private bookingTools(adk: AdkModule, source: BookingToolSource): unknown[] {
     const tool = (
       name: string,
       description: string,
@@ -228,7 +229,7 @@ export class WhatsAppLunaRunner implements ReceptionistReply {
         context?: BookingToolContext,
       ) => Promise<unknown>,
     ) => new adk.FunctionTool({ name, description, parameters, execute });
-    return [
+    const available = [
       tool(
         'checkGhlFreeSlots',
         'Find open meeting slots. Offer only returned startIso times. Specify an IANA timezone for local times.',
@@ -247,6 +248,31 @@ export class WhatsAppLunaRunner implements ReceptionistReply {
               'wa:offeredSlots',
               result.slots.map((slot) => slot.startIso),
             );
+          return result;
+        },
+      ),
+      tool(
+        'lookupGhlContact',
+        'Look up an existing customer in the linked voice agent GHL account by the WhatsApp sender phone and optional email.',
+        z.object({ email: z.string().max(255).optional() }),
+        async (args, context) => {
+          const phone = context?.sessionId.startsWith(
+            `${source.organizationId}:`,
+          )
+            ? context.sessionId.slice(source.organizationId.length + 1)
+            : undefined;
+          if (!phone)
+            return {
+              ok: false,
+              error: 'missing_sender',
+              message: 'WhatsApp sender phone is unavailable.',
+            };
+          const result = await this.booking.lookupContact(source, {
+            email: args.email,
+            phone,
+          });
+          if (result.ok && result.found)
+            context?.state.set('wa:ghlContactId', result.contactId);
           return result;
         },
       ),
@@ -283,7 +309,7 @@ export class WhatsAppLunaRunner implements ReceptionistReply {
       ),
       tool(
         'scheduleGhlMeeting',
-        'Book an agreed open slot for the contact created by upsertGhlContact. Never claim success when ok=false.',
+        'Book an agreed open slot for a contact found or created by the GHL contact tools. Never claim success when ok=false.',
         z.object({
           startTime: z.string(),
           endTime: z.string().optional(),
@@ -297,7 +323,7 @@ export class WhatsAppLunaRunner implements ReceptionistReply {
             return {
               ok: false,
               error: 'missing_contact',
-              message: 'Create or update the contact first.',
+              message: 'Look up or create the contact first.',
             };
           const previous = context?.state.get<{
             contactId: string;
@@ -339,6 +365,8 @@ export class WhatsAppLunaRunner implements ReceptionistReply {
         },
       ),
     ];
+    const selected = new Set(source.toolIds);
+    return available.filter((item) => selected.has(item.name));
   }
 
   private async adk(): Promise<AdkModule> {

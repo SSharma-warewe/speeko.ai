@@ -4473,6 +4473,12 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.ops-desk-board:has(.ops-wa-agent) {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  align-content: start;
+}
+
 .ops-table .ops-check-col {
   width: 2.1rem;
   padding-right: 0;

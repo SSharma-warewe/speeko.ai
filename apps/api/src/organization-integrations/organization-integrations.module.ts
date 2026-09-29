@@ -5,6 +5,7 @@ import { OrganizationAgent } from '../agents/organization-agent.entity';
 import { CallsModule } from '../calls/calls.module';
 import { MetaWhatsAppModule } from '../meta-whatsapp/meta-whatsapp.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
+import { ToolsModule } from '../tools/tools.module';
 import { CalendarToolsService } from './calendar-tools.service';
 import { InternalCalendarController } from './internal-calendar.controller';
 import { NylasService } from './nylas.service';
@@ -17,6 +18,7 @@ import { UserOrganizationIntegrationsController } from './user-organization-inte
   imports: [
     TypeOrmModule.forFeature([OrganizationIntegration, OrganizationAgent]),
     OrganizationsModule,
+    ToolsModule,
     MetaWhatsAppModule,
     forwardRef(() => AgentsModule),
     forwardRef(() => CallsModule),

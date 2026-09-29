@@ -3,6 +3,7 @@ export type WhatsAppAgentConfig = {
   /** Null when unset; empty string clears/disables auto-reply. */
   systemPrompt: string | null;
   bookingVoiceAgentId: string | null;
+  whatsappToolProfileId: string | null;
   /** Read-only example used by the separate platform receptionist. */
   platformPrompt: string;
 };
@@ -10,4 +11,5 @@ export type WhatsAppAgentConfig = {
 export type UpdateWhatsAppAgentRequest = {
   systemPrompt: string;
   bookingVoiceAgentId?: string | null;
+  whatsappToolProfileId?: string | null;
 };
