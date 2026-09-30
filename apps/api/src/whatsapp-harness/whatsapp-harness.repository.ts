@@ -5,7 +5,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, LessThanOrEqual } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  In,
+  IsNull,
+  LessThanOrEqual,
+} from 'typeorm';
 import type { WhatsAppTurnCheckpoint } from '@call-agent/contracts';
 import { WhatsAppConversation } from './whatsapp-conversation.entity';
 import { WhatsAppTurn } from './whatsapp-turn.entity';
@@ -31,8 +37,9 @@ export class WhatsAppHarnessRepository {
   constructor(@InjectDataSource() private readonly db: DataSource) {}
 
   async ingest(input: {
-    organizationId: string;
-    connectionId: string;
+    organizationId: string | null;
+    connectionId: string | null;
+    scope?: 'org' | 'platform';
     sender: string;
     phoneNumberId: string;
     messageId: string;
@@ -47,11 +54,25 @@ export class WhatsAppHarnessRepository {
           organizationId: input.organizationId,
           connectionId: input.connectionId,
           sender: input.sender,
+          scope: input.scope ?? 'org',
+          platformPhoneNumberId:
+            input.scope === 'platform' ? input.phoneNumberId : null,
         })
         .orIgnore()
         .execute();
       const conversation = await manager.findOneOrFail(WhatsAppConversation, {
-        where: { connectionId: input.connectionId, sender: input.sender },
+        where:
+          input.scope === 'platform'
+            ? {
+                scope: 'platform',
+                platformPhoneNumberId: input.phoneNumberId,
+                sender: input.sender,
+              }
+            : {
+                scope: 'org',
+                connectionId: input.connectionId!,
+                sender: input.sender,
+              },
         lock: { mode: 'pessimistic_write' },
       });
       const duplicate = await manager.findOneBy(WhatsAppTurn, {
@@ -287,6 +308,7 @@ export class WhatsAppHarnessRepository {
     await this.db.getRepository(WhatsAppOutbox).update(
       {
         status: 'sending',
+        kind: 'text',
         sendStartedAt: LessThanOrEqual(new Date(Date.now() - 60_000)),
       },
       { status: 'uncertain', errorCode: 'send_outcome_unknown' },
@@ -300,7 +322,7 @@ export class WhatsAppHarnessRepository {
   async reserveSend(): Promise<WhatsAppOutbox | null> {
     return this.db.transaction(async (manager) => {
       const rows: Array<{ id: string }> = await manager.query(
-        `SELECT o.id FROM whatsapp_message_outbox o WHERE o.status='pending' AND o.next_attempt_at<=NOW() ORDER BY o.created_at ASC FOR UPDATE SKIP LOCKED LIMIT 1`,
+        `SELECT o.id FROM whatsapp_message_outbox o WHERE o.status='pending' AND o.next_attempt_at<=NOW() ORDER BY (o.kind='otp_template') DESC, o.created_at ASC FOR UPDATE SKIP LOCKED LIMIT 1`,
       );
       if (!rows.length) return null;
       const outbox = await manager.findOneByOrFail(WhatsAppOutbox, {
@@ -326,7 +348,7 @@ export class WhatsAppHarnessRepository {
         where: { id },
         relations: ['turn'],
       });
-      if (!initial) return null;
+      if (!initial?.turn || initial.kind !== 'text') return null;
       const conversation = await manager.findOneOrFail(WhatsAppConversation, {
         where: { id: initial.turn.conversationId },
         lock: { mode: 'pessimistic_write' },
@@ -341,12 +363,18 @@ export class WhatsAppHarnessRepository {
     });
   }
 
-  async inspect(organizationId: string, conversationId?: string) {
+  private scopeWhere(organizationId: string | null) {
+    return organizationId === null
+      ? { scope: 'platform' as const, organizationId: IsNull() }
+      : { scope: 'org' as const, organizationId };
+  }
+
+  async inspect(organizationId: string | null, conversationId?: string) {
     const conversations = await this.db
       .getRepository(WhatsAppConversation)
       .find({
         where: {
-          organizationId,
+          ...this.scopeWhere(organizationId),
           ...(conversationId ? { id: conversationId } : {}),
         },
         order: { updatedAt: 'DESC' },
@@ -381,12 +409,15 @@ export class WhatsAppHarnessRepository {
     };
   }
 
-  async retry(organizationId: string, turnId: string) {
+  async retry(organizationId: string | null, turnId: string) {
     await this.db.transaction(async (manager) => {
       const initial = await manager.findOneBy(WhatsAppTurn, { id: turnId });
       if (!initial) throw new NotFoundException('WhatsApp turn not found');
       const conversation = await manager.findOne(WhatsAppConversation, {
-        where: { id: initial.conversationId, organizationId },
+        where: {
+          id: initial.conversationId,
+          ...this.scopeWhere(organizationId),
+        },
         lock: { mode: 'pessimistic_write' },
       });
       if (!conversation) throw new NotFoundException('WhatsApp turn not found');
@@ -408,7 +439,7 @@ export class WhatsAppHarnessRepository {
   }
 
   async resolveSend(
-    organizationId: string,
+    organizationId: string | null,
     id: string,
     outcome: 'accepted' | 'failed' | 'retry',
   ) {
@@ -417,9 +448,13 @@ export class WhatsAppHarnessRepository {
         where: { id },
         relations: ['turn'],
       });
-      if (!initial) throw new NotFoundException('WhatsApp message not found');
+      if (!initial?.turn || initial.kind !== 'text')
+        throw new NotFoundException('WhatsApp message not found');
       const conversation = await manager.findOne(WhatsAppConversation, {
-        where: { id: initial.turn.conversationId, organizationId },
+        where: {
+          id: initial.turn.conversationId,
+          ...this.scopeWhere(organizationId),
+        },
         lock: { mode: 'pessimistic_write' },
       });
       if (!conversation)

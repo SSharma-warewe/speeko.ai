@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { WhatsAppTickerService } from '../whatsapp-ticker.service';
 import type { WhatsAppHarnessRepository } from '../whatsapp-harness.repository';
 import type { WhatsAppHarnessService } from '../whatsapp-harness.service';
+import type { OtpDeliveryRepository } from '../otp-delivery.repository';
 
 describe('WhatsApp API ticker', () => {
   const originalFetch = global.fetch;
@@ -26,6 +27,7 @@ describe('WhatsApp API ticker', () => {
       }),
       repository as unknown as WhatsAppHarnessRepository,
       harness as unknown as WhatsAppHarnessService,
+      { reap: jest.fn() } as unknown as OtpDeliveryRepository,
     );
   });
   afterEach(() => {
@@ -45,6 +47,7 @@ describe('WhatsApp API ticker', () => {
     expect(repository.claim).toHaveBeenCalledTimes(1);
     release();
     await first;
+    await ticker.sendTick();
     expect(harness.sendOne).toHaveBeenCalledTimes(4);
     expect(repository.fail).not.toHaveBeenCalled();
   });
@@ -66,5 +69,11 @@ describe('WhatsApp API ticker', () => {
     harness.isEnabled.mockReturnValue(false);
     await ticker.tick();
     expect(repository.claim).not.toHaveBeenCalled();
+  });
+  it('continues delivery when dispatch is unavailable', async () => {
+    global.fetch = jest.fn().mockRejectedValue(new Error('offline'));
+    await Promise.all([ticker.tick(), ticker.sendTick()]);
+    expect(harness.sendOne).toHaveBeenCalledTimes(4);
+    expect(ticker.health().lastSendError).toBeNull();
   });
 });

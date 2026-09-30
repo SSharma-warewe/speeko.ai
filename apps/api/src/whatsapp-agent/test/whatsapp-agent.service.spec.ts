@@ -66,6 +66,19 @@ describe('WhatsAppAgentService', () => {
   afterEach(() => {
     global.fetch = originalFetch;
   });
+  it('suppresses both legacy platform text and reset when platform harness is enabled', async () => {
+    const original = configGet.getMockImplementation()!;
+    configGet.mockImplementation((key: string) =>
+      key === 'WHATSAPP_PLATFORM_HARNESS_ENABLED' ? 'true' : original(key),
+    );
+    await service.replyToWebhook(textPayload('harness.normal'));
+    await service.replyToWebhook(
+      textPayload('harness.reset', PHONE_ID, '/new'),
+    );
+    expect(receptionist.reply).not.toHaveBeenCalled();
+    expect(receptionist.reset).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 
   beforeEach(async () => {
     configGet = jest.fn((key: string) => {

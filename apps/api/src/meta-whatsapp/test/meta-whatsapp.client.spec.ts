@@ -25,6 +25,21 @@ describe('MetaWhatsAppClient', () => {
     fetchMock = jest.spyOn(global, 'fetch');
   });
   afterEach(() => fetchMock.mockRestore());
+  it('uses an explicit validated platform Graph version for OTP templates', async () => {
+    fetchMock.mockResolvedValue(json({ messages: [{ id: 'otp' }] }));
+    await makeClient('v25.0').sendTemplate({
+      token: TOKEN,
+      phoneNumberId: '123456',
+      graphVersion: 'v22.0',
+      to: '919876543210',
+      templateName: 'speeko_ai',
+      language: 'en',
+      components: [],
+    });
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'https://graph.facebook.com/v22.0/123456/messages',
+    );
+  });
 
   it('lists templates from the WABA with fields and a Bearer token', async () => {
     fetchMock.mockResolvedValue(
@@ -103,7 +118,9 @@ describe('MetaWhatsAppClient', () => {
       to: '919876543210',
       templateName: 'reminder',
       language: 'en_US',
-      components: [{ type: 'body', parameters: [{ type: 'text', text: 'Ada' }] }],
+      components: [
+        { type: 'body', parameters: [{ type: 'text', text: 'Ada' }] },
+      ],
     });
     expect(result).toEqual({ ok: true, data: { wamid: 'wamid.XYZ' } });
 
@@ -214,7 +231,10 @@ describe('MetaWhatsAppClient', () => {
   });
 
   it('refuses to call Meta without a token', async () => {
-    const result = await makeClient().listTemplates({ token: '  ', wabaId: '1' });
+    const result = await makeClient().listTemplates({
+      token: '  ',
+      wabaId: '1',
+    });
     expect(result).toMatchObject({ ok: false });
     expect(fetchMock).not.toHaveBeenCalled();
   });

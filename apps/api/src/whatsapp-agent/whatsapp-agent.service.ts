@@ -164,6 +164,14 @@ export class WhatsAppAgentService {
         }
 
         // Platform Speeko line (WHATSAPP_URL) — only when no org connection matched.
+        if (
+          ['true', '1'].includes(
+            String(
+              this.config.get('WHATSAPP_PLATFORM_HARNESS_ENABLED') ?? 'false',
+            ),
+          )
+        )
+          continue;
         if (!this.text.isConfigured()) {
           this.warnOnce('WHATSAPP_URL or WHATSAPP_API_KEY is not set');
           continue;

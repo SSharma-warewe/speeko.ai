@@ -22,14 +22,14 @@ durable PostgreSQL records that the API ticker dispatches over authenticated HTT
 The rollout flag defaults to false. In that mode the existing org receptionist
 continues unchanged. Enable it only after worker readiness. While enabled, an
 unavailable worker leaves org turns pending/retryable; it never falls back to a
-second generation path. The platform `WHATSAPP_URL` receptionist and get-demo
-OTP stay on their existing paths in Phase 1. Do not disable the flag while there
+second generation path. Platform receptionist and get-demo OTP can independently
+use the harness as described below. Do not disable the main flag while there
 are unresolved harness turns or sends; drain them first to avoid overlapping
 the legacy and harness response paths.
 
 ## Persistence and execution
 
-- Webhooks save their raw event, then persist eligible org text turns **before**
+- Webhooks save their raw event, then persist eligible org/platform text turns **before**
   returning 200. Database ingestion errors return an error so Meta can retry.
 - `whatsapp_conversations` stores session state/history, trusted booking state,
   and a generation number. `whatsapp_agent_turns` stores ordered inputs, leases,
@@ -82,7 +82,52 @@ for that conversation. Check Meta, explicitly resolve the outcome, then retry
 only if it failed. Retrying a send does not rerun the model or booking tools.
 Concurrent requests are tenant-scoped and reset generations cannot be retried.
 
-## Deploy
+## Platform receptionist and OTP delivery
+
+On the API, `WHATSAPP_PLATFORM_HARNESS_ENABLED=true` enables durable platform
+conversations on the number in `WHATSAPP_URL`. Active org connections take
+precedence even with an empty prompt. Platform conversations have no org/connection
+FK; their own phone/sender unique index isolates them from tenant history. The
+worker receives the existing Warewe prompt with no tools; all Meta credentials
+remain API-only. `/new`, deduplication, leases, checkpoints and ordered replies
+work just as for org conversations. Old in-memory platform sessions are not imported.
+
+`WHATSAPP_OTP_HARNESS_ENABLED=true` enables deterministic template delivery through
+the same durable outbox, not the ADK worker. Both flags require
+`WHATSAPP_HARNESS_ENABLED=true`. OTP also requires `OTP_DELIVERY_ENCRYPTION_KEY`,
+a dedicated random 32-byte key encoded as 64 hex characters, stored only on the API.
+Codes remain HMAC-only in challenges; delivery ciphertext uses AES-256-GCM bound to
+challenge ID and expiry and is erased on terminal outcome or expiry. Do not rotate
+the key while pending OTP deliveries exist. The template name, English language,
+body/button parameters and Graph version from `WHATSAPP_URL` are preserved.
+
+Issuance, sending, verification and proof consumption share a PostgreSQL per-phone
+fence. Resends invalidate previous codes and cancel pending deliveries atomically.
+OTP deliveries have priority. The sender has its own one-second interval and
+overlap guard, independent of worker dispatch, so worker outages do not stop OTP.
+Only definite 429 rejection retries (three attempts, 1s/2s backoff); ambiguous
+network/timeout/5xx/crashed sends are never automatically repeated and burn the code.
+`POST /api/otp/send` retains HTTP 200 + `{ challengeId }` after Meta acceptance.
+It waits up to 30s, then reconciles under the send lock; an already-started Meta
+request may add up to its 15s timeout. Verification/proof TTLs and rate limits
+are unchanged. OTP is never placed in a worker dispatch or conversation history.
+
+Admin-only inspection/recovery mirrors org routes under `/api/admin/whatsapp`:
+`harness/health`, `conversations`, `conversations/:id`, `turns/:id/retry`,
+`messages/:id/retry`, `messages/:id/resolve`. `GET otp-deliveries` exposes only
+delivery status metadata (no phone, code, ciphertext or credentials). There is no
+manual OTP retry: request a fresh challenge. Admin conversation routes are
+platform-only; org routes cannot inspect/recover platform or OTP records.
+
+Roll out API code with both new flags off, verify additive schema changes and
+worker readiness, set the independent encryption key, then enable the flags.
+Rollback must not enable legacy and harness admissions simultaneously: stop new
+admissions, drain/cancel outstanding work, then restore legacy routing. Existing
+text work is allowed to drain even if its admission flag is off; the main harness
+must stay on while draining. OTP delivery itself does not need model-worker health.
+Schema/Erflow synchronization was explicitly deferred by the user for this change.
+
+## Railway deployment
 
 Create a separate Railway service using `Dockerfile.whatsapp-worker` and
 `railway/whatsapp-worker.toml`. Worker readiness is `GET /health`.

@@ -144,7 +144,7 @@ export class WhatsAppWebhooksService {
       receivedAt: new Date(),
     });
     await this.events.save(row);
-    // Commit durable org turns before acknowledging Meta. Database failures
+    // Commit durable org/platform turns before acknowledging Meta. Database failures
     // return an error so a webhook retry can finish ingestion idempotently.
     await this.harness.ingestWebhook(stored);
     this.logger.log(

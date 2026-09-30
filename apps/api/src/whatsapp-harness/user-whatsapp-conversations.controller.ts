@@ -25,7 +25,7 @@ import { ApiJwtErrors } from '../common/swagger/api-errors';
 import { WhatsAppHarnessRepository } from './whatsapp-harness.repository';
 import { WhatsAppTickerService } from './whatsapp-ticker.service';
 
-class ResolveWhatsAppSendDto {
+export class ResolveWhatsAppSendDto {
   @ApiProperty({
     enum: ['accepted', 'failed'],
     description:

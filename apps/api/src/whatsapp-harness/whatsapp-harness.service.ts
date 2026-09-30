@@ -18,6 +18,9 @@ import { ToolProfilesService } from '../tools/tool-profiles.service';
 import { listInboundTextMessages } from '../whatsapp-agent/lib/inbound-text';
 import { WhatsAppBookingService } from '../whatsapp-agent/whatsapp-booking.service';
 import { MetaWhatsAppClient } from '../meta-whatsapp/meta-whatsapp.client';
+import { PlatformWhatsAppConfig } from '../meta-whatsapp/platform-whatsapp.config';
+import { RECEPTIONIST_INSTRUCTION } from '../whatsapp-agent/receptionist-instruction';
+import { OtpDeliveryService } from './otp-delivery.service';
 import { WhatsAppHarnessRepository } from './whatsapp-harness.repository';
 import { WhatsAppConversation } from './whatsapp-conversation.entity';
 import { WhatsAppTurn } from './whatsapp-turn.entity';
@@ -83,11 +86,22 @@ export class WhatsAppHarnessService {
     private readonly profiles: ToolProfilesService,
     private readonly booking: WhatsAppBookingService,
     private readonly meta: MetaWhatsAppClient,
+    private readonly platform: PlatformWhatsAppConfig,
+    private readonly otpDelivery: OtpDeliveryService,
   ) {}
 
   isEnabled() {
     return ['true', '1'].includes(
       String(this.config.get('WHATSAPP_HARNESS_ENABLED') ?? 'false'),
+    );
+  }
+
+  isPlatformEnabled() {
+    return (
+      this.isEnabled() &&
+      ['true', '1'].includes(
+        String(this.config.get('WHATSAPP_PLATFORM_HARNESS_ENABLED') ?? 'false'),
+      )
     );
   }
 
@@ -99,7 +113,24 @@ export class WhatsAppHarnessService {
         await this.integrations.findActiveWhatsAppByPhoneNumberId(
           message.phoneNumberId,
         );
-      if (!connection?.systemPrompt?.trim()) continue;
+      // An active org connection owns the number even with an empty prompt.
+      if (!connection) {
+        const platform = this.isPlatformEnabled()
+          ? this.platform.resolve()
+          : null;
+        if (platform?.phoneNumberId === message.phoneNumberId)
+          await this.repository.ingest({
+            scope: 'platform',
+            organizationId: null,
+            connectionId: null,
+            sender: message.from,
+            phoneNumberId: message.phoneNumberId,
+            messageId: message.id,
+            body: message.body,
+          });
+        continue;
+      }
+      if (!connection.systemPrompt?.trim()) continue;
       const org = await this.organizations.findById(connection.organizationId);
       if (!org.isActive) continue;
       await this.repository.ingest({
@@ -114,6 +145,12 @@ export class WhatsAppHarnessService {
   }
 
   private async connection(conversation: WhatsAppConversation) {
+    if (
+      conversation.scope === 'platform' ||
+      !conversation.organizationId ||
+      !conversation.connectionId
+    )
+      throw new ForbiddenException('Platform tools are not connected');
     const org = await this.organizations.findById(conversation.organizationId);
     const connection = await this.integrations.getEntityForOrg(
       conversation.organizationId,
@@ -133,17 +170,37 @@ export class WhatsAppHarnessService {
     const conversation = await this.repository.getConversation(
       turn.conversationId,
     );
+    if (conversation.scope === 'platform') {
+      const platform = this.platform.resolve();
+      if (
+        !platform ||
+        platform.phoneNumberId !== conversation.platformPhoneNumberId
+      )
+        throw new ForbiddenException('WhatsApp agent is disabled');
+      return {
+        id: turn.id,
+        conversationId: conversation.id,
+        generation: turn.generation,
+        leaseToken: turn.leaseToken!,
+        sender: conversation.sender,
+        body: turn.body,
+        prompt: RECEPTIONIST_INSTRUCTION,
+        enabledTools: [],
+        session: turn.baseSession!,
+        checkpoint: turn.checkpoint,
+      };
+    }
     const connection = await this.connection(conversation);
     let enabledTools: WhatsAppAgentToolId[] = [];
     if (connection.bookingVoiceAgentId && connection.whatsappToolProfileId) {
       try {
         await this.profiles.getResponseForOrganization(
-          conversation.organizationId,
+          conversation.organizationId!,
           connection.whatsappToolProfileId,
         );
         const ids = await this.profiles.resolveEnabledToolIds(
           connection.whatsappToolProfileId,
-          conversation.organizationId,
+          conversation.organizationId!,
         );
         enabledTools = WHATSAPP_AGENT_TOOL_IDS.filter((id) => ids.includes(id));
       } catch {
@@ -198,17 +255,17 @@ export class WhatsAppHarnessService {
     if (!connection.bookingVoiceAgentId || !connection.whatsappToolProfileId)
       throw new ForbiddenException('WhatsApp tools are not connected');
     await this.profiles.getResponseForOrganization(
-      conversation.organizationId,
+      conversation.organizationId!,
       connection.whatsappToolProfileId,
     );
     const ids = await this.profiles.resolveEnabledToolIds(
       connection.whatsappToolProfileId,
-      conversation.organizationId,
+      conversation.organizationId!,
     );
     if (!ids.includes(toolId))
       throw new ForbiddenException('WhatsApp tool is no longer assigned');
     const source = {
-      organizationId: conversation.organizationId,
+      organizationId: conversation.organizationId!,
       voiceAgentId: connection.bookingVoiceAgentId,
     };
     const contactId = conversation.toolState.contactId as string | undefined;
@@ -375,12 +432,30 @@ export class WhatsAppHarnessService {
   async sendOne(): Promise<boolean> {
     const reserved = await this.repository.reserveSend();
     if (!reserved) return false;
+    if (reserved.kind === 'otp_template') {
+      await this.otpDelivery.sendReserved(reserved.id);
+      return true;
+    }
     await this.repository.withSend(
       reserved.id,
       async (outbox, conversation, manager) => {
-        let connection;
+        let source;
         try {
-          connection = await this.connection(conversation);
+          if (conversation.scope === 'platform') {
+            const platform = this.platform.resolve();
+            if (
+              !platform ||
+              platform.phoneNumberId !== conversation.platformPhoneNumberId
+            )
+              throw new Error('platform_disabled');
+            source = platform;
+          } else {
+            const connection = await this.connection(conversation);
+            source = {
+              token: connection.apiKey,
+              phoneNumberId: connection.phoneNumberId!,
+            };
+          }
         } catch {
           outbox.status = 'cancelled';
           outbox.errorCode = 'agent_disabled';
@@ -388,10 +463,9 @@ export class WhatsAppHarnessService {
           return;
         }
         const sent = await this.meta.sendText({
-          token: connection.apiKey,
-          phoneNumberId: connection.phoneNumberId!,
+          ...source,
           to: conversation.sender,
-          body: outbox.body,
+          body: outbox.body!,
         });
         if (sent.ok) {
           outbox.status = 'accepted';

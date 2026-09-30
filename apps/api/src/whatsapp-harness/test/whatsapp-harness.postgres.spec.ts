@@ -19,6 +19,21 @@ import { WhatsAppConversation } from '../whatsapp-conversation.entity';
 import { WhatsAppTurn } from '../whatsapp-turn.entity';
 import { WhatsAppOutbox } from '../whatsapp-outbox.entity';
 import { WhatsAppToolOperation } from '../whatsapp-tool-operation.entity';
+import { OtpChallenge } from '../../otp/otp-challenge.entity';
+import { OtpDeliveryRepository } from '../otp-delivery.repository';
+import { OtpDeliveryService } from '../otp-delivery.service';
+import { OtpChallengesRepository } from '../../otp/otp-challenges.repository';
+import { OtpService } from '../../otp/otp.service';
+import { PlatformWhatsAppConfig } from '../../meta-whatsapp/platform-whatsapp.config';
+import { MetaWhatsAppClient } from '../../meta-whatsapp/meta-whatsapp.client';
+import { WhatsappOtpClient } from '../../otp/whatsapp-otp.client';
+import { ConfigService } from '@nestjs/config';
+import { encryptOtp, otpDeliveryKey } from '../otp-delivery.crypto';
+import { hmacSha256 } from '../../otp/otp-hash';
+import { OtpModule } from '../../otp/otp.module';
+import { JwtService } from '@nestjs/jwt';
+import { User } from '../../users/user.entity';
+import { Admin } from '../../admins/admin.entity';
 
 const databaseUrl = process.env.WHATSAPP_TEST_DATABASE_URL;
 const suite = databaseUrl ? describe : describe.skip;
@@ -77,6 +92,7 @@ suite('WhatsApp harness with real PostgreSQL transactions', () => {
   });
   beforeEach(async () => {
     await db.query('DELETE FROM harness_test.whatsapp_conversations');
+    await db.query('DELETE FROM harness_test.otp_challenges');
     const organization = await db.getRepository(Organization).save({
       name: 'Harness test',
       slug: randomUUID(),
@@ -102,6 +118,253 @@ suite('WhatsApp harness with real PostgreSQL transactions', () => {
       messageId: randomUUID(),
       body: 'Hello',
     };
+  });
+
+  it('dedupes platform messages, fences resets, and isolates platform recovery from org users', async () => {
+    const platform = {
+      ...input,
+      scope: 'platform' as const,
+      organizationId: null,
+      connectionId: null,
+    };
+    await Promise.all([
+      repository.ingest(platform),
+      repository.ingest(platform),
+    ]);
+    const [turn] = await repository.claim(4);
+    expect(await db.getRepository(WhatsAppTurn).count()).toBe(1);
+    await repository.complete(turn.id, turn.leaseToken!, {
+      session: { state: {}, events: [] },
+      reply: 'Hello',
+    });
+    const delivery = await repository.reserveSend();
+    await expect(
+      repository.inspect(input.organizationId, turn.conversationId),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      repository.resolveSend(input.organizationId, delivery!.id, 'retry'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(
+      (await repository.inspect(null, turn.conversationId)).conversation.scope,
+    ).toBe('platform');
+    await repository.ingest({
+      ...platform,
+      messageId: 'platform.reset',
+      body: '/NEW',
+    });
+    const conversation = await repository.getConversation(turn.conversationId);
+    expect(conversation.generation).toBe(2);
+    expect(
+      await repository.withSend(delivery!.id, async () => {
+        throw new Error('must not send');
+      }),
+    ).toBeNull();
+    await expect(
+      repository.complete(turn.id, turn.leaseToken!, {
+        session: { state: {}, events: [] },
+        reply: 'Late',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  function otpPair() {
+    const challenge = Object.assign(new OtpChallenge(), {
+      id: randomUUID(),
+      phoneDigits: input.sender,
+      codeHash: hmacSha256('test-pepper', '123456'),
+      expiresAt: new Date(Date.now() + 300_000),
+      consumedAt: null,
+      attemptCount: 0,
+      verificationTokenHash: null,
+      verificationExpiresAt: null,
+      verificationUsedAt: null,
+    });
+    const delivery = Object.assign(new WhatsAppOutbox(), {
+      id: randomUUID(),
+      kind: 'otp_template',
+      challengeId: challenge.id,
+      turnId: null,
+      body: null,
+      phoneNumberId: input.phoneNumberId,
+      graphVersion: 'v22.0',
+      templateName: 'speeko_ai',
+      encryptedCode: encryptOtp(
+        '123456',
+        otpDeliveryKey('ab'.repeat(32)),
+        challenge.id,
+        challenge.expiresAt,
+      ),
+    });
+    return { challenge, delivery };
+  }
+
+  it('atomically issues concurrent OTPs, only leaves the newest valid, and prioritizes OTP over text', async () => {
+    const otp = new OtpDeliveryRepository(db);
+    await repository.ingest({ ...input, body: '/new' });
+    const first = otpPair();
+    const second = otpPair();
+    await Promise.all([
+      otp.issue(first.challenge, first.delivery),
+      otp.issue(second.challenge, second.delivery),
+    ]);
+    const open = await db.query(
+      `SELECT id FROM otp_challenges WHERE consumed_at IS NULL`,
+    );
+    expect(open).toHaveLength(1);
+    const selected = await repository.reserveSend();
+    expect(selected!.kind).toBe('otp_template');
+    expect(selected!.challengeId).toBe(open[0].id);
+    const cancelled = await db.query(
+      `SELECT encrypted_code FROM whatsapp_message_outbox WHERE kind='otp_template' AND status='cancelled'`,
+    );
+    expect(cancelled).toEqual([{ encrypted_code: null }]);
+    expect(JSON.stringify(await otp.diagnostics())).not.toContain(
+      'encryptedCode',
+    );
+    await expect(
+      repository.resolveSend(null, selected!.id, 'retry'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      repository.resolveSend(input.organizationId, selected!.id, 'retry'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('holds the phone fence while sending: resend waits and cannot invalidate an in-flight send', async () => {
+    const otp = new OtpDeliveryRepository(db);
+    const first = otpPair();
+    const second = otpPair();
+    await otp.issue(first.challenge, first.delivery);
+    const reserved = await repository.reserveSend();
+    let release!: () => void;
+    let entered!: () => void;
+    const started = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const sending = otp.withDelivery(
+      reserved!.id,
+      async (outbox, _challenge, manager) => {
+        entered();
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        outbox.status = 'accepted';
+        outbox.encryptedCode = null;
+        await manager.save(outbox);
+      },
+    );
+    await started;
+    let issued = false;
+    const issuing = otp.issue(second.challenge, second.delivery).then(() => {
+      issued = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect(issued).toBe(false);
+    release();
+    await Promise.all([sending, issuing]);
+    expect((await otp.status(first.challenge.id))!.status).toBe('accepted');
+    expect(
+      (
+        await db
+          .getRepository(OtpChallenge)
+          .findOneByOrFail({ id: first.challenge.id })
+      ).consumedAt,
+    ).not.toBeNull();
+  });
+
+  it('recovers encrypted delivery after service restart and never retries crashed or expired sends', async () => {
+    const otp = new OtpDeliveryRepository(db);
+    const pair = otpPair();
+    await otp.issue(pair.challenge, pair.delivery);
+    const reserved = await repository.reserveSend();
+    const config = new ConfigService({
+      WHATSAPP_HARNESS_ENABLED: 'true',
+      OTP_HASH_SECRET: 'test-pepper',
+      OTP_DELIVERY_ENCRYPTION_KEY: 'ab'.repeat(32),
+      WHATSAPP_API_KEY: 'test-token',
+      WHATSAPP_URL: `https://graph.facebook.com/v22.0/${input.phoneNumberId}/messages`,
+    });
+    const meta = {
+      sendTemplate: jest
+        .fn()
+        .mockResolvedValue({ ok: true, data: { wamid: 'accepted' } }),
+    };
+    await new OtpDeliveryService(
+      config,
+      new OtpDeliveryRepository(db),
+      new PlatformWhatsAppConfig(config),
+      meta as unknown as MetaWhatsAppClient,
+    ).sendReserved(reserved!.id);
+    expect(meta.sendTemplate).toHaveBeenCalledTimes(1);
+    expect(
+      await db.query(
+        `SELECT encrypted_code FROM whatsapp_message_outbox WHERE id=$1`,
+        [reserved!.id],
+      ),
+    ).toEqual([{ encrypted_code: null }]);
+    const crash = otpPair();
+    await otp.issue(crash.challenge, crash.delivery);
+    await repository.reserveSend();
+    await db
+      .getRepository(WhatsAppOutbox)
+      .update(crash.delivery.id, {
+        sendStartedAt: new Date(Date.now() - 61_000),
+      });
+    await otp.reap();
+    expect((await otp.status(crash.challenge.id))!.status).toBe('uncertain');
+    expect(
+      (
+        await db
+          .getRepository(OtpChallenge)
+          .findOneByOrFail({ id: crash.challenge.id })
+      ).consumedAt,
+    ).not.toBeNull();
+    expect(await repository.reserveSend()).toBeNull();
+    const expired = otpPair();
+    await otp.issue(expired.challenge, expired.delivery);
+    await db
+      .getRepository(OtpChallenge)
+      .update(expired.challenge.id, { expiresAt: new Date(0) });
+    await otp.reap();
+    expect((await otp.status(expired.challenge.id))!.status).toBe('cancelled');
+  });
+
+  it('serializes concurrent verification and proof consumption so each succeeds once', async () => {
+    const otp = new OtpDeliveryRepository(db);
+    const pair = otpPair();
+    await otp.issue(pair.challenge, pair.delivery);
+    const config = new ConfigService({ OTP_HASH_SECRET: 'test-pepper' });
+    const service = new OtpService(
+      config,
+      new OtpChallengesRepository(db.getRepository(OtpChallenge)),
+      { isConfigured: () => true } as WhatsappOtpClient,
+      { isEnabled: () => false } as OtpDeliveryService,
+    );
+    const results = await Promise.allSettled([
+      service.verify(pair.challenge.id, '123456'),
+      service.verify(pair.challenge.id, '123456'),
+    ]);
+    expect(
+      results.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
+    const token = (
+      results.find(
+        (result) => result.status === 'fulfilled',
+      ) as PromiseFulfilledResult<{ verificationToken: string }>
+    ).value.verificationToken;
+    const consumed = await Promise.allSettled([
+      service.consumeVerification(token, input.sender),
+      service.consumeVerification(token, input.sender),
+    ]);
+    expect(
+      consumed.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
+    await otp.reap();
+    expect(
+      await db.query(
+        `SELECT encrypted_code FROM whatsapp_message_outbox WHERE id=$1`,
+        [pair.delivery.id],
+      ),
+    ).toEqual([{ encrypted_code: null }]);
   });
 
   it('persists duplicate delivery once across concurrent ingestion', async () => {
@@ -209,12 +472,10 @@ suite('WhatsApp harness with real PostgreSQL transactions', () => {
     await db
       .getRepository(WhatsAppTurn)
       .update(other.id, { status: 'cancelled' });
-    await db
-      .getRepository(WhatsAppTurn)
-      .update(first.id, {
-        status: 'pending',
-        nextAttemptAt: new Date(Date.now() + 60_000),
-      });
+    await db.getRepository(WhatsAppTurn).update(first.id, {
+      status: 'pending',
+      nextAttemptAt: new Date(Date.now() + 60_000),
+    });
     await repository.ingest({
       ...input,
       sender: '919876543212',
@@ -450,6 +711,7 @@ suite('WhatsApp harness with real PostgreSQL transactions', () => {
         EmailModule,
         AuthModule,
         WhatsappModule,
+        OtpModule,
       ],
     })
       .overrideProvider(WhatsAppTickerService)
@@ -515,6 +777,40 @@ suite('WhatsApp harness with real PostgreSQL transactions', () => {
       await request(app.getHttpServer())
         .get('/api/users/whatsapp/conversations')
         .expect(401);
+      await request(app.getHttpServer())
+        .get('/api/admin/whatsapp/otp-deliveries')
+        .expect(401);
+      const member = await db
+        .getRepository(User)
+        .save({
+          organizationId: input.organizationId,
+          email: `${randomUUID()}@test.invalid`,
+          passwordHash: null,
+          isActive: true,
+          role: 'org_admin',
+        });
+      const jwt = module.get(JwtService);
+      const orgToken = jwt.sign({ sub: member.id, typ: 'user' });
+      await request(app.getHttpServer())
+        .get('/api/admin/whatsapp/conversations')
+        .set('Authorization', `Bearer ${orgToken}`)
+        .expect(403);
+      await request(app.getHttpServer())
+        .get('/api/admin/whatsapp/otp-deliveries')
+        .set('Authorization', `Bearer ${orgToken}`)
+        .expect(403);
+      const admin = await db
+        .getRepository(Admin)
+        .findOneByOrFail({ email: 'harness@test.invalid' });
+      const adminToken = jwt.sign({ sub: admin.id, typ: 'admin' });
+      await request(app.getHttpServer())
+        .get('/api/admin/whatsapp/conversations')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200, []);
+      expect(swagger.paths['/api/otp/send']).toBeDefined();
+      expect(
+        swagger.paths['/api/admin/whatsapp/messages/{id}/resolve'],
+      ).toBeDefined();
     } finally {
       await app.close();
     }

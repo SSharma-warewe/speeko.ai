@@ -36,10 +36,10 @@ export type MetaTemplate = {
 };
 
 export type MetaResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; status: number; message: string };
+  { ok: true; data: T } | { ok: false; status: number; message: string };
 
 export type MetaSendTemplateInput = {
+  graphVersion?: string;
   token: string;
   phoneNumberId: string;
   /** Recipient, digits only. */
@@ -50,6 +50,7 @@ export type MetaSendTemplateInput = {
 };
 
 export type MetaSendTextInput = {
+  graphVersion?: string;
   token: string;
   phoneNumberId: string;
   /** Recipient, digits only. */
@@ -79,8 +80,7 @@ export class MetaWhatsAppClient {
     let after: string | null = null;
     for (let page = 0; page < MAX_TEMPLATE_PAGES; page += 1) {
       const params = new URLSearchParams({
-        fields:
-          'name,status,language,category,components,parameter_format',
+        fields: 'name,status,language,category,components,parameter_format',
         limit: String(TEMPLATE_PAGE_LIMIT),
       });
       if (after) params.set('after', after);
@@ -143,6 +143,7 @@ export class MetaWhatsAppClient {
       `/${encodeURIComponent(input.phoneNumberId)}/messages`,
       input.token,
       body,
+      input.graphVersion,
     );
     if (!res.ok) return res;
     const id = res.data.messages?.[0]?.id;
@@ -171,6 +172,7 @@ export class MetaWhatsAppClient {
       `/${encodeURIComponent(input.phoneNumberId)}/messages`,
       input.token,
       body,
+      input.graphVersion,
     );
     if (!res.ok) return res;
     const id = res.data.messages?.[0]?.id;
@@ -180,9 +182,11 @@ export class MetaWhatsAppClient {
     };
   }
 
-  private graphBase(): string {
+  private graphBase(override?: string): string {
     const version =
-      this.config.get<string>('META_GRAPH_API_VERSION')?.trim() ?? '';
+      override ??
+      this.config.get<string>('META_GRAPH_API_VERSION')?.trim() ??
+      '';
     return `${GRAPH_ORIGIN}/${/^v\d+\.\d+$/.test(version) ? version : DEFAULT_GRAPH_VERSION}`;
   }
 
@@ -191,14 +195,19 @@ export class MetaWhatsAppClient {
     path: string,
     token: string,
     body?: unknown,
+    graphVersion?: string,
   ): Promise<MetaResult<T>> {
     const accessToken = token.trim();
     if (!accessToken) {
-      return { ok: false, status: 0, message: 'Missing WhatsApp access token.' };
+      return {
+        ok: false,
+        status: 0,
+        message: 'Missing WhatsApp access token.',
+      };
     }
     let response: Response;
     try {
-      response = await fetch(`${this.graphBase()}${path}`, {
+      response = await fetch(`${this.graphBase(graphVersion)}${path}`, {
         method,
         redirect: 'manual',
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -220,7 +229,11 @@ export class MetaWhatsAppClient {
 
     if (response.status >= 300 && response.status < 400) {
       this.logger.warn(`Meta WhatsApp ${method} was redirected`);
-      return { ok: false, status: response.status, message: 'Unexpected redirect from Meta.' };
+      return {
+        ok: false,
+        status: response.status,
+        message: 'Unexpected redirect from Meta.',
+      };
     }
 
     const text = await response.text().catch(() => '');
@@ -260,7 +273,11 @@ function metaErrorMessage(
 ): string {
   const error = json?.error;
   if (error && typeof error === 'object') {
-    const e = error as { message?: unknown; code?: unknown; error_data?: unknown };
+    const e = error as {
+      message?: unknown;
+      code?: unknown;
+      error_data?: unknown;
+    };
     const message = typeof e.message === 'string' ? e.message.trim() : '';
     const details =
       e.error_data && typeof e.error_data === 'object'

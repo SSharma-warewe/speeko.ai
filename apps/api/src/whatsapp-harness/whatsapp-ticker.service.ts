@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Interval } from '@nestjs/schedule';
 import { WhatsAppHarnessRepository } from './whatsapp-harness.repository';
 import { WhatsAppHarnessService } from './whatsapp-harness.service';
+import { OtpDeliveryRepository } from './otp-delivery.repository';
 
 /** Same API-owned @Interval/claim/dispatch pattern as QueueDialerService. */
 @Injectable()
@@ -11,18 +12,31 @@ export class WhatsAppTickerService {
   private ticking = false;
   private lastTickAt: Date | null = null;
   private lastError: string | null = null;
+  private sending = false;
+  private lastSendAt: Date | null = null;
+  private lastSendError: string | null = null;
   constructor(
     private readonly config: ConfigService,
     private readonly repository: WhatsAppHarnessRepository,
     private readonly harness: WhatsAppHarnessService,
+    private readonly otp: OtpDeliveryRepository,
   ) {}
 
   health() {
     return {
       enabled: this.harness.isEnabled(),
+      platformEnabled: ['true', '1'].includes(
+        String(this.config.get('WHATSAPP_PLATFORM_HARNESS_ENABLED') ?? 'false'),
+      ),
+      otpEnabled: ['true', '1'].includes(
+        String(this.config.get('WHATSAPP_OTP_HARNESS_ENABLED') ?? 'false'),
+      ),
       ticking: this.ticking,
       lastTickAt: this.lastTickAt,
       lastError: this.lastError,
+      sending: this.sending,
+      lastSendAt: this.lastSendAt,
+      lastSendError: this.lastSendError,
     };
   }
 
@@ -68,15 +82,6 @@ export class WhatsAppTickerService {
           }
         }),
       );
-      // Bound send work independently of worker capacity. Slow Meta requests
-      // must not hold up lease recovery for limit * 15 seconds.
-      const sends = await Promise.allSettled(
-        Array.from({ length: Math.min(limit, 4) }, () =>
-          this.harness.sendOne(),
-        ),
-      );
-      if (sends.some((result) => result.status === 'rejected'))
-        throw new Error('outbox_send_failed');
       this.lastTickAt = new Date();
       this.lastError = null;
     } catch {
@@ -84,6 +89,32 @@ export class WhatsAppTickerService {
       this.logger.error('WhatsApp ticker failed');
     } finally {
       this.ticking = false;
+    }
+  }
+
+  /** Delivery is independent of dispatch/model capacity and worker configuration. */
+  @Interval(1000)
+  async sendTick(): Promise<void> {
+    if (!this.harness.isEnabled() || this.sending) return;
+    this.sending = true;
+    try {
+      await this.otp.reap();
+      const limit =
+        Number(this.config.get('WHATSAPP_TICKER_MAX_CONCURRENT')) || 4;
+      const sends = await Promise.allSettled(
+        Array.from({ length: Math.min(limit, 4) }, () =>
+          this.harness.sendOne(),
+        ),
+      );
+      if (sends.some((result) => result.status === 'rejected'))
+        throw new Error('outbox_send_failed');
+      this.lastSendAt = new Date();
+      this.lastSendError = null;
+    } catch {
+      this.lastSendError = 'outbox_send_failed';
+      this.logger.error('WhatsApp outbox ticker failed');
+    } finally {
+      this.sending = false;
     }
   }
 }

@@ -50,6 +50,30 @@ export const envValidationSchema = Joi.object({
     .min(1)
     .max(100)
     .default(4),
+  WHATSAPP_PLATFORM_HARNESS_ENABLED: Joi.string()
+    .valid('true', 'false', '0', '1')
+    .default('false')
+    .when('WHATSAPP_HARNESS_ENABLED', {
+      is: Joi.valid('false', '0'),
+      then: Joi.valid(Joi.override, 'false', '0'),
+    }),
+  WHATSAPP_OTP_HARNESS_ENABLED: Joi.string()
+    .valid('true', 'false', '0', '1')
+    .default('false')
+    .when('WHATSAPP_HARNESS_ENABLED', {
+      is: Joi.valid('false', '0'),
+      then: Joi.valid(Joi.override, 'false', '0'),
+    }),
+  OTP_DELIVERY_ENCRYPTION_KEY: Joi.when('WHATSAPP_OTP_HARNESS_ENABLED', {
+    is: Joi.valid('true', '1'),
+    then: Joi.string()
+      .pattern(/^[a-fA-F0-9]{64}$/)
+      .required(),
+    otherwise: Joi.string()
+      .pattern(/^[a-fA-F0-9]{64}$/)
+      .optional()
+      .allow(''),
+  }),
   OTP_HASH_SECRET: Joi.string().min(16).optional().allow(''),
   WHATSAPP_OTP_TEMPLATE_NAME: Joi.string().optional().allow(''),
   // Graph API version for org-owned WhatsApp outbound (default v25.0).

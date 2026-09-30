@@ -15,7 +15,10 @@ import {
   ApiUnavailableError,
 } from '../common/swagger/api-errors';
 import { SendOtpDto } from './dto/send-otp.dto';
-import { SendOtpResponseDto, VerifyOtpResponseDto } from './dto/otp-response.dto';
+import {
+  SendOtpResponseDto,
+  VerifyOtpResponseDto,
+} from './dto/otp-response.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { OtpAbuseGuard } from './guards/otp-abuse.guard';
 import { OtpService } from './otp.service';
@@ -31,14 +34,16 @@ export class OtpController {
   @ApiOperation({
     summary: 'Send a WhatsApp code for the get-demo form',
     description:
-      'Public. Generates a 6-digit code, stores only an HMAC, and sends the speeko_ai ' +
-      'WhatsApp template. The response is a challenge id — never the code.',
+      'Public. Generates a 6-digit code, stores an HMAC for verification, and sends the configured ' +
+      'WhatsApp template. Harness delivery uses an encrypted short-lived outbox; the response waits for Meta acceptance and contains only a challenge id, never the code.',
   })
   @ApiOkResponse({ type: SendOtpResponseDto })
   @ApiBadRequestError()
   @ApiForbiddenError('Origin not allowed (when CORS_ORIGIN is set)')
   @ApiTooManyRequestsError('Per-IP or per-phone OTP send limit')
-  @ApiUnavailableError('WHATSAPP_URL, WHATSAPP_API_KEY, or OTP_HASH_SECRET not set')
+  @ApiUnavailableError(
+    'WHATSAPP_URL, WHATSAPP_API_KEY, or OTP_HASH_SECRET not set',
+  )
   @ApiBadGatewayError('WhatsApp template send failed')
   send(@Body() dto: SendOtpDto): Promise<SendOtpResponseDto> {
     return this.otp.send(dto.phone);
@@ -56,7 +61,9 @@ export class OtpController {
   @ApiBadRequestError('Incorrect, expired, or locked code')
   @ApiForbiddenError('Origin not allowed (when CORS_ORIGIN is set)')
   @ApiTooManyRequestsError('Per-IP OTP verify limit')
-  @ApiUnavailableError('WHATSAPP_URL, WHATSAPP_API_KEY, or OTP_HASH_SECRET not set')
+  @ApiUnavailableError(
+    'WHATSAPP_URL, WHATSAPP_API_KEY, or OTP_HASH_SECRET not set',
+  )
   verify(@Body() dto: VerifyOtpDto): Promise<VerifyOtpResponseDto> {
     return this.otp.verify(dto.challengeId, dto.code);
   }

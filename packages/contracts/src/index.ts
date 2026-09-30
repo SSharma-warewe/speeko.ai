@@ -182,6 +182,8 @@ export {
 export { buildWhatsAppInstruction } from './whatsapp-clock.js';
 export type {
   WhatsAppAgentToolId,
+  WhatsAppConversationScope,
+  WhatsAppDeliveryKind,
   WhatsAppTurnStatus,
   WhatsAppSendStatus,
   WhatsAppSessionSnapshot,

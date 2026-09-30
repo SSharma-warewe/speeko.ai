@@ -9,6 +9,7 @@ import { OtpChallengesRepository } from '../otp-challenges.repository';
 import { hmacSha256 } from '../otp-hash';
 import { OtpService } from '../otp.service';
 import { WhatsappOtpClient } from '../whatsapp-otp.client';
+import type { OtpDeliveryService } from '../../whatsapp-harness/otp-delivery.service';
 
 const PEPPER = 'test-pepper-otp-secret';
 
@@ -48,7 +49,9 @@ class MemoryChallenges {
     return this.rows.find((row) => row.id === id) ?? null;
   }
 
-  async findByVerificationTokenHash(hash: string): Promise<OtpChallenge | null> {
+  async findByVerificationTokenHash(
+    hash: string,
+  ): Promise<OtpChallenge | null> {
     return this.rows.find((row) => row.verificationTokenHash === hash) ?? null;
   }
 
@@ -58,6 +61,18 @@ class MemoryChallenges {
         row.consumedAt = now;
       }
     }
+  }
+  async withLocked<T>(
+    where: { id?: string; verificationTokenHash?: string },
+    action: (
+      row: OtpChallenge | null,
+      save: (row: OtpChallenge) => Promise<OtpChallenge>,
+    ) => Promise<T>,
+  ) {
+    const row = where.id
+      ? await this.findById(where.id)
+      : await this.findByVerificationTokenHash(where.verificationTokenHash!);
+    return action(row, (current) => this.save(current));
   }
 }
 
@@ -80,6 +95,7 @@ describe('OtpService', () => {
         isConfigured: () => configured,
         send: sendWhatsapp,
       } as unknown as WhatsappOtpClient,
+      { isEnabled: () => false } as unknown as OtpDeliveryService,
     );
   }
 
@@ -87,6 +103,28 @@ describe('OtpService', () => {
     pepper = PEPPER;
     configured = true;
     service = makeService();
+  });
+  it('uses durable delivery exclusively when enabled without calling the legacy sender', async () => {
+    const delivery = {
+      isEnabled: () => true,
+      assertConfigured: jest.fn(),
+      issue: jest.fn().mockResolvedValue({ challengeId: 'durable' }),
+    };
+    const enabled = new OtpService(
+      new ConfigService({ OTP_HASH_SECRET: PEPPER }),
+      challenges as unknown as OtpChallengesRepository,
+      {
+        isConfigured: () => true,
+        send: sendWhatsapp,
+      } as unknown as WhatsappOtpClient,
+      delivery as unknown as OtpDeliveryService,
+    );
+    await expect(enabled.send('+919876543210')).resolves.toEqual({
+      challengeId: 'durable',
+    });
+    expect(delivery.issue).toHaveBeenCalledWith('919876543210');
+    expect(sendWhatsapp).not.toHaveBeenCalled();
+    expect(challenges.rows).toHaveLength(0);
   });
 
   it('returns a challenge id and never the code', async () => {

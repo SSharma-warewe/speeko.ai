@@ -6,6 +6,8 @@ export const WHATSAPP_AGENT_TOOL_IDS = [
   'scheduleGhlMeeting',
 ] as const;
 export type WhatsAppAgentToolId = (typeof WHATSAPP_AGENT_TOOL_IDS)[number];
+export type WhatsAppConversationScope = 'org' | 'platform';
+export type WhatsAppDeliveryKind = 'text' | 'otp_template';
 export type WhatsAppTurnStatus =
   'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 export type WhatsAppSendStatus =

@@ -7,9 +7,10 @@ import { OtpController } from './otp.controller';
 import { OtpRateLimitService } from './otp-rate-limit.service';
 import { OtpService } from './otp.service';
 import { WhatsappOtpClient } from './whatsapp-otp.client';
+import { WhatsAppHarnessModule } from '../whatsapp-harness/whatsapp-harness.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([OtpChallenge])],
+  imports: [TypeOrmModule.forFeature([OtpChallenge]), WhatsAppHarnessModule],
   controllers: [OtpController],
   providers: [
     OtpChallengesRepository,

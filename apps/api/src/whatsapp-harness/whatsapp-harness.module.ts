@@ -15,6 +15,10 @@ import { WhatsAppHarnessService } from './whatsapp-harness.service';
 import { WhatsAppTickerService } from './whatsapp-ticker.service';
 import { InternalWhatsAppHarnessController } from './internal-whatsapp-harness.controller';
 import { UserWhatsAppConversationsController } from './user-whatsapp-conversations.controller';
+import { OtpChallenge } from '../otp/otp-challenge.entity';
+import { OtpDeliveryRepository } from './otp-delivery.repository';
+import { OtpDeliveryService } from './otp-delivery.service';
+import { AdminWhatsAppHarnessController } from './admin-whatsapp-harness.controller';
 
 @Module({
   imports: [
@@ -23,6 +27,7 @@ import { UserWhatsAppConversationsController } from './user-whatsapp-conversatio
       WhatsAppTurn,
       WhatsAppOutbox,
       WhatsAppToolOperation,
+      OtpChallenge,
     ]),
     AgentsModule,
     OrganizationsModule,
@@ -35,11 +40,14 @@ import { UserWhatsAppConversationsController } from './user-whatsapp-conversatio
     WhatsAppHarnessService,
     WhatsAppTickerService,
     WhatsAppBookingService,
+    OtpDeliveryRepository,
+    OtpDeliveryService,
   ],
   controllers: [
     InternalWhatsAppHarnessController,
     UserWhatsAppConversationsController,
+    AdminWhatsAppHarnessController,
   ],
-  exports: [WhatsAppHarnessService],
+  exports: [WhatsAppHarnessService, OtpDeliveryService],
 })
 export class WhatsAppHarnessModule {}

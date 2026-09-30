@@ -7,6 +7,8 @@ import type { OrganizationsService } from '../../organizations/organizations.ser
 import type { ToolProfilesService } from '../../tools/tool-profiles.service';
 import type { WhatsAppBookingService } from '../../whatsapp-agent/whatsapp-booking.service';
 import type { MetaWhatsAppClient } from '../../meta-whatsapp/meta-whatsapp.client';
+import { PlatformWhatsAppConfig } from '../../meta-whatsapp/platform-whatsapp.config';
+import type { OtpDeliveryService } from '../otp-delivery.service';
 
 describe('WhatsApp harness API boundaries', () => {
   const repository = {
@@ -18,6 +20,7 @@ describe('WhatsApp harness API boundaries', () => {
     withSend: jest.fn(),
     checkpoint: jest.fn(),
     complete: jest.fn(),
+    getConversation: jest.fn(),
   };
   const integrations = {
     findActiveWhatsAppByPhoneNumberId: jest.fn(),
@@ -75,7 +78,106 @@ describe('WhatsApp harness API boundaries', () => {
       profiles as unknown as ToolProfilesService,
       booking as unknown as WhatsAppBookingService,
       meta as unknown as MetaWhatsAppClient,
+      new PlatformWhatsAppConfig(new ConfigService()),
+      { sendReserved: jest.fn() } as unknown as OtpDeliveryService,
     );
+  });
+  function platformService() {
+    const config = new ConfigService({
+      WHATSAPP_HARNESS_ENABLED: 'true',
+      WHATSAPP_PLATFORM_HARNESS_ENABLED: 'true',
+      WHATSAPP_URL: 'https://graph.facebook.com/v22.0/12345678/messages',
+      WHATSAPP_API_KEY: 'platform-secret',
+    });
+    return new WhatsAppHarnessService(
+      config,
+      repository as unknown as WhatsAppHarnessRepository,
+      integrations as unknown as OrganizationIntegrationsService,
+      organizations as unknown as OrganizationsService,
+      profiles as unknown as ToolProfilesService,
+      booking as unknown as WhatsAppBookingService,
+      meta as unknown as MetaWhatsAppClient,
+      new PlatformWhatsAppConfig(config),
+      {} as OtpDeliveryService,
+    );
+  }
+  function platformPayload(phone = '12345678') {
+    return {
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                metadata: { phone_number_id: phone },
+                messages: [
+                  {
+                    id: 'wamid.platform',
+                    from: '919876543210',
+                    type: 'text',
+                    text: { body: 'Hello' },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    };
+  }
+  it('durably routes only the unmatched platform line, not unknown numbers', async () => {
+    integrations.findActiveWhatsAppByPhoneNumberId.mockResolvedValue(null);
+    await platformService().ingestWebhook(platformPayload());
+    expect(repository.ingest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: 'platform',
+        organizationId: null,
+        connectionId: null,
+      }),
+    );
+    repository.ingest.mockClear();
+    await platformService().ingestWebhook(platformPayload('99999999'));
+    expect(repository.ingest).not.toHaveBeenCalled();
+  });
+  it('never falls through an active org with an empty prompt to the platform', async () => {
+    integrations.findActiveWhatsAppByPhoneNumberId.mockResolvedValue({
+      ...connection,
+      systemPrompt: '',
+    });
+    await platformService().ingestWebhook(platformPayload());
+    expect(repository.ingest).not.toHaveBeenCalled();
+  });
+  it('dispatches platform persona without tools or credentials, and denies tool callbacks', async () => {
+    repository.getConversation.mockResolvedValue({
+      ...conversation,
+      scope: 'platform',
+      organizationId: null,
+      connectionId: null,
+      platformPhoneNumberId: '12345678',
+    });
+    const runtime = await platformService().runtime({
+      id: 'turn',
+      conversationId: 'conversation',
+      generation: 1,
+      leaseToken: 'lease',
+      body: 'Hello',
+      baseSession: { state: {}, events: [] },
+      checkpoint: null,
+    } as never);
+    expect(runtime.enabledTools).toEqual([]);
+    expect(runtime.prompt).toContain('Warewe');
+    expect(JSON.stringify(runtime)).not.toContain('platform-secret');
+    repository.withTurn.mockImplementation((_id, _lease, action) =>
+      action({
+        conversation: {
+          scope: 'platform',
+          organizationId: null,
+          connectionId: null,
+        },
+      }),
+    );
+    await expect(
+      platformService().executeTool('turn', 'lease', 'lookupGhlContact', {}),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
   it('stores only eligible org texts and never calls a model or sends during ingest', async () => {
     const payload = {
