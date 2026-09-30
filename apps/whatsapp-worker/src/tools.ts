@@ -7,6 +7,10 @@ export function buildTools(
   turn: WhatsAppWorkerTurn,
   api: HarnessApiClient,
   signal?: AbortSignal,
+  lifecycle?: {
+    decline?: { evidence: string };
+    booking?: Record<string, unknown>;
+  },
 ) {
   const parameters = (fields: string[], required: string[] = []): Schema => ({
     type: Type.OBJECT,
@@ -55,7 +59,7 @@ export function buildTools(
   ];
   // Keep maxLength out of ADK's generated schema (OpenRouter compatibility).
   // The API validates lengths, authorizes each call, and keeps booking state.
-  return definitions
+  const tools = definitions
     .filter((definition) =>
       turn.enabledTools.some((id) => id === definition.name),
     )
@@ -63,8 +67,40 @@ export function buildTools(
       (definition) =>
         new FunctionTool({
           ...definition,
-          execute: (args) =>
-            api.post(turn, 'tools', { toolId: definition.name, args }, signal),
+          execute: async (args) => {
+            if (lifecycle?.booking || lifecycle?.decline)
+              return { ok: false, error: 'task_closed' };
+            const result = await api.post<Record<string, unknown>>(
+              turn,
+              'tools',
+              { toolId: definition.name, args },
+              signal,
+            );
+            if (
+              lifecycle &&
+              definition.name === 'scheduleGhlMeeting' &&
+              result.ok === true &&
+              typeof result.appointmentId === 'string' &&
+              result.appointmentId.trim()
+            )
+              lifecycle.booking = result;
+            return result;
+          },
         }),
     );
+  if (turn.task?.status === 'active' && lifecycle)
+    tools.push(
+      new FunctionTool({
+        name: 'declineBooking',
+        description:
+          'Only when the customer explicitly refuses booking in their current message. Quote their exact refusal. This requests task cancellation, never successful completion or cancellation of an existing GHL appointment. Do not use for scheduling failures, missing details, or questions.',
+        parameters: parameters(['evidence'], ['evidence']),
+        execute: (args: { evidence: string }) => {
+          if (lifecycle.booking) return { ok: false, error: 'already_booked' };
+          lifecycle.decline = { evidence: args.evidence };
+          return { ok: true, cancellationRequested: true };
+        },
+      }),
+    );
+  return tools;
 }

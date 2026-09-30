@@ -14,6 +14,7 @@ import type {
   WhatsAppTurnStatus,
 } from '@call-agent/contracts';
 import { WhatsAppConversation } from './whatsapp-conversation.entity';
+import { WhatsAppTaskSession } from './whatsapp-task-session.entity';
 
 @Entity('whatsapp_agent_turns')
 @Index('uq_whatsapp_turn_meta_message', ['phoneNumberId', 'messageId'], {
@@ -24,6 +25,14 @@ import { WhatsAppConversation } from './whatsapp-conversation.entity';
 })
 @Index('idx_whatsapp_turn_ticker', ['status', 'nextAttemptAt'])
 export class WhatsAppTurn {
+  /** Null identifies pre-task org work, which must never be silently replayed. */
+  @Column({ name: 'task_protocol_version', type: 'integer', nullable: true })
+  taskProtocolVersion!: number | null;
+  @Column({ name: 'task_session_id', type: 'uuid', nullable: true })
+  taskSessionId!: string | null;
+  @ManyToOne(() => WhatsAppTaskSession, { onDelete: 'CASCADE', nullable: true })
+  @JoinColumn({ name: 'task_session_id' })
+  taskSession!: WhatsAppTaskSession | null;
   @PrimaryGeneratedColumn('uuid') id!: string;
   @Column({ name: 'conversation_id', type: 'uuid' }) conversationId!: string;
   @ManyToOne(() => WhatsAppConversation, { onDelete: 'CASCADE' })

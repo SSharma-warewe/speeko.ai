@@ -19,6 +19,8 @@ export type WhatsAppSessionSnapshot = {
 export type WhatsAppTurnCheckpoint = {
   session: WhatsAppSessionSnapshot;
   reply?: string;
+  /** A model request only; the API checks quoted evidence and unresolved writes. */
+  decline?: { evidence: string };
 };
 export type WhatsAppWorkerTurn = {
   id: string;
@@ -31,6 +33,8 @@ export type WhatsAppWorkerTurn = {
   enabledTools: WhatsAppAgentToolId[];
   session: WhatsAppSessionSnapshot;
   checkpoint: WhatsAppTurnCheckpoint | null;
+  /** Null for the environment-configured platform receptionist. */
+  task: import('./whatsapp-tasks.js').WhatsAppTaskRuntime | null;
 };
 export type WhatsAppTurnLease = { leaseToken: string };
 export type WhatsAppTurnComplete = WhatsAppTurnLease & WhatsAppTurnCheckpoint;

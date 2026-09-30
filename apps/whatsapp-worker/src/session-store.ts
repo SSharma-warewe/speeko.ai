@@ -26,7 +26,10 @@ export class ApiSessionStore extends BaseSessionService {
 
   async createSession(request: CreateSessionRequest): Promise<Session> {
     this.session = createSession({
-      id: request.sessionId ?? this.turn.conversationId,
+      id:
+        request.sessionId ??
+        this.turn.task?.sessionId ??
+        this.turn.conversationId,
       appName: request.appName,
       userId: request.userId,
       state: structuredClone(this.turn.session.state),

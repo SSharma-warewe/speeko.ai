@@ -39,6 +39,37 @@ describe('WhatsAppBookingService', () => {
       calendarId: creds.calendarId,
     });
   });
+  it('does not silently switch an active task to different calendar credentials', async () => {
+    const snapshot = {
+      ...source,
+      calendarIntegrationId: 'integration-1',
+      locationId: 'location-1',
+      calendarId: 'calendar-1',
+    };
+    agents.getEntityWithTemplate.mockResolvedValue({
+      isActive: true,
+      calendarIntegrationId: 'integration-2',
+    });
+    expect(
+      await service.lookupContact(snapshot, { phone: '919876543210' }),
+    ).toMatchObject({ ok: false });
+    expect(ghl.lookupContact).not.toHaveBeenCalled();
+    agents.getEntityWithTemplate.mockResolvedValue({
+      isActive: true,
+      calendarIntegrationId: 'integration-1',
+    });
+    integrations.getEntityForOrg.mockResolvedValue({
+      provider: IntegrationProvider.GHL,
+      isActive: true,
+      apiKey: 'pit',
+      locationId: 'other-location',
+      calendarId: 'calendar-1',
+    });
+    expect(
+      await service.lookupContact(snapshot, { phone: '919876543210' }),
+    ).toMatchObject({ ok: false });
+    expect(ghl.lookupContact).not.toHaveBeenCalled();
+  });
 
   it('uses the selected voice agent calendar credentials for contact, slots, and booking', async () => {
     ghl.upsertContact.mockResolvedValue({

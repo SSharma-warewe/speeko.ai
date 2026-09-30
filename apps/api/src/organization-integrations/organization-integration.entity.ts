@@ -79,6 +79,14 @@ export class OrganizationIntegration {
   @Column({ name: 'system_prompt', type: 'text', nullable: true })
   systemPrompt!: string | null;
 
+  @Column({
+    name: 'whatsapp_task_key',
+    type: 'varchar',
+    length: 40,
+    nullable: true,
+  })
+  whatsappTaskKey!: import('@call-agent/contracts').WhatsAppTaskKey | null;
+
   /** Existing voice agent whose GHL calendar powers WhatsApp booking. */
   @Column({ name: 'booking_voice_agent_id', type: 'uuid', nullable: true })
   bookingVoiceAgentId!: string | null;

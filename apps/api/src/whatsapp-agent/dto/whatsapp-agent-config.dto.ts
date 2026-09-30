@@ -1,11 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import {
+  WHATSAPP_TASK_KEYS,
+  type WhatsAppTaskKey,
+} from '@call-agent/contracts';
 
 export class WhatsAppAgentConfigDto {
+  @ApiProperty({ enum: WHATSAPP_TASK_KEYS, nullable: true })
+  taskKey!: WhatsAppTaskKey | null;
   @ApiProperty({
     nullable: true,
     description:
-      'Inbound agent system prompt. Null when unset; empty clears and disables auto-reply.',
+      'Inbound agent persona. A selected task is also required for auto-replies; null/empty persona disables them.',
   })
   systemPrompt!: string | null;
 
@@ -31,6 +37,10 @@ export class WhatsAppAgentConfigDto {
 }
 
 export class UpdateWhatsAppAgentDto {
+  @ApiProperty({ enum: WHATSAPP_TASK_KEYS, nullable: true, required: false })
+  @IsOptional()
+  @IsIn(WHATSAPP_TASK_KEYS)
+  taskKey?: WhatsAppTaskKey | null;
   @ApiProperty({
     description:
       'System prompt for inbound WhatsApp auto-replies. Empty string clears and disables.',

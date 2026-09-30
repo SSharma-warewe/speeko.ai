@@ -221,12 +221,65 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
   });
 
   describe('whatsapp agent prompt', () => {
+    it('validates the effective task tools and calendar on persona-only edits, and snapshots no secrets', async () => {
+      const row = waRow({
+        systemPrompt: 'Original',
+        whatsappTaskKey: 'receptionist',
+        bookingVoiceAgentId: 'voice-1',
+        whatsappToolProfileId: 'profile-1',
+      });
+      repository.findByOrganization.mockResolvedValue([row]);
+      voiceAgents.findOne.mockResolvedValue({
+        id: 'voice-1',
+        isActive: true,
+        calendarIntegrationId: 'calendar-link',
+      });
+      repository.findByIdAndOrg.mockResolvedValue({
+        id: 'calendar-link',
+        provider: IntegrationProvider.GHL,
+        isActive: true,
+        apiKey: PIT,
+        locationId: 'location',
+        calendarId: 'calendar',
+      });
+      const saved = await service.updateWhatsAppAgent(ORG_ID, 'New persona');
+      expect(saved.taskKey).toBe('receptionist');
+      const configuration = await service.whatsAppTaskConfiguration(row);
+      expect(configuration).toMatchObject({
+        voiceAgentId: 'voice-1',
+        toolProfileId: 'profile-1',
+        calendarIntegrationId: 'calendar-link',
+        persona: 'New persona',
+        completionRule: 'ghl_appointment_created',
+      });
+      expect(JSON.stringify(configuration)).not.toContain(PIT);
+      expect(JSON.stringify(configuration)).not.toContain(TOKEN);
+      toolProfiles.resolveEnabledToolIds.mockResolvedValue([
+        'upsertGhlContact',
+        'checkGhlFreeSlots',
+      ]);
+      repository.save.mockClear();
+      await expect(
+        service.updateWhatsAppAgent(ORG_ID, 'Updated again'),
+      ).rejects.toThrow('scheduleGhlMeeting');
+      expect(repository.save).not.toHaveBeenCalled();
+      toolProfiles.resolveEnabledToolIds.mockResolvedValue([
+        'upsertGhlContact',
+        'checkGhlFreeSlots',
+        'scheduleGhlMeeting',
+      ]);
+      voiceAgents.findOne.mockResolvedValue(null);
+      await expect(service.whatsAppTaskConfiguration(row)).rejects.toThrow(
+        'active voice agent',
+      );
+    });
     it('returns systemPrompt and never the api key', async () => {
       repository.findByOrganization.mockResolvedValue([
         waRow({ systemPrompt: 'Be brief.' }),
       ]);
       const result = await service.getWhatsAppAgent(ORG_ID);
       expect(result).toEqual({
+        taskKey: null,
         systemPrompt: 'Be brief.',
         bookingVoiceAgentId: null,
         whatsappToolProfileId: null,
@@ -236,6 +289,7 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
 
     it('returns no org prompt when there is no WhatsApp connection', async () => {
       await expect(service.getWhatsAppAgent(ORG_ID)).resolves.toEqual({
+        taskKey: null,
         systemPrompt: null,
         bookingVoiceAgentId: null,
         whatsappToolProfileId: null,

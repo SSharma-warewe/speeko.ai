@@ -17,6 +17,8 @@ import { OrganizationIntegration } from '../../organization-integrations/organiz
 import { WhatsAppHarnessRepository } from '../whatsapp-harness.repository';
 import { WhatsAppConversation } from '../whatsapp-conversation.entity';
 import { WhatsAppTurn } from '../whatsapp-turn.entity';
+import { WhatsAppTaskSession } from '../whatsapp-task-session.entity';
+import type { WhatsAppTaskConfiguration } from '@call-agent/contracts';
 import { WhatsAppOutbox } from '../whatsapp-outbox.entity';
 import { WhatsAppToolOperation } from '../whatsapp-tool-operation.entity';
 import { OtpChallenge } from '../../otp/otp-challenge.entity';
@@ -40,6 +42,23 @@ const suite = databaseUrl ? describe : describe.skip;
 suite('WhatsApp harness with real PostgreSQL transactions', () => {
   let db: DataSource;
   let repository: WhatsAppHarnessRepository;
+  const taskConfig: WhatsAppTaskConfiguration = {
+    key: 'receptionist',
+    version: 1,
+    objective: 'Create an agreed booking',
+    completionRule: 'ghl_appointment_created',
+    persona: 'Test receptionist',
+    voiceAgentId: 'voice',
+    toolProfileId: 'profile',
+    calendarIntegrationId: 'calendar',
+    locationId: 'location',
+    calendarId: 'ghl-calendar',
+    enabledTools: [
+      'lookupGhlContact',
+      'checkGhlFreeSlots',
+      'scheduleGhlMeeting',
+    ],
+  };
   let input: {
     organizationId: string;
     connectionId: string;
@@ -85,6 +104,30 @@ suite('WhatsApp harness with real PostgreSQL transactions', () => {
     });
     await db.initialize();
     repository = new WhatsAppHarnessRepository(db);
+    // Simulate the production runtime binding immediately following a claim.
+    const claim = repository.claim.bind(repository);
+    repository.claim = async (limit) => {
+      const turns = await claim(limit);
+      for (const turn of turns) {
+        const conversation = await repository.getConversation(
+          turn.conversationId,
+        );
+        if (conversation.scope === 'org') {
+          await repository.bindTask(
+            turn.id,
+            turn.leaseToken!,
+            async () => taskConfig,
+          );
+          Object.assign(
+            turn,
+            await db
+              .getRepository(WhatsAppTurn)
+              .findOneByOrFail({ id: turn.id }),
+          );
+        }
+      }
+      return turns;
+    };
   }, 30_000);
   afterAll(async () => {
     if (db?.isInitialized) await db.destroy();
@@ -107,6 +150,7 @@ suite('WhatsApp harness with real PostgreSQL transactions', () => {
       phoneNumberId: String(Date.now()) + Math.floor(Math.random() * 1000),
       wabaId: '12345678',
       systemPrompt: 'Test receptionist',
+      whatsappTaskKey: 'receptionist',
       isActive: true,
     });
     input = {
@@ -668,6 +712,300 @@ suite('WhatsApp harness with real PostgreSQL transactions', () => {
     await expect(
       repository.retry(randomUUID(), turn.id),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  async function claimedTask(body = 'Hello') {
+    await repository.ingest({ ...input, body });
+    const [turn] = await repository.claim(100);
+    const task = await db
+      .getRepository(WhatsAppTaskSession)
+      .findOneByOrFail({ id: turn.taskSessionId! });
+    return { turn, task };
+  }
+  async function finishBooking(
+    turn: WhatsAppTurn,
+    result: Record<string, unknown>,
+  ) {
+    const reservation = await repository.reserveTool(
+      turn.id,
+      turn.leaseToken!,
+      'booking',
+      'scheduleGhlMeeting',
+      () => undefined,
+    );
+    await repository.finishTool(reservation.operation, result, () => undefined);
+    return reservation;
+  }
+  it('closes only on persisted booking success, preserves final-send recovery and starts isolated queued sessions', async () => {
+    const { turn, task } = await claimedTask();
+    await repository.ingest({
+      ...input,
+      messageId: randomUUID(),
+      body: 'Another appointment',
+    });
+    await finishBooking(turn, {
+      ok: true,
+      appointmentId: 'meeting-1',
+      startTime: '2030-01-01T10:00:00Z',
+    });
+    expect(
+      await db
+        .getRepository(WhatsAppTaskSession)
+        .findOneByOrFail({ id: task.id }),
+    ).toMatchObject({
+      status: 'completed',
+      outcome: 'booked',
+      terminalTurnId: turn.id,
+    });
+    await expect(
+      repository.reserveTool(
+        turn.id,
+        turn.leaseToken!,
+        'another',
+        'lookupGhlContact',
+        () => undefined,
+      ),
+    ).rejects.toThrow('closed');
+    const checkpoint = {
+      session: { state: { previousCustomerData: true }, events: [] },
+      reply: 'Booked',
+    };
+    await Promise.all([
+      repository.complete(turn.id, turn.leaseToken!, checkpoint),
+      repository.complete(turn.id, turn.leaseToken!, checkpoint),
+    ]);
+    expect(
+      await db
+        .getRepository(WhatsAppOutbox)
+        .count({ where: { turnId: turn.id } }),
+    ).toBe(1);
+    const outbox = await db
+      .getRepository(WhatsAppOutbox)
+      .findOneByOrFail({ turnId: turn.id });
+    await db
+      .getRepository(WhatsAppOutbox)
+      .update(outbox.id, { status: 'uncertain' });
+    expect(await repository.claim(100)).toEqual([]);
+    await repository.resolveSend(input.organizationId, outbox.id, 'failed');
+    await repository.resolveSend(input.organizationId, outbox.id, 'retry');
+    expect(await repository.claim(100)).toEqual([]);
+    await db
+      .getRepository(WhatsAppOutbox)
+      .update(outbox.id, { status: 'accepted' });
+    const [next] = await repository.claim(100);
+    expect(next.taskSessionId).not.toBe(task.id);
+    expect(next.baseSession).toEqual({ state: {}, events: [] });
+    const nextTask = await db
+      .getRepository(WhatsAppTaskSession)
+      .findOneByOrFail({ id: next.taskSessionId! });
+    expect(nextTask.toolState).toEqual({});
+    expect(
+      (await repository.getConversation(turn.conversationId)).generation,
+    ).toBe(1);
+    expect(
+      (await repository.inspect(input.organizationId, turn.conversationId))
+        .taskSessions,
+    ).toHaveLength(2);
+  });
+  it.each([
+    ['lookupGhlContact', { ok: true, contactId: 'contact' }],
+    ['checkGhlFreeSlots', { ok: true, slots: [] }],
+    ['scheduleGhlMeeting', { ok: false, error: 'slot_busy' }],
+    ['scheduleGhlMeeting', { ok: true }],
+  ])(
+    'does not close a task for %s without a booking receipt',
+    async (toolId, result) => {
+      const { turn, task } = await claimedTask();
+      const reserved = await repository.reserveTool(
+        turn.id,
+        turn.leaseToken!,
+        'operation',
+        toolId as string,
+        () => undefined,
+      );
+      await repository.finishTool(
+        reserved.operation,
+        result as Record<string, unknown>,
+        () => undefined,
+      );
+      await repository.complete(turn.id, turn.leaseToken!, {
+        session: { state: {}, events: [] },
+        reply: 'Done',
+      });
+      expect(
+        (
+          await db
+            .getRepository(WhatsAppTaskSession)
+            .findOneByOrFail({ id: task.id })
+        ).status,
+      ).toBe('active');
+    },
+  );
+  it('recovers the completing turn after a crash without reopening the task or losing the booking receipt', async () => {
+    const { turn, task } = await claimedTask();
+    await finishBooking(turn, { ok: true, appointmentId: 'meeting' });
+    await db
+      .getRepository(WhatsAppTurn)
+      .update(turn.id, { leaseExpiresAt: new Date(0) });
+    await repository.reap();
+    await db
+      .getRepository(WhatsAppTurn)
+      .update(turn.id, { nextAttemptAt: new Date(0) });
+    const [retry] = await repository.claim(100);
+    expect(retry.taskSessionId).toBe(task.id);
+    expect(retry.leaseToken).not.toBe(turn.leaseToken);
+    const recovered = await repository.bindTask(
+      retry.id,
+      retry.leaseToken!,
+      async () => {
+        throw new Error('must use original task');
+      },
+    );
+    expect(recovered.result).toEqual({ ok: true, appointmentId: 'meeting' });
+    await expect(
+      repository.complete(turn.id, turn.leaseToken!, {
+        session: { state: {}, events: [] },
+        reply: 'stale',
+      }),
+    ).rejects.toThrow('lease');
+    await repository.complete(retry.id, retry.leaseToken!, {
+      session: { state: {}, events: [] },
+      reply: 'Booking recovered',
+    });
+  });
+  it('closes explicit refusal as declined but rejects invented refusal and unknown booking writes', async () => {
+    const { turn, task } = await claimedTask("I don't want to book a meeting");
+    const reply = {
+      session: { state: {}, events: [] },
+      reply: 'Understood',
+      decline: { evidence: 'invented refusal' },
+    };
+    await expect(
+      repository.checkpoint(turn.id, turn.leaseToken!, reply),
+    ).rejects.toThrow('Explicit');
+    expect(
+      (await db.getRepository(WhatsAppTurn).findOneByOrFail({ id: turn.id }))
+        .checkpoint,
+    ).toBeNull();
+    await expect(
+      repository.complete(turn.id, turn.leaseToken!, reply),
+    ).rejects.toThrow('Explicit');
+    const reserved = await repository.reserveTool(
+      turn.id,
+      turn.leaseToken!,
+      'unknown',
+      'scheduleGhlMeeting',
+      () => undefined,
+    );
+    reply.decline.evidence = "I don't want to book a meeting";
+    await expect(
+      repository.checkpoint(turn.id, turn.leaseToken!, reply),
+    ).rejects.toThrow('unknown');
+    await expect(
+      repository.complete(turn.id, turn.leaseToken!, reply),
+    ).rejects.toThrow('unknown');
+    await expect(
+      repository.reserveTool(
+        turn.id,
+        turn.leaseToken!,
+        'different-booking',
+        'scheduleGhlMeeting',
+        () => undefined,
+      ),
+    ).rejects.toThrow('unknown');
+    await repository.finishTool(
+      reserved.operation,
+      { ok: false, error: 'slot_busy' },
+      () => undefined,
+    );
+    await repository.complete(turn.id, turn.leaseToken!, reply);
+    expect(
+      await db
+        .getRepository(WhatsAppTaskSession)
+        .findOneByOrFail({ id: task.id }),
+    ).toMatchObject({ status: 'cancelled', outcome: 'declined', result: null });
+    await db.getRepository(WhatsAppTurn).update(turn.id, { status: 'failed' });
+    await expect(
+      repository.retry(input.organizationId, turn.id),
+    ).rejects.toThrow('closed');
+  });
+  it('snapshots configuration, keeps one active task under concurrency and fences reset tool results', async () => {
+    const { turn, task } = await claimedTask();
+    const snapshots = await Promise.all([
+      repository.bindTask(turn.id, turn.leaseToken!, async () => ({
+        ...taskConfig,
+        persona: 'changed',
+      })),
+      new WhatsAppHarnessRepository(db).bindTask(
+        turn.id,
+        turn.leaseToken!,
+        async () => ({ ...taskConfig, key: 'appointment_booking' }),
+      ),
+    ]);
+    expect(snapshots.map((snapshot) => snapshot.id)).toEqual([
+      task.id,
+      task.id,
+    ]);
+    expect(snapshots[0].configuration.persona).toBe('Test receptionist');
+    expect(
+      await db.getRepository(WhatsAppTaskSession).count({
+        where: { conversationId: turn.conversationId, status: 'active' },
+      }),
+    ).toBe(1);
+    const reserved = await repository.reserveTool(
+      turn.id,
+      turn.leaseToken!,
+      'late',
+      'scheduleGhlMeeting',
+      () => undefined,
+    );
+    await repository.ingest({
+      ...input,
+      messageId: randomUUID(),
+      body: '/new',
+    });
+    await repository.finishTool(
+      reserved.operation,
+      { ok: true, appointmentId: 'late' },
+      () => undefined,
+    );
+    expect(
+      await db
+        .getRepository(WhatsAppTaskSession)
+        .findOneByOrFail({ id: task.id }),
+    ).toMatchObject({ status: 'cancelled', outcome: 'reset', result: null });
+  });
+  it('retires legacy work, preserves legacy final sends and pauses channels without task selection', async () => {
+    await repository.ingest(input);
+    const legacy = await db
+      .getRepository(WhatsAppTurn)
+      .findOneByOrFail({ messageId: input.messageId });
+    await db
+      .getRepository(WhatsAppTurn)
+      .update(legacy.id, { taskProtocolVersion: null });
+    const outbox = await db
+      .getRepository(WhatsAppOutbox)
+      .save({ turnId: legacy.id, body: 'Legacy confirmation' });
+    await repository.reap();
+    expect(
+      (await db.getRepository(WhatsAppTurn).findOneByOrFail({ id: legacy.id }))
+        .status,
+    ).toBe('cancelled');
+    expect(
+      (
+        await db
+          .getRepository(WhatsAppOutbox)
+          .findOneByOrFail({ id: outbox.id })
+      ).status,
+    ).toBe('pending');
+    await repository.ingest({ ...input, messageId: randomUUID() });
+    await db
+      .getRepository(WhatsAppOutbox)
+      .update(outbox.id, { status: 'accepted' });
+    await db
+      .getRepository(OrganizationIntegration)
+      .update(input.connectionId, { whatsappTaskKey: null });
+    expect(await repository.claim(100)).toEqual([]);
   });
 
   it('boots the real module graph, exposes Swagger callbacks and durably ingests through HTTP', async () => {

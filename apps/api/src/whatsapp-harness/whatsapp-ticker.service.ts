@@ -53,6 +53,24 @@ export class WhatsAppTickerService {
         turns.map(async (turn) => {
           try {
             const runtime = await this.harness.runtime(turn);
+            if (runtime.task) {
+              const health = await fetch(`${url}/health`, {
+                redirect: 'error',
+                signal: AbortSignal.timeout(3000),
+              });
+              const protocol = health.ok
+                ? ((await health.json()) as { taskProtocolVersion?: number })
+                : null;
+              if (protocol?.taskProtocolVersion !== 1) {
+                await this.repository.fail(
+                  turn.id,
+                  turn.leaseToken!,
+                  'worker_task_protocol_unavailable',
+                  true,
+                );
+                return;
+              }
+            }
             const response = await fetch(`${url}/turns`, {
               method: 'POST',
               redirect: 'error',

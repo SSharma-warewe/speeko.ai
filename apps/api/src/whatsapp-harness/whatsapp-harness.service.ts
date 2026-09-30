@@ -5,7 +5,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import {
-  WHATSAPP_AGENT_TOOL_IDS,
+  isWhatsAppTaskKey,
   type WhatsAppAgentToolId,
   type WhatsAppTurnCheckpoint,
   type WhatsAppWorkerTurn,
@@ -63,6 +63,10 @@ const sessionSchema = z
 export const checkpointSchema = z.object({
   session: sessionSchema,
   reply: z.string().trim().min(1).max(4096).optional(),
+  decline: z
+    .object({ evidence: z.string().trim().min(1).max(4096) })
+    .strict()
+    .optional(),
 });
 
 function stripThoughts(checkpoint: WhatsAppTurnCheckpoint) {
@@ -117,7 +121,11 @@ export class WhatsAppHarnessService {
           });
         continue;
       }
-      if (!connection.systemPrompt?.trim()) continue;
+      if (
+        !connection.systemPrompt?.trim() ||
+        !isWhatsAppTaskKey(connection.whatsappTaskKey)
+      )
+        continue;
       const org = await this.organizations.findById(connection.organizationId);
       if (!org.isActive) continue;
       await this.repository.ingest({
@@ -175,24 +183,27 @@ export class WhatsAppHarnessService {
         enabledTools: [],
         session: turn.baseSession!,
         checkpoint: turn.checkpoint,
+        task: null,
       };
     }
     const connection = await this.connection(conversation);
+    if (!isWhatsAppTaskKey(connection.whatsappTaskKey))
+      throw new ForbiddenException('Select a WhatsApp task');
+    const task = await this.repository.bindTask(turn.id, turn.leaseToken!, () =>
+      this.integrations.whatsAppTaskConfiguration(connection),
+    );
+    const config = task.configuration;
     let enabledTools: WhatsAppAgentToolId[] = [];
-    if (connection.bookingVoiceAgentId && connection.whatsappToolProfileId) {
-      try {
-        await this.profiles.getResponseForOrganization(
-          conversation.organizationId!,
-          connection.whatsappToolProfileId,
-        );
-        const ids = await this.profiles.resolveEnabledToolIds(
-          connection.whatsappToolProfileId,
-          conversation.organizationId!,
-        );
-        enabledTools = WHATSAPP_AGENT_TOOL_IDS.filter((id) => ids.includes(id));
-      } catch {
-        /* A removed profile disables tools, not normal conversation. */
-      }
+    if (task.status === 'active') {
+      await this.profiles.getResponseForOrganization(
+        connection.organizationId,
+        config.toolProfileId,
+      );
+      const ids = await this.profiles.resolveEnabledToolIds(
+        config.toolProfileId,
+        connection.organizationId,
+      );
+      enabledTools = config.enabledTools.filter((id) => ids.includes(id));
     }
     return {
       id: turn.id,
@@ -201,10 +212,19 @@ export class WhatsAppHarnessService {
       leaseToken: turn.leaseToken!,
       sender: conversation.sender,
       body: turn.body,
-      prompt: connection.systemPrompt!.trim(),
+      prompt: config.persona,
       enabledTools,
-      session: turn.baseSession!,
-      checkpoint: turn.checkpoint,
+      session: turn.baseSession ?? task.session,
+      checkpoint: turn.taskSessionId ? turn.checkpoint : null,
+      task: {
+        sessionId: task.id,
+        key: config.key,
+        version: config.version,
+        objective: config.objective,
+        completionRule: config.completionRule,
+        status: task.status,
+        result: task.result,
+      },
     };
   }
 
@@ -233,27 +253,35 @@ export class WhatsAppHarnessService {
     const loaded = await this.repository.withTurn(
       id,
       token,
-      async ({ conversation }) => ({
+      async ({ conversation, task }) => ({
         conversation,
+        task,
         connection: await this.connection(conversation),
       }),
     );
-    const { conversation, connection } = loaded;
-    if (!connection.bookingVoiceAgentId || !connection.whatsappToolProfileId)
+    const { conversation, connection, task } = loaded;
+    if (!task || (task.status !== 'active' && toolId !== 'scheduleGhlMeeting'))
+      throw new ForbiddenException('WhatsApp task session is closed');
+    const config = task.configuration;
+    conversation.toolState = task.toolState;
+    if (!connection.isActive || !isWhatsAppTaskKey(connection.whatsappTaskKey))
       throw new ForbiddenException('WhatsApp tools are not connected');
     await this.profiles.getResponseForOrganization(
-      conversation.organizationId!,
-      connection.whatsappToolProfileId,
+      connection.organizationId,
+      config.toolProfileId,
     );
     const ids = await this.profiles.resolveEnabledToolIds(
-      connection.whatsappToolProfileId,
-      conversation.organizationId!,
+      config.toolProfileId,
+      connection.organizationId,
     );
-    if (!ids.includes(toolId))
+    if (!ids.includes(toolId) || !config.enabledTools.includes(toolId))
       throw new ForbiddenException('WhatsApp tool is no longer assigned');
     const source = {
-      organizationId: conversation.organizationId!,
-      voiceAgentId: connection.bookingVoiceAgentId,
+      organizationId: connection.organizationId,
+      voiceAgentId: config.voiceAgentId,
+      calendarIntegrationId: config.calendarIntegrationId,
+      locationId: config.locationId,
+      calendarId: config.calendarId,
     };
     const contactId = conversation.toolState.contactId as string | undefined;
     // Calendar writes are deduped across turns; reads are cached only within a
@@ -262,6 +290,7 @@ export class WhatsAppHarnessService {
       toolId === 'scheduleGhlMeeting'
         ? {
             toolId,
+            taskSessionId: task.id,
             voiceAgentId: source.voiceAgentId,
             contactId,
             startTime: Number.isFinite(Date.parse(args.startTime))
@@ -269,6 +298,7 @@ export class WhatsAppHarnessService {
               : args.startTime,
           }
         : {
+            taskSessionId: task.id,
             turnId: id,
             toolId,
             args: Object.fromEntries(
@@ -306,7 +336,9 @@ export class WhatsAppHarnessService {
     } catch (error) {
       if (
         error instanceof ConflictException &&
-        error.message !== 'WhatsApp turn lease expired'
+        (error.message === 'Look up or create the contact first' ||
+          error.message ===
+            'Check availability and use an exact returned startIso')
       )
         return {
           ok: false,
@@ -345,7 +377,7 @@ export class WhatsAppHarnessService {
             args as { startTime: string; endTime: string; timezone?: string },
           );
           break;
-        case 'scheduleGhlMeeting':
+        case 'scheduleGhlMeeting': {
           // Returned calendar slots are authoritative instants, not model wall
           // clock guesses. Numeric offsets bypass GHL's Z+timezone heuristic.
           const ends = (conversation.toolState.offeredSlotEnds ?? {}) as Record<
@@ -372,7 +404,14 @@ export class WhatsAppHarnessService {
                   .replace(/Z$/, '+00:00')
               : undefined,
           });
+          if (result.ok === true)
+            result = {
+              ...result,
+              timezone:
+                args.timezone || conversation.toolState.calendarTimezone,
+            };
           break;
+        }
       }
     } catch {
       // A reserved write with no result remains uncertain across a restart.
@@ -402,6 +441,7 @@ export class WhatsAppHarnessService {
         )
           current.toolState.contactId = result.contactId;
         if (toolId === 'checkGhlFreeSlots') {
+          current.toolState.calendarTimezone = result.timezone || args.timezone;
           current.toolState.offeredSlots = (
             result.slots as Array<{ startIso: string }>
           ).map((slot) => slot.startIso);

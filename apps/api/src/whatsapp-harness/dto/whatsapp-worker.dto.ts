@@ -16,6 +16,14 @@ export class WhatsAppLeaseDto {
   @ApiProperty() @IsUUID() leaseToken!: string;
 }
 export class WhatsAppCheckpointDto extends WhatsAppLeaseDto {
+  @ApiProperty({
+    required: false,
+    description:
+      'Explicit booking refusal, with a quote from the current user message. Never marks success.',
+  })
+  @IsOptional()
+  @IsObject()
+  decline?: { evidence: string };
   @ApiProperty({ description: 'ADK state and ordered events' })
   @IsObject()
   session!: Record<string, unknown>;

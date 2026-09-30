@@ -28,6 +28,14 @@ independently of model-worker health.
 
 ## Persistence and execution
 
+Org channels now require a task selected in the portal Agent tab. Receptionist
+and Appointment booking both end only after a persisted GHL appointment receipt.
+The API creates an independent task session per customer, snapshots configuration,
+and starts fresh memory on the next message after booking or explicit refusal.
+See [TASK-SESSIONS.md](TASK-SESSIONS.md) for lifecycle, compatibility and rollout.
+The legacy conversation session/tool state described below remains the platform
+path; org execution uses `whatsapp_task_sessions` instead.
+
 - Webhooks save their raw event, then persist eligible org/platform text turns **before**
   returning 200. Database ingestion errors return an error so Meta can retry.
 - `whatsapp_conversations` stores session state/history, trusted booking state,

@@ -1,5 +1,5 @@
 /** Best-effort sender country code → IANA timezone, matching the voice clock. */
-function senderTimeZone(sessionId: string): string {
+export function whatsAppSenderTimeZone(sessionId: string): string {
   const sender = sessionId.slice(sessionId.lastIndexOf(':') + 1);
   const digits = sender.replace(/\D/g, '');
   if (digits.length < 8) return 'UTC';
@@ -59,7 +59,7 @@ export function buildWhatsAppInstruction(
   sessionId: string,
   now: Date = new Date(),
 ): string {
-  const timeZone = senderTimeZone(sessionId);
+  const timeZone = whatsAppSenderTimeZone(sessionId);
   const todayDate = localDate(now, timeZone);
   const week = Array.from({ length: 7 }, (_, offset) =>
     formatDay(new Date(todayDate.getTime() + offset * 86_400_000)),

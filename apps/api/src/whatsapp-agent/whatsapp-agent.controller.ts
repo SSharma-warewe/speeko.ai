@@ -28,9 +28,10 @@ export class WhatsAppAgentController {
 
   @Get()
   @ApiOperation({
-    summary: 'Get the org WhatsApp inbound agent system prompt',
+    summary:
+      'Get the org WhatsApp channel persona, task and booking configuration',
     description:
-      'Returns the saved org prompt and the platform receptionist example. Null org prompt means auto-replies are off.',
+      'Returns the channel persona, selected task and booking sources. A missing task or empty persona pauses org auto-replies. The platform prompt is a read-only example.',
   })
   @ApiOkResponse({ type: WhatsAppAgentConfigDto })
   async get(
@@ -44,9 +45,10 @@ export class WhatsAppAgentController {
 
   @Patch()
   @ApiOperation({
-    summary: 'Update the org WhatsApp inbound agent system prompt',
+    summary:
+      'Update the org WhatsApp channel persona, task and booking configuration',
     description:
-      'Empty string clears the prompt and disables auto-replies for this org line.',
+      'Empty persona or null task disables org auto-replies. Selected tasks require assigned GHL booking/free-slot/contact tools and an active calendar source. Configuration is snapshotted for new sessions.',
   })
   @ApiOkResponse({ type: WhatsAppAgentConfigDto })
   @ApiNotFoundError('No active WhatsApp connection')
@@ -59,6 +61,7 @@ export class WhatsAppAgentController {
       dto.systemPrompt,
       dto.bookingVoiceAgentId,
       dto.whatsappToolProfileId,
+      dto.taskKey,
     );
     return { ...config, platformPrompt: RECEPTIONIST_INSTRUCTION };
   }

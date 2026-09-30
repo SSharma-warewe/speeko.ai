@@ -21,6 +21,7 @@ describe('WhatsApp harness API boundaries', () => {
     checkpoint: jest.fn(),
     complete: jest.fn(),
     getConversation: jest.fn(),
+    bindTask: jest.fn(),
   };
   const integrations = {
     findActiveWhatsAppByPhoneNumberId: jest.fn(),
@@ -35,6 +36,7 @@ describe('WhatsApp harness API boundaries', () => {
   const meta = { sendText: jest.fn() };
   const otpDelivery = { sendReserved: jest.fn(), isConfigured: jest.fn() };
   const connection = {
+    whatsappTaskKey: 'receptionist',
     id: 'connection',
     organizationId: 'org',
     provider: 'whatsapp',
@@ -52,9 +54,38 @@ describe('WhatsApp harness API boundaries', () => {
     sender: '919876543210',
     toolState: {} as Record<string, unknown>,
   };
+  const task = {
+    id: 'task',
+    status: 'active',
+    session: { state: { existingTask: true }, events: [] },
+    result: null,
+    configuration: {
+      voiceAgentId: 'voice',
+      toolProfileId: 'profile',
+      key: 'receptionist',
+      version: 1,
+      objective: 'Create a booking',
+      completionRule: 'ghl_appointment_created',
+      persona: 'Snapshot persona',
+      calendarIntegrationId: 'calendar',
+      locationId: 'location',
+      calendarId: 'ghl-calendar',
+      enabledTools: [
+        'lookupGhlContact',
+        'upsertGhlContact',
+        'checkGhlFreeSlots',
+        'scheduleGhlMeeting',
+      ],
+    },
+    get toolState() {
+      return conversation.toolState;
+    },
+  };
   let service: WhatsAppHarnessService;
   beforeEach(() => {
     jest.resetAllMocks();
+    task.status = 'active';
+    repository.bindTask.mockResolvedValue(task);
     otpDelivery.isConfigured.mockReturnValue(false);
     conversation.toolState = {};
     integrations.findActiveWhatsAppByPhoneNumberId.mockResolvedValue(
@@ -64,7 +95,7 @@ describe('WhatsApp harness API boundaries', () => {
     organizations.findById.mockResolvedValue({ id: 'org', isActive: true });
     profiles.resolveEnabledToolIds.mockResolvedValue(['lookupGhlContact']);
     repository.withTurn.mockImplementation((_id, _lease, action) =>
-      action({ conversation }),
+      action({ conversation, task }),
     );
     repository.reserveTool.mockResolvedValue({ fresh: true, operation: {} });
     booking.lookupContact.mockResolvedValue({
@@ -136,6 +167,57 @@ describe('WhatsApp harness API boundaries', () => {
       platformEnabled: true,
       otpEnabled: true,
     });
+  });
+  it('requires task selection without falling through to the platform receptionist', async () => {
+    integrations.findActiveWhatsAppByPhoneNumberId.mockResolvedValue({
+      ...connection,
+      whatsappTaskKey: null,
+    });
+    await platformService().ingestWebhook(platformPayload());
+    expect(repository.ingest).not.toHaveBeenCalled();
+  });
+  it('dispatches the immutable task persona and history, not later channel changes or credentials', async () => {
+    repository.getConversation.mockResolvedValue(conversation);
+    integrations.getEntityForOrg.mockResolvedValue({
+      ...connection,
+      systemPrompt: 'Changed persona',
+      whatsappToolProfileId: 'new-profile',
+      bookingVoiceAgentId: 'new-voice',
+    });
+    const runtime = await service.runtime({
+      id: 'turn',
+      conversationId: 'conversation',
+      generation: 1,
+      leaseToken: 'lease',
+      body: 'Hello',
+      baseSession: null,
+      checkpoint: null,
+    } as never);
+    expect(runtime.prompt).toBe('Snapshot persona');
+    expect(runtime.session).toEqual(task.session);
+    expect(runtime.task).toMatchObject({
+      sessionId: 'task',
+      key: 'receptionist',
+      status: 'active',
+    });
+    expect(runtime.enabledTools).toEqual(['lookupGhlContact']);
+    expect(profiles.resolveEnabledToolIds).toHaveBeenCalledWith(
+      'profile',
+      'org',
+    );
+    expect(JSON.stringify(runtime)).not.toContain('org-secret');
+    task.status = 'completed';
+    profiles.resolveEnabledToolIds.mockClear();
+    const recovery = await service.runtime({
+      id: 'turn',
+      conversationId: 'conversation',
+      generation: 1,
+      leaseToken: 'lease',
+      body: 'Hello',
+      checkpoint: null,
+    } as never);
+    expect(recovery.enabledTools).toEqual([]);
+    expect(profiles.resolveEnabledToolIds).not.toHaveBeenCalled();
   });
   it('stores no platform turn when the platform number is unconfigured', async () => {
     integrations.findActiveWhatsAppByPhoneNumberId.mockResolvedValue(null);
@@ -239,7 +321,11 @@ describe('WhatsApp harness API boundaries', () => {
       email: 'user@company.com',
     });
     expect(booking.lookupContact).toHaveBeenCalledWith(
-      { organizationId: 'org', voiceAgentId: 'voice' },
+      expect.objectContaining({
+        organizationId: 'org',
+        voiceAgentId: 'voice',
+        calendarIntegrationId: 'calendar',
+      }),
       { email: 'user@company.com', phone: conversation.sender },
     );
     expect(
@@ -295,7 +381,11 @@ describe('WhatsApp harness API boundaries', () => {
       timezone: 'Asia/Kolkata',
     });
     expect(booking.scheduleMeeting).toHaveBeenCalledWith(
-      { organizationId: 'org', voiceAgentId: 'voice' },
+      expect.objectContaining({
+        organizationId: 'org',
+        voiceAgentId: 'voice',
+        calendarIntegrationId: 'calendar',
+      }),
       {
         contactId: 'contact',
         startTime: '2027-01-10T10:00:00.000+00:00',

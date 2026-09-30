@@ -8,6 +8,7 @@ import { MetaWhatsAppModule } from '../meta-whatsapp/meta-whatsapp.module';
 import { WhatsAppBookingService } from '../whatsapp-agent/whatsapp-booking.service';
 import { WhatsAppConversation } from './whatsapp-conversation.entity';
 import { WhatsAppTurn } from './whatsapp-turn.entity';
+import { WhatsAppTaskSession } from './whatsapp-task-session.entity';
 import { WhatsAppOutbox } from './whatsapp-outbox.entity';
 import { WhatsAppToolOperation } from './whatsapp-tool-operation.entity';
 import { WhatsAppHarnessRepository } from './whatsapp-harness.repository';
@@ -25,6 +26,7 @@ import { AdminWhatsAppHarnessController } from './admin-whatsapp-harness.control
     TypeOrmModule.forFeature([
       WhatsAppConversation,
       WhatsAppTurn,
+      WhatsAppTaskSession,
       WhatsAppOutbox,
       WhatsAppToolOperation,
       OtpChallenge,

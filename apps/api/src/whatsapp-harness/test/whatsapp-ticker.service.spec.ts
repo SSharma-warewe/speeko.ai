@@ -95,4 +95,32 @@ describe('WhatsApp API ticker', () => {
     expect(harness.sendOne).toHaveBeenCalledTimes(4);
     expect(ticker.health().lastSendError).toBeNull();
   });
+  it('never dispatches task jobs to a worker without task protocol support', async () => {
+    harness.runtime.mockResolvedValue({
+      id: 'turn',
+      task: { sessionId: 'task' },
+    });
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ ready: true }) });
+    await ticker.tick();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(repository.fail).toHaveBeenCalledWith(
+      'turn',
+      'lease',
+      'worker_task_protocol_unavailable',
+      true,
+    );
+    repository.fail.mockClear();
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ taskProtocolVersion: 1 }),
+      })
+      .mockResolvedValueOnce({ status: 202 });
+    await ticker.tick();
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(repository.fail).not.toHaveBeenCalled();
+  });
 });

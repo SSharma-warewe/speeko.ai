@@ -179,7 +179,21 @@ export {
   WHATSAPP_AGENT_TOOL_IDS,
   WHATSAPP_AGENT_MODEL,
 } from './whatsapp-harness.js';
-export { buildWhatsAppInstruction } from './whatsapp-clock.js';
+export {
+  buildWhatsAppInstruction,
+  whatsAppSenderTimeZone,
+} from './whatsapp-clock.js';
+export {
+  WHATSAPP_TASK_KEYS,
+  WHATSAPP_TASKS,
+  WHATSAPP_TASK_COMPLETION,
+  isWhatsAppTaskKey,
+} from './whatsapp-tasks.js';
+export type {
+  WhatsAppTaskKey,
+  WhatsAppTaskConfiguration,
+  WhatsAppTaskRuntime,
+} from './whatsapp-tasks.js';
 export type {
   WhatsAppAgentToolId,
   WhatsAppConversationScope,

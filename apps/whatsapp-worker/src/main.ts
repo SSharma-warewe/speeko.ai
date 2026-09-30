@@ -4,6 +4,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import {
   WHATSAPP_AGENT_TOOL_IDS,
+  WHATSAPP_TASK_KEYS,
   type WhatsAppWorkerTurn,
 } from '@call-agent/contracts';
 import { HarnessApiClient } from './api-client.js';
@@ -35,6 +36,17 @@ const snapshot = z.object({
   events: z.array(z.record(z.unknown())),
 });
 const turnSchema = z.object({
+  task: z
+    .object({
+      sessionId: z.string().uuid(),
+      key: z.enum(WHATSAPP_TASK_KEYS),
+      version: z.literal(1),
+      objective: z.string().min(1).max(20000),
+      completionRule: z.literal('ghl_appointment_created'),
+      status: z.enum(['active', 'completed', 'cancelled']),
+      result: z.record(z.unknown()).nullable(),
+    })
+    .nullable(),
   id: z.string().uuid(),
   conversationId: z.string().uuid(),
   generation: z.number().int().positive(),
@@ -45,7 +57,11 @@ const turnSchema = z.object({
   enabledTools: z.array(z.enum(WHATSAPP_AGENT_TOOL_IDS)),
   session: snapshot,
   checkpoint: z
-    .object({ session: snapshot, reply: z.string().max(4096).optional() })
+    .object({
+      session: snapshot,
+      reply: z.string().max(4096).optional(),
+      decline: z.object({ evidence: z.string().min(1).max(4096) }).optional(),
+    })
     .nullable(),
 });
 
@@ -101,6 +117,7 @@ const server = createServer(async (request, response) => {
       ready: !stopping,
       active: active.size,
       capacity,
+      taskProtocolVersion: 1,
     });
   const supplied = Buffer.from(
     String(request.headers['x-worker-secret'] ?? ''),

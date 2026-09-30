@@ -1,4 +1,11 @@
 import {
+  WHATSAPP_TASKS,
+  WHATSAPP_AGENT_TOOL_IDS,
+  isWhatsAppTaskKey,
+  type WhatsAppTaskKey,
+  type WhatsAppTaskConfiguration,
+} from '@call-agent/contracts';
+import {
   BadRequestException,
   ConflictException,
   Inject,
@@ -172,6 +179,7 @@ export class OrganizationIntegrationsService {
   }
 
   async getWhatsAppAgent(organizationId: string): Promise<{
+    taskKey: WhatsAppTaskKey | null;
     systemPrompt: string | null;
     bookingVoiceAgentId: string | null;
     whatsappToolProfileId: string | null;
@@ -184,6 +192,7 @@ export class OrganizationIntegrationsService {
         integration.isActive,
     );
     return {
+      taskKey: row?.whatsappTaskKey ?? null,
       systemPrompt: row?.systemPrompt ?? null,
       bookingVoiceAgentId: row?.bookingVoiceAgentId ?? null,
       whatsappToolProfileId: row?.whatsappToolProfileId ?? null,
@@ -195,7 +204,9 @@ export class OrganizationIntegrationsService {
     systemPrompt: string,
     bookingVoiceAgentId?: string | null,
     whatsappToolProfileId?: string | null,
+    taskKey?: WhatsAppTaskKey | null,
   ): Promise<{
+    taskKey: WhatsAppTaskKey | null;
     systemPrompt: string | null;
     bookingVoiceAgentId: string | null;
     whatsappToolProfileId: string | null;
@@ -278,12 +289,84 @@ export class OrganizationIntegrationsService {
     if (whatsappToolProfileId !== undefined) {
       row.whatsappToolProfileId = whatsappToolProfileId;
     }
+    if (taskKey !== undefined) row.whatsappTaskKey = taskKey;
     row.systemPrompt = trimmed.length > 0 ? trimmed : null;
+    if (row.whatsappTaskKey && trimmed)
+      await this.whatsAppTaskConfiguration(row);
     const saved = await this.repository.save(row);
     return {
+      taskKey: saved.whatsappTaskKey ?? null,
       systemPrompt: saved.systemPrompt ?? null,
       bookingVoiceAgentId: saved.bookingVoiceAgentId ?? null,
       whatsappToolProfileId: saved.whatsappToolProfileId ?? null,
+    };
+  }
+
+  /** Secrets never enter this immutable task snapshot. */
+  async whatsAppTaskConfiguration(
+    row: OrganizationIntegration,
+  ): Promise<WhatsAppTaskConfiguration> {
+    if (!isWhatsAppTaskKey(row.whatsappTaskKey) || !row.systemPrompt?.trim())
+      throw new BadRequestException(
+        'Select a WhatsApp task and enter a persona.',
+      );
+    if (!row.bookingVoiceAgentId || !row.whatsappToolProfileId)
+      throw new BadRequestException(
+        'Task requires a booking tool profile and GHL voice agent.',
+      );
+    await this.toolProfiles.getResponseForOrganization(
+      row.organizationId,
+      row.whatsappToolProfileId,
+    );
+    const ids = await this.toolProfiles.resolveEnabledToolIds(
+      row.whatsappToolProfileId,
+      row.organizationId,
+    );
+    if (
+      !ids.includes('scheduleGhlMeeting') ||
+      !ids.includes('checkGhlFreeSlots') ||
+      !(ids.includes('lookupGhlContact') || ids.includes('upsertGhlContact'))
+    )
+      throw new BadRequestException(
+        'Task requires scheduleGhlMeeting, checkGhlFreeSlots and a contact tool assigned to this organization.',
+      );
+    const agent = await this.voiceAgents.findOne({
+      where: {
+        id: row.bookingVoiceAgentId,
+        organizationId: row.organizationId,
+      },
+    });
+    if (!agent?.isActive || !agent.calendarIntegrationId)
+      throw new BadRequestException(
+        'Task requires an active voice agent linked to a GHL calendar.',
+      );
+    const calendar = await this.loadForOrg(
+      row.organizationId,
+      agent.calendarIntegrationId,
+    );
+    if (
+      !calendar.isActive ||
+      calendar.provider !== IntegrationProvider.GHL ||
+      !calendar.apiKey?.trim() ||
+      !calendar.locationId?.trim() ||
+      !calendar.calendarId?.trim()
+    )
+      throw new BadRequestException(
+        'Task requires a complete active GHL calendar connection.',
+      );
+    const task = WHATSAPP_TASKS[row.whatsappTaskKey];
+    return {
+      key: row.whatsappTaskKey,
+      version: task.version,
+      objective: task.objective,
+      completionRule: 'ghl_appointment_created',
+      persona: row.systemPrompt.trim(),
+      toolProfileId: row.whatsappToolProfileId,
+      voiceAgentId: agent.id,
+      calendarIntegrationId: calendar.id,
+      locationId: calendar.locationId,
+      calendarId: calendar.calendarId,
+      enabledTools: WHATSAPP_AGENT_TOOL_IDS.filter((id) => ids.includes(id)),
     };
   }
 
@@ -382,7 +465,10 @@ export class OrganizationIntegrationsService {
     }
 
     if (row.provider !== IntegrationProvider.NYLAS) {
-      return { ok: false, message: `Unsupported provider: ${row.provider}` };
+      return {
+        ok: false,
+        message: `Unsupported provider: ${String(row.provider)}`,
+      };
     }
 
     const result = await this.nylas.listCalendars({

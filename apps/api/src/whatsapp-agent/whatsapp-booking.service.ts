@@ -14,7 +14,13 @@ import type { GhlCalendarCreds } from '../ghl/ghl.types';
 import { IntegrationProvider } from '../organization-integrations/organization-integration.entity';
 import { OrganizationIntegrationsService } from '../organization-integrations/organization-integrations.service';
 
-export type BookingSource = { organizationId: string; voiceAgentId: string };
+export type BookingSource = {
+  organizationId: string;
+  voiceAgentId: string;
+  calendarIntegrationId?: string;
+  locationId?: string;
+  calendarId?: string;
+};
 
 @Injectable()
 export class WhatsAppBookingService {
@@ -28,7 +34,13 @@ export class WhatsAppBookingService {
     const agent = await this.agents
       .getEntityWithTemplate(source.organizationId, source.voiceAgentId)
       .catch(() => null);
-    if (!agent?.isActive || !agent.calendarIntegrationId) return null;
+    if (
+      !agent?.isActive ||
+      !agent.calendarIntegrationId ||
+      (source.calendarIntegrationId &&
+        source.calendarIntegrationId !== agent.calendarIntegrationId)
+    )
+      return null;
     const row = await this.integrations
       .getEntityForOrg(source.organizationId, agent.calendarIntegrationId)
       .catch(() => null);
@@ -38,7 +50,9 @@ export class WhatsAppBookingService {
       !row.isActive ||
       !row.apiKey ||
       !row.locationId ||
-      !row.calendarId
+      !row.calendarId ||
+      (source.locationId && source.locationId !== row.locationId) ||
+      (source.calendarId && source.calendarId !== row.calendarId)
     )
       return null;
     return {
