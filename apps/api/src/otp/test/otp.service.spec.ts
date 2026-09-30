@@ -8,245 +8,150 @@ import { OtpChallenge } from '../otp-challenge.entity';
 import { OtpChallengesRepository } from '../otp-challenges.repository';
 import { hmacSha256 } from '../otp-hash';
 import { OtpService } from '../otp.service';
-import { WhatsappOtpClient } from '../whatsapp-otp.client';
 import type { OtpDeliveryService } from '../../whatsapp-harness/otp-delivery.service';
 
 const PEPPER = 'test-pepper-otp-secret';
+const PHONE = '919876543210';
+const CODE = '123456';
 
-class MemoryChallenges {
-  rows: OtpChallenge[] = [];
+describe('OtpService', () => {
+  let service: OtpService;
+  let row: OtpChallenge;
+  const delivery = { assertConfigured: jest.fn(), issue: jest.fn() };
+  const challenges = { withLocked: jest.fn() };
 
-  create(data: Partial<OtpChallenge>): OtpChallenge {
-    return {
-      id: '',
-      phoneDigits: '',
-      codeHash: '',
-      expiresAt: new Date(),
+  beforeEach(() => {
+    jest.resetAllMocks();
+    row = Object.assign(new OtpChallenge(), {
+      id: 'challenge',
+      phoneDigits: PHONE,
+      codeHash: hmacSha256(PEPPER, CODE),
+      expiresAt: new Date(Date.now() + 300_000),
       attemptCount: 0,
       consumedAt: null,
       verificationTokenHash: null,
       verificationExpiresAt: null,
       verificationUsedAt: null,
-      createdAt: new Date(),
-      ...data,
-    } as OtpChallenge;
-  }
-
-  async save(row: OtpChallenge): Promise<OtpChallenge> {
-    if (!row.id) {
-      row.id = `ch-${this.rows.length + 1}`;
-    }
-    const index = this.rows.findIndex((item) => item.id === row.id);
-    if (index >= 0) {
-      this.rows[index] = row;
-    } else {
-      this.rows.push(row);
-    }
-    return row;
-  }
-
-  async findById(id: string): Promise<OtpChallenge | null> {
-    return this.rows.find((row) => row.id === id) ?? null;
-  }
-
-  async findByVerificationTokenHash(
-    hash: string,
-  ): Promise<OtpChallenge | null> {
-    return this.rows.find((row) => row.verificationTokenHash === hash) ?? null;
-  }
-
-  async invalidateOpenForPhone(phoneDigits: string, now: Date): Promise<void> {
-    for (const row of this.rows) {
-      if (row.phoneDigits === phoneDigits && !row.consumedAt) {
-        row.consumedAt = now;
-      }
-    }
-  }
-  async withLocked<T>(
-    where: { id?: string; verificationTokenHash?: string },
-    action: (
-      row: OtpChallenge | null,
-      save: (row: OtpChallenge) => Promise<OtpChallenge>,
-    ) => Promise<T>,
-  ) {
-    const row = where.id
-      ? await this.findById(where.id)
-      : await this.findByVerificationTokenHash(where.verificationTokenHash!);
-    return action(row, (current) => this.save(current));
-  }
-}
-
-describe('OtpService', () => {
-  let challenges: MemoryChallenges;
-  let sendWhatsapp: jest.Mock;
-  let service: OtpService;
-  let pepper: string | undefined;
-  let configured: boolean;
-
-  function makeService(): OtpService {
-    challenges = new MemoryChallenges();
-    sendWhatsapp = jest.fn().mockResolvedValue(undefined);
-    return new OtpService(
-      {
-        get: (key: string) => (key === 'OTP_HASH_SECRET' ? pepper : undefined),
-      } as unknown as ConfigService,
-      challenges as unknown as OtpChallengesRepository,
-      {
-        isConfigured: () => configured,
-        send: sendWhatsapp,
-      } as unknown as WhatsappOtpClient,
-      { isEnabled: () => false } as unknown as OtpDeliveryService,
-    );
-  }
-
-  beforeEach(() => {
-    pepper = PEPPER;
-    configured = true;
-    service = makeService();
-  });
-  it('uses durable delivery exclusively when enabled without calling the legacy sender', async () => {
-    const delivery = {
-      isEnabled: () => true,
-      assertConfigured: jest.fn(),
-      issue: jest.fn().mockResolvedValue({ challengeId: 'durable' }),
-    };
-    const enabled = new OtpService(
+    });
+    challenges.withLocked.mockImplementation((where, action) => {
+      const matches = where.id
+        ? where.id === row.id
+        : where.verificationTokenHash === row.verificationTokenHash;
+      return action(
+        matches ? row : null,
+        async (current: OtpChallenge) => current,
+      );
+    });
+    delivery.issue.mockResolvedValue({ challengeId: row.id });
+    service = new OtpService(
       new ConfigService({ OTP_HASH_SECRET: PEPPER }),
       challenges as unknown as OtpChallengesRepository,
-      {
-        isConfigured: () => true,
-        send: sendWhatsapp,
-      } as unknown as WhatsappOtpClient,
       delivery as unknown as OtpDeliveryService,
     );
-    await expect(enabled.send('+919876543210')).resolves.toEqual({
-      challengeId: 'durable',
+  });
+
+  it('issues through durable delivery with normalized digits and returns only the challenge id', async () => {
+    await expect(service.send('+91 98765 43210')).resolves.toEqual({
+      challengeId: row.id,
     });
-    expect(delivery.issue).toHaveBeenCalledWith('919876543210');
-    expect(sendWhatsapp).not.toHaveBeenCalled();
-    expect(challenges.rows).toHaveLength(0);
+    expect(delivery.issue).toHaveBeenCalledWith(PHONE);
+    expect(challenges.withLocked).not.toHaveBeenCalled();
   });
 
-  it('returns a challenge id and never the code', async () => {
-    const result = await service.send('+91 98765 43210');
-
-    expect(result).toEqual({ challengeId: 'ch-1' });
-    expect(sendWhatsapp).toHaveBeenCalledTimes(1);
-    const [to, code] = sendWhatsapp.mock.calls[0] as [string, string];
-    expect(to).toBe('919876543210');
-    expect(code).toMatch(/^\d{6}$/);
-    expect(JSON.stringify(result)).not.toContain(code);
-    expect(challenges.rows[0].codeHash).toBe(hmacSha256(PEPPER, code));
-    expect(challenges.rows[0].codeHash).not.toBe(code);
-  });
-
-  it('burns the challenge when WhatsApp send fails and does not leak the code', async () => {
-    sendWhatsapp.mockRejectedValue(
-      new BadGatewayException(
-        'Could not send the WhatsApp code. Please try again shortly.',
-      ),
+  it('rejects invalid phone lengths before issuing', async () => {
+    await expect(service.send('123')).rejects.toBeInstanceOf(
+      BadRequestException,
     );
+    await expect(service.send('1'.repeat(16))).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(delivery.issue).not.toHaveBeenCalled();
+  });
 
-    await expect(service.send('+919876543210')).rejects.toBeInstanceOf(
+  it('propagates durable delivery failure without returning a challenge', async () => {
+    delivery.issue.mockRejectedValue(
+      new BadGatewayException('Could not send the WhatsApp code.'),
+    );
+    await expect(service.send(PHONE)).rejects.toBeInstanceOf(
       BadGatewayException,
     );
-    try {
-      await service.send('+919876543210');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      expect(message).not.toMatch(/\d{6}/);
-    }
-    expect(challenges.rows.every((row) => row.consumedAt)).toBe(true);
   });
 
-  it('returns 503 before sending when pepper or WhatsApp config is missing', async () => {
-    pepper = '';
-    service = makeService();
-    await expect(service.send('+919876543210')).rejects.toBeInstanceOf(
+  it('returns 503 for send, verify, and proof consumption when OTP settings are incomplete', async () => {
+    delivery.assertConfigured.mockImplementation(() => {
+      throw new ServiceUnavailableException(
+        'Phone verification is not configured. Please try again later.',
+      );
+    });
+    await expect(service.send(PHONE)).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
-
-    pepper = PEPPER;
-    configured = false;
-    service = makeService();
-    await expect(service.send('+919876543210')).rejects.toBeInstanceOf(
+    await expect(service.verify(row.id, CODE)).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
-    expect(sendWhatsapp).not.toHaveBeenCalled();
+    await expect(
+      service.consumeVerification('proof', PHONE),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(delivery.issue).not.toHaveBeenCalled();
+    expect(challenges.withLocked).not.toHaveBeenCalled();
   });
 
-  it('verifies the latest code and returns a token that is not the code', async () => {
-    await service.send('+919876543210');
-    const code = sendWhatsapp.mock.calls[0][1] as string;
-
-    const verified = await service.verify('ch-1', code);
-
+  it('verifies a code and stores only the hash of the single-use proof', async () => {
+    const verified = await service.verify(row.id, CODE);
     expect(verified.verificationToken).toBeTruthy();
-    expect(verified.verificationToken).not.toBe(code);
-    expect(challenges.rows[0].verificationTokenHash).toBe(
+    expect(verified.verificationToken).not.toBe(CODE);
+    expect(row.verificationTokenHash).toBe(
       hmacSha256(PEPPER, verified.verificationToken),
     );
-    expect(challenges.rows[0].consumedAt).toBeInstanceOf(Date);
-    expect(JSON.stringify(verified)).not.toContain(code);
+    expect(row.consumedAt).toBeInstanceOf(Date);
+    await expect(service.verify(row.id, CODE)).rejects.toThrow(
+      /incorrect or expired/i,
+    );
   });
 
-  it('rejects a wrong code without echoing it, and locks after 5 attempts', async () => {
-    await service.send('+919876543210');
-
-    for (let attempt = 1; attempt <= 5; attempt += 1) {
-      await expect(service.verify('ch-1', '000000')).rejects.toBeInstanceOf(
-        BadRequestException,
+  it('rejects a wrong code without echoing it and burns the challenge after five attempts', async () => {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await expect(service.verify(row.id, '000000')).rejects.toThrow(
+        'That code is incorrect or expired.',
       );
     }
-
-    expect(challenges.rows[0].attemptCount).toBe(5);
-    expect(challenges.rows[0].consumedAt).toBeInstanceOf(Date);
-
-    const realCode = sendWhatsapp.mock.calls[0][1] as string;
-    await expect(service.verify('ch-1', realCode)).rejects.toThrow(
-      /incorrect or expired/i,
+    expect(row.attemptCount).toBe(5);
+    expect(row.consumedAt).toBeInstanceOf(Date);
+    await expect(service.verify(row.id, CODE)).rejects.toBeInstanceOf(
+      BadRequestException,
     );
   });
 
-  it('rejects an expired code', async () => {
-    await service.send('+919876543210');
-    challenges.rows[0].expiresAt = new Date(Date.now() - 1000);
-    const code = sendWhatsapp.mock.calls[0][1] as string;
+  it.each(['expired', 'consumed', 'missing'] as const)(
+    'rejects a %s challenge',
+    async (state) => {
+      if (state === 'expired') row.expiresAt = new Date(Date.now() - 1000);
+      if (state === 'consumed') row.consumedAt = new Date();
+      await expect(
+        service.verify(state === 'missing' ? 'unknown' : row.id, CODE),
+      ).rejects.toThrow(/incorrect or expired/i);
+    },
+  );
 
-    await expect(service.verify('ch-1', code)).rejects.toThrow(
-      /incorrect or expired/i,
-    );
-  });
-
-  it('invalidates the previous code when a new one is sent', async () => {
-    await service.send('+919876543210');
-    const first = sendWhatsapp.mock.calls[0][1] as string;
-    await service.send('+919876543210');
-    const second = sendWhatsapp.mock.calls[1][1] as string;
-
-    await expect(service.verify('ch-1', first)).rejects.toThrow(
-      /incorrect or expired/i,
-    );
-    await expect(service.verify('ch-2', second)).resolves.toEqual({
-      verificationToken: expect.any(String),
-    });
-  });
-
-  it('consumes a verification token once and only for the same phone', async () => {
-    await service.send('+919876543210');
-    const code = sendWhatsapp.mock.calls[0][1] as string;
-    const { verificationToken } = await service.verify('ch-1', code);
-
+  it('consumes a proof once and only for the same phone', async () => {
+    const { verificationToken } = await service.verify(row.id, CODE);
     await expect(
       service.consumeVerification(verificationToken, '15550102000'),
     ).rejects.toBeInstanceOf(BadRequestException);
-    expect(challenges.rows[0].verificationUsedAt).toBeNull();
-
-    await service.consumeVerification(verificationToken, '919876543210');
-    expect(challenges.rows[0].verificationUsedAt).toBeInstanceOf(Date);
-
+    expect(row.verificationUsedAt).toBeNull();
+    await service.consumeVerification(verificationToken, PHONE);
+    expect(row.verificationUsedAt).toBeInstanceOf(Date);
     await expect(
-      service.consumeVerification(verificationToken, '919876543210'),
+      service.consumeVerification(verificationToken, PHONE),
     ).rejects.toThrow(/verify your phone/i);
+  });
+
+  it('rejects an expired verification proof', async () => {
+    const { verificationToken } = await service.verify(row.id, CODE);
+    row.verificationExpiresAt = new Date(Date.now() - 1000);
+    await expect(
+      service.consumeVerification(verificationToken, PHONE),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(row.verificationUsedAt).toBeNull();
   });
 });

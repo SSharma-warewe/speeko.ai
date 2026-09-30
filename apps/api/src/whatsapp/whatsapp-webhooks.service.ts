@@ -30,7 +30,6 @@ import {
   verifyTokenMatches,
   verifyTokenPrefixFrom,
 } from './verify-token.util';
-import { WhatsAppAgentService } from '../whatsapp-agent/whatsapp-agent.service';
 import { WhatsAppHarnessService } from '../whatsapp-harness/whatsapp-harness.service';
 import { WhatsAppWebhookConfigsRepository } from './whatsapp-webhook-configs.repository';
 import { WhatsAppWebhookEventsRepository } from './whatsapp-webhook-events.repository';
@@ -46,7 +45,6 @@ export class WhatsAppWebhooksService {
     private readonly events: WhatsAppWebhookEventsRepository,
     private readonly organizationsService: OrganizationsService,
     private readonly config: ConfigService,
-    private readonly receptionist: WhatsAppAgentService,
     private readonly harness: WhatsAppHarnessService,
   ) {}
 
@@ -150,12 +148,6 @@ export class WhatsAppWebhooksService {
     this.logger.log(
       `WhatsApp webhook saved eventType=${extracted.eventType} org=${organizationId ?? 'none'} phoneNumberId=${extracted.phoneNumberId ?? 'none'}`,
     );
-    if (stored !== null && typeof stored === 'object') {
-      void this.receptionist.replyToWebhook(stored).catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : 'unknown';
-        this.logger.error(`WhatsApp receptionist failed: ${message}`);
-      });
-    }
     return { success: true };
   }
 

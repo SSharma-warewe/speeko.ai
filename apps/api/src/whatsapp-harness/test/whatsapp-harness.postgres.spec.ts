@@ -26,7 +26,6 @@ import { OtpChallengesRepository } from '../../otp/otp-challenges.repository';
 import { OtpService } from '../../otp/otp.service';
 import { PlatformWhatsAppConfig } from '../../meta-whatsapp/platform-whatsapp.config';
 import { MetaWhatsAppClient } from '../../meta-whatsapp/meta-whatsapp.client';
-import { WhatsappOtpClient } from '../../otp/whatsapp-otp.client';
 import { ConfigService } from '@nestjs/config';
 import { encryptOtp, otpDeliveryKey } from '../otp-delivery.crypto';
 import { hmacSha256 } from '../../otp/otp-hash';
@@ -277,7 +276,6 @@ suite('WhatsApp harness with real PostgreSQL transactions', () => {
     await otp.issue(pair.challenge, pair.delivery);
     const reserved = await repository.reserveSend();
     const config = new ConfigService({
-      WHATSAPP_HARNESS_ENABLED: 'true',
       OTP_HASH_SECRET: 'test-pepper',
       OTP_DELIVERY_ENCRYPTION_KEY: 'ab'.repeat(32),
       WHATSAPP_API_KEY: 'test-token',
@@ -304,11 +302,9 @@ suite('WhatsApp harness with real PostgreSQL transactions', () => {
     const crash = otpPair();
     await otp.issue(crash.challenge, crash.delivery);
     await repository.reserveSend();
-    await db
-      .getRepository(WhatsAppOutbox)
-      .update(crash.delivery.id, {
-        sendStartedAt: new Date(Date.now() - 61_000),
-      });
+    await db.getRepository(WhatsAppOutbox).update(crash.delivery.id, {
+      sendStartedAt: new Date(Date.now() - 61_000),
+    });
     await otp.reap();
     expect((await otp.status(crash.challenge.id))!.status).toBe('uncertain');
     expect(
@@ -336,8 +332,7 @@ suite('WhatsApp harness with real PostgreSQL transactions', () => {
     const service = new OtpService(
       config,
       new OtpChallengesRepository(db.getRepository(OtpChallenge)),
-      { isConfigured: () => true } as WhatsappOtpClient,
-      { isEnabled: () => false } as OtpDeliveryService,
+      { assertConfigured: () => undefined } as unknown as OtpDeliveryService,
     );
     const results = await Promise.allSettled([
       service.verify(pair.challenge.id, '123456'),
@@ -691,7 +686,7 @@ suite('WhatsApp harness with real PostgreSQL transactions', () => {
               LIVEKIT_API_KEY: 'test',
               LIVEKIT_API_SECRET: 'test',
               WORKER_CALLBACK_SECRET: 'test-worker-secret',
-              WHATSAPP_HARNESS_ENABLED: 'true',
+              WHATSAPP_WORKER_URL: 'http://127.0.0.1:9',
               QUEUE_DIALER_ENABLED: 'false',
             }),
           ],
@@ -780,15 +775,13 @@ suite('WhatsApp harness with real PostgreSQL transactions', () => {
       await request(app.getHttpServer())
         .get('/api/admin/whatsapp/otp-deliveries')
         .expect(401);
-      const member = await db
-        .getRepository(User)
-        .save({
-          organizationId: input.organizationId,
-          email: `${randomUUID()}@test.invalid`,
-          passwordHash: null,
-          isActive: true,
-          role: 'org_admin',
-        });
+      const member = await db.getRepository(User).save({
+        organizationId: input.organizationId,
+        email: `${randomUUID()}@test.invalid`,
+        passwordHash: null,
+        isActive: true,
+        role: 'org_admin',
+      });
       const jwt = module.get(JwtService);
       const orgToken = jwt.sign({ sub: member.id, typ: 'user' });
       await request(app.getHttpServer())

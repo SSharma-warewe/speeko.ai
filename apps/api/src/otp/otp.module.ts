@@ -6,7 +6,6 @@ import { OtpChallengesRepository } from './otp-challenges.repository';
 import { OtpController } from './otp.controller';
 import { OtpRateLimitService } from './otp-rate-limit.service';
 import { OtpService } from './otp.service';
-import { WhatsappOtpClient } from './whatsapp-otp.client';
 import { WhatsAppHarnessModule } from '../whatsapp-harness/whatsapp-harness.module';
 
 @Module({
@@ -15,7 +14,6 @@ import { WhatsAppHarnessModule } from '../whatsapp-harness/whatsapp-harness.modu
   providers: [
     OtpChallengesRepository,
     OtpService,
-    WhatsappOtpClient,
     OtpRateLimitService,
     OtpAbuseGuard,
   ],

@@ -1,4 +1,4 @@
-import { buildWhatsAppInstruction } from '../whatsapp-clock';
+import { buildWhatsAppInstruction } from '@call-agent/contracts';
 
 describe('WhatsApp model clock', () => {
   it('uses the sender timezone and resolves dates across local midnight', () => {
@@ -30,7 +30,9 @@ describe('WhatsApp model clock', () => {
       new Date('2026-09-29T10:00:00Z'),
     );
 
-    expect(instruction).toContain('Timezone inferred from the WhatsApp sender: UTC');
+    expect(instruction).toContain(
+      'Timezone inferred from the WhatsApp sender: UTC',
+    );
     expect(instruction).toContain('Today: Tuesday September 29, 2026');
     expect(instruction).toContain('without Z plus an IANA timezone');
   });

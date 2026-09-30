@@ -21,11 +21,7 @@ export const envValidationSchema = Joi.object({
   LIVEKIT_API_SECRET: Joi.string().required(),
   LIVEKIT_AGENT_NAME: Joi.string().default('call-agent'),
   // Worker → API call completion callback
-  WORKER_CALLBACK_SECRET: Joi.when('WHATSAPP_HARNESS_ENABLED', {
-    is: Joi.valid('true', '1'),
-    then: Joi.string().min(8).required(),
-    otherwise: Joi.string().min(8).optional().allow(''),
-  }),
+  WORKER_CALLBACK_SECRET: Joi.string().min(8).required(),
   API_BASE_URL: Joi.string().uri().optional().allow(''),
   // Public HTTPS origin Meta / browsers should call (not railway.internal).
   API_PUBLIC_URL: Joi.string().uri().optional().allow(''),
@@ -34,46 +30,19 @@ export const envValidationSchema = Joi.object({
   // Get-demo WhatsApp OTP (otp module). Soft-required: send/verify return 503 when unset.
   WHATSAPP_URL: Joi.string().uri().optional().allow(''),
   WHATSAPP_API_KEY: Joi.string().optional().allow(''),
-  // WhatsApp receptionist (Google ADK → OpenRouter GPT-5.6 Luna). Soft-disabled when empty.
+  // Used by the dedicated WhatsApp worker; no model execution in the API.
   OPENROUTER_API_KEY: Joi.string().optional().allow(''),
-  // Durable org inbound harness. API ticker dispatches; no broker or worker DB.
-  WHATSAPP_HARNESS_ENABLED: Joi.string()
-    .valid('true', 'false', '0', '1')
-    .default('false'),
-  WHATSAPP_WORKER_URL: Joi.when('WHATSAPP_HARNESS_ENABLED', {
-    is: Joi.valid('true', '1'),
-    then: Joi.string().uri().required(),
-    otherwise: Joi.string().uri().optional().allow(''),
-  }),
+  // Durable WhatsApp execution is always active. No broker or worker DB.
+  WHATSAPP_WORKER_URL: Joi.string().uri().required(),
   WHATSAPP_TICKER_MAX_CONCURRENT: Joi.number()
     .integer()
     .min(1)
     .max(100)
     .default(4),
-  WHATSAPP_PLATFORM_HARNESS_ENABLED: Joi.string()
-    .valid('true', 'false', '0', '1')
-    .default('false')
-    .when('WHATSAPP_HARNESS_ENABLED', {
-      is: Joi.valid('false', '0'),
-      then: Joi.valid(Joi.override, 'false', '0'),
-    }),
-  WHATSAPP_OTP_HARNESS_ENABLED: Joi.string()
-    .valid('true', 'false', '0', '1')
-    .default('false')
-    .when('WHATSAPP_HARNESS_ENABLED', {
-      is: Joi.valid('false', '0'),
-      then: Joi.valid(Joi.override, 'false', '0'),
-    }),
-  OTP_DELIVERY_ENCRYPTION_KEY: Joi.when('WHATSAPP_OTP_HARNESS_ENABLED', {
-    is: Joi.valid('true', '1'),
-    then: Joi.string()
-      .pattern(/^[a-fA-F0-9]{64}$/)
-      .required(),
-    otherwise: Joi.string()
-      .pattern(/^[a-fA-F0-9]{64}$/)
-      .optional()
-      .allow(''),
-  }),
+  OTP_DELIVERY_ENCRYPTION_KEY: Joi.string()
+    .pattern(/^[a-fA-F0-9]{64}$/)
+    .optional()
+    .allow(''),
   OTP_HASH_SECRET: Joi.string().min(16).optional().allow(''),
   WHATSAPP_OTP_TEMPLATE_NAME: Joi.string().optional().allow(''),
   // Graph API version for org-owned WhatsApp outbound (default v25.0).

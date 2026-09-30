@@ -1,4 +1,7 @@
-import { BadGatewayException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PlatformWhatsAppConfig } from '../../meta-whatsapp/platform-whatsapp.config';
 import { MetaWhatsAppClient } from '../../meta-whatsapp/meta-whatsapp.client';
@@ -26,8 +29,6 @@ describe('OTP harness delivery', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     config = new ConfigService({
-      WHATSAPP_HARNESS_ENABLED: 'true',
-      WHATSAPP_OTP_HARNESS_ENABLED: 'true',
       OTP_HASH_SECRET: 'pepper-secret-for-tests',
       OTP_DELIVERY_ENCRYPTION_KEY: KEY,
       WHATSAPP_API_KEY: 'platform-token',
@@ -70,6 +71,32 @@ describe('OTP harness delivery', () => {
     });
   });
   afterEach(() => jest.useRealTimers());
+
+  it('reports readiness with complete optional settings and no rollout switches', () => {
+    expect(service.isConfigured()).toBe(true);
+    expect(service.assertConfigured()).toEqual(otpDeliveryKey(KEY));
+  });
+  it.each([
+    'WHATSAPP_URL',
+    'WHATSAPP_API_KEY',
+    'OTP_HASH_SECRET',
+    'OTP_DELIVERY_ENCRYPTION_KEY',
+  ])('keeps OTP unavailable without %s', async (key) => {
+    config.set(key, '');
+    expect(service.isConfigured()).toBe(false);
+    await expect(service.issue(challenge.phoneDigits)).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+    expect(repository.issue).not.toHaveBeenCalled();
+    expect(meta.sendTemplate).not.toHaveBeenCalled();
+  });
+  it('keeps OTP unavailable with a malformed encryption key', () => {
+    config.set('OTP_DELIVERY_ENCRYPTION_KEY', 'invalid');
+    expect(service.isConfigured()).toBe(false);
+    expect(() => service.assertConfigured()).toThrow(
+      ServiceUnavailableException,
+    );
+  });
 
   it('binds authenticated encryption to challenge and expiry; rejects tampering and invalid keys', () => {
     const key = otpDeliveryKey(KEY);

@@ -4,7 +4,6 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import {
   WHATSAPP_AGENT_TOOL_IDS,
   type WhatsAppAgentToolId,
@@ -79,7 +78,6 @@ function stripThoughts(checkpoint: WhatsAppTurnCheckpoint) {
 @Injectable()
 export class WhatsAppHarnessService {
   constructor(
-    private readonly config: ConfigService,
     private readonly repository: WhatsAppHarnessRepository,
     private readonly integrations: OrganizationIntegrationsService,
     private readonly organizations: OrganizationsService,
@@ -90,23 +88,14 @@ export class WhatsAppHarnessService {
     private readonly otpDelivery: OtpDeliveryService,
   ) {}
 
-  isEnabled() {
-    return ['true', '1'].includes(
-      String(this.config.get('WHATSAPP_HARNESS_ENABLED') ?? 'false'),
-    );
-  }
-
-  isPlatformEnabled() {
-    return (
-      this.isEnabled() &&
-      ['true', '1'].includes(
-        String(this.config.get('WHATSAPP_PLATFORM_HARNESS_ENABLED') ?? 'false'),
-      )
-    );
+  readiness() {
+    return {
+      platformEnabled: this.platform.resolve() !== null,
+      otpEnabled: this.otpDelivery.isConfigured(),
+    };
   }
 
   async ingestWebhook(payload: unknown): Promise<void> {
-    if (!this.isEnabled()) return;
     for (const message of listInboundTextMessages(payload)) {
       if (!message.phoneNumberId) continue;
       const connection =
@@ -115,9 +104,7 @@ export class WhatsAppHarnessService {
         );
       // An active org connection owns the number even with an empty prompt.
       if (!connection) {
-        const platform = this.isPlatformEnabled()
-          ? this.platform.resolve()
-          : null;
+        const platform = this.platform.resolve();
         if (platform?.phoneNumberId === message.phoneNumberId)
           await this.repository.ingest({
             scope: 'platform',

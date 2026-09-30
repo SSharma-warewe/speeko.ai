@@ -8,14 +8,17 @@ describe('WhatsApp API ticker', () => {
   const originalFetch = global.fetch;
   const repository = { reap: jest.fn(), claim: jest.fn(), fail: jest.fn() };
   const harness = {
-    isEnabled: jest.fn(),
+    readiness: jest.fn(),
     runtime: jest.fn(),
     sendOne: jest.fn(),
   };
   let ticker: WhatsAppTickerService;
   beforeEach(() => {
     jest.resetAllMocks();
-    harness.isEnabled.mockReturnValue(true);
+    harness.readiness.mockReturnValue({
+      platformEnabled: false,
+      otpEnabled: false,
+    });
     harness.runtime.mockResolvedValue({ id: 'turn' });
     harness.sendOne.mockResolvedValue(false);
     repository.claim.mockResolvedValue([{ id: 'turn', leaseToken: 'lease' }]);
@@ -65,10 +68,26 @@ describe('WhatsApp API ticker', () => {
     await ticker.tick();
     expect(repository.fail).not.toHaveBeenCalled();
   });
-  it('is inactive until explicitly enabled', async () => {
-    harness.isEnabled.mockReturnValue(false);
+  it('runs without rollout flags and reports optional configuration readiness', async () => {
+    global.fetch = jest.fn().mockResolvedValue({ status: 202 });
     await ticker.tick();
-    expect(repository.claim).not.toHaveBeenCalled();
+    expect(repository.claim).toHaveBeenCalledTimes(1);
+    expect(ticker.health()).toMatchObject({
+      enabled: true,
+      platformEnabled: false,
+      otpEnabled: false,
+      lastTickAt: expect.any(Date),
+      lastError: null,
+    });
+    harness.readiness.mockReturnValue({
+      platformEnabled: true,
+      otpEnabled: true,
+    });
+    expect(ticker.health()).toMatchObject({
+      enabled: true,
+      platformEnabled: true,
+      otpEnabled: true,
+    });
   });
   it('continues delivery when dispatch is unavailable', async () => {
     global.fetch = jest.fn().mockRejectedValue(new Error('offline'));

@@ -12,20 +12,19 @@ durable PostgreSQL records that the API ticker dispatches over authenticated HTT
    `npm run start:whatsapp-worker:prod`.
 3. Set these worker variables: `API_BASE_URL` (origin, without `/api`),
    `WORKER_CALLBACK_SECRET`, `OPENROUTER_API_KEY`, and `PORT=8082` locally.
-4. On the API set `WHATSAPP_HARNESS_ENABLED=true`,
-   `WHATSAPP_WORKER_URL=http://127.0.0.1:8082`, and the same callback secret.
+4. On the API set `WHATSAPP_WORKER_URL=http://127.0.0.1:8082` and the same
+   callback secret. Both settings are required at API startup.
    `WHATSAPP_TICKER_MAX_CONCURRENT` defaults to 4 across API replicas.
    Match it to `WHATSAPP_WORKER_CONCURRENCY` (default 4).
 5. Configure the existing active org Meta connection, nonempty Agent prompt,
    and webhook subscription. Org Meta/GHL secrets remain on the API.
 
-The rollout flag defaults to false. In that mode the existing org receptionist
-continues unchanged. Enable it only after worker readiness. While enabled, an
-unavailable worker leaves org turns pending/retryable; it never falls back to a
-second generation path. Platform receptionist and get-demo OTP can independently
-use the harness as described below. Do not disable the main flag while there
-are unresolved harness turns or sends; drain them first to avoid overlapping
-the legacy and harness response paths.
+The durable harness is the sole execution path for org replies, platform replies,
+and get-demo OTP delivery. There are no rollout switches or API-side model runners.
+An unavailable worker leaves text turns pending/retryable. Platform Meta and OTP
+settings are optional: an unconfigured platform number receives no replies, and
+OTP APIs return 503 until all their settings are present. OTP sending runs
+independently of model-worker health.
 
 ## Persistence and execution
 
@@ -84,18 +83,20 @@ Concurrent requests are tenant-scoped and reset generations cannot be retried.
 
 ## Platform receptionist and OTP delivery
 
-On the API, `WHATSAPP_PLATFORM_HARNESS_ENABLED=true` enables durable platform
-conversations on the number in `WHATSAPP_URL`. Active org connections take
+Configured `WHATSAPP_URL` and `WHATSAPP_API_KEY` admit durable platform
+conversations on that number. Active org connections take
 precedence even with an empty prompt. Platform conversations have no org/connection
 FK; their own phone/sender unique index isolates them from tenant history. The
 worker receives the existing Warewe prompt with no tools; all Meta credentials
 remain API-only. `/new`, deduplication, leases, checkpoints and ordered replies
 work just as for org conversations. Old in-memory platform sessions are not imported.
 
-`WHATSAPP_OTP_HARNESS_ENABLED=true` enables deterministic template delivery through
-the same durable outbox, not the ADK worker. Both flags require
-`WHATSAPP_HARNESS_ENABLED=true`. OTP also requires `OTP_DELIVERY_ENCRYPTION_KEY`,
-a dedicated random 32-byte key encoded as 64 hex characters, stored only on the API.
+OTP delivery always uses deterministic templates through the same durable outbox.
+It requires platform Meta credentials, `OTP_HASH_SECRET`, and
+`OTP_DELIVERY_ENCRYPTION_KEY`, a dedicated random 32-byte key encoded as 64 hex
+characters, stored only on the API. Missing configuration returns 503 without
+issuing a challenge; the API can still start. A supplied malformed key fails
+startup validation.
 Codes remain HMAC-only in challenges; delivery ciphertext uses AES-256-GCM bound to
 challenge ID and expiry and is erased on terminal outcome or expiry. Do not rotate
 the key while pending OTP deliveries exist. The template name, English language,
@@ -119,13 +120,20 @@ delivery status metadata (no phone, code, ciphertext or credentials). There is n
 manual OTP retry: request a fresh challenge. Admin conversation routes are
 platform-only; org routes cannot inspect/recover platform or OTP records.
 
-Roll out API code with both new flags off, verify additive schema changes and
-worker readiness, set the independent encryption key, then enable the flags.
-Rollback must not enable legacy and harness admissions simultaneously: stop new
-admissions, drain/cancel outstanding work, then restore legacy routing. Existing
-text work is allowed to drain even if its admission flag is off; the main harness
-must stay on while draining. OTP delivery itself does not need model-worker health.
-Schema/Erflow synchronization was explicitly deferred by the user for this change.
+Health responses preserve `enabled`, `platformEnabled`, and `otpEnabled`:
+`enabled` is always true; the other two report configuration readiness, not
+remote worker or Meta availability. Dispatch/sender timestamps and errors report
+execution health.
+
+Before upgrading from a release with legacy execution, configure and verify the
+worker, URL, callback secret, and optional OTP settings. Preserve any existing
+OTP encryption key. Enable all three harness rollout switches on the preceding
+release and let already-running legacy requests finish before deploying this
+release. Verify that no old API replicas remain. A rollback to that preceding
+release must keep all its harness switches enabled, so legacy execution cannot
+overlap durable work. Use the inspection/retry/resolve endpoints for recovery.
+This cleanup changes no schema. Previously deferred Erflow synchronization remains
+outstanding.
 
 ## Railway deployment
 
@@ -138,13 +146,12 @@ variables instead of copying literal values. The worker listens dual-stack for
 private networking. If the API only binds IPv4, use its public HTTPS origin for
 worker callbacks; this does not expose the private worker.
 Set `WHATSAPP_WORKER_URL` to its private HTTP origin, set the API origin on the
-worker, and share the callback secret. Deploy the API and worker, smoke-test,
-then enable the rollout flag. No marketing/portal build is needed.
+worker, and share the callback secret. Verify worker readiness before deploying
+the API, then smoke-test ingestion and delivery. No marketing/portal build is needed.
 This change does not deploy or alter any production database itself.
 
-TypeORM currently synchronizes the four new entities when the API starts.
-The Erflow update for these tables was explicitly deferred by the user for
-this change and remains outstanding.
+TypeORM currently synchronizes harness entities when the API starts. This cleanup
+does not change them. The previously deferred Erflow update remains outstanding.
 
 ## Verification
 
@@ -154,7 +161,7 @@ a deterministic local model (no OpenRouter/Meta/GHL traffic).
 API unit/regression tests:
 
 ```powershell
-npx jest --testPathPatterns='whatsapp-harness/test|whatsapp/test|whatsapp-agent/test' --no-coverage --runInBand
+node node_modules/jest/bin/jest.js --testPathPatterns='whatsapp-harness/test|whatsapp/test|whatsapp-agent/test|otp/test|meta-whatsapp/test|organization-integrations/test' --no-coverage --runInBand
 ```
 
 The PostgreSQL suite is opt-in with `WHATSAPP_TEST_DATABASE_URL` and refuses

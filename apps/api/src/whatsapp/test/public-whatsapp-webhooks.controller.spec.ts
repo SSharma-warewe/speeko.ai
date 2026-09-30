@@ -11,7 +11,6 @@ import { HttpExceptionFilter } from '../../common/http-exception.filter';
 import { OrganizationsService } from '../../organizations/organizations.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { UserGuard } from '../../auth/guards/user.guard';
-import { WhatsAppAgentService } from '../../whatsapp-agent/whatsapp-agent.service';
 import { WhatsAppHarnessService } from '../../whatsapp-harness/whatsapp-harness.service';
 import { PublicWhatsAppWebhooksController } from '../public-whatsapp-webhooks.controller';
 import { hashVerifyToken } from '../verify-token.util';
@@ -64,10 +63,6 @@ describe('PublicWhatsAppWebhooksController (HTTP)', () => {
               key === 'API_BASE_URL' ? 'https://api.example.com' : undefined,
             ),
           },
-        },
-        {
-          provide: WhatsAppAgentService,
-          useValue: { replyToWebhook: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();

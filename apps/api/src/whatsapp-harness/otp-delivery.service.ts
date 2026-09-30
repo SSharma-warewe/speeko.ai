@@ -23,16 +23,16 @@ export class OtpDeliveryService {
     private readonly platform: PlatformWhatsAppConfig,
     private readonly meta: MetaWhatsAppClient,
   ) {}
-  isEnabled() {
-    return ['true', '1'].includes(
-      String(this.config.get('WHATSAPP_OTP_HARNESS_ENABLED') ?? 'false'),
-    );
+  isConfigured(): boolean {
+    try {
+      this.assertConfigured();
+      return true;
+    } catch {
+      return false;
+    }
   }
   assertConfigured() {
     if (
-      !['true', '1'].includes(
-        String(this.config.get('WHATSAPP_HARNESS_ENABLED')),
-      ) ||
       !this.platform.resolve() ||
       !this.config.get<string>('OTP_HASH_SECRET')?.trim()
     )

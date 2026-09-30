@@ -53,9 +53,7 @@ export function listInboundTextMessages(
       const metadata = isRecord(change.value.metadata)
         ? change.value.metadata
         : null;
-      const phoneNumberId = metadata
-        ? asId(metadata.phone_number_id)
-        : null;
+      const phoneNumberId = metadata ? asId(metadata.phone_number_id) : null;
       for (const message of asList(change.value.messages)) {
         const text = inboundText(message, phoneNumberId);
         if (text) {
@@ -71,7 +69,11 @@ function inboundText(
   message: unknown,
   phoneNumberId: string | null,
 ): InboundWhatsAppText | null {
-  if (!isRecord(message) || message.type !== 'text' || !isRecord(message.text)) {
+  if (
+    !isRecord(message) ||
+    message.type !== 'text' ||
+    !isRecord(message.text)
+  ) {
     return null;
   }
   const id = asId(message.id);
@@ -81,19 +83,4 @@ function inboundText(
     return null;
   }
   return { id, from, body, phoneNumberId };
-}
-
-/** Phone number id embedded in a Cloud API `…/{id}/messages` URL. */
-export function phoneNumberIdFromMessagesUrl(raw: string): string | null {
-  try {
-    const url = new URL(raw);
-    const parts = url.pathname.split('/').filter((part) => part.length > 0);
-    const messagesAt = parts.lastIndexOf('messages');
-    if (messagesAt <= 0) {
-      return null;
-    }
-    return asId(parts[messagesAt - 1]);
-  } catch {
-    return null;
-  }
 }

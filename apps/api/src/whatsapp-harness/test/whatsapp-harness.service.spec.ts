@@ -33,6 +33,7 @@ describe('WhatsApp harness API boundaries', () => {
   };
   const booking = { lookupContact: jest.fn(), scheduleMeeting: jest.fn() };
   const meta = { sendText: jest.fn() };
+  const otpDelivery = { sendReserved: jest.fn(), isConfigured: jest.fn() };
   const connection = {
     id: 'connection',
     organizationId: 'org',
@@ -54,6 +55,7 @@ describe('WhatsApp harness API boundaries', () => {
   let service: WhatsAppHarnessService;
   beforeEach(() => {
     jest.resetAllMocks();
+    otpDelivery.isConfigured.mockReturnValue(false);
     conversation.toolState = {};
     integrations.findActiveWhatsAppByPhoneNumberId.mockResolvedValue(
       connection,
@@ -71,7 +73,6 @@ describe('WhatsApp harness API boundaries', () => {
       contactId: 'contact',
     });
     service = new WhatsAppHarnessService(
-      new ConfigService({ WHATSAPP_HARNESS_ENABLED: 'true' }),
       repository as unknown as WhatsAppHarnessRepository,
       integrations as unknown as OrganizationIntegrationsService,
       organizations as unknown as OrganizationsService,
@@ -79,18 +80,15 @@ describe('WhatsApp harness API boundaries', () => {
       booking as unknown as WhatsAppBookingService,
       meta as unknown as MetaWhatsAppClient,
       new PlatformWhatsAppConfig(new ConfigService()),
-      { sendReserved: jest.fn() } as unknown as OtpDeliveryService,
+      otpDelivery as unknown as OtpDeliveryService,
     );
   });
   function platformService() {
     const config = new ConfigService({
-      WHATSAPP_HARNESS_ENABLED: 'true',
-      WHATSAPP_PLATFORM_HARNESS_ENABLED: 'true',
       WHATSAPP_URL: 'https://graph.facebook.com/v22.0/12345678/messages',
       WHATSAPP_API_KEY: 'platform-secret',
     });
     return new WhatsAppHarnessService(
-      config,
       repository as unknown as WhatsAppHarnessRepository,
       integrations as unknown as OrganizationIntegrationsService,
       organizations as unknown as OrganizationsService,
@@ -98,7 +96,7 @@ describe('WhatsApp harness API boundaries', () => {
       booking as unknown as WhatsAppBookingService,
       meta as unknown as MetaWhatsAppClient,
       new PlatformWhatsAppConfig(config),
-      {} as OtpDeliveryService,
+      otpDelivery as unknown as OtpDeliveryService,
     );
   }
   function platformPayload(phone = '12345678') {
@@ -124,6 +122,26 @@ describe('WhatsApp harness API boundaries', () => {
       ],
     };
   }
+  it('reports optional configuration readiness without rollout switches', () => {
+    expect(service.readiness()).toEqual({
+      platformEnabled: false,
+      otpEnabled: false,
+    });
+    expect(platformService().readiness()).toEqual({
+      platformEnabled: true,
+      otpEnabled: false,
+    });
+    otpDelivery.isConfigured.mockReturnValue(true);
+    expect(platformService().readiness()).toEqual({
+      platformEnabled: true,
+      otpEnabled: true,
+    });
+  });
+  it('stores no platform turn when the platform number is unconfigured', async () => {
+    integrations.findActiveWhatsAppByPhoneNumberId.mockResolvedValue(null);
+    await service.ingestWebhook(platformPayload());
+    expect(repository.ingest).not.toHaveBeenCalled();
+  });
   it('durably routes only the unmatched platform line, not unknown numbers', async () => {
     integrations.findActiveWhatsAppByPhoneNumberId.mockResolvedValue(null);
     await platformService().ingestWebhook(platformPayload());

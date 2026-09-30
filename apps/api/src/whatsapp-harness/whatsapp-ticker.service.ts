@@ -24,13 +24,8 @@ export class WhatsAppTickerService {
 
   health() {
     return {
-      enabled: this.harness.isEnabled(),
-      platformEnabled: ['true', '1'].includes(
-        String(this.config.get('WHATSAPP_PLATFORM_HARNESS_ENABLED') ?? 'false'),
-      ),
-      otpEnabled: ['true', '1'].includes(
-        String(this.config.get('WHATSAPP_OTP_HARNESS_ENABLED') ?? 'false'),
-      ),
+      enabled: true,
+      ...this.harness.readiness(),
       ticking: this.ticking,
       lastTickAt: this.lastTickAt,
       lastError: this.lastError,
@@ -42,7 +37,7 @@ export class WhatsAppTickerService {
 
   @Interval(1000)
   async tick(): Promise<void> {
-    if (!this.harness.isEnabled() || this.ticking) return;
+    if (this.ticking) return;
     this.ticking = true;
     try {
       await this.repository.reap();
@@ -95,7 +90,7 @@ export class WhatsAppTickerService {
   /** Delivery is independent of dispatch/model capacity and worker configuration. */
   @Interval(1000)
   async sendTick(): Promise<void> {
-    if (!this.harness.isEnabled() || this.sending) return;
+    if (this.sending) return;
     this.sending = true;
     try {
       await this.otp.reap();

@@ -1,4 +1,5 @@
 import { envValidationSchema } from '../../config/env.validation';
+
 const base = {
   DATABASE_HOST: 'localhost',
   DATABASE_USER: 'test',
@@ -10,38 +11,72 @@ const base = {
   LIVEKIT_URL: 'wss://test.invalid',
   LIVEKIT_API_KEY: 'test',
   LIVEKIT_API_SECRET: 'test',
+  WHATSAPP_WORKER_URL: 'http://worker:8082',
+  WORKER_CALLBACK_SECRET: 'worker-secret',
 };
-describe('Harness feature configuration', () => {
-  it.each([
-    'WHATSAPP_PLATFORM_HARNESS_ENABLED',
-    'WHATSAPP_OTP_HARNESS_ENABLED',
-  ])('requires main harness when %s is on', (flag) => {
+
+describe('Always-active WhatsApp harness configuration', () => {
+  it.each(['WHATSAPP_WORKER_URL', 'WORKER_CALLBACK_SECRET'] as const)(
+    'requires %s without any rollout flags',
+    (key) => {
+      const config: Record<string, string> = { ...base };
+      delete config[key];
+      expect(envValidationSchema.validate(config).error?.message).toContain(
+        key,
+      );
+      expect(
+        envValidationSchema.validate({ ...base, [key]: '' }).error?.message,
+      ).toContain(key);
+    },
+  );
+
+  it('validates worker URL and callback secret', () => {
+    expect(
+      envValidationSchema.validate({
+        ...base,
+        WHATSAPP_WORKER_URL: 'not-a-url',
+      }).error,
+    ).toBeDefined();
+    expect(
+      envValidationSchema.validate({ ...base, WORKER_CALLBACK_SECRET: 'short' })
+        .error,
+    ).toBeDefined();
+  });
+
+  it('allows startup without platform Meta or OTP configuration', () => {
+    const result = envValidationSchema.validate(base);
+    expect(result.error).toBeUndefined();
+    expect(result.value.WHATSAPP_TICKER_MAX_CONCURRENT).toBe(4);
+    expect(
+      envValidationSchema.validate({
+        ...base,
+        OTP_DELIVERY_ENCRYPTION_KEY: '',
+        OTP_HASH_SECRET: '',
+        WHATSAPP_API_KEY: '',
+        WHATSAPP_URL: '',
+      }).error,
+    ).toBeUndefined();
+  });
+
+  it('validates an optional independent OTP encryption key when supplied', () => {
     expect(
       envValidationSchema.validate({
         ...base,
         OTP_DELIVERY_ENCRYPTION_KEY: 'ab'.repeat(32),
-        [flag]: 'true',
-      }).error?.message,
-    ).toContain(flag);
-  });
-  it('requires an independent valid OTP encryption key and defaults new paths off', () => {
-    const enabled = {
-      ...base,
-      WHATSAPP_HARNESS_ENABLED: 'true',
-      WORKER_CALLBACK_SECRET: 'worker-secret',
-      WHATSAPP_WORKER_URL: 'http://worker:8082',
-      WHATSAPP_OTP_HARNESS_ENABLED: 'true',
-    };
-    expect(envValidationSchema.validate(enabled).error).toBeDefined();
-    expect(
-      envValidationSchema.validate({
-        ...enabled,
-        OTP_DELIVERY_ENCRYPTION_KEY: 'ab'.repeat(32),
       }).error,
     ).toBeUndefined();
-    expect(
-      envValidationSchema.validate(base).value
-        .WHATSAPP_PLATFORM_HARNESS_ENABLED,
-    ).toBe('false');
+    for (const key of [
+      'short',
+      'zz'.repeat(32),
+      'ab'.repeat(31),
+      'ab'.repeat(33),
+    ]) {
+      expect(
+        envValidationSchema.validate({
+          ...base,
+          OTP_DELIVERY_ENCRYPTION_KEY: key,
+        }).error?.message,
+      ).toContain('OTP_DELIVERY_ENCRYPTION_KEY');
+    }
   });
 });

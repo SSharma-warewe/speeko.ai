@@ -1,26 +1,16 @@
-import {
-  BadRequestException,
-  Injectable,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { demoPhoneDigits } from '../demo/demo-form.constants';
 import { OtpChallenge } from './otp-challenge.entity';
 import { OtpChallengesRepository } from './otp-challenges.repository';
 import { OtpDeliveryService } from '../whatsapp-harness/otp-delivery.service';
 import {
-  OTP_CODE_TTL_MS,
   OTP_MAX_ATTEMPTS,
   OTP_VERIFICATION_TTL_MS,
-  generateOtpCode,
   generateVerificationToken,
   hashesEqual,
   hmacSha256,
 } from './otp-hash';
-import {
-  WHATSAPP_OTP_NOT_CONFIGURED,
-  WhatsappOtpClient,
-} from './whatsapp-otp.client';
 
 const VERIFY_FAILED = 'That code is incorrect or expired.';
 const DEMO_NOT_VERIFIED = 'Verify your phone number before requesting a demo.';
@@ -30,7 +20,6 @@ export class OtpService {
   constructor(
     private readonly config: ConfigService,
     private readonly challenges: OtpChallengesRepository,
-    private readonly whatsapp: WhatsappOtpClient,
     private readonly delivery: OtpDeliveryService,
   ) {}
 
@@ -43,34 +32,7 @@ export class OtpService {
     if (phoneDigits.length < 7 || phoneDigits.length > 15) {
       throw new BadRequestException('Enter a valid phone number.');
     }
-    if (this.delivery.isEnabled()) return this.delivery.issue(phoneDigits);
-
-    const code = generateOtpCode();
-    const now = new Date();
-    await this.challenges.invalidateOpenForPhone(phoneDigits, now);
-
-    const row = await this.challenges.save(
-      this.challenges.create({
-        phoneDigits,
-        codeHash: hmacSha256(this.pepper(), code),
-        expiresAt: new Date(now.getTime() + OTP_CODE_TTL_MS),
-        attemptCount: 0,
-        consumedAt: null,
-        verificationTokenHash: null,
-        verificationExpiresAt: null,
-        verificationUsedAt: null,
-      }),
-    );
-
-    try {
-      await this.whatsapp.send(phoneDigits, code);
-    } catch (err) {
-      row.consumedAt = new Date();
-      await this.challenges.save(row);
-      throw err;
-    }
-
-    return { challengeId: row.id };
+    return this.delivery.issue(phoneDigits);
   }
 
   /**
@@ -163,14 +125,7 @@ export class OtpService {
   }
 
   private assertConfigured(): void {
-    const pepper = this.config.get<string>('OTP_HASH_SECRET')?.trim() ?? '';
-    if (this.delivery.isEnabled()) {
-      this.delivery.assertConfigured();
-      return;
-    }
-    if (!pepper || !this.whatsapp.isConfigured()) {
-      throw new ServiceUnavailableException(WHATSAPP_OTP_NOT_CONFIGURED);
-    }
+    this.delivery.assertConfigured();
   }
 
   private pepper(): string {

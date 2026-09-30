@@ -1,7 +1,4 @@
-import {
-  listInboundTextMessages,
-  phoneNumberIdFromMessagesUrl,
-} from '../lib/inbound-text';
+import { listInboundTextMessages } from '../lib/inbound-text';
 
 const PHONE_ID = '106540352242922';
 
@@ -32,8 +29,7 @@ function textPayload(overrides?: {
                 overrides?.phoneNumberId === null
                   ? {}
                   : {
-                      phone_number_id:
-                        overrides?.phoneNumberId ?? PHONE_ID,
+                      phone_number_id: overrides?.phoneNumberId ?? PHONE_ID,
                     },
               messages: [message],
             },
@@ -45,7 +41,7 @@ function textPayload(overrides?: {
 }
 
 describe('inbound WhatsApp text', () => {
-  it('reads a text message and the phone number id on the messages URL', () => {
+  it('reads a text message and its metadata phone number id', () => {
     expect(listInboundTextMessages(textPayload())).toEqual([
       {
         id: 'wamid.1',
@@ -54,11 +50,6 @@ describe('inbound WhatsApp text', () => {
         phoneNumberId: PHONE_ID,
       },
     ]);
-    expect(
-      phoneNumberIdFromMessagesUrl(
-        `https://graph.facebook.com/v25.0/${PHONE_ID}/messages`,
-      ),
-    ).toBe(PHONE_ID);
   });
 
   it('skips status callbacks, non-text, empty bodies, and messages without an id', () => {
@@ -76,15 +67,8 @@ describe('inbound WhatsApp text', () => {
         ],
       }),
     ).toEqual([]);
-    expect(listInboundTextMessages(textPayload({ type: 'image' }))).toEqual(
-      [],
-    );
+    expect(listInboundTextMessages(textPayload({ type: 'image' }))).toEqual([]);
     expect(listInboundTextMessages(textPayload({ body: '  ' }))).toEqual([]);
-    expect(listInboundTextMessages(textPayload({ id: undefined }))).toEqual(
-      [],
-    );
-    expect(phoneNumberIdFromMessagesUrl('https://example.com/messages')).toBe(
-      null,
-    );
+    expect(listInboundTextMessages(textPayload({ id: undefined }))).toEqual([]);
   });
 });
