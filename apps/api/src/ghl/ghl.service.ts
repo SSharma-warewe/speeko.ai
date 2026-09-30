@@ -633,6 +633,7 @@ export class GhlService {
     try {
       const response = await fetch(`${GHL_API_BASE}${path}`, {
         method,
+        signal: AbortSignal.timeout(20_000),
         headers: {
           Authorization: `Bearer ${token}`,
           Version: GHL_API_VERSION,

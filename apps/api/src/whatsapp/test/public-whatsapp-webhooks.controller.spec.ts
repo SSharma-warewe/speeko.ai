@@ -12,6 +12,7 @@ import { OrganizationsService } from '../../organizations/organizations.service'
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { UserGuard } from '../../auth/guards/user.guard';
 import { WhatsAppAgentService } from '../../whatsapp-agent/whatsapp-agent.service';
+import { WhatsAppHarnessService } from '../../whatsapp-harness/whatsapp-harness.service';
 import { PublicWhatsAppWebhooksController } from '../public-whatsapp-webhooks.controller';
 import { hashVerifyToken } from '../verify-token.util';
 import { WhatsAppWebhookConfigsRepository } from '../whatsapp-webhook-configs.repository';
@@ -46,6 +47,10 @@ describe('PublicWhatsAppWebhooksController (HTTP)', () => {
       controllers: [PublicWhatsAppWebhooksController],
       providers: [
         WhatsAppWebhooksService,
+        {
+          provide: WhatsAppHarnessService,
+          useValue: { ingestWebhook: jest.fn().mockResolvedValue(undefined) },
+        },
         { provide: WhatsAppWebhookConfigsRepository, useValue: configs },
         { provide: WhatsAppWebhookEventsRepository, useValue: events },
         {
@@ -205,7 +210,9 @@ describe('PublicWhatsAppWebhooksController (HTTP)', () => {
       .expect(200);
 
     expect(events.save).toHaveBeenCalledTimes(2);
-    expect(events.save.mock.calls[0][0].payload).toEqual([{ field: 'messages' }]);
+    expect(events.save.mock.calls[0][0].payload).toEqual([
+      { field: 'messages' },
+    ]);
     expect(events.save.mock.calls[1][0].payload).toEqual({ entry: {} });
   });
 });
@@ -235,11 +242,7 @@ describe('PublicWhatsAppWebhooksController verify wiring', () => {
       })
       .expect(403);
 
-    expect(verifySubscription).toHaveBeenCalledWith(
-      'subscribe',
-      'wa_x',
-      '1',
-    );
+    expect(verifySubscription).toHaveBeenCalledWith('subscribe', 'wa_x', '1');
     await app.close();
   });
 });

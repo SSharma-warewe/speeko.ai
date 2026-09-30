@@ -31,6 +31,7 @@ import {
   verifyTokenPrefixFrom,
 } from './verify-token.util';
 import { WhatsAppAgentService } from '../whatsapp-agent/whatsapp-agent.service';
+import { WhatsAppHarnessService } from '../whatsapp-harness/whatsapp-harness.service';
 import { WhatsAppWebhookConfigsRepository } from './whatsapp-webhook-configs.repository';
 import { WhatsAppWebhookEventsRepository } from './whatsapp-webhook-events.repository';
 
@@ -46,6 +47,7 @@ export class WhatsAppWebhooksService {
     private readonly organizationsService: OrganizationsService,
     private readonly config: ConfigService,
     private readonly receptionist: WhatsAppAgentService,
+    private readonly harness: WhatsAppHarnessService,
   ) {}
 
   async getConfigForOrg(
@@ -142,6 +144,9 @@ export class WhatsAppWebhooksService {
       receivedAt: new Date(),
     });
     await this.events.save(row);
+    // Commit durable org turns before acknowledging Meta. Database failures
+    // return an error so a webhook retry can finish ingestion idempotently.
+    await this.harness.ingestWebhook(stored);
     this.logger.log(
       `WhatsApp webhook saved eventType=${extracted.eventType} org=${organizationId ?? 'none'} phoneNumberId=${extracted.phoneNumberId ?? 'none'}`,
     );
@@ -171,10 +176,7 @@ export class WhatsAppWebhooksService {
     }
 
     const envToken = this.config.get<string>('WHATSAPP_VERIFY_TOKEN')?.trim();
-    if (
-      envToken &&
-      verifyTokenMatches(provided, hashVerifyToken(envToken))
-    ) {
+    if (envToken && verifyTokenMatches(provided, hashVerifyToken(envToken))) {
       this.logger.log(
         `WhatsApp GET verify ok via WHATSAPP_VERIFY_TOKEN tokenPrefix=${tokenPrefix}`,
       );

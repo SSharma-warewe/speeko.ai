@@ -1,8 +1,4 @@
-export {
-  isKnownToolId,
-  KNOWN_TOOL_IDS,
-  TOOL_IDS,
-} from './tools.js';
+export { isKnownToolId, KNOWN_TOOL_IDS, TOOL_IDS } from './tools.js';
 export type { KnownToolId } from './tools.js';
 
 export {
@@ -36,7 +32,12 @@ export {
   ttsModelSpec,
   voicesForTtsModel,
 } from './tts.js';
-export type { TtsBackend, TtsModelId, TtsModelSpec, TtsVoiceOption } from './tts.js';
+export type {
+  TtsBackend,
+  TtsModelId,
+  TtsModelSpec,
+  TtsVoiceOption,
+} from './tts.js';
 
 export {
   DEFAULT_STT_MODEL_ID,
@@ -174,6 +175,22 @@ export type {
 } from './price.js';
 
 export type { AgentJobMetadata, AgentJobPrompt } from './job-metadata.js';
+export {
+  WHATSAPP_AGENT_TOOL_IDS,
+  WHATSAPP_AGENT_MODEL,
+} from './whatsapp-harness.js';
+export { buildWhatsAppInstruction } from './whatsapp-clock.js';
+export type {
+  WhatsAppAgentToolId,
+  WhatsAppTurnStatus,
+  WhatsAppSendStatus,
+  WhatsAppSessionSnapshot,
+  WhatsAppTurnCheckpoint,
+  WhatsAppWorkerTurn,
+  WhatsAppTurnLease,
+  WhatsAppTurnComplete,
+  WhatsAppToolRequest,
+} from './whatsapp-harness.js';
 
 export type {
   CompleteCallPayload,
@@ -182,11 +199,7 @@ export type {
   ToolEvent,
 } from './worker-callback.js';
 
-export {
-  ErrorCode,
-  errorCodeFromStatus,
-  isErrorCode,
-} from './http/errors.js';
+export { ErrorCode, errorCodeFromStatus, isErrorCode } from './http/errors.js';
 export type { ErrorResponse } from './http/errors.js';
 
 export type * from './http/index.js';

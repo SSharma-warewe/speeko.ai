@@ -21,7 +21,11 @@ export const envValidationSchema = Joi.object({
   LIVEKIT_API_SECRET: Joi.string().required(),
   LIVEKIT_AGENT_NAME: Joi.string().default('call-agent'),
   // Worker → API call completion callback
-  WORKER_CALLBACK_SECRET: Joi.string().min(8).optional().allow(''),
+  WORKER_CALLBACK_SECRET: Joi.when('WHATSAPP_HARNESS_ENABLED', {
+    is: Joi.valid('true', '1'),
+    then: Joi.string().min(8).required(),
+    otherwise: Joi.string().min(8).optional().allow(''),
+  }),
   API_BASE_URL: Joi.string().uri().optional().allow(''),
   // Public HTTPS origin Meta / browsers should call (not railway.internal).
   API_PUBLIC_URL: Joi.string().uri().optional().allow(''),
@@ -32,6 +36,20 @@ export const envValidationSchema = Joi.object({
   WHATSAPP_API_KEY: Joi.string().optional().allow(''),
   // WhatsApp receptionist (Google ADK → OpenRouter GPT-5.6 Luna). Soft-disabled when empty.
   OPENROUTER_API_KEY: Joi.string().optional().allow(''),
+  // Durable org inbound harness. API ticker dispatches; no broker or worker DB.
+  WHATSAPP_HARNESS_ENABLED: Joi.string()
+    .valid('true', 'false', '0', '1')
+    .default('false'),
+  WHATSAPP_WORKER_URL: Joi.when('WHATSAPP_HARNESS_ENABLED', {
+    is: Joi.valid('true', '1'),
+    then: Joi.string().uri().required(),
+    otherwise: Joi.string().uri().optional().allow(''),
+  }),
+  WHATSAPP_TICKER_MAX_CONCURRENT: Joi.number()
+    .integer()
+    .min(1)
+    .max(100)
+    .default(4),
   OTP_HASH_SECRET: Joi.string().min(16).optional().allow(''),
   WHATSAPP_OTP_TEMPLATE_NAME: Joi.string().optional().allow(''),
   // Graph API version for org-owned WhatsApp outbound (default v25.0).
@@ -59,7 +77,9 @@ export const envValidationSchema = Joi.object({
     .optional(),
   LIVEKIT_SIP_VENDOR_USD_PER_MIN: Joi.number().min(0).optional(),
   // Outbound dial queue (API process)
-  QUEUE_DIALER_ENABLED: Joi.string().valid('true', 'false', '0', '1').optional(),
+  QUEUE_DIALER_ENABLED: Joi.string()
+    .valid('true', 'false', '0', '1')
+    .optional(),
   QUEUE_DIALER_INTERVAL_MS: Joi.number().optional(),
   QUEUE_CLAIM_LEASE_SECONDS: Joi.number().optional(),
   QUEUE_STALE_DIALING_SECONDS: Joi.number().optional(),

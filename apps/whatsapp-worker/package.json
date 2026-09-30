@@ -1,0 +1,5 @@
+{
+  "name": "@call-agent/whatsapp-worker",
+  "private": true,
+  "type": "module"
+}

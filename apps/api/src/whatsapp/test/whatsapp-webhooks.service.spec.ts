@@ -9,6 +9,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Organization } from '../../organizations/organization.entity';
 import { OrganizationsService } from '../../organizations/organizations.service';
 import { WhatsAppAgentService } from '../../whatsapp-agent/whatsapp-agent.service';
+import { WhatsAppHarnessService } from '../../whatsapp-harness/whatsapp-harness.service';
 import { hashVerifyToken } from '../verify-token.util';
 import { WhatsAppWebhookConfig } from '../whatsapp-webhook-config.entity';
 import { WhatsAppWebhookConfigsRepository } from '../whatsapp-webhook-configs.repository';
@@ -36,6 +37,7 @@ describe('WhatsAppWebhooksService', () => {
   let organizationsService: { findById: jest.Mock };
   let configService: { get: jest.Mock };
   let receptionist: { replyToWebhook: jest.Mock };
+  let harness: { ingestWebhook: jest.Mock };
 
   const ORG_ID = 'org-id';
   const OTHER_ORG = 'other-org';
@@ -103,10 +105,15 @@ describe('WhatsAppWebhooksService', () => {
     receptionist = {
       replyToWebhook: jest.fn().mockResolvedValue(undefined),
     };
+    harness = { ingestWebhook: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WhatsAppWebhooksService,
+        {
+          provide: WhatsAppHarnessService,
+          useValue: harness,
+        },
         { provide: WhatsAppWebhookConfigsRepository, useValue: configs },
         { provide: WhatsAppWebhookEventsRepository, useValue: events },
         { provide: OrganizationsService, useValue: organizationsService },
@@ -226,7 +233,8 @@ describe('WhatsAppWebhooksService', () => {
       const second = await service.generateConfigForOrg(ORG_ID, {
         phoneNumberId: PHONE_ID,
       });
-      const secondSaved = configs.save.mock.calls[1][0] as WhatsAppWebhookConfig;
+      const secondSaved = configs.save.mock
+        .calls[1][0] as WhatsAppWebhookConfig;
 
       expect(second.verifyToken).not.toBe(first.verifyToken);
       expect(secondSaved.verifyTokenHash).not.toBe(firstSaved.verifyTokenHash);
@@ -381,7 +389,9 @@ describe('WhatsAppWebhooksService', () => {
       await expect(service.ingestWebhook('nope')).resolves.toEqual({
         success: true,
       });
-      await expect(service.ingestWebhook([{ field: 'messages' }])).resolves.toEqual({
+      await expect(
+        service.ingestWebhook([{ field: 'messages' }]),
+      ).resolves.toEqual({
         success: true,
       });
       await expect(service.ingestWebhook({ entry: {} })).resolves.toEqual({
@@ -392,7 +402,9 @@ describe('WhatsAppWebhooksService', () => {
       expect(events.save.mock.calls[0][0].payload).toEqual({ raw: null });
       expect(events.save.mock.calls[0][0].eventType).toBe('unknown');
       expect(events.save.mock.calls[1][0].payload).toBe('nope');
-      expect(events.save.mock.calls[2][0].payload).toEqual([{ field: 'messages' }]);
+      expect(events.save.mock.calls[2][0].payload).toEqual([
+        { field: 'messages' },
+      ]);
       expect(events.save.mock.calls[3][0].payload).toEqual({ entry: {} });
       expect(events.save.mock.calls[3][0].organizationId).toBeNull();
     });
@@ -432,6 +444,31 @@ describe('WhatsAppWebhooksService', () => {
   });
 
   describe('listEventsForOrg', () => {
+    it('does not acknowledge before durable ingestion and propagates a persistence failure', async () => {
+      let release!: () => void;
+      harness.ingestWebhook.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            release = resolve;
+          }),
+      );
+      let acknowledged = false;
+      const pending = service.ingestWebhook(samplePayload).then(() => {
+        acknowledged = true;
+      });
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(events.save).toHaveBeenCalledTimes(1);
+      expect(acknowledged).toBe(false);
+      expect(receptionist.replyToWebhook).not.toHaveBeenCalled();
+      release();
+      await pending;
+      harness.ingestWebhook.mockRejectedValue(
+        new Error('database unavailable'),
+      );
+      await expect(service.ingestWebhook(samplePayload)).rejects.toThrow(
+        'database unavailable',
+      );
+    });
     it('15. lists this org and unmatched posts, and asks only for that org', async () => {
       events.findRecentForOrganization.mockResolvedValue([
         {

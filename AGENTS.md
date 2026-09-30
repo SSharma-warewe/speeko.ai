@@ -10,6 +10,7 @@ Multi-tenant inbound/outbound **call agent platform**:
 |-----|------|------|
 | API | `apps/api` | NestJS HTTP API, JWT auth, Swagger UI, calls domain + LiveKit adapter |
 | Worker | `apps/worker` | LiveKit Agents server (`@livekit/agents`) for inbound/outbound voice |
+| WhatsApp worker | `apps/whatsapp-worker` | HTTP-dispatched ADK/OpenRouter text turns; API-owned ticker, durable sessions/outbox, no worker DB or Meta credentials |
 | Web (marketing) | `apps/web` | Public marketing Vite + React SPA (`/`, `/get-demo`, `/how-it-works`, `/voice`, `/privacy`, `/solutions`, `/solutions/ai-calling-agents`, `/solutions/whatsapp-services`, `/ai-voice-agent`, `/appointment-confirmation-calls`, `/ai-receptionist`, `/outbound-ai-calling`, `/ai-calling-for-clinics`) |
 | Portal | `apps/portal` | Authenticated Vite + React SPA (login + org/admin dashboards) |
 | UI kit | `packages/ui` | Reusable design-system primitives (`@call-agent/ui`) — buttons, forms, badges, motion |
@@ -98,6 +99,15 @@ tool_profiles                  (capability bundles: platform seeds + org-owned c
 - `organization_integrations.booking_voice_agent_id` — optional FK on a `whatsapp` connection → an existing `organization_agents` row (SET NULL). When paired with a tool profile, the WhatsApp agent reuses that voice agent's active GHL calendar integration for ADK contact and calendar tools. The WhatsApp Agent tab selects the voice agent as the credential source; no new integration is created. Runtime rechecks the org, agent, and calendar connection before each tool call.
 - `organization_integrations.whatsapp_tool_profile_id` — optional FK on a `whatsapp` connection → an existing `tool_profiles` row (SET NULL). The WhatsApp Agent tab selects a visible platform or org tool profile. Its GHL tool ids are intersected with `organizations.allowed_tool_ids` on each reply; null or a profile without assigned GHL ids grants no WhatsApp booking tools. The voice agent selection supplies the existing GHL calendar credentials only.
 
+### WhatsApp harness schema (Phase 1)
+
+- `whatsapp_conversations` — org + Meta connection + sender (unique connection/sender), durable ADK `session` JSONB, trusted `tool_state` JSONB, reset `generation` and per-conversation sequence. Org and connection FKs CASCADE.
+- `whatsapp_agent_turns` — ordered inbound texts, unique Meta `(phone_number_id, message_id)` and conversation sequence, generation, pending/running/succeeded/failed/cancelled, attempts/backoff, renewable UUID lease, initial session snapshot and ADK checkpoint. Conversation FK CASCADE.
+- `whatsapp_message_outbox` — one reply per turn (unique FK CASCADE), body, pending/sending/accepted/uncertain/failed/cancelled, Meta id and send attempts/timestamps. Accepted means Meta API acceptance, not delivery/read.
+- `whatsapp_tool_operations` — durable GHL operation reservation/result, unique conversation/generation/operation key; conversation FK CASCADE. An unknown write outcome is never automatically repeated.
+
+Erflow synchronization for these four tables was explicitly deferred by the user for this change; it remains outstanding. This exception does not waive the normal schema workflow for future changes.
+
 ### Integration endpoints (CRM dial-in)
 
 **Platform holds config; CRM sends a thin request.**
@@ -156,6 +166,12 @@ Known tool ids: `endCall`, `booking`, `cancelBooking`, `transferCall`, `lookupCu
 **Calendar tools (Nylas):** org stores API key + grant on `organization_integrations` (`provider=nylas`); link via `organization_agents.calendar_integration_id`; enable Nylas tool ids on a tool profile. Worker tools call `POST /api/internal/calls/:callId/calendar/*` with `X-Worker-Secret` — API holds secrets (never in LiveKit metadata).
 
 **Calendar tools (GHL):** org stores a **v3 Private Integration Token** + location (sub-account) id + calendar id on `organization_integrations` (`provider=ghl`); link via the same `calendar_integration_id`; enable `checkGhlFreeSlots` / `lookupGhlContact` / `upsertGhlContact` / `scheduleGhlMeeting`. Token scopes: `calendars.readonly` (View Calendars), `calendars/events.readonly` (View Calendar Events), `calendars/events.write` (Edit Calendar Events). Lookup needs `contacts.readonly`; upsert needs `contacts.write`. Calendar book (`scheduleGhlMeeting`) does **not** create contacts — it uses `ghlContactId` / `contactId` on the call (get-demo CRM upsert, `lookupGhlContact`, or `upsertGhlContact`; both persist `ghlContactId` onto `calls.context`). Phone-like `contactId` values are ignored. GHL “contact not found” on book is `missing_contact`, not a busy slot. Portal can preview calendars via `POST /api/users/integrations/ghl/calendars` (`GET /calendars/?locationId=`). Worker tools call `POST /api/internal/calls/:callId/ghl-calendar/*`. Free slots return **open times only** (never existing appointments). No platform-env fallback — missing/inactive/wrong-provider link fails the tool. `GhlService` is the only GHL HTTP client. Worker/API treat naive or `Z` ISO **plus IANA `timezone`** as local wall-clock (LLMs often tag IST times with `Z`); numeric offsets (`+05:30`) stay absolute. Short free-slot windows (< 4h) expand to the local calendar day(s) before calling GHL.
+
+### WhatsApp harness execution (Phase 1)
+
+`WHATSAPP_HARNESS_ENABLED=true` routes org inbound texts through `apps/api/src/whatsapp-harness` instead of the legacy in-process org runner. `WhatsAppTickerService` owns a one-second Nest `@Interval`, replica-safe capacity checks and transactional conversation claims, HTTP dispatch to `WHATSAPP_WORKER_URL`, lease recovery, and outbox sending. No broker/Redis and no worker Postgres access. The flag defaults off for rollout; do not disable it while unresolved harness turns/sends remain. Platform `WHATSAPP_URL` receptionist and get-demo OTP keep their current paths.
+
+The new ESM worker (`npm run build:whatsapp-worker`, `npm run start:whatsapp-worker:dev` / `:prod`) runs ADK/OpenRouter with API-checkpointed sessions and proxies only the four supported GHL tools through authenticated callbacks. API-to-worker and worker-to-API use `X-Worker-Secret`; callbacks also require the active UUID turn lease. GHL/Meta credentials stay on the API. `/new` fences stale work by generation. Failed turns or unresolved sends block later turns; org-user inspection/recovery endpoints live under `/api/users/whatsapp/conversations`, `/turns/:id/retry`, `/messages/:id/retry`, and `/messages/:id/resolve`. See `apps/whatsapp-worker/README.md` for defaults, limitations and rollout instructions. Detailed job submission remains Phase 2. Use `Dockerfile.whatsapp-worker` / `railway/whatsapp-worker.toml` for the separate service.
 
 ### Naming note
 
@@ -353,6 +369,7 @@ Production runs on **Railway** (project `practical-spontaneity`, environment `pr
 |---------|------------|--------|----------------------|---------------|
 | `api` | `Dockerfile.api` | `railway/api.toml` | `https://api-production-4df4.up.railway.app` | Nest API, entities, env-driven server config |
 | `worker` | `Dockerfile.worker` | `railway/worker.toml` | `https://worker-production-fdde.up.railway.app` | LiveKit agent, tasks/tools, models, Python STTRealtime sidecar |
+| `whatsapp-worker` | `Dockerfile.whatsapp-worker` | `railway/whatsapp-worker.toml` (intended settings); CLI-created service selects Dockerfile via `RAILWAY_DOCKERFILE_PATH` | **private only** (`whatsapp-worker.railway.internal:8082`) | WhatsApp ADK text runtime; deploy separately from voice |
 | `web` | `Dockerfile.web` | `railway/web.toml` | `https://speeko.ai` | Marketing SPA (`apps/web`) or `VITE_*` build args |
 | `portal` | `Dockerfile.portal` | `railway/portal.toml` | `https://portal.speeko.ai` | Ops SPA (`apps/portal`) or `VITE_*` build args |
 | `Postgres` | Railway Postgres | — | **private only** (`*.railway.internal`) | Never app code; data only |
@@ -718,6 +735,7 @@ Test: `POST /api/admin/calls/test` accepts optional `task` + `context`. Org web 
 | `organization-integrations` | Org BYO third-party keys (Nylas + GHL calendar); user CRUD + test; worker Nylas proxy via `CalendarToolsService` |
 | `whatsapp` | Org WhatsApp webhook config (hashed verify token + phone/WABA routing) + public Meta GET verify / POST ingest. Persist first and return 200. `whatsapp-agent` then replies to inbound text (org line with prompt, else platform `WHATSAPP_URL`) |
 | `whatsapp-agent` | Inbound auto-replies after webhook persist: org `whatsapp` connection + non-empty `system_prompt` → Luna + `MetaWhatsAppClient.sendText`; else platform `WHATSAPP_URL` / `WHATSAPP_API_KEY` + hardcoded Warewe instruction. Portal Agent tab via `GET`/`PATCH /users/whatsapp/agent` |
+| `whatsapp-harness` | Opt-in durable org conversations/turns/tool receipts/outbox; API-owned `WhatsAppTickerService` dispatches to the separate `apps/whatsapp-worker` over HTTP. Holds all Meta/GHL credentials, authorizes callbacks, fences leases and resets. See Phase 1 execution above. |
 | `whatsapp-outbound` | Portal WhatsApp page backend (`/api/users/whatsapp/outbound/*`): lists Meta templates, imports GHL contacts, sends template messages using **per-org** credentials (`whatsapp` + `ghl_contacts` integrations) and logs to `whatsapp_outbound_messages`. Pure helpers in `lib/` (`template-parser`, `build-components`, `phone`). Get-demo OTP stays on the platform `WHATSAPP_URL` / `WHATSAPP_API_KEY`. Org inbound Agent auto-replies use the org Meta token via `whatsapp-agent` — do not mix platform OTP credentials into org sends |
 | `meta-whatsapp` | Thin Graph API adapter only (`MetaWhatsAppClient`: `listTemplates`, `getPhoneNumber`, `sendTemplate`, `sendText`) — no controllers; token passed per call, never logged; fixed origin, `redirect: manual`, 15s timeout, never throws |
 | `sip-trunks` | Org SIP trunk CRUD: admin outbound; **user outbound** create/link/update/delete; user inbound draft + publish; combined inbound publish orchestrator |

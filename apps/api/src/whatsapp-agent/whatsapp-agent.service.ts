@@ -74,6 +74,13 @@ export class WhatsAppAgentService {
           );
 
         if (orgConnection) {
+          // The webhook already persisted this org turn for the API ticker.
+          if (
+            ['true', '1'].includes(
+              String(this.config.get('WHATSAPP_HARNESS_ENABLED') ?? 'false'),
+            )
+          )
+            continue;
           const prompt = orgConnection.systemPrompt?.trim() ?? '';
           if (!prompt) {
             this.warnOnce(

@@ -281,6 +281,23 @@ describe('WhatsAppAgentService', () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
 
+    it('does not generate or send a second org reply when the durable harness is enabled', async () => {
+      const legacyConfig = configGet.getMockImplementation()!;
+      configGet.mockImplementation((key: string) =>
+        key === 'WHATSAPP_HARNESS_ENABLED' ? 'true' : legacyConfig(key),
+      );
+      await service.replyToWebhook(
+        textPayload('wamid.harness', orgPhone, 'Hello'),
+      );
+      await service.replyToWebhook(
+        textPayload('wamid.harness-reset', orgPhone, '/new'),
+      );
+      expect(receptionist.reply).not.toHaveBeenCalled();
+      expect(receptionist.reset).not.toHaveBeenCalled();
+      expect(meta.sendText).not.toHaveBeenCalled();
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
     it('sends a safe fallback when the model has no visible reply', async () => {
       receptionist.reply.mockResolvedValue('');
 
