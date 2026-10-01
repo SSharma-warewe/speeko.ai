@@ -3,6 +3,7 @@ import {
   BadGatewayException,
   BadRequestException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -62,11 +63,22 @@ export class WhatsAppOutboundService {
     organizationId: string,
     query?: string,
     cursor?: string,
+    integrationId?: string,
   ): Promise<GhlContactsResponseDto> {
-    const integration = await this.integrations.getActiveEntityByProvider(
-      organizationId,
-      IntegrationProvider.GHL_CONTACTS,
-    );
+    const integration = integrationId
+      ? await this.integrations.getEntityForOrg(organizationId, integrationId)
+      : await this.integrations.getActiveEntityByProvider(
+          organizationId,
+          IntegrationProvider.GHL_CONTACTS,
+        );
+    if (
+      integrationId &&
+      (integration.organizationId !== organizationId ||
+        !integration.isActive ||
+        (integration.provider !== IntegrationProvider.GHL_CRM &&
+          integration.provider !== IntegrationProvider.GHL_CONTACTS))
+    )
+      throw new NotFoundException('Active CRM contacts connection not found');
     const result = await this.ghl.listContacts({
       token: integration.apiKey,
       locationId: integration.locationId ?? '',

@@ -54,7 +54,8 @@ export default function UserWhatsAppPage() {
 
   const hasWhatsApp = data.some((c) => c.provider === "whatsapp" && c.isActive);
   const hasContacts = data.some(
-    (c) => c.provider === "ghl_contacts" && c.isActive,
+    (c) =>
+      (c.provider === "ghl_contacts" || c.provider === "ghl_crm") && c.isActive,
   );
 
   return (
@@ -62,7 +63,11 @@ export default function UserWhatsAppPage() {
       <div className="ops-desk-toolbar">
         <div className="ops-desk-toolbar-main">
           <h1>WhatsApp</h1>
-          <div className="ops-mode-toggle" role="tablist" aria-label="WhatsApp sections">
+          <div
+            className="ops-mode-toggle"
+            role="tablist"
+            aria-label="WhatsApp sections"
+          >
             {TABS.map((tab) => (
               <button
                 key={tab.id}
@@ -100,6 +105,19 @@ export default function UserWhatsAppPage() {
       >
         {mode === "send" ? (
           <WhatsAppSendTab
+            key={data
+              .filter(
+                (c) =>
+                  c.isActive &&
+                  (c.provider === "ghl_contacts" || c.provider === "ghl_crm"),
+              )
+              .map((c) => c.id)
+              .join(",")}
+            contactSources={data.filter(
+              (c) =>
+                c.isActive &&
+                (c.provider === "ghl_contacts" || c.provider === "ghl_crm"),
+            )}
             hasWhatsApp={hasWhatsApp}
             hasContacts={hasContacts}
             onGoConnections={() => setModeTab("connections")}

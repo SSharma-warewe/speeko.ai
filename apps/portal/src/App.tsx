@@ -29,6 +29,7 @@ import UserSipTrunksPage from "./dashboard/user-pages/SipTrunksPage";
 import UserToolProfilesPage from "./dashboard/user-pages/ToolProfilesPage";
 import UserIntegrationsPage from "./dashboard/user-pages/IntegrationsPage";
 import UserWhatsAppPage from "./dashboard/user-pages/WhatsAppPage";
+import UserCrmPage from "./dashboard/user-pages/CrmPage";
 import AdminLoginPage from "./pages/AdminLoginPage";
 import UserLoginPage from "./pages/UserLoginPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
@@ -47,7 +48,10 @@ export default function App() {
         path="/admin-forgot-password"
         element={<ForgotPasswordPage admin />}
       />
-      <Route path="/set-password" element={<SetOrResetPasswordPage mode="set" />} />
+      <Route
+        path="/set-password"
+        element={<SetOrResetPasswordPage mode="set" />}
+      />
       <Route
         path="/reset-password"
         element={<SetOrResetPasswordPage mode="reset" />}
@@ -71,7 +75,10 @@ export default function App() {
           path="enqueue"
           element={<Navigate to="/dashboard/calls?compose=enqueue" replace />}
         />
-        <Route path="dial" element={<Navigate to="/dashboard/calls" replace />} />
+        <Route
+          path="dial"
+          element={<Navigate to="/dashboard/calls" replace />}
+        />
         <Route path="calls" element={<UserCallsPage />} />
         <Route path="calls/:id" element={<UserCallDetailPage />} />
         <Route path="batches" element={<UserBatchesPage />} />
@@ -82,6 +89,7 @@ export default function App() {
         <Route path="sip" element={<UserSipTrunksPage />} />
         <Route path="tool-profiles" element={<UserToolProfilesPage />} />
         <Route path="whatsapp" element={<UserWhatsAppPage />} />
+        <Route path="crm" element={<UserCrmPage />} />
         <Route path="integrations" element={<UserIntegrationsPage />} />
         <Route path="account" element={<UserAccountPage />} />
         <Route

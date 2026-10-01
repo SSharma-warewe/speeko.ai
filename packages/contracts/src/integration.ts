@@ -1,6 +1,8 @@
 export const IntegrationProvider = {
   NYLAS: 'nylas',
   GHL: 'ghl',
+  /** Live HighLevel CRM workspace, separate from agent calendar connections. */
+  GHL_CRM: 'ghl_crm',
   /** GoHighLevel PIT used only to import contacts for WhatsApp outbound. */
   GHL_CONTACTS: 'ghl_contacts',
   /** Meta WhatsApp Cloud API credentials (access token + phone number id + WABA id). */

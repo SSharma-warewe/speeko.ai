@@ -14,6 +14,7 @@ import { EmailModule } from './email/email.module';
 import { GhlModule } from './ghl/ghl.module';
 import { IntegrationEndpointsModule } from './integration-endpoints/integration-endpoints.module';
 import { OrganizationIntegrationsModule } from './organization-integrations/organization-integrations.module';
+import { CrmModule } from './crm/crm.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { OtpModule } from './otp/otp.module';
 import { PriceModule } from './price/price.module';
@@ -61,6 +62,7 @@ import { WhatsappModule } from './whatsapp/whatsapp.module';
     QueueModule,
     IntegrationEndpointsModule,
     OrganizationIntegrationsModule,
+    CrmModule,
     WhatsappModule,
     WhatsAppOutboundModule,
     OtpModule,
@@ -70,4 +72,3 @@ import { WhatsappModule } from './whatsapp/whatsapp.module';
   providers: [{ provide: APP_FILTER, useClass: HttpExceptionFilter }],
 })
 export class ApiModule {}
-

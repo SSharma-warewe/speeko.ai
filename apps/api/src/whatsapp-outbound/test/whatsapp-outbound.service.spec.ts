@@ -17,7 +17,10 @@ describe('WhatsAppOutboundService', () => {
   const TOKEN = 'EAAG_org_token_secret';
   const PIT = 'pit-org-secret';
 
-  let integrations: { getActiveEntityByProvider: jest.Mock };
+  let integrations: {
+    getActiveEntityByProvider: jest.Mock;
+    getEntityForOrg: jest.Mock;
+  };
   let meta: { listTemplates: jest.Mock; sendTemplate: jest.Mock };
   let ghl: { listContacts: jest.Mock };
   let messages: {
@@ -51,13 +54,19 @@ describe('WhatsAppOutboundService', () => {
     language: 'en_US',
     bodyVariables: { '1': { type: 'field', field: 'firstName' } },
     recipients: [
-      { name: 'Ada Lovelace', firstName: 'Ada', phone: '+91 98765 43210', ghlContactId: 'c1' },
+      {
+        name: 'Ada Lovelace',
+        firstName: 'Ada',
+        phone: '+91 98765 43210',
+        ghlContactId: 'c1',
+      },
     ],
     ...over,
   });
 
   beforeEach(() => {
     integrations = {
+      getEntityForOrg: jest.fn(),
       getActiveEntityByProvider: jest.fn(
         async (_org: string, provider: string) =>
           provider === IntegrationProvider.WHATSAPP
@@ -66,7 +75,9 @@ describe('WhatsAppOutboundService', () => {
       ),
     };
     meta = {
-      listTemplates: jest.fn().mockResolvedValue({ ok: true, data: [approved] }),
+      listTemplates: jest
+        .fn()
+        .mockResolvedValue({ ok: true, data: [approved] }),
       sendTemplate: jest
         .fn()
         .mockResolvedValue({ ok: true, data: { wamid: 'wamid.ABC' } }),
@@ -95,10 +106,7 @@ describe('WhatsAppOutboundService', () => {
     it('loads from the org WABA with the org token, sendable first', async () => {
       meta.listTemplates.mockResolvedValue({
         ok: true,
-        data: [
-          { ...approved, name: 'zzz', status: 'PENDING' },
-          approved,
-        ],
+        data: [{ ...approved, name: 'zzz', status: 'PENDING' }, approved],
       });
       const result = await service.listTemplates(ORG);
       expect(meta.listTemplates).toHaveBeenCalledWith({
@@ -330,6 +338,52 @@ describe('WhatsAppOutboundService', () => {
       expect(messages.findRecentForOrganization).toHaveBeenCalledWith(ORG, 100);
       expect(rows[0]).not.toHaveProperty('organizationId');
       expect(rows[0]).not.toHaveProperty('integrationId');
+    });
+  });
+  describe('CRM contact sources', () => {
+    it('uses the explicitly selected org CRM token for contact import', async () => {
+      integrations.getEntityForOrg.mockResolvedValue({
+        ...ghlIntegration,
+        organizationId: ORG,
+        provider: IntegrationProvider.GHL_CRM,
+        isActive: true,
+      });
+      ghl.listContacts.mockResolvedValue({
+        ok: true,
+        contacts: [],
+        nextCursor: null,
+        total: 0,
+      });
+      await service.listContacts(ORG, 'Ada', undefined, 'selected-crm');
+      expect(integrations.getEntityForOrg).toHaveBeenCalledWith(
+        ORG,
+        'selected-crm',
+      );
+      expect(ghl.listContacts).toHaveBeenCalledWith(
+        expect.objectContaining({
+          token: PIT,
+          locationId: 'loc_1',
+          query: 'Ada',
+        }),
+      );
+      expect(integrations.getActiveEntityByProvider).not.toHaveBeenCalled();
+    });
+    it.each([
+      { organizationId: 'foreign-org' },
+      { isActive: false },
+      { provider: IntegrationProvider.WHATSAPP },
+    ])('rejects an invalid CRM source %j', async (change) => {
+      integrations.getEntityForOrg.mockResolvedValue({
+        ...ghlIntegration,
+        organizationId: ORG,
+        provider: IntegrationProvider.GHL_CRM,
+        isActive: true,
+        ...change,
+      });
+      await expect(
+        service.listContacts(ORG, undefined, undefined, 'selected-crm'),
+      ).rejects.toThrow(NotFoundException);
+      expect(ghl.listContacts).not.toHaveBeenCalled();
     });
   });
 });

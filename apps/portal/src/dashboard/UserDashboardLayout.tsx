@@ -24,22 +24,48 @@ const NAV: { section: string; items: readonly NavItem[] }[] = [
   {
     section: "Operate",
     items: [
-      { to: "/dashboard", end: true, label: "Overview", desc: "Live queue & activity" },
-      { to: "/dashboard/calls", label: "Calls", desc: "History, enqueue & dial" },
-      { to: "/dashboard/batches", label: "Batches", desc: "Bulk campaign groups" },
+      {
+        to: "/dashboard",
+        end: true,
+        label: "Overview",
+        desc: "Live queue & activity",
+      },
+      {
+        to: "/dashboard/calls",
+        label: "Calls",
+        desc: "History, enqueue & dial",
+      },
+      {
+        to: "/dashboard/batches",
+        label: "Batches",
+        desc: "Bulk campaign groups",
+      },
       {
         to: "/dashboard/whatsapp",
         label: "WhatsApp",
         desc: "Import contacts & send templates",
+      },
+      {
+        to: "/dashboard/crm",
+        label: "CRM",
+        desc: "Contacts, calendars & pipelines",
       },
     ],
   },
   {
     section: "Configure",
     items: [
-      { to: "/dashboard/agents", label: "Agents", desc: "Persona, task & test" },
+      {
+        to: "/dashboard/agents",
+        label: "Agents",
+        desc: "Persona, task & test",
+      },
       { to: "/dashboard/queue", label: "Queue", desc: "Concurrency & retries" },
-      { to: "/dashboard/sip", label: "SIP / Telephony", desc: "Outbound dials & inbound publish" },
+      {
+        to: "/dashboard/sip",
+        label: "SIP / Telephony",
+        desc: "Outbound dials & inbound publish",
+      },
       {
         to: "/dashboard/tool-profiles",
         label: "Tool profiles",
@@ -65,6 +91,7 @@ function pathInBranch(pathname: string, children: readonly NavLeaf[]): boolean {
 }
 
 function crumbFromPath(pathname: string): string {
+  if (pathname.startsWith("/dashboard/crm")) return "CRM";
   if (pathname === "/dashboard") return "Overview";
   if (pathname.startsWith("/dashboard/enqueue")) return "Calls";
   if (pathname.startsWith("/dashboard/dial")) return "Calls";
@@ -80,7 +107,13 @@ function crumbFromPath(pathname: string): string {
   return "Dashboard";
 }
 
-function NavBranchGroup({ item, pathname }: { item: NavBranch; pathname: string }) {
+function NavBranchGroup({
+  item,
+  pathname,
+}: {
+  item: NavBranch;
+  pathname: string;
+}) {
   const panelId = useId();
   const onSection = pathInBranch(pathname, item.children);
   const [open, setOpen] = useState(onSection);
@@ -134,7 +167,8 @@ export default function UserDashboardLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const crumb = crumbFromPath(location.pathname);
-  const orgName = user?.organization?.name || user?.organization?.slug || "Organization";
+  const orgName =
+    user?.organization?.name || user?.organization?.slug || "Organization";
 
   const handleLogout = () => {
     logout();
@@ -194,7 +228,9 @@ export default function UserDashboardLayout() {
               {initialsFromName(user?.name, user?.email)}
             </span>
             <span className="ops-admin-meta">
-              <span className="ops-admin-name">{user?.name || user?.email || "User"}</span>
+              <span className="ops-admin-name">
+                {user?.name || user?.email || "User"}
+              </span>
               <span className="ops-admin-email">{orgName}</span>
               <span className="ops-side-account-hint">Account</span>
             </span>

@@ -9,7 +9,7 @@ import {
   deleteUserOrgIntegration,
   listUserAgents,
   listUserIntegrationEndpoints,
-  listUserCalendarIntegrations,
+  listUserOrgIntegrations,
   listUserOutboundTrunks,
   previewGhlCalendars,
   rotateUserIntegrationEndpointKey,
@@ -36,8 +36,10 @@ import { LoadingBlock } from "../components/LoadingBlock";
 import { StatusBadge } from "../components/StatusBadge";
 import { useUserAsync } from "../hooks/useAsync";
 import WhatsAppWebhookPanel from "./WhatsAppWebhookPanel";
+import CrmConnectionsPanel from "./CrmConnectionsPanel";
+import "./crm/Crm.css";
 
-type IntegMode = "dial" | "calendar" | "whatsapp";
+type IntegMode = "dial" | "calendar" | "whatsapp" | "crm";
 
 const API_ORIGIN =
   (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ||
@@ -60,6 +62,7 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 function parseMode(raw: string | null): IntegMode {
+  if (raw === "crm") return "crm";
   if (raw === "calendar") return "calendar";
   if (raw === "whatsapp") return "whatsapp";
   return "dial";
@@ -85,16 +88,26 @@ function calendarLabel(cal: GhlCalendarOption): string {
 export default function UserIntegrationsPage() {
   const { logout } = useUserAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [mode, setMode] = useState<IntegMode>(parseMode(searchParams.get("tab")));
+  const [mode, setMode] = useState<IntegMode>(
+    parseMode(searchParams.get("tab")),
+  );
 
   const { data, error, loading, reload } = useUserAsync(async () => {
-    const [endpoints, agents, trunks, calendars] = await Promise.all([
+    const [endpoints, agents, trunks, connections] = await Promise.all([
       listUserIntegrationEndpoints(),
       listUserAgents(),
       listUserOutboundTrunks(),
-      listUserCalendarIntegrations(),
+      listUserOrgIntegrations(),
     ]);
-    return { endpoints, agents, trunks, calendars };
+    return {
+      endpoints,
+      agents,
+      trunks,
+      connections,
+      calendars: connections.filter(
+        (c) => c.provider === "ghl" || c.provider === "nylas",
+      ),
+    };
   }, []);
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -172,9 +185,7 @@ export default function UserIntegrationsPage() {
     setSipTrunkId(ep.sipTrunkId || "");
     setMaxAttempts(ep.maxAttempts != null ? String(ep.maxAttempts) : "");
     setPriority(String(ep.priority ?? 0));
-    setMaxConcurrent(
-      ep.maxConcurrent != null ? String(ep.maxConcurrent) : "",
-    );
+    setMaxConcurrent(ep.maxConcurrent != null ? String(ep.maxConcurrent) : "");
     setDefaultContextText(
       ep.defaultContext
         ? JSON.stringify(ep.defaultContext, null, 2)
@@ -204,9 +215,7 @@ export default function UserIntegrationsPage() {
   };
 
   const parseDefaultContext = ():
-    | Record<string, unknown>
-    | null
-    | undefined => {
+    Record<string, unknown> | null | undefined => {
     const raw = defaultContextText.trim();
     if (!raw) return editingId ? null : undefined;
     try {
@@ -267,9 +276,7 @@ export default function UserIntegrationsPage() {
           ...(sipTrunkId ? { sipTrunkId } : {}),
           ...(maxAttempts ? { maxAttempts: Number(maxAttempts) } : {}),
           ...(priority !== "" ? { priority: Number(priority) } : {}),
-          ...(maxConcurrent
-            ? { maxConcurrent: Number(maxConcurrent) }
-            : {}),
+          ...(maxConcurrent ? { maxConcurrent: Number(maxConcurrent) } : {}),
           ...(defaultContext && Object.keys(defaultContext).length > 0
             ? { defaultContext }
             : {}),
@@ -400,7 +407,9 @@ export default function UserIntegrationsPage() {
     setCalApiKey("");
     setCalGrantId(row.grantId || "");
     setCalLocationId(row.locationId || "");
-    setCalCalendarId(row.calendarId || (row.provider === "ghl" ? "" : "primary"));
+    setCalCalendarId(
+      row.calendarId || (row.provider === "ghl" ? "" : "primary"),
+    );
     setCalApiUri(row.apiUri || "https://api.us.nylas.com");
     setCalEmail(row.email || "");
     setCalFormError(null);
@@ -422,7 +431,9 @@ export default function UserIntegrationsPage() {
     setCalFormError(null);
     setActionMsg(null);
     if (!calLocationId.trim()) {
-      setCalFormError("Location ID (sub-account) is required to list calendars.");
+      setCalFormError(
+        "Location ID (sub-account) is required to list calendars.",
+      );
       return;
     }
     if (!calApiKey.trim() && !calEditingId) {
@@ -548,7 +559,9 @@ export default function UserIntegrationsPage() {
         return;
       }
       setCalFormError(
-        err instanceof ApiError ? err.message : "Could not save calendar connection.",
+        err instanceof ApiError
+          ? err.message
+          : "Could not save calendar connection.",
       );
     } finally {
       setCalSubmitting(false);
@@ -636,13 +649,18 @@ export default function UserIntegrationsPage() {
   const isDial = mode === "dial";
   const isCalendar = mode === "calendar";
   const isWhatsApp = mode === "whatsapp";
+  const isCrm = mode === "crm";
 
   return (
     <div className="ops-desk">
       <div className="ops-desk-toolbar">
         <div className="ops-desk-toolbar-main">
           <h1>Integrations</h1>
-          <div className="ops-mode-toggle" role="tablist" aria-label="Integration type">
+          <div
+            className="ops-mode-toggle"
+            role="tablist"
+            aria-label="Integration type"
+          >
             <button
               type="button"
               role="tab"
@@ -670,6 +688,15 @@ export default function UserIntegrationsPage() {
             >
               WhatsApp
             </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={isCrm}
+              className={`ops-mode-btn${isCrm ? " is-active" : ""}`}
+              onClick={() => setModeTab("crm")}
+            >
+              CRM
+            </button>
           </div>
         </div>
         <ul className="ops-desk-counts">
@@ -688,8 +715,13 @@ export default function UserIntegrationsPage() {
         </ul>
       </div>
 
-      <div className="ops-desk-board">
-        {isWhatsApp ? (
+      <div className={isCrm ? "crm-integration-board" : "ops-desk-board"}>
+        {isCrm ? (
+          <CrmConnectionsPanel
+            connections={data.connections}
+            onChanged={reload}
+          />
+        ) : isWhatsApp ? (
           <WhatsAppWebhookPanel />
         ) : isDial ? (
           <section className="ops-panel ops-desk-compose">
@@ -699,7 +731,10 @@ export default function UserIntegrationsPage() {
               </span>
               <span className="ops-desk-hint">CRM dial-in</span>
             </div>
-            <form className="ops-panel-body ops-form ops-desk-form" onSubmit={handleSubmit}>
+            <form
+              className="ops-panel-body ops-form ops-desk-form"
+              onSubmit={handleSubmit}
+            >
               {formError ? <Alert tone="error">{formError}</Alert> : null}
               {actionMsg ? <Alert tone="info">{actionMsg}</Alert> : null}
               {activeAgents.length === 0 ? (
@@ -730,7 +765,9 @@ export default function UserIntegrationsPage() {
                         const ok = await copyText(
                           absoluteEndpointUrl(secretReveal.endpointPath),
                         );
-                        setActionMsg(ok ? "URL copied." : "Could not copy URL.");
+                        setActionMsg(
+                          ok ? "URL copied." : "Could not copy URL.",
+                        );
                       }}
                     >
                       Copy
@@ -751,7 +788,9 @@ export default function UserIntegrationsPage() {
                       size="sm"
                       onClick={async () => {
                         const ok = await copyText(secretReveal.apiKey);
-                        setActionMsg(ok ? "API key copied." : "Could not copy key.");
+                        setActionMsg(
+                          ok ? "API key copied." : "Could not copy key.",
+                        );
                       }}
                     >
                       Copy
@@ -926,7 +965,10 @@ export default function UserIntegrationsPage() {
                 {calProvider === "ghl" ? "GoHighLevel" : "Nylas"}
               </span>
             </div>
-            <form className="ops-panel-body ops-form ops-desk-form" onSubmit={handleCalSubmit}>
+            <form
+              className="ops-panel-body ops-form ops-desk-form"
+              onSubmit={handleCalSubmit}
+            >
               {calFormError ? <Alert tone="error">{calFormError}</Alert> : null}
               {actionMsg ? <Alert tone="info">{actionMsg}</Alert> : null}
               <p className="ops-desk-note">
@@ -939,14 +981,13 @@ export default function UserIntegrationsPage() {
                       rel="noreferrer"
                     >
                       API v3 Private Integration
-                    </a>
-                    {" "}on the <strong>sub-account</strong> (not a v1 API key). Create
-                    it under Settings → Private Integrations with only{" "}
+                    </a>{" "}
+                    on the <strong>sub-account</strong> (not a v1 API key).
+                    Create it under Settings → Private Integrations with only{" "}
                     {GHL_V3_SCOPES.map((s, i) => (
                       <span key={s.scope}>
                         {i > 0 ? "; " : ""}
-                        {s.label} (
-                        <span className="ops-mono">{s.scope}</span>)
+                        {s.label} (<span className="ops-mono">{s.scope}</span>)
                       </span>
                     ))}
                     . Calendar tools still do not create contacts — enable{" "}
@@ -954,8 +995,7 @@ export default function UserIntegrationsPage() {
                     <span className="ops-mono">contacts.readonly</span>) and{" "}
                     <span className="ops-mono">upsertGhlContact</span> (
                     <span className="ops-mono">contacts.write</span>) on the
-                    tool profile.
-                    Then link this connection on an{" "}
+                    tool profile. Then link this connection on an{" "}
                     <Link to="/dashboard/agents">agent</Link> and enable GHL
                     tools on a{" "}
                     <Link to="/dashboard/tool-profiles">tool profile</Link>.
@@ -970,8 +1010,8 @@ export default function UserIntegrationsPage() {
                     >
                       Nylas dashboard
                     </a>
-                    . Link on an <Link to="/dashboard/agents">agent</Link> and enable
-                    calendar ids on a{" "}
+                    . Link on an <Link to="/dashboard/agents">agent</Link> and
+                    enable calendar ids on a{" "}
                     <Link to="/dashboard/tool-profiles">tool profile</Link>.
                   </>
                 )}
@@ -1008,7 +1048,11 @@ export default function UserIntegrationsPage() {
                 />
               </Field>
               {calProvider === "nylas" ? (
-                <Field label="Grant email" htmlFor="cal-email" hint="For free/busy">
+                <Field
+                  label="Grant email"
+                  htmlFor="cal-email"
+                  hint="For free/busy"
+                >
                   <Input
                     id="cal-email"
                     type="email"
@@ -1177,87 +1221,218 @@ export default function UserIntegrationsPage() {
           </section>
         )}
 
-        {!isWhatsApp ? (
-        <section className="ops-panel ops-desk-list">
-          <div className="ops-desk-list-bar">
-            <div className="ops-desk-list-bar-main">
-              <span className="ops-desk-kicker">{isDial ? "Endpoints" : "Calendars"}</span>
-              <span className="ops-desk-hint">
-                {isDial ? `${endpoints.length} total` : `${calendars.length} total`}
-              </span>
+        {!isWhatsApp && !isCrm ? (
+          <section className="ops-panel ops-desk-list">
+            <div className="ops-desk-list-bar">
+              <div className="ops-desk-list-bar-main">
+                <span className="ops-desk-kicker">
+                  {isDial ? "Endpoints" : "Calendars"}
+                </span>
+                <span className="ops-desk-hint">
+                  {isDial
+                    ? `${endpoints.length} total`
+                    : `${calendars.length} total`}
+                </span>
+              </div>
             </div>
-          </div>
-          <div className="ops-panel-body is-flush ops-desk-list-body">
-            {isDial ? (
-              endpoints.length === 0 ? (
+            <div className="ops-panel-body is-flush ops-desk-list-body">
+              {isDial ? (
+                endpoints.length === 0 ? (
+                  <EmptyState
+                    title="No dial endpoints"
+                    description="Create one on the left. CRM sends phoneNumber; agent and queue stay here."
+                  />
+                ) : (
+                  <div className="ops-table-wrap">
+                    <table className="ops-table ops-desk-table">
+                      <thead>
+                        <tr>
+                          <th>Endpoint</th>
+                          <th>Agent</th>
+                          <th>Key</th>
+                          <th>Used</th>
+                          <th />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {endpoints.map((ep) => (
+                          <tr
+                            key={ep.id}
+                            className={
+                              editingId === ep.id ? "is-live" : undefined
+                            }
+                          >
+                            <td>
+                              <div className="ops-desk-entity">
+                                <span className="ops-desk-entity-name">
+                                  {ep.name}
+                                </span>
+                                <span className="ops-desk-entity-meta">
+                                  <StatusBadge
+                                    status={ep.isActive ? "ready" : "cancelled"}
+                                    label={ep.isActive ? "Active" : "Off"}
+                                  />
+                                  <span className="ops-mono">
+                                    {ep.publicId}
+                                  </span>
+                                </span>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="ops-desk-entity">
+                                <span>{agentName(ep.organizationAgentId)}</span>
+                                <span className="ops-desk-entity-meta ops-mono">
+                                  {ep.taskKey}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="ops-mono">{ep.keyPrefix}…</td>
+                            <td className="ops-faint">
+                              {formatRelative(ep.lastUsedAt)}
+                            </td>
+                            <td>
+                              <div className="ops-row-actions">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={busyId === ep.id}
+                                  onClick={async () => {
+                                    const ok = await copyText(
+                                      absoluteEndpointUrl(ep.endpointPath),
+                                    );
+                                    setActionMsg(
+                                      ok
+                                        ? "URL copied."
+                                        : "Could not copy URL.",
+                                    );
+                                  }}
+                                >
+                                  Copy
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={busyId === ep.id}
+                                  onClick={() => openEdit(ep)}
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={busyId === ep.id}
+                                  onClick={() => handleToggleActive(ep)}
+                                >
+                                  {ep.isActive ? "Disable" : "Enable"}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={busyId === ep.id}
+                                  onClick={() => handleRotate(ep)}
+                                >
+                                  Rotate
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={busyId === ep.id}
+                                  onClick={() => handleDelete(ep)}
+                                >
+                                  Delete
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              ) : calendars.length === 0 ? (
                 <EmptyState
-                  title="No dial endpoints"
-                  description="Create one on the left. CRM sends phoneNumber; agent and queue stay here."
+                  title="No calendars"
+                  description="Add a Nylas or GoHighLevel connection on the left to power scheduling tools."
                 />
               ) : (
                 <div className="ops-table-wrap">
                   <table className="ops-table ops-desk-table">
                     <thead>
                       <tr>
-                        <th>Endpoint</th>
-                        <th>Agent</th>
-                        <th>Key</th>
-                        <th>Used</th>
+                        <th>Calendar</th>
+                        <th>Account</th>
+                        <th>Status</th>
                         <th />
                       </tr>
                     </thead>
                     <tbody>
-                      {endpoints.map((ep) => (
+                      {calendars.map((row) => (
                         <tr
-                          key={ep.id}
-                          className={editingId === ep.id ? "is-live" : undefined}
+                          key={row.id}
+                          className={
+                            calEditingId === row.id ? "is-live" : undefined
+                          }
                         >
                           <td>
                             <div className="ops-desk-entity">
-                              <span className="ops-desk-entity-name">{ep.name}</span>
+                              <span className="ops-desk-entity-name">
+                                {row.name}
+                              </span>
                               <span className="ops-desk-entity-meta">
-                                <StatusBadge
-                                  status={ep.isActive ? "ready" : "cancelled"}
-                                  label={ep.isActive ? "Active" : "Off"}
-                                />
-                                <span className="ops-mono">{ep.publicId}</span>
+                                <span className="ops-mono">
+                                  {row.apiKeyPrefix}
+                                </span>
+                                <span>
+                                  {row.provider === "ghl"
+                                    ? "GoHighLevel"
+                                    : "Nylas"}
+                                  {row.email ? ` · ${row.email}` : ""}
+                                </span>
                               </span>
                             </div>
+                          </td>
+                          <td
+                            className="ops-mono"
+                            title={
+                              row.provider === "ghl"
+                                ? row.locationId || ""
+                                : row.grantId || ""
+                            }
+                          >
+                            {formatAccountId(
+                              row.provider === "ghl"
+                                ? row.locationId
+                                : row.grantId,
+                            )}
                           </td>
                           <td>
-                            <div className="ops-desk-entity">
-                              <span>{agentName(ep.organizationAgentId)}</span>
-                              <span className="ops-desk-entity-meta ops-mono">
-                                {ep.taskKey}
-                              </span>
-                            </div>
+                            <StatusBadge
+                              status={row.isActive ? "active" : "inactive"}
+                            />
                           </td>
-                          <td className="ops-mono">{ep.keyPrefix}…</td>
-                          <td className="ops-faint">{formatRelative(ep.lastUsedAt)}</td>
                           <td>
                             <div className="ops-row-actions">
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                disabled={busyId === ep.id}
-                                onClick={async () => {
-                                  const ok = await copyText(
-                                    absoluteEndpointUrl(ep.endpointPath),
-                                  );
-                                  setActionMsg(
-                                    ok ? "URL copied." : "Could not copy URL.",
-                                  );
-                                }}
+                                loading={busyId === row.id}
+                                disabled={busyId === row.id}
+                                onClick={() => handleCalTest(row)}
                               >
-                                Copy
+                                Test
                               </Button>
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                disabled={busyId === ep.id}
-                                onClick={() => openEdit(ep)}
+                                disabled={busyId === row.id}
+                                onClick={() => openCalEdit(row)}
                               >
                                 Edit
                               </Button>
@@ -1265,26 +1440,17 @@ export default function UserIntegrationsPage() {
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                disabled={busyId === ep.id}
-                                onClick={() => handleToggleActive(ep)}
+                                disabled={busyId === row.id}
+                                onClick={() => handleCalToggleActive(row)}
                               >
-                                {ep.isActive ? "Disable" : "Enable"}
+                                {row.isActive ? "Disable" : "Enable"}
                               </Button>
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                disabled={busyId === ep.id}
-                                onClick={() => handleRotate(ep)}
-                              >
-                                Rotate
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                disabled={busyId === ep.id}
-                                onClick={() => handleDelete(ep)}
+                                disabled={busyId === row.id}
+                                onClick={() => handleCalDelete(row)}
                               >
                                 Delete
                               </Button>
@@ -1295,107 +1461,9 @@ export default function UserIntegrationsPage() {
                     </tbody>
                   </table>
                 </div>
-              )
-            ) : calendars.length === 0 ? (
-              <EmptyState
-                title="No calendars"
-                description="Add a Nylas or GoHighLevel connection on the left to power scheduling tools."
-              />
-            ) : (
-              <div className="ops-table-wrap">
-                <table className="ops-table ops-desk-table">
-                  <thead>
-                    <tr>
-                      <th>Calendar</th>
-                      <th>Account</th>
-                      <th>Status</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {calendars.map((row) => (
-                      <tr
-                        key={row.id}
-                        className={calEditingId === row.id ? "is-live" : undefined}
-                      >
-                        <td>
-                          <div className="ops-desk-entity">
-                            <span className="ops-desk-entity-name">{row.name}</span>
-                            <span className="ops-desk-entity-meta">
-                              <span className="ops-mono">{row.apiKeyPrefix}</span>
-                              <span>
-                                {row.provider === "ghl" ? "GoHighLevel" : "Nylas"}
-                                {row.email ? ` · ${row.email}` : ""}
-                              </span>
-                            </span>
-                          </div>
-                        </td>
-                        <td
-                          className="ops-mono"
-                          title={
-                            row.provider === "ghl"
-                              ? row.locationId || ""
-                              : row.grantId || ""
-                          }
-                        >
-                          {formatAccountId(
-                            row.provider === "ghl"
-                              ? row.locationId
-                              : row.grantId,
-                          )}
-                        </td>
-                        <td>
-                          <StatusBadge status={row.isActive ? "active" : "inactive"} />
-                        </td>
-                        <td>
-                          <div className="ops-row-actions">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              loading={busyId === row.id}
-                              disabled={busyId === row.id}
-                              onClick={() => handleCalTest(row)}
-                            >
-                              Test
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              disabled={busyId === row.id}
-                              onClick={() => openCalEdit(row)}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              disabled={busyId === row.id}
-                              onClick={() => handleCalToggleActive(row)}
-                            >
-                              {row.isActive ? "Disable" : "Enable"}
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              disabled={busyId === row.id}
-                              onClick={() => handleCalDelete(row)}
-                            >
-                              Delete
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </section>
+              )}
+            </div>
+          </section>
         ) : null}
       </div>
     </div>

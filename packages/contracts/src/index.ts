@@ -219,3 +219,5 @@ export { ErrorCode, errorCodeFromStatus, isErrorCode } from './http/errors.js';
 export type { ErrorResponse } from './http/errors.js';
 
 export type * from './http/index.js';
+export { CRM_ACTIONS, CRM_SCOPES } from './crm.js';
+export type { CrmAction, CrmCommand, CrmResult } from './crm.js';

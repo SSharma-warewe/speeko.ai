@@ -46,6 +46,7 @@ const SUPPORTED_PROVIDERS: readonly IntegrationProvider[] = [
   IntegrationProvider.NYLAS,
   IntegrationProvider.GHL,
   IntegrationProvider.GHL_CONTACTS,
+  IntegrationProvider.GHL_CRM,
   IntegrationProvider.WHATSAPP,
 ];
 
@@ -119,11 +120,17 @@ export class OrganizationIntegrationsService {
     }
 
     const apiKey = dto.apiKey.trim();
+    if (apiKey.length < 8 || !dto.name.trim()) {
+      throw new BadRequestException(
+        'Name and a valid integration token are required.',
+      );
+    }
     let row: OrganizationIntegration;
     switch (provider) {
       case IntegrationProvider.GHL:
         row = this.buildGhlRow(organizationId, dto, apiKey, createdByUserId);
         break;
+      case IntegrationProvider.GHL_CRM:
       case IntegrationProvider.GHL_CONTACTS:
         row = this.buildGhlContactsRow(
           organizationId,
@@ -378,10 +385,14 @@ export class OrganizationIntegrationsService {
     const row = await this.loadForOrg(organizationId, id);
 
     if (dto.name !== undefined) {
+      if (!dto.name.trim())
+        throw new BadRequestException('An integration name is required.');
       row.name = dto.name.trim();
     }
     if (dto.apiKey !== undefined) {
       const apiKey = dto.apiKey.trim();
+      if (apiKey.length < 8)
+        throw new BadRequestException('A valid integration token is required.');
       row.apiKey = apiKey;
       row.apiKeyPrefix = apiKeyPrefixFrom(apiKey);
     }
@@ -392,12 +403,20 @@ export class OrganizationIntegrationsService {
       if (dto.wabaId !== undefined) {
         row.wabaId = dto.wabaId.trim();
       }
-    } else if (row.provider === IntegrationProvider.GHL_CONTACTS) {
+    } else if (
+      row.provider === IntegrationProvider.GHL_CONTACTS ||
+      row.provider === IntegrationProvider.GHL_CRM
+    ) {
       if (dto.locationId !== undefined) {
         const locationId = dto.locationId.trim();
         if (!locationId) {
           throw new BadRequestException('locationId cannot be empty.');
         }
+        if (
+          row.provider === IntegrationProvider.GHL_CRM &&
+          !/^[a-zA-Z0-9_-]{1,120}$/.test(locationId)
+        )
+          throw new BadRequestException('Invalid CRM location ID.');
         row.locationId = locationId;
       }
     } else if (row.provider === IntegrationProvider.GHL) {
@@ -456,6 +475,18 @@ export class OrganizationIntegrationsService {
     }
     if (row.provider === IntegrationProvider.GHL) {
       return this.testGhlConnection(row);
+    }
+    if (row.provider === IntegrationProvider.GHL_CRM) {
+      await this.ghl.crmRequest(
+        { token: row.apiKey, locationId: row.locationId ?? '' },
+        'GET',
+        `/contacts/?${new URLSearchParams({ locationId: row.locationId ?? '', limit: '1' })}`,
+      );
+      return {
+        ok: true,
+        message:
+          'Connected — contacts are readable. Other CRM features require their own permissions.',
+      };
     }
     if (row.provider === IntegrationProvider.GHL_CONTACTS) {
       return this.testGhlContactsConnection(row);
@@ -560,6 +591,11 @@ export class OrganizationIntegrationsService {
     createdByUserId?: string | null,
   ): OrganizationIntegration {
     const locationId = dto.locationId?.trim() ?? '';
+    if (
+      dto.provider === IntegrationProvider.GHL_CRM &&
+      !/^[a-zA-Z0-9_-]{1,120}$/.test(locationId)
+    )
+      throw new BadRequestException('A valid CRM location ID is required.');
     if (!locationId) {
       throw new BadRequestException(
         'locationId is required for GoHighLevel contacts.',
@@ -567,7 +603,10 @@ export class OrganizationIntegrationsService {
     }
     return this.repository.create({
       organizationId,
-      provider: IntegrationProvider.GHL_CONTACTS,
+      provider:
+        dto.provider === IntegrationProvider.GHL_CRM
+          ? IntegrationProvider.GHL_CRM
+          : IntegrationProvider.GHL_CONTACTS,
       name: dto.name.trim(),
       apiKey,
       apiKeyPrefix: apiKeyPrefixFrom(apiKey),

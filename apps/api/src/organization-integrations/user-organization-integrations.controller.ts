@@ -49,7 +49,7 @@ export class UserOrganizationIntegrationsController {
   @ApiOperation({
     summary: 'List third-party integrations for the caller organization',
     description:
-      'Nylas and GoHighLevel calendar connections. API keys are never returned.',
+      'Calendar, HighLevel CRM, contacts, and WhatsApp connections. API keys are never returned.',
   })
   @ApiOkResponse({ type: [OrganizationIntegrationResponseDto] })
   list(
@@ -62,9 +62,9 @@ export class UserOrganizationIntegrationsController {
 
   @Post()
   @ApiOperation({
-    summary: 'Add a Nylas or GoHighLevel calendar integration',
+    summary: 'Add a calendar, HighLevel CRM, contacts, or WhatsApp integration',
     description:
-      'Store org-owned credentials (Nylas key+grant or GHL PIT+location+calendar). The full API key is accepted only on create/update and never returned on GET.',
+      'Store org-owned credentials. ghl_crm requires PIT + location ID, without a fixed calendar. The full API key is accepted only on create/update and never returned.',
   })
   @ApiCreatedResponse({ type: OrganizationIntegrationResponseDto })
   create(
@@ -163,5 +163,4 @@ export class UserOrganizationIntegrationsController {
       id,
     );
   }
-
 }

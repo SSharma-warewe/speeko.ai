@@ -17,7 +17,7 @@ import { ToolProfile } from '../tools/tool-profile.entity';
 export { IntegrationProvider };
 
 /**
- * Org-owned third-party credentials (e.g. Nylas calendar).
+ * Org-owned third-party credentials (calendar, live ghl_crm workspace, contacts, WhatsApp).
  * API keys are secrets — never return `apiKey` in list/get responses.
  */
 @Entity({ name: 'organization_integrations' })

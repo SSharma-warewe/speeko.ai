@@ -1,4 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  ForbiddenException,
+  HttpException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type {
   GhlCalendarCreds,
@@ -17,10 +25,7 @@ import type {
   GhlLookupContactResult,
   GhlUpsertLeadResult,
 } from './ghl.types';
-import {
-  GHL_SLOT_MINUTES,
-  mapGhlFreeSlots,
-} from './ghl-time';
+import { GHL_SLOT_MINUTES, mapGhlFreeSlots } from './ghl-time';
 
 const GHL_API_BASE = 'https://services.leadconnectorhq.com';
 const GHL_API_VERSION = '2021-07-28';
@@ -42,11 +47,7 @@ const COUNTRY_TO_ISO: Record<string, string> = {
   netherlands: 'NL',
 };
 
-const DIRECTIONS = new Set<GhlLeadDirection>([
-  'outbound',
-  'inbound',
-  'both',
-]);
+const DIRECTIONS = new Set<GhlLeadDirection>(['outbound', 'inbound', 'both']);
 
 type GhlJson = Record<string, unknown>;
 
@@ -62,6 +63,95 @@ type GhlTokenKind = 'contacts' | 'calendar';
 
 @Injectable()
 export class GhlService {
+  /** Portal CRM transport. No env fallback, redirects, raw error bodies, or write retries. */
+  async crmRequest(
+    creds: GhlContactCreds,
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+    path: string,
+    body?: Record<string, unknown>,
+    version = '2021-07-28',
+  ): Promise<Record<string, unknown>> {
+    if (!creds.token.trim() || !creds.locationId.trim()) {
+      throw new BadRequestException('CRM token and location ID are required.');
+    }
+    if (
+      !path.startsWith('/') ||
+      path.startsWith('//') ||
+      /[\\\r\n]/.test(path)
+    ) {
+      throw new BadRequestException('Invalid CRM resource path.');
+    }
+    let response: Response;
+    try {
+      response = await fetch(`${GHL_API_BASE}${path}`, {
+        method,
+        redirect: 'error',
+        signal: AbortSignal.timeout(20_000),
+        headers: {
+          Authorization: `Bearer ${creds.token}`,
+          Version: version,
+          Accept: 'application/json',
+          ...(body ? { 'Content-Type': 'application/json' } : {}),
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    } catch {
+      throw new BadGatewayException(
+        method === 'GET'
+          ? 'HighLevel is unavailable. Please try refreshing.'
+          : 'HighLevel did not confirm this change. Refresh the record before trying again; it may have been saved.',
+      );
+    }
+    if (response.status === 401 || response.status === 403) {
+      throw new ForbiddenException(
+        'HighLevel denied access. Check the saved token, location ID, and permissions for this feature.',
+      );
+    }
+    if (response.status === 404)
+      throw new NotFoundException('CRM record not found');
+    if (response.status === 429)
+      throw new HttpException(
+        'HighLevel rate limit reached. Wait before refreshing or saving again.',
+        429,
+      );
+    if (!response.ok) {
+      // Upstream validation/errors can echo tokens and personal data: never forward them.
+      if (response.status === 400 || response.status === 422)
+        throw new BadRequestException(
+          'HighLevel rejected these fields. Check required values, duplicates, and calendar availability.',
+        );
+      if (response.status === 409)
+        throw new HttpException(
+          'HighLevel reported a conflict. Refresh the record and check for duplicates or an occupied time slot.',
+          409,
+        );
+      throw new BadGatewayException(
+        'HighLevel could not complete this request. Refresh before retrying a change.',
+      );
+    }
+    if (response.status === 204) return { success: true };
+    let raw: string;
+    try {
+      raw = await response.text();
+    } catch {
+      throw new BadGatewayException(
+        'HighLevel did not confirm this response. Refresh before retrying a change; it may have been saved.',
+      );
+    }
+    if (!raw) return { success: true };
+    try {
+      const parsed: unknown = JSON.parse(
+        raw.split(creds.token).join('[redacted]'),
+      );
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+        throw new Error();
+      return parsed as Record<string, unknown>;
+    } catch {
+      throw new BadGatewayException(
+        'HighLevel returned an unreadable response. Refresh before retrying a change.',
+      );
+    }
+  }
   private readonly logger = new Logger(GhlService.name);
   private readonly apiKey: string;
   private readonly calendarToken: string;
@@ -118,7 +208,9 @@ export class GhlService {
     const companyName = input.company.trim();
 
     if (!email && !phone) {
-      this.logger.warn('GhlService.upsertLead rejected: email or phone required');
+      this.logger.warn(
+        'GhlService.upsertLead rejected: email or phone required',
+      );
       return { ok: false, error: 'email or phone is required' };
     }
 
@@ -163,9 +255,13 @@ export class GhlService {
     const tags = [GHL_DEMO_TAG];
     if (direction) tags.push(`direction:${direction}`);
 
-    const tagResult = await this.request('POST', `/contacts/${contactId}/tags`, {
-      tags,
-    });
+    const tagResult = await this.request(
+      'POST',
+      `/contacts/${contactId}/tags`,
+      {
+        tags,
+      },
+    );
     if (!tagResult.ok) {
       this.logger.warn(
         `GHL add tags failed for contact=${contactId} status=${tagResult.status} body=${truncate(tagResult.text)}`,
@@ -224,7 +320,9 @@ export class GhlService {
     const companyName = input.company?.trim() ?? '';
 
     if (!email && !phone) {
-      this.logger.warn('GhlService.upsertContact rejected: email or phone required');
+      this.logger.warn(
+        'GhlService.upsertContact rejected: email or phone required',
+      );
       return {
         ok: false,
         error: 'email or phone is required',
@@ -250,7 +348,9 @@ export class GhlService {
       token,
     );
     if (upsert.networkError) {
-      this.logger.warn(`GHL contact upsert network error: ${upsert.networkError}`);
+      this.logger.warn(
+        `GHL contact upsert network error: ${upsert.networkError}`,
+      );
       return {
         ok: false,
         error: upsert.networkError,
@@ -270,7 +370,9 @@ export class GhlService {
 
     const contactId = readContactId(upsert.json);
     if (!contactId) {
-      this.logger.warn('GHL contact upsert succeeded but contact.id was missing');
+      this.logger.warn(
+        'GHL contact upsert succeeded but contact.id was missing',
+      );
       return { ok: false, error: 'ghl upsert missing contact.id' };
     }
 
@@ -321,7 +423,9 @@ export class GhlService {
     const email = input.email?.trim().toLowerCase() ?? '';
     const phone = input.phone?.trim() ?? '';
     if (!email && !phone) {
-      this.logger.warn('GhlService.lookupContact rejected: email or phone required');
+      this.logger.warn(
+        'GhlService.lookupContact rejected: email or phone required',
+      );
       return {
         ok: false,
         error: 'email or phone is required',
@@ -477,7 +581,9 @@ export class GhlService {
       calendar.token,
     );
     if (res.networkError) {
-      this.logger.warn(`GHL create appointment network error: ${res.networkError}`);
+      this.logger.warn(
+        `GHL create appointment network error: ${res.networkError}`,
+      );
       return { ok: false, error: 'network_error', message: res.networkError };
     }
     if (!res.ok) {
@@ -493,8 +599,7 @@ export class GhlService {
       return { ok: false, error: 'ghl_appointment_missing_id' };
     }
 
-    const startTime =
-      readString(res.json, 'startTime') ?? input.startTime;
+    const startTime = readString(res.json, 'startTime') ?? input.startTime;
     const endTime = readString(res.json, 'endTime') ?? input.endTime;
     const title = readString(res.json, 'title') ?? input.title;
     this.logger.log(
@@ -584,13 +689,15 @@ export class GhlService {
       token,
     );
     if (res.networkError) {
-      this.logger.warn(`GHL list contacts network error: ${res.networkError}`);
-      return { ok: false, error: 'network_error', message: res.networkError };
+      this.logger.warn('GHL list contacts network error');
+      return {
+        ok: false,
+        error: 'network_error',
+        message: 'HighLevel is unavailable. Please try refreshing.',
+      };
     }
     if (!res.ok) {
-      this.logger.warn(
-        `GHL list contacts failed: status=${res.status} body=${truncate(res.text)}`,
-      );
+      this.logger.warn(`GHL list contacts failed: status=${res.status}`);
       return {
         ok: false,
         error: `ghl_contacts_${res.status}`,
@@ -707,7 +814,11 @@ function usableContactEmail(value?: string): string {
   if (!email) return '';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return '';
   const local = email.slice(0, email.indexOf('@'));
-  if (/^(unknown|n\/a|na|none|null|undefined|test|user|email|caller)$/i.test(local)) {
+  if (
+    /^(unknown|n\/a|na|none|null|undefined|test|user|email|caller)$/i.test(
+      local,
+    )
+  ) {
     return '';
   }
   return email;
@@ -727,13 +838,14 @@ function lookupContactErrorMessage(status: number): string {
 }
 
 function ghlErrorBlob(json: GhlJson | null, text: string): string {
-  const message =
-    json && typeof json.message === 'string' ? json.message : '';
+  const message = json && typeof json.message === 'string' ? json.message : '';
   return `${message} ${text}`.trim();
 }
 
 function isContactNotFoundMessage(raw: string): boolean {
-  return /contact.*not found/i.test(raw) || /error in contact service/i.test(raw);
+  return (
+    /contact.*not found/i.test(raw) || /error in contact service/i.test(raw)
+  );
 }
 
 function isContactNotFoundStatus(
@@ -771,12 +883,14 @@ function appointmentErrorFromHttp(res: GhlHttpResult): {
   };
 }
 
-function readLookupContact(json: GhlJson | null): {
-  contactId: string;
-  email?: string;
-  phone?: string;
-  name?: string;
-} | undefined {
+function readLookupContact(json: GhlJson | null):
+  | {
+      contactId: string;
+      email?: string;
+      phone?: string;
+      name?: string;
+    }
+  | undefined {
   if (!json) return undefined;
   let contact: GhlJson | null = null;
   const nested = json.contact;
@@ -791,8 +905,7 @@ function readLookupContact(json: GhlJson | null): {
     contact = json;
   }
   if (!contact) return undefined;
-  const contactId =
-    typeof contact.id === 'string' ? contact.id.trim() : '';
+  const contactId = typeof contact.id === 'string' ? contact.id.trim() : '';
   if (!contactId) return undefined;
   const email =
     typeof contact.email === 'string' && contact.email.trim()
@@ -878,9 +991,9 @@ function readMeta(json: GhlJson | null): {
 }
 
 function encodeContactCursor(startAfterId: string, startAfter: string): string {
-  return Buffer.from(JSON.stringify({ i: startAfterId, a: startAfter })).toString(
-    'base64url',
-  );
+  return Buffer.from(
+    JSON.stringify({ i: startAfterId, a: startAfter }),
+  ).toString('base64url');
 }
 
 function decodeContactCursor(
@@ -915,9 +1028,7 @@ function listCalendarsErrorMessage(status: number): string {
   return 'Could not list calendars. Check the Private Integration Token and location id.';
 }
 
-function readCalendars(
-  json: GhlJson | null,
-): { id: string; name?: string }[] {
+function readCalendars(json: GhlJson | null): { id: string; name?: string }[] {
   if (!json) return [];
   const raw = json.calendars ?? json.data;
   const list = Array.isArray(raw)
@@ -961,10 +1072,7 @@ function readAppointmentId(json: GhlJson | null): string | undefined {
   return undefined;
 }
 
-function readString(
-  json: GhlJson | null,
-  key: string,
-): string | undefined {
+function readString(json: GhlJson | null, key: string): string | undefined {
   const value = json?.[key];
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }

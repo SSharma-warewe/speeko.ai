@@ -22,7 +22,7 @@ export class CreateOrganizationIntegrationDto {
     enum: IntegrationProvider,
     default: IntegrationProvider.NYLAS,
     description:
-      'Provider type: nylas, ghl (calendar), ghl_contacts (WhatsApp contact import), or whatsapp (Meta Cloud credentials).',
+      'Provider type: nylas, ghl (calendar), ghl_crm (live CRM workspace), ghl_contacts (WhatsApp contact import), or whatsapp (Meta Cloud credentials).',
   })
   @IsOptional()
   @IsEnum(IntegrationProvider)
@@ -39,7 +39,8 @@ export class CreateOrganizationIntegrationDto {
   apiKey!: string;
 
   @ApiPropertyOptional({
-    description: 'Nylas grant id. Required when provider=nylas; ignored for ghl.',
+    description:
+      'Nylas grant id. Required when provider=nylas; ignored for ghl.',
     example: '1e3288f6-124e-405d-a13a-635a2ee54eb2',
   })
   @IsOptional()
@@ -50,7 +51,7 @@ export class CreateOrganizationIntegrationDto {
 
   @ApiPropertyOptional({
     description:
-      'GoHighLevel location (sub-account) id. Required when provider=ghl. Used as locationId on v3 calendar and contact calls.',
+      'GoHighLevel location (sub-account) id. Required for ghl, ghl_contacts, and ghl_crm. CRM records are scoped to this location.',
     example: 've9EPM428h8vShlRW1KT',
   })
   @IsOptional()

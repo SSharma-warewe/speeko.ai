@@ -4,6 +4,13 @@ import {
   KNOWN_TOOL_IDS,
   type ErrorCode,
 } from "@call-agent/contracts";
+import type { CrmCommand, CrmResult } from "@call-agent/contracts";
+
+export const executeUserCrm = (integrationId: string, command: CrmCommand) =>
+  userFetch<CrmResult>(
+    `/users/crm/${encodeURIComponent(integrationId)}/execute`,
+    { method: "POST", body: command },
+  );
 import type {
   AdminProfile,
   AdminQueueStats,
@@ -177,8 +184,7 @@ export const TOOL_ID_HINTS: Record<string, string> = {
   transferCall: "Transfer call",
   lookupCustomer: "Lookup customer",
   confirmAppointment: "Stub confirm appointment",
-  checkCalendarAvailability:
-    "Nylas free/busy — requires agent calendar link",
+  checkCalendarAvailability: "Nylas free/busy — requires agent calendar link",
   listCalendarEvents: "Nylas list events — requires agent calendar link",
   createCalendarEvent: "Nylas create event — requires agent calendar link",
   cancelCalendarEvent: "Nylas cancel event — requires agent calendar link",
@@ -208,7 +214,11 @@ function parseErrorCode(body: unknown): ErrorCode | undefined {
   return isErrorCode(code) ? code : undefined;
 }
 
-function throwForFailedResponse(status: number, body: unknown, fallback: string): never {
+function throwForFailedResponse(
+  status: number,
+  body: unknown,
+  fallback: string,
+): never {
   const message = parseErrorMessage(body, fallback);
   const code = parseErrorCode(body);
   if (status === 404) {
@@ -301,16 +311,19 @@ export async function adminFetch<T>(
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path.startsWith("/") ? path : `/${path}`}`, {
-      ...options,
-      headers,
-      body:
-        options.body === undefined
-          ? undefined
-          : typeof options.body === "string"
-            ? options.body
-            : JSON.stringify(options.body),
-    });
+    res = await fetch(
+      `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`,
+      {
+        ...options,
+        headers,
+        body:
+          options.body === undefined
+            ? undefined
+            : typeof options.body === "string"
+              ? options.body
+              : JSON.stringify(options.body),
+      },
+    );
   } catch {
     throw new ApiError("Could not reach the API. Is it running?", 0);
   }
@@ -368,9 +381,12 @@ export const createOrgUser = (orgId: string, data: CreateOrgUserRequest) =>
   });
 
 export const resendOrgUserInvite = (orgId: string, userId: string) =>
-  adminFetch<{ ok: true }>(`/admin/organizations/${orgId}/users/${userId}/invite`, {
-    method: "POST",
-  });
+  adminFetch<{ ok: true }>(
+    `/admin/organizations/${orgId}/users/${userId}/invite`,
+    {
+      method: "POST",
+    },
+  );
 
 export const changeAdminPassword = (data: ChangePasswordRequest) =>
   adminFetch<{ ok: true }>("/auth/admin/password", {
@@ -403,11 +419,14 @@ export async function publicJson<T>(
 ): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path.startsWith("/") ? path : `/${path}`}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    res = await fetch(
+      `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
   } catch {
     throw new ApiError("Could not reach the API. Is it running?", 0);
   }
@@ -440,7 +459,11 @@ export const forgotAdminPassword = (email: string) =>
   );
 
 export const setUserPassword = (data: SetPasswordRequest) =>
-  publicJson<{ ok: true }>("/auth/set-password", data, "Could not set password.");
+  publicJson<{ ok: true }>(
+    "/auth/set-password",
+    data,
+    "Could not set password.",
+  );
 
 export const resetUserPassword = (data: ResetUserPasswordRequest) =>
   publicJson<{ ok: true }>(
@@ -554,18 +577,16 @@ export const listAdminKnownTools = () =>
   adminFetch<KnownToolsResponse>("/admin/tool-profiles/known-tools");
 
 export const getOrgAssignedTools = (orgId: string) =>
-  adminFetch<OrganizationToolsResponse>(
-    `/admin/organizations/${orgId}/tools`,
-  );
+  adminFetch<OrganizationToolsResponse>(`/admin/organizations/${orgId}/tools`);
 
 export const updateOrgAssignedTools = (
   orgId: string,
   data: UpdateOrganizationToolsRequest,
 ) =>
-  adminFetch<OrganizationToolsResponse>(
-    `/admin/organizations/${orgId}/tools`,
-    { method: "PATCH", body: data },
-  );
+  adminFetch<OrganizationToolsResponse>(`/admin/organizations/${orgId}/tools`, {
+    method: "PATCH",
+    body: data,
+  });
 
 export const getToolProfile = (id: string) =>
   adminFetch<ToolProfile>(`/admin/tool-profiles/${id}`);
@@ -576,10 +597,7 @@ export const createToolProfile = (data: CreateToolProfileRequest) =>
     body: data,
   });
 
-export const updateToolProfile = (
-  id: string,
-  data: UpdateToolProfileRequest,
-) =>
+export const updateToolProfile = (id: string, data: UpdateToolProfileRequest) =>
   adminFetch<ToolProfile>(`/admin/tool-profiles/${id}`, {
     method: "PATCH",
     body: data,
@@ -605,9 +623,7 @@ export const getAdminCostSummary = (opts?: {
   if (opts?.from) q.set("from", opts.from);
   if (opts?.to) q.set("to", opts.to);
   const qs = q.toString();
-  return adminFetch<CostSummary>(
-    `/admin/costs/summary${qs ? `?${qs}` : ""}`,
-  );
+  return adminFetch<CostSummary>(`/admin/costs/summary${qs ? `?${qs}` : ""}`);
 };
 
 /* ── Queue ── */
@@ -728,16 +744,19 @@ export async function userFetch<T>(
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path.startsWith("/") ? path : `/${path}`}`, {
-      ...options,
-      headers,
-      body:
-        options.body === undefined
-          ? undefined
-          : typeof options.body === "string"
-            ? options.body
-            : JSON.stringify(options.body),
-    });
+    res = await fetch(
+      `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`,
+      {
+        ...options,
+        headers,
+        body:
+          options.body === undefined
+            ? undefined
+            : typeof options.body === "string"
+              ? options.body
+              : JSON.stringify(options.body),
+      },
+    );
   } catch {
     throw new ApiError("Could not reach the API. Is it running?", 0);
   }
@@ -1119,19 +1138,19 @@ export const listUserWhatsAppTemplates = () =>
 export const listUserGhlContacts = (params: {
   query?: string;
   cursor?: string;
+  integrationId?: string;
 }) => {
   const qs = new URLSearchParams();
   if (params.query?.trim()) qs.set("query", params.query.trim());
   if (params.cursor) qs.set("cursor", params.cursor);
+  if (params.integrationId) qs.set("integrationId", params.integrationId);
   const suffix = qs.toString();
   return userFetch<GhlContactsResponse>(
     `/users/whatsapp/outbound/contacts${suffix ? `?${suffix}` : ""}`,
   );
 };
 
-export const sendUserWhatsAppTemplate = (
-  data: SendWhatsAppTemplateRequest,
-) =>
+export const sendUserWhatsAppTemplate = (data: SendWhatsAppTemplateRequest) =>
   userFetch<SendWhatsAppTemplateResponse>("/users/whatsapp/outbound/send", {
     method: "POST",
     body: data,
@@ -1149,4 +1168,3 @@ export const updateUserWhatsAppAgent = (data: UpdateWhatsAppAgentRequest) =>
     method: "PATCH",
     body: data,
   });
-

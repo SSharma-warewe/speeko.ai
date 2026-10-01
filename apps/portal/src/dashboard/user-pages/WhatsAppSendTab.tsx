@@ -3,6 +3,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useRef,
   type FormEvent,
 } from "react";
 import { Alert, Button, Field, Input, Select } from "@call-agent/ui";
@@ -14,6 +15,7 @@ import {
   sendUserWhatsAppTemplate,
   UnauthorizedError,
   type GhlContactRow,
+  type OrganizationIntegration,
   type SendWhatsAppRecipient,
   type SendWhatsAppTemplateResponse,
   type WhatsAppTemplate,
@@ -39,7 +41,10 @@ const FIELD_LABEL: Record<ContactField, string> = {
   company: "Company",
 };
 
-function contactFieldValue(contact: GhlContactRow, field: ContactField): string {
+function contactFieldValue(
+  contact: GhlContactRow,
+  field: ContactField,
+): string {
   switch (field) {
     case "firstName":
       return contact.firstName || contact.name.split(/\s+/)[0] || "";
@@ -65,7 +70,9 @@ function toSource(state: SourceState): WhatsAppVariableSource {
     : { type: "field", field: state.mode };
 }
 
-function defaultSources(template: WhatsAppTemplate): Record<string, SourceState> {
+function defaultSources(
+  template: WhatsAppTemplate,
+): Record<string, SourceState> {
   const out: Record<string, SourceState> = {};
   template.bodyVariables.forEach((variable, index) => {
     out[variable.key] =
@@ -126,6 +133,7 @@ function SourcePicker({
 }
 
 type Props = {
+  contactSources: OrganizationIntegration[];
   hasWhatsApp: boolean;
   hasContacts: boolean;
   onGoConnections: () => void;
@@ -133,19 +141,28 @@ type Props = {
 };
 
 export default function WhatsAppSendTab({
+  contactSources,
   hasWhatsApp,
   hasContacts,
   onGoConnections,
   onSent,
 }: Props) {
   const { logout } = useUserAuth();
+  const [contactSourceId, setContactSourceId] = useState(
+    contactSources.find((c) => c.provider === "ghl_contacts")?.id ??
+      contactSources[0]?.id ??
+      "",
+  );
+  const contactRequest = useRef(0);
 
   /* ── templates ── */
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [templatesError, setTemplatesError] = useState<string | null>(null);
   const [selectedKey, setSelectedKey] = useState("");
-  const [bodySources, setBodySources] = useState<Record<string, SourceState>>({});
+  const [bodySources, setBodySources] = useState<Record<string, SourceState>>(
+    {},
+  );
   const [urlSource, setUrlSource] = useState<SourceState>({
     mode: "text",
     text: "",
@@ -192,7 +209,10 @@ export default function WhatsAppSendTab({
         if (cancelled) return;
         setTemplates(res.templates);
         setSelectedKey((current) => {
-          if (current && res.templates.some((t) => templateKey(t) === current)) {
+          if (
+            current &&
+            res.templates.some((t) => templateKey(t) === current)
+          ) {
             return current;
           }
           const first = res.templates.find((t) => t.sendable);
@@ -216,7 +236,10 @@ export default function WhatsAppSendTab({
     () => templates.find((t) => templateKey(t) === selectedKey) ?? null,
     [templates, selectedKey],
   );
-  const sendable = useMemo(() => templates.filter((t) => t.sendable), [templates]);
+  const sendable = useMemo(
+    () => templates.filter((t) => t.sendable),
+    [templates],
+  );
   const unsendableCount = templates.length - sendable.length;
 
   useEffect(() => {
@@ -228,10 +251,16 @@ export default function WhatsAppSendTab({
 
   const loadContacts = useCallback(
     async (query: string, cursor?: string) => {
+      const requestId = ++contactRequest.current;
       setContactsLoading(true);
       setContactsError(null);
       try {
-        const res = await listUserGhlContacts({ query, cursor });
+        const res = await listUserGhlContacts({
+          query,
+          cursor,
+          integrationId: contactSourceId || undefined,
+        });
+        if (requestId !== contactRequest.current) return;
         setContacts((prev) =>
           cursor ? [...prev, ...res.contacts] : res.contacts,
         );
@@ -239,22 +268,30 @@ export default function WhatsAppSendTab({
         setTotal(res.total);
         setActiveQuery(query);
       } catch (err) {
-        const message = handleError(err, "Could not load GoHighLevel contacts.");
+        if (requestId !== contactRequest.current) return;
+        const message = handleError(
+          err,
+          "Could not load GoHighLevel contacts.",
+        );
         if (message) setContactsError(message);
       } finally {
-        setContactsLoading(false);
+        if (requestId === contactRequest.current) setContactsLoading(false);
       }
     },
-    [handleError],
+    [handleError, contactSourceId],
   );
 
   useEffect(() => {
+    setSelected({});
     if (!hasContacts) {
       setContacts([]);
       setNextCursor(null);
       return;
     }
     void loadContacts("");
+    return () => {
+      contactRequest.current++;
+    };
   }, [hasContacts, loadContacts]);
 
   const selectedList = useMemo(() => Object.values(selected), [selected]);
@@ -328,12 +365,20 @@ export default function WhatsAppSendTab({
     for (const variable of template.bodyVariables) {
       const state = bodySources[variable.key];
       if (state?.mode === "text" && !state.text.trim()) {
-        setSendError(`Enter text for {{${variable.key}}} or pick a contact field.`);
+        setSendError(
+          `Enter text for {{${variable.key}}} or pick a contact field.`,
+        );
         return;
       }
     }
-    if (template.urlButtonVariable && urlSource.mode === "text" && !urlSource.text.trim()) {
-      setSendError("Enter text for the URL button variable or pick a contact field.");
+    if (
+      template.urlButtonVariable &&
+      urlSource.mode === "text" &&
+      !urlSource.text.trim()
+    ) {
+      setSendError(
+        "Enter text for the URL button variable or pick a contact field.",
+      );
       return;
     }
     if (
@@ -411,7 +456,12 @@ export default function WhatsAppSendTab({
               title="Connect WhatsApp first"
               description="Add your Meta access token, phone number ID and WABA ID to load approved templates."
               action={
-                <Button type="button" variant="secondary" size="sm" onClick={onGoConnections}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={onGoConnections}
+                >
                   Open connections
                 </Button>
               }
@@ -459,10 +509,15 @@ export default function WhatsAppSendTab({
                       key={variable.key}
                       id={`wa-var-${variable.key}`}
                       label={`{{${variable.key}}}${variable.example ? ` · e.g. ${variable.example}` : ""}`}
-                      state={bodySources[variable.key] ?? { mode: "text", text: "" }}
+                      state={
+                        bodySources[variable.key] ?? { mode: "text", text: "" }
+                      }
                       disabled={sending}
                       onChange={(next) =>
-                        setBodySources((prev) => ({ ...prev, [variable.key]: next }))
+                        setBodySources((prev) => ({
+                          ...prev,
+                          [variable.key]: next,
+                        }))
                       }
                     />
                   ))}
@@ -478,7 +533,10 @@ export default function WhatsAppSendTab({
 
                   <div className="ops-wa-preview" aria-live="polite">
                     <span className="ops-desk-kicker">
-                      Preview{previewContact ? ` · ${previewContact.name || "first selected"}` : ""}
+                      Preview
+                      {previewContact
+                        ? ` · ${previewContact.name || "first selected"}`
+                        : ""}
                     </span>
                     <p>{preview}</p>
                   </div>
@@ -515,13 +573,40 @@ export default function WhatsAppSendTab({
           </div>
           {hasContacts ? (
             <form className="ops-wa-search" onSubmit={handleSearch}>
+              <Select
+                aria-label="CRM contact source"
+                value={contactSourceId}
+                disabled={sending}
+                onChange={(e) => {
+                  contactRequest.current++;
+                  setContacts([]);
+                  setSelected({});
+                  setNextCursor(null);
+                  setTotal(null);
+                  setSearchInput("");
+                  setActiveQuery("");
+                  setContactsLoading(true);
+                  setContactSourceId(e.target.value);
+                }}
+              >
+                {contactSources.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
               <Input
                 aria-label="Search contacts"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search name, email, phone"
               />
-              <Button type="submit" variant="secondary" size="sm" disabled={contactsLoading}>
+              <Button
+                type="submit"
+                variant="secondary"
+                size="sm"
+                disabled={contactsLoading}
+              >
                 Search
               </Button>
               {selectedCount > 0 ? (
@@ -555,7 +640,10 @@ export default function WhatsAppSendTab({
                 <ul className="ops-wa-problems">
                   {problems.map((r, i) => (
                     <li key={`${r.phone}-${i}`}>
-                      <StatusBadge status={r.status === "failed" ? "failed" : "warn"} label={r.status} />
+                      <StatusBadge
+                        status={r.status === "failed" ? "failed" : "warn"}
+                        label={r.status}
+                      />
                       <span>{r.name || r.phone}</span>
                       <span className="ops-faint">{r.error}</span>
                     </li>
@@ -570,7 +658,12 @@ export default function WhatsAppSendTab({
               title="Connect GoHighLevel to import contacts"
               description="Add a Private Integration Token with contacts.readonly and your location ID."
               action={
-                <Button type="button" variant="secondary" size="sm" onClick={onGoConnections}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={onGoConnections}
+                >
                   Open connections
                 </Button>
               }

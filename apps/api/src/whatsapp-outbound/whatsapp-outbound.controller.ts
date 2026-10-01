@@ -26,6 +26,7 @@ import {
   ApiNotFoundError,
 } from '../common/swagger/api-errors';
 import { SendWhatsAppTemplateDto } from './dto/send-whatsapp-template.dto';
+import { ListContactsQueryDto } from './dto/list-contacts-query.dto';
 import {
   GhlContactsResponseDto,
   SendWhatsAppTemplateResponseDto,
@@ -61,19 +62,24 @@ export class WhatsAppOutboundController {
   @ApiOperation({
     summary: 'List GoHighLevel contacts (live, paged)',
     description:
-      'Uses the org `ghl_contacts` connection. Pass the returned `nextCursor` as `cursor` for the next page.',
+      'Uses the org ghl_contacts connection, or the selected org ghl_crm connection via integrationId. Pass nextCursor as cursor for the next page.',
   })
   @ApiQuery({ name: 'query', required: false })
   @ApiQuery({ name: 'cursor', required: false })
+  @ApiQuery({ name: 'integrationId', required: false })
   @ApiOkResponse({ type: GhlContactsResponseDto })
   @ApiNotFoundError('No active GoHighLevel contacts connection')
   @ApiBadGatewayError('GoHighLevel rejected the request')
   contacts(
     @CurrentUser() principal: AuthPrincipal,
-    @Query('query') query?: string,
-    @Query('cursor') cursor?: string,
+    @Query() query: ListContactsQueryDto,
   ): Promise<GhlContactsResponseDto> {
-    return this.outbound.listContacts(orgIdFrom(principal), query, cursor);
+    return this.outbound.listContacts(
+      orgIdFrom(principal),
+      query.query,
+      query.cursor,
+      query.integrationId,
+    );
   }
 
   @Post('send')
