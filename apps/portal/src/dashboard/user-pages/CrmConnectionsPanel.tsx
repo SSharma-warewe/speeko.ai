@@ -119,7 +119,7 @@ export default function CrmConnectionsPanel({
             required={!editing}
             hint={
               editing
-                ? "Leave blank to keep the saved token."
+                ? "Leave blank to keep the saved token. To use a new token or updated permissions, paste the replacement here and save."
                 : "Stored on the server. Never returned to the browser."
             }
           >

@@ -66,6 +66,71 @@ describe('GhlService CRM HTTP boundary', () => {
       service.crmRequest(creds, 'GET', '/contacts/'),
     ).resolves.toEqual({ value: '[redacted]' });
   });
+  it.each([
+    ['GET', '/contacts/c1', 'contacts.readonly'],
+    ['POST', '/contacts/', 'contacts.write'],
+    ['PUT', '/contacts/c1', 'contacts.write'],
+    ['POST', '/contacts/c1/notes', 'contacts.write'],
+    ['GET', '/calendars/?locationId=location1', 'calendars.readonly'],
+    ['GET', '/calendars/events?calendarId=c1', 'calendars/events.readonly'],
+    ['GET', '/calendars/c1/free-slots?startDate=1', 'calendars.readonly'],
+    ['POST', '/calendars/events/appointments', 'calendars/events.write'],
+    [
+      'GET',
+      '/opportunities/pipelines?locationId=location1',
+      'opportunities.readonly',
+    ],
+    ['PUT', '/opportunities/deal1', 'opportunities.write'],
+    [
+      'GET',
+      '/conversations/search?locationId=location1',
+      'conversations.readonly',
+    ],
+    [
+      'GET',
+      '/conversations/c1/messages?limit=50',
+      'conversations/message.readonly',
+    ],
+    ['POST', '/conversations/messages', 'conversations/message.write'],
+    ['GET', '/workflows/?locationId=location1', 'workflows.readonly'],
+    ['GET', '/users/?locationId=location1', 'users.readonly'],
+    ['GET', '/locations/location1/tags', 'locations/tags.readonly'],
+    [
+      'GET',
+      '/locations/location1/customFields',
+      'locations/customFields.readonly',
+    ],
+  ] as const)(
+    'explains the required scope for denied %s %s',
+    async (method, path, scope) => {
+      fetchMock.mockResolvedValue(
+        new Response(
+          JSON.stringify({ message: `${token} private contact data` }),
+          { status: 401 },
+        ),
+      );
+      await expect(service.crmRequest(creds, method, path)).rejects.toThrow(
+        `requires ${scope}`,
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    },
+  );
+  it('keeps read-only contact access separate from write permission', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ contacts: [] }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response('private upstream error', { status: 403 }),
+      );
+    await expect(
+      service.crmRequest(creds, 'GET', '/contacts/'),
+    ).resolves.toEqual({ contacts: [] });
+    await expect(
+      service.crmRequest(creds, 'POST', '/contacts/', { firstName: 'Ada' }),
+    ).rejects.toThrow('requires contacts.write');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
   it('does not retry an ambiguous write or report success', async () => {
     fetchMock.mockRejectedValue(new Error(`timeout ${token}`));
     await expect(

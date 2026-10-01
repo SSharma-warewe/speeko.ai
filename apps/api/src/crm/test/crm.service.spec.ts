@@ -199,16 +199,168 @@ describe('live CRM authorization and operations', () => {
       }),
     ).rejects.toThrow(BadRequestException);
   });
-  it('uses current opportunity paths and camelCase location filters', async () => {
+  it.each(['events.update', 'events.delete'] as const)(
+    'proves calendar ownership when an appointment omits locationId for %s',
+    async (action) => {
+      ghl.crmRequest
+        .mockResolvedValueOnce({
+          event: { id: 'event1', calendarId: 'calendar1' },
+        })
+        .mockResolvedValueOnce({ calendars: [{ id: 'calendar1' }] })
+        .mockResolvedValueOnce({ success: true });
+      const data = { title: 'Edited consultation' };
+      await execute(action, {
+        id: 'event1',
+        ...(action === 'events.update' ? { data } : {}),
+      });
+      expect(ghl.crmRequest.mock.calls[1]).toEqual([
+        { token: row.apiKey, locationId: row.locationId },
+        'GET',
+        '/calendars/?locationId=location1',
+        undefined,
+      ]);
+      expect(ghl.crmRequest).toHaveBeenLastCalledWith(
+        { token: row.apiKey, locationId: row.locationId },
+        action === 'events.update' ? 'PUT' : 'DELETE',
+        action === 'events.update'
+          ? '/calendars/events/appointments/event1'
+          : '/calendars/events/event1',
+        action === 'events.update'
+          ? { ...data, toNotify: true, ignoreFreeSlotValidation: false }
+          : undefined,
+      );
+    },
+  );
+  it.each(['events.update', 'events.delete'] as const)(
+    'rejects appointments with no locationId and a foreign calendar for %s',
+    async (action) => {
+      ghl.crmRequest
+        .mockResolvedValueOnce({
+          event: { id: 'event1', calendarId: 'foreign-calendar' },
+        })
+        .mockResolvedValueOnce({ calendars: [{ id: 'calendar1' }] });
+      await expect(
+        execute(action, {
+          id: 'event1',
+          ...(action === 'events.update' ? { data: { title: 'Edited' } } : {}),
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(ghl.crmRequest).toHaveBeenCalledTimes(2);
+    },
+  );
+  it('rejects an appointment when neither location nor calendar can prove ownership', async () => {
+    ghl.crmRequest.mockResolvedValueOnce({ event: { id: 'event1' } });
+    await expect(execute('events.delete', { id: 'event1' })).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(ghl.crmRequest).toHaveBeenCalledTimes(1);
+  });
+  it.each(['appointment', 'event'])(
+    'unwraps the HighLevel %s envelope before editing an appointment',
+    async (envelope) => {
+      ghl.crmRequest
+        .mockResolvedValueOnce({
+          [envelope]: {
+            id: 'event1',
+            locationId: 'location1',
+            calendarId: 'calendar1',
+          },
+          traceId: 'trace1',
+        })
+        .mockResolvedValueOnce({ success: true });
+      await execute('events.update', {
+        id: 'event1',
+        data: { title: 'Edited' },
+      });
+      expect(ghl.crmRequest).toHaveBeenLastCalledWith(
+        { token: row.apiKey, locationId: row.locationId },
+        'PUT',
+        '/calendars/events/appointments/event1',
+        { title: 'Edited', toNotify: true, ignoreFreeSlotValidation: false },
+      );
+    },
+  );
+  it('rejects a foreign location in the live appointment envelope', async () => {
+    ghl.crmRequest.mockResolvedValueOnce({
+      appointment: {
+        id: 'event1',
+        locationId: 'foreign',
+        calendarId: 'calendar1',
+      },
+    });
+    await expect(execute('events.delete', { id: 'event1' })).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(ghl.crmRequest).toHaveBeenCalledTimes(1);
+  });
+  it('uses the v3 header with unprefixed opportunity paths and camelCase filters', async () => {
     await execute('opportunities.list', { pipelineId: 'pipeline1' });
     expect(ghl.crmRequest).toHaveBeenCalledWith(
       { token: row.apiKey, locationId: row.locationId },
       'GET',
-      '/v3/opportunities/search?locationId=location1&limit=50&page=1&pipelineId=pipeline1',
+      '/opportunities/search?locationId=location1&limit=50&page=1&pipelineId=pipeline1',
       undefined,
       'v3',
     );
   });
+  it('creates opportunities using the v3 header on the documented URL', async () => {
+    ghl.crmRequest
+      .mockResolvedValueOnce({ contact: { locationId: 'location1' } })
+      .mockResolvedValueOnce({
+        pipelines: [{ id: 'pipeline1', stages: [{ id: 'stage1' }] }],
+      })
+      .mockResolvedValueOnce({ opportunity: { id: 'deal1' } });
+    const data = {
+      name: 'Consultation',
+      contactId: 'contact1',
+      pipelineId: 'pipeline1',
+      pipelineStageId: 'stage1',
+      status: 'open',
+      monetaryValue: 0,
+    };
+    await execute('opportunities.create', { data });
+    expect(ghl.crmRequest.mock.calls[1]).toEqual([
+      { token: row.apiKey, locationId: row.locationId },
+      'GET',
+      '/opportunities/pipelines?locationId=location1',
+      undefined,
+      'v3',
+    ]);
+    expect(ghl.crmRequest).toHaveBeenLastCalledWith(
+      { token: row.apiKey, locationId: row.locationId },
+      'POST',
+      '/opportunities/',
+      { ...data, locationId: 'location1' },
+      'v3',
+    );
+  });
+  it.each(['opportunities.update', 'opportunities.delete'] as const)(
+    'checks ownership and uses the documented URL for %s',
+    async (action) => {
+      ghl.crmRequest.mockResolvedValueOnce({
+        opportunity: { id: 'deal1', locationId: 'location1' },
+      });
+      const data = { name: 'Edited deal' };
+      await execute(action, {
+        id: 'deal1',
+        ...(action === 'opportunities.update' ? { data } : {}),
+      });
+      expect(ghl.crmRequest.mock.calls[0]).toEqual([
+        { token: row.apiKey, locationId: row.locationId },
+        'GET',
+        '/opportunities/deal1',
+        undefined,
+        'v3',
+      ]);
+      expect(ghl.crmRequest).toHaveBeenLastCalledWith(
+        { token: row.apiKey, locationId: row.locationId },
+        action === 'opportunities.update' ? 'PUT' : 'DELETE',
+        '/opportunities/deal1',
+        action === 'opportunities.update' ? data : undefined,
+        'v3',
+      );
+    },
+  );
   it('cannot move an opportunity to a foreign pipeline stage', async () => {
     ghl.crmRequest
       .mockResolvedValueOnce({

@@ -64,12 +64,12 @@ export class CrmService {
       path: string,
       body?: Json,
     ) => this.ghl.crmRequest(creds, method, path, body);
-    // Opportunities use the current v3 paths and camelCase filters; older API routes remain pinned for existing contacts/calendar functionality.
+    // HighLevel v3 is selected by the Version header, not a URL prefix.
     const opportunityRequest = (
       method: 'GET' | 'POST' | 'PUT' | 'DELETE',
       path: string,
       body?: Json,
-    ) => this.ghl.crmRequest(creds, method, `/v3${path}`, body, 'v3');
+    ) => this.ghl.crmRequest(creds, method, path, body, 'v3');
     const query = (values: Json): string =>
       new URLSearchParams(
         Object.entries(values)
@@ -112,11 +112,21 @@ export class CrmService {
         throw new NotFoundException('CRM pipeline or stage not found');
     };
     const event = async () => {
-      const found = resource(
-        await request('GET', `/calendars/events/appointments/${id}`),
-        'event',
+      const response = await request(
+        'GET',
+        `/calendars/events/appointments/${id}`,
       );
-      checkLocation(found);
+      // Live HighLevel responses use "appointment"; older responses use "event".
+      const found = resource(resource(response, 'appointment'), 'event');
+      if (found.locationId !== undefined) {
+        checkLocation(found);
+      } else {
+        // HighLevel appointment receipts can omit locationId. In that case,
+        // prove tenant ownership through the event's calendar before mutation.
+        if (typeof found.calendarId !== 'string' || !found.calendarId)
+          throw new NotFoundException('CRM record not found');
+        await calendar(found.calendarId);
+      }
       return found;
     };
     const readCursor = (): Json => {

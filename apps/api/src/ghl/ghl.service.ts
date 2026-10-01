@@ -33,6 +33,34 @@ const GHL_SOURCE = 'Speeko Get Demo';
 const GHL_DEMO_TAG = 'speeko-get-demo';
 const ERROR_BODY_LOG_LIMIT = 400;
 
+/** Static permission hints: never use upstream error text or record identifiers. */
+function crmRequiredScope(method: string, path: string): string | undefined {
+  const read = method === 'GET';
+  if (path.startsWith('/contacts/'))
+    return read ? 'contacts.readonly' : 'contacts.write';
+  if (path.startsWith('/calendars/'))
+    return !read
+      ? 'calendars/events.write'
+      : path.startsWith('/calendars/events')
+        ? 'calendars/events.readonly'
+        : 'calendars.readonly';
+  if (path.startsWith('/opportunities/'))
+    return read ? 'opportunities.readonly' : 'opportunities.write';
+  if (path.startsWith('/conversations/'))
+    return !read
+      ? 'conversations/message.write'
+      : path.includes('/messages')
+        ? 'conversations/message.readonly'
+        : 'conversations.readonly';
+  if (path.startsWith('/workflows/')) return 'workflows.readonly';
+  if (path.startsWith('/users/')) return 'users.readonly';
+  if (path.startsWith('/locations/') && path.endsWith('/tags'))
+    return 'locations/tags.readonly';
+  if (path.startsWith('/locations/') && path.endsWith('/customFields'))
+    return 'locations/customFields.readonly';
+  return undefined;
+}
+
 /** Marketing country labels → ISO 3166-1 alpha-2 (GHL `country`). */
 const COUNTRY_TO_ISO: Record<string, string> = {
   'united states': 'US',
@@ -103,8 +131,9 @@ export class GhlService {
       );
     }
     if (response.status === 401 || response.status === 403) {
+      const scope = crmRequiredScope(method, path);
       throw new ForbiddenException(
-        'HighLevel denied access. Check the saved token, location ID, and permissions for this feature.',
+        `HighLevel denied access.${scope ? ` This operation requires ${scope}.` : ''} Check the token and location ID saved in Integrations → CRM. If you created a new token, edit that CRM connection and save the replacement token there.`,
       );
     }
     if (response.status === 404)
