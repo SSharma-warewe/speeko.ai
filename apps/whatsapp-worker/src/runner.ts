@@ -101,7 +101,8 @@ export async function runTurn(
       break;
     }
     if (lifecycle.decline) {
-      reply = 'Understood. I won’t proceed with a booking.';
+      reply =
+        'Understood. I won’t proceed with a booking. Thank you! This session has ended.';
       break;
     }
     if (isFinalResponse(event)) reply = visibleText(event) || reply;
@@ -122,13 +123,15 @@ function bookingConfirmation(
   result: Record<string, unknown>,
   sender: string,
 ): string {
+  const closing =
+    'Thank you! Your booking is complete. This session has ended.';
   if (typeof result.appointmentId !== 'string' || !result.appointmentId.trim())
     throw new Error('invalid_booking_receipt');
   if (
     typeof result.startTime !== 'string' ||
     !Number.isFinite(Date.parse(result.startTime))
   )
-    return 'Your appointment is booked.';
+    return `Your appointment is booked. ${closing}`;
   let timeZone =
     typeof result.timezone === 'string'
       ? result.timezone
@@ -148,5 +151,5 @@ function bookingConfirmation(
     minute: '2-digit',
     timeZoneName: 'short',
   }).format(new Date(result.startTime));
-  return `Your appointment is booked for ${when}.`;
+  return `Your appointment is booked for ${when}. ${closing}`;
 }

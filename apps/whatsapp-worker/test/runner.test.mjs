@@ -229,6 +229,15 @@ test('task booking stops generation on a verified receipt and uses the task sess
   );
   assert.equal(model.requests.length, 1);
   assert.match(result.reply, /appointment is booked.*2030/);
+  assert.ok(
+    result.reply.endsWith(
+      'Thank you! Your booking is complete. This session has ended.',
+    ),
+  );
+  assert.equal(
+    calls.findLast((call) => call.action === 'checkpoint').data.reply,
+    result.reply,
+  );
   assert.ok(!result.reply.includes('booking-1'));
   assert.equal(calls.filter((call) => call.action === 'tools').length, 1);
   assert.ok(
@@ -269,6 +278,11 @@ test('closed booking tasks recover confirmation without another model or busines
     model,
   );
   assert.match(result.reply, /appointment is booked.*2030/);
+  assert.ok(
+    result.reply.endsWith(
+      'Thank you! Your booking is complete. This session has ended.',
+    ),
+  );
   assert.equal(model.requests.length, 0);
   assert.deepEqual(calls, ['checkpoint']);
 });
@@ -314,8 +328,125 @@ test('a task can request decline with quoted evidence, but the API owns acceptan
   assert.deepEqual(result.decline, {
     evidence: "I don't want to book a meeting",
   });
-  assert.match(result.reply, /Understood/);
+  assert.equal(
+    result.reply,
+    'Understood. I won’t proceed with a booking. Thank you! This session has ended.',
+  );
 });
+
+for (const key of ['receptionist', 'appointment_booking']) {
+  for (const startTime of [undefined, 'invalid']) {
+    test(`${key} recovery closes a booking without a valid time (${startTime})`, async () => {
+      const turn = taskFixture();
+      turn.task.key = key;
+      turn.task.status = 'completed';
+      turn.task.result = { appointmentId: 'saved-booking', startTime };
+      const model = new TestModel();
+      const checkpoints = [];
+      const result = await runTurn(
+        turn,
+        {
+          post: async (_turn, action, data) => {
+            assert.equal(action, 'checkpoint');
+            checkpoints.push(data);
+            return {};
+          },
+        },
+        'key',
+        new AbortController().signal,
+        model,
+      );
+      assert.equal(
+        result.reply,
+        'Your appointment is booked. Thank you! Your booking is complete. This session has ended.',
+      );
+      assert.deepEqual(checkpoints, [result]);
+      assert.equal(model.requests.length, 0);
+    });
+  }
+
+  test(`${key} ordinary reply keeps the session open`, async () => {
+    const turn = taskFixture();
+    turn.task.key = key;
+    const result = await runTurn(
+      turn,
+      { post: async () => ({}) },
+      'key',
+      new AbortController().signal,
+      new TestModel(),
+    );
+    assert.equal(result.reply, 'Hello Priya.');
+  });
+}
+
+test('a closed task preserves its recorded confirmation on retry', async () => {
+  const turn = taskFixture();
+  turn.task.status = 'completed';
+  turn.task.result = { appointmentId: 'saved-booking' };
+  const model = new TestModel();
+  for (const reply of [
+    'Your appointment is booked. Thank you! Your booking is complete. This session has ended.',
+    'Your appointment is booked.',
+  ]) {
+    turn.checkpoint = { session: turn.session, reply };
+    const result = await runTurn(
+      turn,
+      {
+        post: () => {
+          throw new Error('Should not call the API again');
+        },
+      },
+      'key',
+      new AbortController().signal,
+      model,
+    );
+    assert.deepEqual(result, turn.checkpoint);
+  }
+  assert.equal(model.requests.length, 0);
+});
+
+for (const receipt of [
+  { ok: false, error: 'slot_not_available' },
+  { ok: false, error: 'operation_outcome_unknown' },
+  { ok: true },
+]) {
+  test(`unconfirmed booking has no closing message (${JSON.stringify(receipt)})`, async () => {
+    class FailedBookingModel extends BaseLlm {
+      count = 0;
+      constructor() {
+        super({ model: 'failed-booking-test' });
+      }
+      async *generateContentAsync() {
+        yield {
+          content: {
+            role: 'model',
+            parts:
+              ++this.count === 1
+                ? [
+                    {
+                      functionCall: {
+                        id: 'book',
+                        name: 'scheduleGhlMeeting',
+                        args: { startTime: '2030-01-01T10:00:00Z' },
+                      },
+                    },
+                  ]
+                : [{ text: 'I could not confirm your booking.' }],
+          },
+        };
+      }
+    }
+    const result = await runTurn(
+      { ...taskFixture(), enabledTools: ['scheduleGhlMeeting'] },
+      { post: async (_turn, action) => (action === 'tools' ? receipt : {}) },
+      'key',
+      new AbortController().signal,
+      new FailedBookingModel(),
+    );
+    assert.equal(result.reply, 'I could not confirm your booking.');
+    assert.equal(result.decline, undefined);
+  });
+}
 
 test('fresh task jobs have no history from the previously completed task', async () => {
   const model = new TestModel();

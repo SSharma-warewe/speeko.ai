@@ -21,6 +21,11 @@ task closure together. Tool errors, unknown write outcomes, and generated text
 never complete the task. Closed tasks reject new operations; duplicate receipt
 reads are harmless. Only the completing turn may finish the final confirmation.
 Worker recovery uses the persisted receipt without rerunning a model or booking.
+The final booking confirmation includes “Thank you! Your booking is complete.
+This session has ended.” Explicit declines include “Thank you! This session has
+ended.” after the refusal acknowledgement. Each closing is part of the same
+checkpointed reply sent through the durable outbox; retries preserve recorded
+final replies. Ordinary replies and booking errors do not add this closing.
 New queued messages wait for that reply's outbox acceptance/cancellation, then
 create a new session with no old ADK or booking state. Failed/uncertain sends
 retain the existing operator recovery endpoints, even after task closure.
