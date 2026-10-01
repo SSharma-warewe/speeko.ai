@@ -59,7 +59,7 @@ export default function UserWhatsAppPage() {
   );
 
   return (
-    <div className="ops-desk">
+    <div className={`ops-desk${mode === "agent" ? " is-wa-agent" : ""}`}>
       <div className="ops-desk-toolbar">
         <div className="ops-desk-toolbar-main">
           <h1>WhatsApp</h1>

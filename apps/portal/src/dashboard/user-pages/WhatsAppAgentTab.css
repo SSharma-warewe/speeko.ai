@@ -1,0 +1,949 @@
+/* WhatsApp agent workspace. Uses the shared UI and ops design tokens. */
+.ops-content:has(.is-wa-agent) {
+  padding: 1.25rem 1.75rem 1rem;
+}
+
+.is-wa-agent {
+  gap: 1.2rem;
+}
+
+.is-wa-agent .ops-desk-toolbar {
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--ops-line-strong);
+}
+
+.is-wa-agent .ops-desk-toolbar .ops-mode-btn {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.8rem;
+}
+
+.is-wa-agent .ops-desk-board {
+  padding: 0 0.25rem 1rem 0;
+  scrollbar-gutter: stable;
+}
+
+.ops-wa-agent {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 1320px;
+  margin: 0 auto;
+  min-width: 0;
+  color: var(--text);
+}
+
+.ops-wa-agent svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.wa-agent-hero,
+.wa-agent-hero-main {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.wa-agent-hero {
+  justify-content: space-between;
+  padding: 0.8rem 0 0.3rem;
+}
+
+.wa-agent-avatar {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+  border: 1px solid var(--ops-amber-hot);
+  border-radius: var(--radius-2xl);
+  background: var(--ops-amber);
+  color: var(--ops-amber-ink);
+}
+
+.wa-agent-avatar svg {
+  width: 29px;
+  height: 29px;
+}
+
+.wa-agent-eyebrow {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.wa-agent-hero h2 {
+  margin: 0.35rem 0 0.4rem;
+  font-size: clamp(1.65rem, 2.3vw, 2.25rem);
+  font-weight: 500;
+  letter-spacing: -0.055em;
+  line-height: 1.15;
+}
+
+.wa-agent-hero p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.wa-agent-hero-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.wa-agent-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--bg-base);
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.wa-agent-status > span,
+.wa-agent-draft-status > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.wa-agent-status.is-on {
+  background: var(--ops-amber);
+  border-color: var(--ops-amber-hot);
+  color: var(--ops-amber-ink);
+}
+
+.wa-agent-status-caption {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+.wa-agent-connect {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius-xl);
+  background: var(--warn-bg);
+}
+
+.wa-agent-connect-icon {
+  color: var(--warn-text);
+}
+
+.wa-agent-connect > div {
+  flex: 1;
+}
+
+.wa-agent-connect strong {
+  font-size: 0.87rem;
+}
+
+.wa-agent-connect p {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.wa-agent-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 315px;
+  gap: 1.25rem;
+  align-items: start;
+  min-width: 0;
+}
+
+.wa-agent-editor {
+  overflow: hidden;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2xl);
+  background: var(--bg-base);
+  box-shadow: var(--shadow-sm);
+}
+
+.wa-agent-section {
+  padding: 1.5rem;
+  scroll-margin-top: 1rem;
+}
+
+.wa-agent-section + .wa-agent-section {
+  border-top: 1px solid var(--border);
+}
+
+.wa-agent-section-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  margin-bottom: 1.25rem;
+}
+
+.wa-agent-section-number {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+}
+
+.wa-agent-section-heading h3 {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.wa-agent-section-heading p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.wa-agent-tasks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.wa-agent-task-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition:
+    border-color var(--duration-normal),
+    background var(--duration-normal),
+    box-shadow var(--duration-normal);
+}
+
+.wa-agent-task-card:hover {
+  background: var(--bg-surface);
+}
+
+.wa-agent-task-card.is-selected {
+  border-color: var(--ops-amber-ink);
+  background: color-mix(in srgb, var(--ops-amber) 55%, var(--bg-base));
+  box-shadow: inset 0 0 0 1px var(--ops-amber-ink);
+}
+
+.wa-agent-task-card:has(input:focus-visible) {
+  outline: 2px solid var(--ops-amber-ink);
+  outline-offset: 3px;
+}
+
+.wa-agent-tasks:disabled .wa-agent-task-card {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.wa-agent-task-card input {
+  position: absolute;
+  top: 1.1rem;
+  right: 1rem;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--ops-amber-ink);
+  cursor: inherit;
+}
+
+.wa-agent-task-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+}
+
+.is-selected .wa-agent-task-icon {
+  background: var(--ops-amber);
+  color: var(--ops-amber-ink);
+}
+
+.wa-agent-task-card strong {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.wa-agent-task-description {
+  color: var(--text-muted);
+  font-size: 0.77rem;
+  line-height: 1.55;
+}
+
+.wa-agent-task-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  min-height: 2.25rem;
+  margin-top: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.wa-agent-task-note > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.wa-agent-task-note svg {
+  width: 14px;
+  height: 14px;
+  color: var(--ops-amber-ink);
+}
+
+.wa-agent-section .ca-label {
+  font-size: 0.76rem;
+  font-weight: 500;
+}
+
+.wa-agent-section .ca-select {
+  min-height: 43px;
+  font-size: 0.82rem;
+  background-color: var(--bg-base);
+}
+
+.wa-agent-section .ca-textarea {
+  min-height: 260px;
+  padding: 1rem;
+  font-size: 0.85rem;
+  line-height: 1.8;
+  background: var(--bg-surface);
+  scroll-margin-top: 1rem;
+}
+
+.wa-agent-section .ca-textarea:focus,
+.wa-agent-section .ca-select:focus {
+  border-color: var(--ops-amber-ink);
+  box-shadow: 0 0 0 3px var(--ops-amber);
+}
+
+.wa-agent-editor-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+  color: var(--text-muted);
+  font-size: 0.67rem;
+  line-height: 1.5;
+}
+
+.wa-agent-editor-meta > span:last-child {
+  font-family: var(--font-mono);
+  font-size: 0.63rem;
+  white-space: nowrap;
+}
+
+.wa-agent-reference {
+  margin-top: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+}
+
+.wa-agent-reference summary,
+.wa-agent-saved-persona summary {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.8rem 1rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.wa-agent-reference summary::-webkit-details-marker,
+.wa-agent-saved-persona summary::-webkit-details-marker {
+  display: none;
+}
+
+.wa-agent-reference-icon {
+  color: var(--accent-warn);
+}
+
+.wa-agent-reference summary > span:nth-child(2) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.wa-agent-reference summary strong {
+  font-size: 0.77rem;
+  font-weight: 500;
+}
+
+.wa-agent-reference summary span span {
+  color: var(--text-muted);
+  font-size: 0.69rem;
+}
+
+.wa-agent-chevron {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: rotate(45deg);
+}
+
+details[open] > summary .wa-agent-chevron {
+  transform: rotate(225deg);
+}
+
+.wa-agent-reference-body {
+  padding: 0 1rem 1rem;
+}
+
+.wa-agent-reference-body p {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.wa-agent-reference-body pre,
+.wa-agent-saved-persona pre {
+  max-height: 270px;
+  overflow: auto;
+  margin: 0.75rem 0;
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-base);
+  font: 0.78rem/1.7 var(--font-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.wa-agent-capability-fields,
+.wa-agent-capability-help {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.wa-agent-capability-fields .ca-field {
+  min-width: 0;
+}
+
+.wa-agent-capability-help p {
+  margin: 0.6rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  line-height: 1.65;
+}
+
+.wa-agent-capability-help a {
+  color: var(--ops-amber-ink);
+  font-weight: 500;
+  text-underline-offset: 3px;
+}
+
+.wa-agent-capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--border);
+}
+
+.wa-agent-capabilities > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.68rem;
+  color: var(--ops-amber-ink);
+}
+
+.wa-agent-capabilities svg {
+  width: 14px;
+  height: 14px;
+}
+
+.wa-agent-rail {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.wa-agent-readiness {
+  overflow: hidden;
+  padding: 1.25rem;
+  border: 1px solid var(--ops-amber-hot);
+  border-radius: var(--radius-2xl);
+  background: color-mix(in srgb, var(--ops-amber) 40%, var(--bg-base));
+}
+
+.wa-agent-readiness-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.wa-agent-readiness .wa-agent-eyebrow {
+  color: var(--ops-amber-ink);
+  font-size: 0.63rem;
+}
+
+.wa-agent-progress-count {
+  color: var(--ops-amber-ink);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}
+
+.wa-agent-progress-count > span {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.wa-agent-readiness h3 {
+  margin: 0.75rem 0 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+}
+
+.wa-agent-readiness > p {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.wa-agent-progress {
+  display: flex;
+  gap: 4px;
+  margin: 1.1rem 0 0.7rem;
+}
+
+.wa-agent-progress > span {
+  flex: 1;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--border);
+  transition: background var(--duration-normal);
+}
+
+.wa-agent-progress > span.is-complete {
+  background: var(--ops-amber-ink);
+}
+
+.wa-agent-checklist {
+  display: flex;
+  flex-direction: column;
+}
+
+.wa-agent-checklist a {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.65rem 0;
+  color: var(--text);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+
+.wa-agent-checklist a:hover > svg {
+  opacity: 1;
+  transform: translateX(2px);
+}
+
+.wa-agent-checklist-mark {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+}
+
+.is-complete .wa-agent-checklist-mark {
+  color: var(--bg-base);
+  background: var(--ops-amber-ink);
+  border-color: var(--ops-amber-ink);
+}
+
+.wa-agent-checklist-mark svg {
+  width: 14px;
+  height: 14px;
+}
+
+.wa-agent-checklist a > span:nth-child(2) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.wa-agent-checklist strong {
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.wa-agent-checklist a > span > span {
+  font-size: 0.67rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.wa-agent-checklist a > svg {
+  width: 14px;
+  height: 14px;
+  color: var(--ops-amber-ink);
+  opacity: 0.4;
+  transition:
+    opacity var(--duration-normal),
+    transform var(--duration-normal);
+}
+
+.wa-agent-save {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ops-amber-hot);
+}
+
+.wa-agent-draft-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.67rem;
+}
+
+.wa-agent-draft-status.is-changed {
+  color: var(--accent-warn);
+}
+
+.wa-agent-save-hint {
+  margin: 0;
+  color: var(--text-muted);
+  text-align: center;
+  font-size: 0.68rem;
+  line-height: 1.6;
+}
+
+.wa-agent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.15rem;
+}
+
+.wa-agent-actions .ca-btn,
+.wa-agent-task-note .ca-btn {
+  font-size: 0.68rem;
+}
+
+.wa-agent-saved {
+  min-width: 0;
+  padding: 1.2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--bg-base);
+}
+
+.wa-agent-saved-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.wa-agent-saved h3 {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.wa-agent-saved-indicator {
+  padding: 0.2rem 0.45rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-size: 0.6rem;
+  font-weight: 500;
+}
+
+.wa-agent-saved-indicator.is-on {
+  background: var(--ops-amber);
+  color: var(--ops-amber-ink);
+}
+
+.wa-agent-saved dl {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin: 1rem 0;
+}
+
+.wa-agent-saved dl > div {
+  display: grid;
+  grid-template-columns: 85px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.wa-agent-saved dt {
+  color: var(--text-muted);
+  font-size: 0.67rem;
+}
+
+.wa-agent-saved dd {
+  margin: 0;
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+
+.wa-agent-saved-persona {
+  border-top: 1px solid var(--border);
+}
+
+.wa-agent-saved-persona summary {
+  justify-content: space-between;
+  padding: 0.85rem 0 0;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.wa-agent-saved-persona pre {
+  background: var(--bg-surface);
+}
+
+.wa-agent-saved-empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.wa-agent-session-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.25rem 0.4rem;
+  color: var(--text-muted);
+}
+
+.wa-agent-session-note svg {
+  width: 17px;
+  height: 17px;
+}
+
+.wa-agent-session-note strong {
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.wa-agent-session-note p {
+  margin: 0.35rem 0 0;
+  font-size: 0.68rem;
+  line-height: 1.7;
+}
+
+.wa-agent-session-note code {
+  padding: 0.1rem 0.25rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-base);
+  font-size: 0.65rem;
+}
+
+.ops-wa-agent a:focus-visible,
+.ops-wa-agent summary:focus-visible {
+  outline: 2px solid var(--ops-amber-ink);
+  outline-offset: 3px;
+}
+
+.wa-agent-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (min-width: 1600px) {
+  .wa-agent-workspace {
+    grid-template-columns: minmax(0, 1fr) 350px;
+    gap: 1.5rem;
+  }
+
+  .wa-agent-section {
+    padding: 1.75rem;
+  }
+}
+
+@media (max-width: 1150px) {
+  .ops-content:has(.is-wa-agent) {
+    padding: 1rem;
+  }
+
+  .wa-agent-hero {
+    flex-wrap: wrap;
+  }
+
+  .wa-agent-hero-status {
+    align-items: flex-start;
+    padding-left: 76px;
+  }
+
+  .wa-agent-workspace {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 1rem;
+  }
+
+  .wa-agent-section {
+    padding: 1.1rem;
+  }
+}
+
+@media (max-width: 950px) {
+  .wa-agent-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wa-agent-rail {
+    position: static;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .wa-agent-session-note {
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 600px) {
+  .ops-content:has(.is-wa-agent) {
+    padding: 0.85rem;
+  }
+
+  .is-wa-agent .ops-desk-toolbar-main {
+    flex-wrap: wrap;
+  }
+
+  .is-wa-agent .ops-desk-toolbar .ops-mode-btn {
+    padding: 0.5rem 0.7rem;
+  }
+
+  .ops-wa-agent {
+    gap: 1.15rem;
+  }
+
+  .wa-agent-hero-main {
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .wa-agent-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: var(--radius-lg);
+  }
+
+  .wa-agent-avatar svg {
+    width: 23px;
+    height: 23px;
+  }
+
+  .wa-agent-hero h2 {
+    font-size: 1.55rem;
+  }
+
+  .wa-agent-hero .wa-agent-eyebrow {
+    font-size: 0.58rem;
+    letter-spacing: 0.07em;
+  }
+
+  .wa-agent-hero p {
+    font-size: 0.78rem;
+  }
+
+  .wa-agent-hero-status {
+    padding-left: 54px;
+  }
+
+  .wa-agent-status-caption {
+    display: none;
+  }
+
+  .wa-agent-tasks,
+  .wa-agent-capability-fields,
+  .wa-agent-rail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wa-agent-capability-help {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .wa-agent-section {
+    padding: 1.1rem;
+  }
+
+  .wa-agent-session-note {
+    grid-column: auto;
+  }
+
+  .wa-agent-connect {
+    flex-wrap: wrap;
+  }
+
+  .wa-agent-connect > div {
+    flex-basis: calc(100% - 40px);
+  }
+}
