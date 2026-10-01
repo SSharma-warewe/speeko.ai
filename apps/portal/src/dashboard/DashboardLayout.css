@@ -1548,6 +1548,62 @@
 
 }
 
+.ops-mobile-brand-row {
+  flex-shrink: 0;
+}
+.ops-mobile-menu {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .ops-org-sidebar {
+    padding: 0.65rem 1rem;
+    max-height: 70dvh;
+    overflow-y: auto;
+  }
+  .ops-mobile-brand-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .ops-org-sidebar .ops-brand {
+    margin: 0;
+    border: 0;
+    padding: 0;
+  }
+  .ops-mobile-menu {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    border: 1px solid var(--ops-line-strong);
+    border-radius: var(--radius-md);
+    background: var(--ops-panel);
+    color: var(--ops-ink);
+    padding: 0.6rem 0.75rem;
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .ops-mobile-menu:focus-visible {
+    outline: 2px solid var(--ops-live);
+    outline-offset: 3px;
+  }
+  .ops-org-sidebar:not(.is-menu-open) .ops-nav,
+  .ops-org-sidebar:not(.is-menu-open) .ops-side-foot {
+    display: none;
+  }
+  .ops-org-sidebar.is-menu-open .ops-nav {
+    margin-top: 0.7rem;
+  }
+  .ops-crumb {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
 /* ── Org overview: dispatch mosaic ── */
 .ops-content:has(.ops-ov) {
   padding: 0.75rem 1rem 0.85rem;

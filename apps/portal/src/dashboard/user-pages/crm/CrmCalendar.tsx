@@ -28,7 +28,7 @@ export default function CrmCalendar({
 }: {
   connectionId: string;
 }) {
-  const { api, busy, error, notice, mutate } = useCrmApi(connectionId);
+  const { api, busy, error, notice, mutate, clear } = useCrmApi(connectionId);
   const [calendarId, setCalendarId] = useState("");
   const [start, setStart] = useState(dayInput(new Date()));
   const [end, setEnd] = useState(dayInput(new Date(Date.now() + 7 * 86400000)));
@@ -93,7 +93,11 @@ export default function CrmCalendar({
               events.reload();
             }}
           >
-            <Field label="Calendar" htmlFor="crm-calendar">
+            <Field
+              label="Calendar"
+              htmlFor="crm-calendar"
+              className="crm-calendar-select"
+            >
               <Select
                 id="crm-calendar"
                 value={selected}
@@ -296,8 +300,12 @@ export default function CrmCalendar({
           key={str(editor.id) || `new-${str(editor.startTime)}`}
           title={editor.id ? "Edit appointment" : "Book appointment"}
           busy={busy}
+          error={error}
           initial={editor}
-          onCancel={() => setEditor(null)}
+          onCancel={() => {
+            clear();
+            setEditor(null);
+          }}
           fields={[
             { key: "title", label: "Title", required: true },
             {

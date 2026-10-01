@@ -38,20 +38,25 @@ export default function CrmWorkflows({
         Run your existing HighLevel automations for a contact. Enrollment can
         send messages or perform other actions configured in the workflow.
       </p>
-      <Field label="Contact">
-        <ContactPicker
-          api={api}
-          value={contactId}
-          onChange={setContactId}
-          disabled={busy}
-        />
-      </Field>
-      <Input
-        aria-label="Filter workflows"
-        placeholder="Filter workflows"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-      />
+      <div className="crm-workflow-controls">
+        <Field label="Contact">
+          <ContactPicker
+            api={api}
+            value={contactId}
+            onChange={setContactId}
+            disabled={busy}
+          />
+        </Field>
+        <Field label="Find a workflow" htmlFor="crm-workflow-filter">
+          <Input
+            id="crm-workflow-filter"
+            aria-label="Filter workflows"
+            placeholder="Filter workflows"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </Field>
+      </div>
       <LoadState state={workflows}>
         {!records.length && <p>No workflows found.</p>}
         {records.map((workflow) => (

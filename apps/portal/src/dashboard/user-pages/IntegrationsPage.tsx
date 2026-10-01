@@ -652,7 +652,7 @@ export default function UserIntegrationsPage() {
   const isCrm = mode === "crm";
 
   return (
-    <div className="ops-desk">
+    <div className={`ops-desk${isCrm ? " crm-integrations-page" : ""}`}>
       <div className="ops-desk-toolbar">
         <div className="ops-desk-toolbar-main">
           <h1>Integrations</h1>

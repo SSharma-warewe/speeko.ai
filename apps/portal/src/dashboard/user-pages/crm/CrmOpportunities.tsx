@@ -20,7 +20,7 @@ export default function CrmOpportunities({
 }: {
   connectionId: string;
 }) {
-  const { api, busy, error, notice, mutate } = useCrmApi(connectionId);
+  const { api, busy, error, notice, mutate, clear } = useCrmApi(connectionId);
   const [pipelineId, setPipelineId] = useState("");
   const [status, setStatus] = useState("all");
   const [query, setQuery] = useState("");
@@ -163,8 +163,12 @@ export default function CrmOpportunities({
                           <p className="ops-desk-note">
                             {label(obj(deal.contact)) || str(deal.contactId)}
                           </p>
-                          <Field label="Move to stage">
+                          <Field
+                            label="Move to stage"
+                            htmlFor={`crm-stage-${str(deal.id)}`}
+                          >
                             <Select
+                              id={`crm-stage-${str(deal.id)}`}
                               disabled={busy}
                               value={str(deal.pipelineStageId)}
                               onChange={(e) =>
@@ -258,7 +262,11 @@ export default function CrmOpportunities({
           title={editor.id ? "Edit opportunity" : "New opportunity"}
           initial={editor}
           busy={busy}
-          onCancel={() => setEditor(null)}
+          error={error}
+          onCancel={() => {
+            clear();
+            setEditor(null);
+          }}
           fields={[
             { key: "name", label: "Name", required: true },
             {

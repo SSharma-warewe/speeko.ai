@@ -1,5 +1,5 @@
 import { Link, useSearchParams } from "react-router-dom";
-import { Select } from "@call-agent/ui";
+import { Field, Select } from "@call-agent/ui";
 import { listUserOrgIntegrations } from "../../lib/api";
 import { useUserAsync } from "../hooks/useAsync";
 import { ErrorBlock } from "../components/ErrorBlock";
@@ -45,33 +45,44 @@ export default function CrmPage() {
     setParams(next);
   };
   return (
-    <div className="ops-desk crm-workspace">
-      <div className="ops-desk-toolbar">
-        <div className="ops-desk-toolbar-main">
+    <div className="crm-workspace">
+      <header className="crm-workspace-header">
+        <div className="crm-workspace-title">
+          <span className="crm-eyebrow">Customer workspace</span>
           <h1>CRM</h1>
-          <p className="ops-desk-note">
-            Your HighLevel workspace, live in Speeko.
-          </p>
+          <p>Contacts, appointments, and conversations. All in one place.</p>
         </div>
-        <div className="ops-row-actions">
+        <div className="crm-connection-switcher">
           {connection && (
-            <Select
-              aria-label="CRM connection"
-              value={connection.id}
-              onChange={(e) => change("connection", e.target.value)}
-            >
-              {connections.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
+            <Field label="HighLevel connection" htmlFor="crm-connection">
+              <Select
+                id="crm-connection"
+                value={connection.id}
+                onChange={(e) => change("connection", e.target.value)}
+              >
+                {connections.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
           )}
-          <Link to="/dashboard/integrations?tab=crm">Manage connection →</Link>
+          <div className="crm-connection-meta">
+            {connection && (
+              <span className="crm-live-status">
+                <span aria-hidden />
+                Live connection
+              </span>
+            )}
+            <Link to="/dashboard/integrations?tab=crm">
+              Manage connection →
+            </Link>
+          </div>
         </div>
-      </div>
+      </header>
       {!connection ? (
-        <section className="ops-panel">
+        <section className="ops-panel crm-empty">
           <div className="ops-panel-body">
             <h2>Connect your HighLevel CRM</h2>
             <p>
@@ -86,19 +97,35 @@ export default function CrmPage() {
         </section>
       ) : (
         <>
-          <div
-            className="ops-mode-toggle crm-tabs"
-            role="tablist"
-            aria-label="CRM pages"
-          >
+          <div className="crm-tabs" role="tablist" aria-label="CRM pages">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 role="tab"
+                id={`crm-tab-${t.id}`}
+                aria-controls="crm-page-content"
                 aria-selected={tab === t.id}
-                className={`ops-mode-btn${tab === t.id ? " is-active" : ""}`}
+                tabIndex={tab === t.id ? 0 : -1}
+                className={`crm-tab${tab === t.id ? " is-active" : ""}`}
                 onClick={() => change("tab", t.id)}
+                onKeyDown={(e) => {
+                  const index = TABS.findIndex((item) => item.id === t.id);
+                  const next =
+                    e.key === "ArrowRight"
+                      ? (index + 1) % TABS.length
+                      : e.key === "ArrowLeft"
+                        ? (index + TABS.length - 1) % TABS.length
+                        : e.key === "Home"
+                          ? 0
+                          : e.key === "End"
+                            ? TABS.length - 1
+                            : null;
+                  if (next === null) return;
+                  e.preventDefault();
+                  change("tab", TABS[next].id);
+                  document.getElementById(`crm-tab-${TABS[next].id}`)?.focus();
+                }}
               >
                 {t.label}
               </button>
@@ -106,8 +133,11 @@ export default function CrmPage() {
           </div>
           <div
             key={`${connection.id}-${tab}`}
+            id="crm-page-content"
+            className="crm-page-content"
             role="tabpanel"
-            aria-label={TABS.find((t) => t.id === tab)?.label}
+            aria-labelledby={`crm-tab-${tab}`}
+            tabIndex={0}
           >
             {tab === "contacts" && <CrmContacts connectionId={connection.id} />}
             {tab === "calendar" && <CrmCalendar connectionId={connection.id} />}

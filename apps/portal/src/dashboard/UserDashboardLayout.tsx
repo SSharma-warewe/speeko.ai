@@ -166,6 +166,9 @@ export default function UserDashboardLayout() {
   const { user, logout } = useUserAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mobileNavId = useId();
+  useEffect(() => setMobileMenuOpen(false), [location.pathname]);
   const crumb = crumbFromPath(location.pathname);
   const orgName =
     user?.organization?.name || user?.organization?.slug || "Organization";
@@ -177,13 +180,44 @@ export default function UserDashboardLayout() {
 
   return (
     <div className="ops">
-      <aside className="ops-sidebar" aria-label="Organization navigation">
-        <NavLink to="/dashboard" className="ops-brand" end>
-          <span className="ops-brand-mark">Speeko</span>
-          <span className="ops-brand-sub">Ops desk · Org</span>
-        </NavLink>
+      <aside
+        className={`ops-sidebar ops-org-sidebar${mobileMenuOpen ? " is-menu-open" : ""}`}
+        aria-label="Organization navigation"
+      >
+        <div className="ops-mobile-brand-row">
+          <NavLink to="/dashboard" className="ops-brand" end>
+            <span className="ops-brand-mark">Speeko</span>
+            <span className="ops-brand-sub">Ops desk · Org</span>
+          </NavLink>
+          <button
+            type="button"
+            className="ops-mobile-menu"
+            aria-expanded={mobileMenuOpen}
+            aria-controls={mobileNavId}
+            onClick={() => setMobileMenuOpen((open) => !open)}
+          >
+            {mobileMenuOpen ? "Close menu" : "Menu"}
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              aria-hidden
+            >
+              <path
+                d={
+                  mobileMenuOpen
+                    ? "M6 6l12 12M6 18L18 6"
+                    : "M4 6h16M4 12h16M4 18h16"
+                }
+              />
+            </svg>
+          </button>
+        </div>
 
-        <nav className="ops-nav">
+        <nav className="ops-nav" id={mobileNavId}>
           {NAV.map((group) => (
             <div key={group.section}>
               <div className="ops-nav-section">{group.section}</div>

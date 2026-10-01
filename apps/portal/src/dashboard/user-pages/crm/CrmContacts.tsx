@@ -3,6 +3,7 @@ import { Button, Field, Input } from "@call-agent/ui";
 import { useUserAsync } from "../../hooks/useAsync";
 import {
   Feedback,
+  CrmDrawer,
   LoadState,
   Panel,
   RecordForm,
@@ -23,7 +24,7 @@ export default function CrmContacts({
 }: {
   connectionId: string;
 }) {
-  const { api, busy, error, notice, mutate } = useCrmApi(connectionId);
+  const { api, busy, error, notice, mutate, clear } = useCrmApi(connectionId);
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
   const [cursor, setCursor] = useState<string | undefined>();
@@ -83,12 +84,11 @@ export default function CrmContacts({
         </form>
         <LoadState state={state}>
           <div className="ops-table-wrap">
-            <table className="ops-table">
+            <table className="ops-table crm-contacts-table">
               <thead>
                 <tr>
                   <th>Contact</th>
-                  <th>Email</th>
-                  <th>Phone</th>
+                  <th>Contact details</th>
                   <th>Tags</th>
                   <th>Actions</th>
                 </tr>
@@ -96,21 +96,43 @@ export default function CrmContacts({
               <tbody>
                 {rows(state.data?.contacts).map((contact) => (
                   <tr key={str(contact.id)}>
-                    <td>
-                      <strong>{label(contact)}</strong>
-                      <div className="ops-desk-note">
-                        {str(contact.companyName)}
-                        {contact.dnd === true ? " · DND" : ""}
+                    <td data-label="Contact">
+                      <div className="crm-contact-identity">
+                        <span className="crm-avatar" aria-hidden>
+                          {label(contact)
+                            .split(/\s+/)
+                            .slice(0, 2)
+                            .map((part) => part[0])
+                            .join("")
+                            .toUpperCase()}
+                        </span>
+                        <div>
+                          <strong>{label(contact)}</strong>
+                          <div className="ops-desk-note">
+                            {str(contact.companyName)}
+                            {contact.dnd === true ? " · DND" : ""}
+                          </div>
+                        </div>
                       </div>
                     </td>
-                    <td>{str(contact.email) || "—"}</td>
-                    <td>{str(contact.phone) || "—"}</td>
-                    <td>
-                      {Array.isArray(contact.tags)
-                        ? contact.tags.map(str).join(", ")
-                        : "—"}
+                    <td data-label="Contact details">
+                      <div className="crm-contact-reach">
+                        <span>{str(contact.email) || "No email"}</span>
+                        <small>{str(contact.phone) || "No phone"}</small>
+                      </div>
                     </td>
-                    <td>
+                    <td data-label="Tags">
+                      <div className="crm-tag-list">
+                        {Array.isArray(contact.tags)
+                          ? contact.tags.map((tag) => (
+                              <span key={str(tag)} className="crm-tag">
+                                {str(tag)}
+                              </span>
+                            ))
+                          : "—"}
+                      </div>
+                    </td>
+                    <td data-label="Actions">
                       <div className="ops-row-actions">
                         <Button
                           size="sm"
@@ -199,7 +221,11 @@ export default function CrmContacts({
           api={api}
           row={editor}
           busy={busy}
-          cancel={() => setEditor(null)}
+          error={error}
+          cancel={() => {
+            clear();
+            setEditor(null);
+          }}
           save={(data) =>
             void mutate(async () => {
               await api(editor.id ? "contacts.update" : "contacts.create", {
@@ -217,6 +243,8 @@ export default function CrmContacts({
           key={str(selected.id)}
           connectionId={connectionId}
           contactId={str(selected.id)}
+          contactName={label(selected)}
+          onClose={() => setSelected(null)}
         />
       )}
     </div>
@@ -227,12 +255,14 @@ function ContactEditor({
   api,
   row,
   busy,
+  error,
   save,
   cancel,
 }: {
   api: CrmApi;
   row: Row;
   busy: boolean;
+  error: string | null;
   save: (data: Row) => void;
   cancel: () => void;
 }) {
@@ -246,6 +276,7 @@ function ContactEditor({
     <RecordForm
       title={row.id ? `Edit ${label(row)}` : "New contact"}
       busy={busy}
+      error={error}
       onCancel={cancel}
       initial={{
         ...row,
@@ -357,19 +388,26 @@ function ContactEditor({
 function ContactDetail({
   connectionId,
   contactId,
+  contactName,
+  onClose,
 }: {
   connectionId: string;
   contactId: string;
+  contactName: string;
+  onClose: () => void;
 }) {
-  const { api, busy, error, notice, mutate } = useCrmApi(connectionId);
+  const { api, busy, error, notice, mutate, clear } = useCrmApi(connectionId);
   const [tab, setTab] = useState<"notes" | "tasks">("notes");
   const [editor, setEditor] = useState<Row | null>(null);
   const state = useUserAsync(() => api(`${tab}.list`, { contactId }), [tab]);
   const records = rows(state.data?.[tab]);
   return (
-    <Panel
-      title="Contact activity"
-      actions={
+    <CrmDrawer title={contactName} onClose={onClose} busy={busy}>
+      <div className="crm-activity-toolbar">
+        <div>
+          <span className="crm-eyebrow">Contact activity</span>
+          <p>Notes and follow-up tasks</p>
+        </div>
         <Button
           size="sm"
           onClick={() => setEditor({ completed: false })}
@@ -377,8 +415,7 @@ function ContactDetail({
         >
           Add {tab === "notes" ? "note" : "task"}
         </Button>
-      }
-    >
+      </div>
       <Feedback error={error} notice={notice} />
       <div className="ops-mode-toggle">
         {(["notes", "tasks"] as const).map((t) => (
@@ -447,7 +484,11 @@ function ContactDetail({
           title={`${editor.id ? "Edit" : "Add"} ${tab === "notes" ? "note" : "task"}`}
           initial={editor}
           busy={busy}
-          onCancel={() => setEditor(null)}
+          error={error}
+          onCancel={() => {
+            clear();
+            setEditor(null);
+          }}
           fields={
             tab === "notes"
               ? [
@@ -492,6 +533,6 @@ function ContactDetail({
           }
         />
       )}
-    </Panel>
+    </CrmDrawer>
   );
 }

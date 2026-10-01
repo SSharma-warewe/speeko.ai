@@ -1,4 +1,11 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import { Alert, Button, Field, Input, Select, Textarea } from '@call-agent/ui';
 import type { CrmAction, CrmResult } from '@call-agent/contracts';
 import { executeUserCrm, UnauthorizedError } from '../../../lib/api';
@@ -126,13 +133,75 @@ export function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="ops-panel">
+    <section className="ops-panel crm-panel">
       <div className="ops-panel-head">
         <h2>{title}</h2>
         {actions}
       </div>
       <div className="ops-panel-body">{children}</div>
     </section>
+  );
+}
+
+/** Native modal supplies focus containment, Escape handling, and focus restoration. */
+export function CrmDrawer({
+  title,
+  children,
+  onClose,
+  busy = false,
+}: {
+  title: string;
+  children: ReactNode;
+  onClose: () => void;
+  busy?: boolean;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  useEffect(() => {
+    const element = dialog.current;
+    const previousFocus = document.activeElement;
+    element?.showModal();
+    return () => {
+      element?.close();
+      if (
+        previousFocus instanceof HTMLElement &&
+        previousFocus !== document.body &&
+        previousFocus.isConnected
+      ) {
+        previousFocus.focus();
+      } else {
+        document.querySelector<HTMLElement>('.crm-page-content')?.focus();
+      }
+    };
+  }, []);
+  return (
+    <dialog
+      ref={dialog}
+      className="crm-drawer"
+      aria-labelledby={titleId}
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!busy) onClose();
+      }}
+    >
+      <div className="crm-drawer-header">
+        <div>
+          <span className="crm-eyebrow">HighLevel CRM</span>
+          <h2 id={titleId}>{title}</h2>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-label={`Close ${title}`}
+          disabled={busy}
+          onClick={onClose}
+        >
+          ✕
+        </Button>
+      </div>
+      <div className="crm-drawer-body">{children}</div>
+    </dialog>
   );
 }
 
@@ -235,6 +304,7 @@ export function RecordForm({
   onSubmit,
   onCancel,
   children,
+  error = null,
 }: {
   title: string;
   fields: FormField[];
@@ -243,18 +313,29 @@ export function RecordForm({
   onSubmit: (data: Row) => void;
   onCancel: () => void;
   children?: ReactNode;
+  error?: string | null;
 }) {
   const [values, setValues] = useState<Row>(initial);
+  const formId = useId();
+  const form = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (error) {
+      form.current
+        ?.closest<HTMLElement>('.crm-drawer-body')
+        ?.scrollTo({ top: 0 });
+    }
+  }, [error]);
   const submit = (event: FormEvent) => {
     event.preventDefault();
     onSubmit(values);
   };
   return (
-    <Panel title={title}>
-      <form className="ops-form" onSubmit={submit}>
+    <CrmDrawer title={title} onClose={onCancel} busy={busy}>
+      <form ref={form} className="ops-form crm-record-form" onSubmit={submit}>
+        <Feedback error={error} notice={null} />
         <div className="crm-form-grid">
           {fields.map((field) => {
-            const id = `crm-field-${field.key}`;
+            const id = `${formId}-${field.key}`;
             const props = {
               id,
               required: field.required,
@@ -270,6 +351,13 @@ export function RecordForm({
                 label={field.label}
                 required={field.required}
                 hint={field.hint}
+                className={
+                  field.type === 'textarea'
+                    ? 'crm-field-wide'
+                    : field.type === 'checkbox'
+                      ? 'crm-checkbox-field'
+                      : undefined
+                }
               >
                 {field.type === 'checkbox' ? (
                   <input
@@ -309,21 +397,23 @@ export function RecordForm({
           })}
         </div>
         {children}
-        <p className="ops-desk-note">Changes save directly to HighLevel.</p>
-        <div className="ops-row-actions">
-          <Button type="submit" loading={busy}>
-            Save
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={busy}
-            onClick={onCancel}
-          >
-            Cancel
-          </Button>
+        <div className="crm-form-footer">
+          <p className="ops-desk-note">Changes save directly to HighLevel.</p>
+          <div className="ops-row-actions">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={busy}
+              onClick={onCancel}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" loading={busy}>
+              Save changes
+            </Button>
+          </div>
         </div>
       </form>
-    </Panel>
+    </CrmDrawer>
   );
 }
