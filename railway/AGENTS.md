@@ -43,6 +43,7 @@ Recorded project is `practical-spontaneity`, environment `production`; recorded 
 | Postgres | managed Railway PostgreSQL | private; recorded host postgres.railway.internal | PostgreSQL; inspect live service variables |
 
 - Root upload context must include shared packages and app files copied by the selected Dockerfile. Node images currently use Node 22; voice image also installs the pinned Python plugin requirements and CA certificates.
+- Shell entrypoints use LF through .gitattributes; the worker image also removes CRLF before chmod. Windows release archives must preserve LF so Linux can execute the sidecar startup script.
 - Voice starts the Python sidecar, waits for loopback health, then runs compiled Node. Sarvam code changes deploy worker, not a separate service.
 - CLI-created WhatsApp service may select its Dockerfile through `RAILWAY_DOCKERFILE_PATH=Dockerfile.whatsapp-worker`; confirm actual config/start/health settings, not only the intended TOML.
 - Public domain targetPort must match the actual PORT listener. Static web must preserve per-route shells; portal needs SPA fallback.

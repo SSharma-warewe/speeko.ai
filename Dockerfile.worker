@@ -36,7 +36,7 @@ RUN python3 -m venv /opt/stt \
   && /opt/stt/bin/pip install --no-cache-dir -r /app/apps/stt-sarvam/requirements.txt
 COPY apps/stt-sarvam ./apps/stt-sarvam
 COPY apps/worker/start-with-stt.sh /app/start-with-stt.sh
-RUN chmod +x /app/start-with-stt.sh
+RUN sed -i 's/\r$//' /app/start-with-stt.sh && chmod +x /app/start-with-stt.sh
 
 # LiveKit agents connect outbound; health listens on 8081 in production mode.
 # Sidecar: Python STTRealtime on 127.0.0.1:8091, then Node worker.
