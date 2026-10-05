@@ -1,5 +1,7 @@
 # Live HighLevel CRM
 
+Contributor instructions: [API AGENTS.md](../../AGENTS.md); shared architecture and schema context: [API reference](../../docs/architecture.md) and [schema/Erflow](../../docs/schema.md). Portal behavior is owned by [portal instructions](../../../portal/AGENTS.md).
+
 The portal has a **CRM** tab at `/dashboard/integrations?tab=crm` and a **CRM** sidebar entry below WhatsApp at `/dashboard/crm`. A connection stores a sub-account Private Integration Token and location ID using `organization_integrations.provider=ghl_crm`. This is an additional value in the existing varchar field: no columns, tables, indexes, or foreign keys change. Multiple named CRM connections are supported, with explicit selection in CRM and WhatsApp contact import.
 
 ## Setup

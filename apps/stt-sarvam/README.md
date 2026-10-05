@@ -1,5 +1,7 @@
 # stt-sarvam
 
+Contributor instructions: [AGENTS.md](AGENTS.md). See the [voice runtime reference](../worker/docs/runtime.md) for Node turn-taking/event ordering and the [Railway runbook](../../railway/README.md) for the bundled production service.
+
 Loopback sidecar that wraps LiveKit’s Python `sarvam.STTRealtime` for the Node voice worker.
 
 The Node `@livekit/agents-plugin-sarvam` package has no realtime STT class. This process is the official plugin; the worker streams 16 kHz PCM to it on localhost.

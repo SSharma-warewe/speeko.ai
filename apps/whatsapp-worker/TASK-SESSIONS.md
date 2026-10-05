@@ -1,5 +1,7 @@
 # WhatsApp channel task sessions
 
+Contributor ownership: [worker instructions](AGENTS.md), [API instructions](../api/AGENTS.md), and [deployment runbook](../../railway/README.md). Schema/Erflow obligations and historical deferrals live in the [schema reference](../api/docs/schema.md).
+
 The org Agent tab assigns `receptionist` or `appointment_booking` to the connected
 number. Persona is separate from the versioned task objective. Both tasks require
 an active GHL calendar source and assigned `scheduleGhlMeeting`,

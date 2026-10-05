@@ -1,5 +1,7 @@
 # `@call-agent/ui`
 
+Contributor instructions: [AGENTS.md](AGENTS.md). Consumer layout conventions are in [marketing guidance](../../apps/web/AGENTS.md) and [portal guidance](../../apps/portal/AGENTS.md).
+
 Reusable design-system primitives for Call Agent product UIs (`apps/web` marketing, `apps/portal` ops).
 
 ## Install / consume
@@ -18,7 +20,7 @@ import { Button, Input, Field, Badge, Card } from "@call-agent/ui";
 // vite.config.ts
 resolve: {
   alias: {
-    "@call-agent/ui": path.resolve(__dirname, "../packages/ui/src/index.ts"),
+    "@call-agent/ui": path.resolve(__dirname, "../../packages/ui/src/index.ts"),
   },
 }
 ```
@@ -27,11 +29,13 @@ Also allow importing the styles entry:
 
 ```ts
 alias: {
-  "@call-agent/ui/styles.css": path.resolve(__dirname, "../packages/ui/src/styles/index.css"),
+  "@call-agent/ui/styles.css": path.resolve(__dirname, "../../packages/ui/src/styles/index.css"),
 }
 ```
 
 Load fonts in the host `index.html` (Newsreader, IBM Plex Sans, IBM Plex Mono).
+
+These paths assume a Vite config under `apps/web` or `apps/portal`. Actual configs use ordered alias arrays, with the CSS entry before the general package alias, and dedupe React. Preserve that ordering. Marketing uses Newsreader display text; portal deliberately uses IBM Plex Sans for titles too.
 
 ## Tokens
 

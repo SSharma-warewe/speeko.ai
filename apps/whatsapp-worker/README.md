@@ -1,5 +1,7 @@
 # WhatsApp worker — Phase 1
 
+Contributor instructions: [AGENTS.md](AGENTS.md). API persistence/authorization is covered by [API guidance](../api/AGENTS.md); commands, service configuration and historical upgrade steps are in the [Railway runbook](../../railway/README.md).
+
 The Nest API owns a one-second `WhatsAppTickerService`, using the same
 `@Interval`/transactional claim/dispatch pattern as the outbound call dialer.
 There is no broker, Redis, or worker-side database access. Pending turns are
@@ -16,8 +18,9 @@ durable PostgreSQL records that the API ticker dispatches over authenticated HTT
    callback secret. Both settings are required at API startup.
    `WHATSAPP_TICKER_MAX_CONCURRENT` defaults to 4 across API replicas.
    Match it to `WHATSAPP_WORKER_CONCURRENCY` (default 4).
-5. Configure the existing active org Meta connection, nonempty Agent prompt,
-   and webhook subscription. Org Meta/GHL secrets remain on the API.
+5. Configure the active org Meta connection, webhook subscription, nonempty
+   Agent persona, selected task, existing voice-agent GHL source, and profile
+   with assigned booking/free-slot/contact tools. Org Meta/GHL secrets remain on the API.
 
 The durable harness is the sole execution path for org replies, platform replies,
 and get-demo OTP delivery. There are no rollout switches or API-side model runners.
@@ -133,13 +136,15 @@ Health responses preserve `enabled`, `platformEnabled`, and `otpEnabled`:
 remote worker or Meta availability. Dispatch/sender timestamps and errors report
 execution health.
 
-Before upgrading from a release with legacy execution, configure and verify the
+Historical switch-based predecessor only: before upgrading from a release with legacy execution, configure and verify the
 worker, URL, callback secret, and optional OTP settings. Preserve any existing
 OTP encryption key. Enable all three harness rollout switches on the preceding
 release and let already-running legacy requests finish before deploying this
 release. Verify that no old API replicas remain. A rollback to that preceding
 release must keep all its harness switches enabled, so legacy execution cannot
-overlap durable work. Use the inspection/retry/resolve endpoints for recovery.
+overlap durable work. This is not current setup: current code has no switches.
+Task-session rollback also requires the compatible API/worker pairing in
+[TASK-SESSIONS.md](TASK-SESSIONS.md). Use the inspection/retry/resolve endpoints for recovery.
 This cleanup changes no schema. Previously deferred Erflow synchronization remains
 outstanding.
 

@@ -1,0 +1,185 @@
+# LiveKit voice-worker instructions
+
+Scope: `apps/worker`. Inherit the rroot instructions](../../AGENTS.md). This is a stateless LiveKit Agents server, not a Nest app. API owns Postgres, SIP dial/queue, tenant credentials, and durable call rows.
+
+## Runtime and metadata
+
+- `src/main.ts` registers the explicit `LIVEKIT_AGENT_NAME` (default `call-agent`); `src/agent.ts` handles jobs. One dispatch name supports both directions.
+- Canonical rAgentJobMetadata](../../packages/contracts/src/job-metadata.ts) carries ids, direction/medium, task, persona/hooks, enabled tool ids, context, participant identity, and optional voice/model/STT/TTS/language/rate/delivery settings. Metadata is data, never executable code/tool schemas or provider secrets.
+- Flow: parse metadata → inbound live refresh → participant/lifecycle gates → `AgentRuntimeBuilder` → model/prompt/tool/task/voice builders → AgentSession. Build from shared catalog specs; do not add a local catalog or DB lookup.
+- Null catalog fields use shared Gemma/Inworld/Deepgram defaults; null hooks use defaults, empty hooks skip speech. BYO plugin choices fail if their worker key is absent; do not silently fall back.
+- Inbound SIP metadata has no unique callId. Re-fetch current org-agent pack via `/api/internal/organization-agents/:id/job-metadata`, ensure the room's call via `/api/internal/calls/inbound`, and use returned id for tools/completion. Voice/persona changes apply without republishing.
+- Outbound SIP must wait for answer before constructing full models/provider sessions or starting speech. Inbound ringing must start immediately after ensure; waiting for active first deadlocks answer. API creates SIP participants; worker never dials.
+
+## Persona, tasks, tools, and speech
+
+- Persona describes identity/tone/policies. Tasks own workflow/completion; tools own executable capabilities. Use `composeTaskInstructions` so persona survives `AgentTask.run()` replacing the parent.
+- `builders/` constructs runtime; `tasks/` holds workflow; `tools/` implementations; `speech/` live talk/cache/hangup; `session/` metadata/SIP/shutdown lifecycle; `callbacks/` API transport; `sarvam/` adapters; `common/` shared helpers.
+- Tasks use registry keys from contracts and `createWorkflowTask`; tools use registry ids from contracts and ToolRegistry. Always include endCall. Do not load implementations from Postgres or grant tools beyond metadata.
+- Pipeline parent onEnter greets, then task runs; parent onExit speaks the closing verbatim. Native realtime task onEnter generates the opening after handoff, and task completion generates/waits for goodbye before complete. Parent speech APIs cannot stand in for realtime playout.
+- Task results alone never prove completion. Set `taskCompleted` only after task.run resolves. Preserve explicit evidence gates, do-not-re-greet rules, question/completion separation, Hindi Devanagari handling, and workflow-specific required fields.
+- Keep pipeline cloud TurnDetector v1 + bundled Silero, endpointing/cache behavior, realtime VAD choices, and Sarvam REST versus realtime paths aligned with rruntime reference](docs/runtime.md). Read that reference before speech changes; it records provider-specific traps and timing invariants.
+- API-proxied calendar tools use call id and worker secret. GHL free slots contain no existing appointments; booking requires contact id. No org Meta/GHL/Nylas secrets enter metadata or this worker.
+
+## Callback response semantics
+
+- Shutdown sends rCompleteCallPayload](../../packages/contracts/src/worker-callback.ts) to `/api/internal/calls/:id/complete`: status, timestamps, transcript, usage/session report, taskResult, taskCompleted, and sanitized tool events as applicable.
+- Unanswered SIP → failed/no_answer; answered + taskCompleted → completed; answered without completion → API incomplete. Declined/not-booked completed workflows remain completed. Do not invent answeredAt or infer status from result JSON.
+- Callback transport has per-attempt timeout and bounded retry for 408/429/5xx/network/abort; exhaustion never throws past shutdown. API terminal handling is idempotent and ignores late pending/creating completion; sweeper is last-resort recovery.
+- Ephemeral process/session state is allowed; durable authority remains in API. Never log provider keys, worker secrets, or unsanitized sensitive tool values.
+
+## Naming and change checklist
+
+- Files use kebab-case with existing `.task.ts`/`.tool.ts` suffixes; classes/types PascalCase, helpers camelCase, task keys snake_case, tool ids camelCase. ESM relative imports use `.js`, even from TypeScript source.
+- New task/tool: add contracts id/catalog first, implement and register locally, update API/profile compatibility and portal choices as needed, and cover workflow/evidence or tool-result behavior. Keep task completion functions distinct from capability ids.
+- Model/metadata changes require matching contracts, API pack/DTO validation, worker parse/build, and portal settings checks. Keep hook null/empty semantics and native realtime exclusions intact.
+- From repo root: `npm run build:worker`; `npx jest --testPathPatterns=worker/src/test --no-coverage`. Specs mirror subsystem folders under `src/test`; mocks must not create cloud calls.
+- Dev: `npm run start:worker:dev`; prod: `npm run start:worker:prod` after build. Do not use `nest build worker` or `nest start worker`.
+- Production includes rSarvam sidecar](../stt-sarvam/AGENTS.md) via `start-with-stt.sh`. Local sidecar: `npm run start:stt-sarvam`. Read rRailway instructions](../../railway/AGENTS.md); worker health requires LiveKit registration, not an HTML page.
+
+## Detailed runtime
+
+### Job metadata shape (API → worker)
+
+Canonical TypeScript type: `AgentJobMetadata` in `@call-agent/contracts`. Inbound SIP dispatch omits `callId` (static at publish) and includes `organizationAgentId`.
+
+The rAPI metadata example](../api/docs/architecture.md#job-metadata-shape-api--worker) documents the wire fields. Use rAgentJobMetadata](../../packages/contracts/src/job-metadata.ts) for the authoritative type; do not duplicate it locally.
+
+Catalog examples below are explanatory snapshots; current supported ids/defaults come from rcontracts](../../packages/contracts/AGENTS.md). `model` is the **LLM / realtime** catalog id (`google/gemma-4-31b-it`, `openai/gpt-4.1-mini`, `openai/gpt-5.6-luna-fast`, `xai/grok-4.6`, `openai/gpt-realtime-2.1-mini`, `xai/grok-voice-think-fast-2.0`; `null` = Gemma via LiveKit Inference). **Luna Fast** is pipeline GPT-5.6 (`gpt-5.6-luna`) with OpenAI `service_tier=fast` and `reasoning.effort=none` (not speech-to-speech). Realtime ids run speech-to-speech (no STT/TTS; the realtime API owns VAD). `ttsModel` is the **speech** catalog id (`inworld/inworld-tts-2`, `fishaudio/s2.1-pro-free`, `openai/gpt-4o-mini-tts`, `xai/tts-1`, `sarvam/bulbul-v3`, `sarvam/bulbul-v3-realtime`; `null` = Inworld) and is ignored on realtime jobs. `sttModel` is the **STT** catalog id (`deepgram/nova-3`, `sarvam/saaras-v3`, `sarvam/saaras-v3-realtime`; `null` = Deepgram) and is ignored on realtime jobs. `speechLanguage` is a BCP-47 code for Sarvam STT/TTS (`hi-IN`, `en-IN`, `unknown`, …; `null` = worker default: Hindi persona → `hi-IN` for TTS **and STT**, else TTS `en-IN` / STT `unknown`; realtime STT maps remaining `unknown` → `auto`). Switching `ttsModel` (or a realtime `model`) changes the allowed `voice` set (catalogs in `@call-agent/contracts` `tts.ts` / `llm.ts` / `stt.ts`). OpenAI plugin models need `OPENAI_API_KEY` on the worker; xAI plugin models need `XAI_API_KEY`; Sarvam plugin models need `SARVAM_API_KEY`. Inworld + Fish + Deepgram stay on LiveKit Inference. `temperature` is **LLM** reply randomness (not used on native realtime). `speakingRate` maps to Inworld `speaking_rate`, Fish/OpenAI/Grok `speed`, or Sarvam `pace`; `deliveryMode` is Inworld-only. BYO OpenAI/xAI usage is billed by those providers and is **not** on the LiveKit list-price call snapshot. Sarvam STT/TTS (**Saaras v3**, **Saaras v3 realtime**, **Bulbul v3** REST and realtime) is on the snapshot: Sarvam’s INR list price (₹30/hour STT, ₹30/10k characters TTS) converted to USD at USDINR 95.82 (`price.catalog.ts`, catalog date 2026-09-22). LiveKit plan discounts do not apply to those lines.
+
+Outbound: `POST /api/admin/calls/outbound` (and user enqueue / dial / integration) accepts optional `task` (defaults to platform template `default_task_key` → `general` — **not** the org agent). Inbound SIP dispatch packs the org agent’s required `default_task_key`.
+Test: `POST /api/admin/calls/test` accepts optional `task` + `context`. Org web test for outbound also sends an explicit task (not stored on the agent).
+
+### LiveKit worker
+
+- Entry: `apps/worker/src/main.ts` → `cli.runApp` with `agentName` = `LIVEKIT_AGENT_NAME` (default `call-agent`) and `numIdleProcesses` from `LIVEKIT_NUM_IDLE_PROCESSES` (default `1`) to limit idle RAM on small hosts.
+- Job entry: `apps/worker/src/agent.ts` parses metadata → **inbound + `organizationAgentId` re-fetches live pack** → `new AgentRuntimeBuilder(meta).build()` (builders) → voice-only `AgentSession`.
+
+### Layout
+
+`builders/` constructs LiveKit objects from metadata (agent / model / prompt / voice / task / tool + realtime model wrappers). `speech/` is live-session talk (`tts-cache`, `demo-tool-filler`, `realtime-speech`, `hangup`). `session/` is job/room lifecycle (`job-metadata`, `sip-answer`, `shutdown-status`). `tasks/` is workflow (`workflow-task`, `inbound-service-tracks`, `demo-booking-tracks`, `demo-booking-crm`, `*.task.ts`). `tools/`, `callbacks/`, `sarvam/`, `common/` stay one concern each. Specs live under `src/test/<same-folder>/`.
+
+### Builders
+
+`prompt-builder` (persona + onEnter instructions + onExit spoken line; **skips `session.say` closings when `model` is realtime**; Hindi personas lock Devanagari opening/goodbye/**pipeline + realtime** spoken turns (one short sentence, no romanized Hinglish, never invent tools); realtime tasks get a turn-taking rule because the parent does not `generateReply` before `task.run()`), `model-builder` (pipeline STT/LLM/TTS **or** OpenAI/xAI `RealtimeModel`; OpenAI via `@livekit/agents-plugin-openai`, xAI LLM via `openai.LLM.withXAI`, xAI TTS/realtime via `@livekit/agents-plugin-xai` wrapped so AgentTask `agent_config_update` / `agent_handoff` items are stripped before `livekitItemToOpenAIItem`; Sarvam TTS via `@livekit/agents-plugin-sarvam` (`bulbul:v3`; **`sarvam/bulbul-v3`** pins **`streaming: false`** REST — WS openings have stalled on SIP; **`sarvam/bulbul-v3-realtime`** opts into native WS `stream()`; pre-start cache warm still uses REST (`streaming: false`) so pickup is not blocked on WS); Sarvam legacy STT via the same plugin (`saaras:v3`); Sarvam **realtime STT** (`saaras:v3-realtime`) uses LiveKit’s Python `sarvam.STTRealtime` via the loopback sidecar `apps/stt-sarvam` (`SARVAM_STT_PLUGIN_URL`, SIP VAD pins 250/200/0.7; Node emits EOS before FINAL when an interim exists so preemptive LLM can start, and still waits for FINAL on empty EOS); homemade Node adapter is the unset-URL fallback; the sidecar path sends `SARVAM_API_KEY` on loopback header `X-Sarvam-Api-Key`; needs `SARVAM_API_KEY`; **Grok Voice pins `server_vad` 700ms silence / `interrupt_response: false`** instead of the plugin 200ms default; Inworld + Fish + Gemma + Deepgram via LiveKit Inference), `voice-builder` (session; S2S realtime omits STT/TTS/turn-detector — do not enable Silero on Grok; Sarvam realtime STT uses the same cloud TurnDetector v1 + bundled Silero as Deepgram — STT is transcription only, server VAD still emits FINAL — pipeline endpointing **200 / 400ms** (not SDK streaming 300 / 2500) and `preemptiveTts: true` so Bulbul starts during the EOT wait; + `aecWarmupDuration: null` on SIP), `tool-builder` → `ToolRegistry`, `task-builder` → `TaskRegistry`, orchestrated by `agent-builder`.
+
+### Workflow / speech
+
+`tasks/workflow-task` wraps `AgentTask.create`: realtime **task `onEnter` `generateReply`s the opening** after handoff; inbound script may cache location → timing → BHK/budget via `session.say` + `StopResponse` on task `onUserTurnCompleted`; **outbound `demo_booking` pipeline** caches good-time yes → “when works” and busy/callback via the same hook (declined and real datetimes stay with the LLM); skip realtime, `finishWorkflowTask` goodbyes on the task then `complete()`.
+
+### Turn detection / memory
+
+Pipeline (Deepgram **and** Sarvam realtime STT) uses `inference.TurnDetector({ version: 'v1' })` (cloud) + bundled Silero. Endpointing is **200 / 400ms** (override SDK streaming 300 / 2500 so fragments do not sit 2.5s). `preemptiveTts: true` so TTS starts during that wait. Sarvam server VAD still endpointing transcripts (FINAL); it does **not** own turn taking (`turnDetection: 'stt'` is not used). Grok realtime uses pinned server VAD (700ms / no interrupt). Main skips registering local EOT (`lk_eot_audio`) so the shared InferenceProcExecutor (~138 MB) is not started. Bundled Silero VAD still auto-provisions in pipeline job processes.
+
+### Tasks
+
+LiveKit `voice.AgentTask` under `apps/worker/src/tasks/*` via `createWorkflowTask`. **Pipeline:** parent **onEnter** speaks opening (configurable), then `task.run()`. **Realtime (Grok Voice / GPT Realtime):** skip parent `generateReply` — `task.run()` replaces the parent and would discard in-flight audio (`waitForPlayout` returns before playout; logs `In-progress generation discarded due to provider abandonment`). The **task `onEnter` `generateReply`s** `buildOpeningInstructions` (`toolChoice: 'none'`) and `waitForRealtimeUtterance` — prompt-only FIRST TURN does not trigger speech. Opening wait is wall-clock **3.5s min** and returns `wait=min` when xAI never reports `speaking` (do not treat already-idle as playout done). `composeTaskInstructions` tells pipeline (and realtime) tasks not to re-greet after the opening, and adds a realtime turn rule (every spoken turn until `complete_*` must end with a question; Hindi personas stay in Devanagari). Task owns workflow + completion tools. Persona is copied into the task system prompt so company facts survive the handoff (`excludeInstructions: true` plus `excludeConfigUpdate` / `excludeHandoff` on copied history so it is not duplicated and realtime plugins do not throw `Unsupported item type: agent_config_update`). Also: never `complete_*` in the same turn as a question. Structured result in `userData.taskResult`. `userData.taskCompleted = true` only after `task.run()` **resolves** (not because `taskResult` is set). `loan_collection` / `personal_loan_outreach` / `real_estate_outreach` **evidence gates** reject `complete_*` on filler/empty last user turns (`Hello.`, `So.`, `A`); `WRONG_PERSON` / `ALREADY_PAID` need an explicit phrase; `PROMISED` still needs `promisedPayDate` + `delayReason` + `helpRequested` (do not complete/hangup on the help question); `WRONG_PERSON` does not inherit the context name. Unclear identity: retry the name question once, then assume the expected contact — do not complete WRONG_PERSON on noise. Hindi personas: ASR **han/haan → English "No."** is treated as yes (`HINDI_HAN_ASR_RULE`); WRONG_PERSON is blocked on a short No.
+
+### Tools
+
+hard-coded in `apps/worker/src/tools/*`; metadata only lists ids. Always includes hangup (`endCall` / `createEndCallTool`).
+
+### Hangup
+
+successful task completion auto-ends the session and deletes the LiveKit room (SIP drops). **Pipeline:** hang up immediately; parent **onExit** `session.say` plays the canned/custom goodbye. **Realtime:** `finishWorkflowTask` `generateReply`s the canned goodbye (`buildRealtimeClosingInstructions`, `toolChoice: 'none'`, never `allowInterruptions: false`) **on the task** before `complete()`, waits (`waitForRealtimeUtterance` — `min` 2.5s / timeout **3.5s**, do **not** trust `waitForPlayout` or xAI `agentState`; Hindi canned line when the persona is Hindi), then parent `hangUpCall`; parent does not `generateReply` goodbye (that ran on a wiped parent context and re-greeted). onExit stays silent (`session.say` does not play on native realtime). Mid-call hangup uses the `end_call` tool. Shared helper: `apps/worker/src/speech/hangup.ts`.
+
+- **Does not dial SIP** — API owns `CreateSIPParticipant`. For `medium=sip`, worker connects and `waitForParticipant` (SIP party joins while still ringing). **Outbound** then **`waitForSipAnswer`** until `sip.callStatus` is `active`/`automation` (or published audio) **before constructing models** (`buildAgentRuntime`) and before `session.start` / opening speech. Realtime S2S (Grok Voice / GPT Realtime) must not open a provider session while the INVITE is in flight. Hangup / disconnect / 60s timeout before answer POSTs `failed` + `no_answer` (retryable). Fire-and-forget CreateSIPParticipant (`waitUntilAnswered=false`, the queue path) must **not** send `ringingTimeout` / `SIPMediaConfig` — extra media fields on the INVITE are enough for Frejun to drop the call without logging it. `waitUntilAnswered=true` still sets **`ringingTimeout=60s`** and **`media.mediaTimeout=90s`**. **Do not auto-pin LiveKit `destinationCountry=in` on +91 dials.** Frejun allowlists US LiveKit SIP egress; India-origin INVITEs never appear in their CDR and come back `USER_UNAVAILABLE` (~30s) while still `dialing`. Set `destinationCountry` only when the provider requires it. Outbound Frejun trunks must use **SIP TCP** (`SIP_TRANSPORT_TCP`); `AUTO` falls through to UDP and Frejun never replies (`0 intermediate responses`, ~34s `USER_UNAVAILABLE`). Job shutdown never reports `completed` unless the callee answered. **Inbound** must **not** wait for `active` — LiveKit keeps inbound at `ringing` until the SIP caller subscribes to remote audio, which only happens after `session.start`. Waiting first deadlocks (caller hears ringing, agent never greets, hangup → `no_answer`). Inbound: ensure the `calls` row, skip `waitForSipAnswer` unless already `hangup`, then `session.start` immediately so LiveKit can 200 OK.
+
+### Inbound SIP tape
+
+dispatch-rule job metadata has no unique `callId`. Before building models, inbound jobs with `organizationAgentId` POST `POST /api/internal/organization-agents/:id/job-metadata` and merge the live persona/tools/voice (so a realtime Voice-tab save is used on the next ring without republish). When `direction=inbound`, `medium=sip`, and `callId` is missing, the worker then POSTs `POST /api/internal/calls/inbound` (upsert by room name + SIP attrs) after the SIP participant is present, then uses the returned id on the existing complete path. Calendar tools need that `userData.callId`.
+
+### Opening / goodbye
+
+**Pipeline:** parent `onEnter` via `buildOpeningInstructions` + `generateReply` (`allowInterruptions: false`, `toolChoice: 'none'` — Deepgram ghosts / callee hello must not chop TTS); **warm TTS cache before `session.start`** (`warmTtsBeforeStart` — standalone REST TTS during inbound ring / outbound wait-for-answer, **phrases in parallel**, overlapped with `buildAgentRuntime`; inbound script + **outbound `demo_booking` check/book fillers and keyword lines** + goodbye; skip S2S realtime, which has no pipeline TTS; **`sarvam/bulbul-v3-realtime` warms via REST** then plays cached frames). Outbound demo check/book tools play that cached filler **overlapped with the HTTP** (`withDemoToolFiller`); GHL lookup/upsert for that task is **background** (`startDemoCrmPrefetch` on enter; `scheduleGhlMeeting` awaits the promise). Do not construct the full runtime (STT / realtime) before outbound answer. Do not `synthesize` on the session Sarvam instance during the opening — that stalls the greeting. `composeTaskInstructions` tells the task not to re-greet; overlapping user audio is kept (`discardAudioIfUninterruptible: false`). Inbound pipeline: list/sell/buy/rent then location (sector 1–88) → timing → BHK/budget may play pre-synthesized `session.say({ audio })` + `StopResponse` (no Gemma/Bulbul on those turns). Timing treats Sarvam `हफ्ते`→`वास्ते` as this week; a miss plays a cached clarify line (not the original ask, not the LLM). `onExit` via `buildClosingSpeech` + `session.say` (verbatim canned or custom line; not a second LLM turn). **Realtime:** parent does not greet; task `onEnter` `generateReply`s the same opening; `complete_*` calls `finishWorkflowTask` (goodbye on the task) then hangup (`session.say` skipped). `createEndCallTool` uses `endInstructions: null` so hangup does not double-speak.
+
+- On shutdown, POSTs transcript + usage + **taskResult** + **`taskCompleted`** to `POST /api/internal/calls/:id/complete` when `API_BASE_URL` + `WORKER_CALLBACK_SECRET` are set. Each attempt has an `AbortSignal` timeout (default 8s) and retries up to 5 times on **408 / 429 / 5xx / network / abort** (exponential backoff). **Never throws** after exhaustion so `failedEarly` still reaches `ctx.shutdown`. Duplicate POSTs are idempotent (terminal rows fill missing transcript/usage/cost). Late complete on `pending` / `creating` is ignored so a sweeper requeue is not clobbered. Unanswered SIP → `status=failed` `failureCode=no_answer`. Answered session + `taskCompleted=true` → API `completed`. Answered session without `taskCompleted` (or omitted, conservative) → API `incomplete`. Do **not** invent `answeredAt` on the API when the worker omitted it. `DECLINED` / `NOT_BOOKED` after `complete_*` stay `completed` (workflow finished). `incomplete` is not retried by the dialer. Stale sweeper remains the last-resort safety net if every attempt fails.
+
+### Development and production entrypoints
+
+  - **Dev:** `npm run start:worker:dev` → `tsx apps/worker/src/main.ts dev` (real TS entry for LiveKit job forks).
+  - **Prod:** `npm run build:worker` (`tsc` ESM emit + `dist/apps/worker/package.json` type module) then `npm run start:worker:prod` → `node dist/apps/worker/main.js start`. Docker/Railway use `Dockerfile.worker` + `/app/start-with-stt.sh` (Python `STTRealtime` sidecar on loopback, then Node). Local realtime STT without the sidecar: omit `SARVAM_STT_PLUGIN_URL` (homemade adapter) or `npm run start:stt-sarvam`.
+  - **Do not** use Nest (`nest build worker` / `nest start worker`) — the worker is not a Nest project.
+- One LiveKit dispatch name serves both directions; persona + task come from job metadata.
+
+## Shutdown wire response
+
+rCompleteCallPayload](../../packages/contracts/src/worker-callback.ts) is the worker-to-API response contract, independent of the dispatch metadata. Session status is completed/failed; taskCompleted tells API whether an answered session maps to completed or incomplete. Payload may include errorMessage/failureCode, answeredAt/endedAt, transcript, usage, sessionReport, taskResult and sanitized toolEvents. Do not turn taskResult existence into taskCompleted or fabricate answeredAt.
+
+rworker-api-client](src/callbacks/worker-api-client.ts) implements timeout/retry; rcall-callbacks](src/callbacks/call-callbacks.ts) implements complete/inbound/live-metadata requests. API uses authenticated internal routes, idempotent terminal completion, and pending/creating late-callback fencing. Runtime objects and speech caches remain job-local; durable call records and recovery belong to API.
+
+## Runtime regression scenarios
+
+These original scenarios are retained for change review; suite presence does not prove current passing coverage.
+
+SIP answer wait + unanswered shutdown (`sip-answer` polls `sip.callStatus` + logs disconnect reason, `shutdown-status` including `taskCompleted`); job entry `runAgentJob` (web skips SIP wait, **outbound** waits for SIP answer, **inbound ringing skips `waitForSipAnswer` then `session.start`**, unanswered `failedEarly` skips shutdown complete, 30-job sequential feed with timeout instead of real dial/session, **inbound live job-metadata refresh then ensure then complete**); `buildClosingSpeech` (silent/custom/default; **realtime skips `session.say`**); **realtime task `onEnter` `generateReply` opening + `waitForRealtimeUtterance` goodbye on the task** (parent does not greet or goodbye; hangup after `min`/`idle`/`timeout`); **TTS warm before session.start** (`warmTtsBeforeStart` during inbound ring / outbound wait-for-answer, **parallel REST phrases overlapped with runtime build**; skip S2S realtime; **`sarvam/bulbul-v3-realtime` warms via REST**); **inbound service-track TTS cache** (classify list/sell/buy/rent then location/timing/BHK, cached `session.say` + `StopResponse`; timing `हफ्ते`→`वास्ते` + cached timing clarify); **outbound `demo_booking` keyword cache + tool-call fillers + background CRM prefetch**; **`composeTaskInstructions` copies persona + do-not-re-greet + realtime turn rule**; realtime chat-ctx strip of `agent_config_update` / `agent_handoff` (OpenAI/xAI `livekitItemToOpenAIItem` throws otherwise); `interview_booking` identity-then-congratulate-then-book instructions (tool-agnostic); `personal_loan_outreach` present-offer-then-ask-interest instructions; `real_estate_outreach` present-location-and-budget-then-ask-interest instructions; `real_estate_visit_confirmation` present-location-and-time-then-ask-attendance instructions + CONFIRMED / NOT_COMING blocked on filler; `loan_collection` identity-then-due-notice-then-promise-to-pay instructions + PROMISED / WRONG_PERSON / ALREADY_PAID evidence gates (filler `Hello.` blocked; WRONG_PERSON does not inherit context name); `personal_loan_outreach` / `real_estate_outreach` INTERESTED blocked on filler; Grok realtime VAD 700ms / no interrupt; `waitForRealtimeUtterance` `min` vs idle vs timeout; Hindi Devanagari opening/goodbye lock; `user-turn` classifier; job metadata `speakingRate`/`deliveryMode`/`ttsModel`/`sttModel`/`speechLanguage`/`model`; TTS/LLM/STT option helpers + OpenAI/xAI/Sarvam plugin constructors (missing key throws; Bulbul REST `streaming: false` vs `sarvam/bulbul-v3-realtime` WS); Sarvam realtime Python sidecar client (EOS-before-FINAL when interim exists, empty-EOS fallback, SIP VAD 250/200/0.7, URL vs homemade fallback, API key on `X-Sarvam-Api-Key`) + pipeline TurnDetector v1 (not STT turn detection) + endpointing 200/400 + `preemptiveTts` + SIP `aecWarmupDuration` null; Hindi persona STT `hi-IN` (not `unknown`→`auto`); **complete callback timeout + retry** (`callbacks/worker-api-client`) + **inbound ensure** + **inbound job-metadata** (`callbacks/call-callbacks`). Remaining: other prompt/tool/task builders, hangup helpers — no LiveKit cloud in unit tests
+
+## Local runtime environment
+
+Names/defaults below are documented configuration, never real credential values. Commands run from the monorepo root. Deployment selection and secret references belong to Railway AGENTS.md.
+
+| Variable | Used by | Behavior/default |
+| --- | --- | --- |
+| `LIVEKIT_URL` | API + worker | `wss://…livekit.cloud` |
+| `LIVEKIT_API_KEY` | API + worker | Project API key |
+| `LIVEKIT_API_SECRET` | API + worker | Project API secret |
+| `LIVEKIT_AGENT_NAME` | API + worker | Explicit dispatch name (default `call-agent`) |
+| `LIVEKIT_NUM_IDLE_PROCESSES` | worker | Pre-warmed job child processes (default `1` in code; min effective `1` — SDK treats `0` as unset and would restore multi-process default). Main RAM lever after cloud turn-detect + compiled `node` prod start. |
+| `OPENAI_API_KEY` | worker | Optional. Required when an agent uses OpenAI plugin models (pipeline LLM, `openai/gpt-4o-mini-tts`, or `openai/gpt-realtime-2.1*`). Never in LiveKit metadata or Vite. Missing key **fails** those jobs (no silent Gemma/Inworld fallback). |
+| `XAI_API_KEY` | worker | Optional. Required when an agent uses xAI plugin models (Grok LLM, `xai/tts-1`, or `xai/grok-voice-think-fast-2.0`). Never in LiveKit metadata or Vite. Missing key **fails** those jobs. |
+| `SARVAM_API_KEY` | worker | Optional. Required when an agent uses Sarvam plugin models (`sarvam/saaras-v3` or `sarvam/saaras-v3-realtime` STT, `sarvam/bulbul-v3` or `sarvam/bulbul-v3-realtime` TTS). Realtime STT needs a Sarvam plan with realtime streaming. Never in LiveKit metadata or Vite. Missing key **fails** those jobs. |
+| `SARVAM_STT_PLUGIN_URL` | worker | Loopback Python `sarvam.STTRealtime` sidecar (`ws://127.0.0.1:8091/stt`). Production image sets this and starts `apps/stt-sarvam`. Node sends the trimmed `SARVAM_API_KEY` on loopback header `X-Sarvam-Api-Key` (not the URL); the sidecar passes that into `sarvam.STTRealtime` and falls back to its own env. Unset = homemade Node adapter (local `tsx`). |
+| `API_BASE_URL` | worker + API | Worker → API origin (may be `http://api.railway.internal:3000` in production). Local default `http://localhost:3000`. |
+| `COMPLETE_CALLBACK_TIMEOUT_MS` | worker | Per-attempt timeout for the complete POST (default `8000`). Prevents hung `fetch` from pinning the job process. |
+| `COMPLETE_CALLBACK_MAX_ATTEMPTS` | worker | Complete POST attempts (default `5`). Retries 408/429/5xx, network, and abort. Never throws after exhaustion. |
+| `COMPLETE_CALLBACK_BACKOFF_MS` | worker | Base backoff between complete retries (default `500`, exponential cap 4s, ~20% jitter). |
+
+## Dispatch metadata example
+
+Canonical TypeScript type: `AgentJobMetadata` in `@call-agent/contracts`. Inbound SIP dispatch omits `callId` (static at publish) and includes `organizationAgentId`.
+
+```json
+{
+  "callId": "...",
+  "organizationId": "...",
+  "organizationAgentId": "...",
+  "agentKey": "outbound",
+  "direction": "outbound",
+  "medium": "sip",
+  "task": "demo_booking",
+  "prompt": {
+    "systemPrompt": "...",
+    "onEnterInstructions": null,
+    "onExitInstructions": null
+  },
+  "enabledTools": r"endCall", "confirmAppointment", "lookupCustomer"],
+  "context": { "firstName": "Ada", "email": "ada@example.com", "company": "Acme" },
+  "participantIdentity": "+91...",
+  "voice": null,
+  "model": null,
+  "ttsModel": null,
+  "sttModel": null,
+  "speechLanguage": null,
+  "temperature": null,
+  "speakingRate": null,
+  "deliveryMode": null
+}
+```
+
+Model, speech language, voice and delivery semantics are defined in rcontracts catalogs](../../packages/contracts/AGENTS.md) and the rvoice runtime reference](../worker/docs/runtime.md). API packers resolve template fallbacks and validate catalog compatibility; credentials never enter metadata. Price catalog remains API-owned.
+
+Outbound: `POST /api/admin/calls/outbound` (and user enqueue / dial / integration) accepts optional `task` (defaults to platform template `default_task_key` → `general` — **not** the org agent). Inbound SIP dispatch packs the org agent’s required `default_task_key`.
+Test: `POST /api/admin/calls/test` accepts optional `task` + `context`. Org web test for outbound also sends an explicit task (not stored on the agent).
+
+## Task/tool addition procedure
+
+1. Add the stable task key or camelCase capability id and exports to contracts; rebuild it first.
+2. Implement through createWorkflowTask and TaskRegistry, or tools and ToolRegistry. Keep objective/result/evidence/completion separate from capability execution.
+3. Define required context and evidence gates; preserve pipeline/realtime opening/goodbye and copy persona through composeTaskInstructions.
+4. Update API validation/metadata, allowlists/profiles and portal choices. A task cannot grant unassigned tools.
+5. Test required fields, refusal/noise, interruption/failure, repeat/completion and contract alignment with mocked sessions/providers.
+6. Build affected consumers and deploy the appropriate services only. Packers/parsers/callbacks must remain compatible.
+
+WORKER_CALLBACK_SECRET is required on both sides. API_BASE_URL is an origin without /api. CompleteCallPayload carries status, errorMessage/failureCode, answeredAt/endedAt, transcript, usage/sessionReport, taskResult/taskCompleted, and sanitized toolEvents. See the rfull callback definition](../../packages/contracts/AGENTS.md#worker-callbackts). Failed/no_answer cannot invent answeredAt. Completed session plus false/omitted taskCompleted maps to incomplete after answer.
+
+Callback defaults: 8000ms per-attempt timeout, five attempts, 500ms exponential base capped at 4s with jitter. Exhaustion never throws past shutdown.
