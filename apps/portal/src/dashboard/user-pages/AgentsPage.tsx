@@ -1,3 +1,5 @@
+import { VoiceTaskSelect } from "../components/VoiceTaskSelect";
+import { savedTaskSelection, defaultTaskSelection } from "../../lib/voice-tasks";
 import { useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Alert, Button, Field, Input, Select } from "@call-agent/ui";
@@ -7,7 +9,6 @@ import {
   listUserAgentTemplates,
   listUserAgents,
   listUserToolProfiles,
-  TASK_KEYS,
   type Agent,
   type ToolProfile,
   UnauthorizedError,
@@ -106,7 +107,7 @@ export default function UserAgentsPage() {
     if (template) {
       setDir(template.direction);
       setName((prev) => (prev.trim() ? prev : template.name));
-      setDefaultTaskKey(template.defaultTaskKey || "general");
+      setDefaultTaskKey(savedTaskSelection(template));
     }
   };
 
@@ -128,10 +129,6 @@ export default function UserAgentsPage() {
       return;
     }
     const template = data?.templates.find((t) => t.id === agentId);
-    if (template?.direction === "inbound" && !defaultTaskKey.trim()) {
-      setFormError("Inbound agents require a default task.");
-      return;
-    }
     setSubmitting(true);
     try {
       const created = await createUserAgent({
@@ -139,9 +136,7 @@ export default function UserAgentsPage() {
         name: name.trim() || undefined,
         slug: slug.trim() || undefined,
         toolProfileId: toolProfileId || undefined,
-        ...(template?.direction === "inbound"
-          ? { defaultTaskKey }
-          : {}),
+        ...defaultTaskSelection(defaultTaskKey, template?.direction || "outbound"),
       });
       setName("");
       setSlug("");
@@ -291,25 +286,14 @@ export default function UserAgentsPage() {
                 placeholder="booking-confirmations"
               />
             </Field>
-            {selectedTemplate?.direction === "inbound" ? (
+            {selectedTemplate ? (
               <Field
                 label="Default task"
                 htmlFor="ua-create-task"
                 required
                 hint="Workflow for inbound ring. Outbound sets this per call."
               >
-                <Select
-                  id="ua-create-task"
-                  value={defaultTaskKey}
-                  onChange={(e) => setDefaultTaskKey(e.target.value)}
-                  disabled={submitting}
-                >
-                  {TASK_KEYS.map((k) => (
-                    <option key={k} value={k}>
-                      {k}
-                    </option>
-                  ))}
-                </Select>
+                <VoiceTaskSelect value={defaultTaskKey} onChange={(e) => setDefaultTaskKey(e.target.value)} disabled={submitting} direction={selectedTemplate?.direction} legacy={selectedTemplate?.direction === "inbound"} emptyLabel="Platform default" />
               </Field>
             ) : null}
             <Field label="Tool profile" htmlFor="ua-create-tp">

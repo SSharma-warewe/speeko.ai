@@ -30,6 +30,7 @@ export function newCallRow(
     toNumber: null,
     context: null,
     taskKey: null,
+    voiceTaskSnapshot: null,
     taskResult: null,
     transcript: null,
     usage: null,

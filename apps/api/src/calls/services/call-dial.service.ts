@@ -1,3 +1,4 @@
+import { VoiceTasksService } from '../../voice-tasks/voice-tasks.service';
 import {
   BadRequestException,
   forwardRef,
@@ -57,6 +58,7 @@ export class CallDialService {
     @Inject(forwardRef(() => QueueRetryService))
     private readonly queueRetryService: QueueRetryService,
     private readonly callFailure: CallFailureService,
+    private readonly voiceTasks?: VoiceTasksService,
   ) {}
 
   /**
@@ -91,6 +93,10 @@ export class CallDialService {
       orgAgent,
       template,
     );
+    const voiceTaskSnapshot = await this.voiceTasks?.resolve(organizationId, dto, orgAgent, template) ?? null;
+    const configuredContexts = voiceTaskSnapshot
+      ? await Promise.all(dto.calls.map(async item => (await this.organizationAgentsService.prepareVoiceTask(orgAgent, voiceTaskSnapshot, await this.toolProfilesService.resolveEnabledToolIds(orgAgent.toolProfileId ?? template.defaultToolProfileId, organizationId), item.context)).context))
+      : dto.calls.map(item => item.context);
     const { trunk, fromNumber } = await this.resolveOutboundFrom(
       organizationId,
       dto.sipTrunkId,
@@ -110,7 +116,7 @@ export class CallDialService {
       organizationId,
       organizationAgentId: orgAgent.id,
       sipTrunkId: trunk.id,
-      taskKey,
+      taskKey: voiceTaskSnapshot ? `custom_${voiceTaskSnapshot.taskId}` : taskKey,
       maxAttempts,
       maxConcurrent: dto.maxConcurrent ?? null,
       priority,
@@ -141,8 +147,9 @@ export class CallDialService {
             participantIdentity: toNumber,
             fromNumber,
             toNumber,
-            context: item.context ?? null,
-            taskKey,
+            context: configuredContexts[i] ?? null,
+            voiceTaskSnapshot,
+            taskKey: voiceTaskSnapshot ? `custom_${voiceTaskSnapshot.taskId}` : taskKey,
             maxAttempts,
             nextAttemptAt: now,
             batchId,
@@ -191,6 +198,8 @@ export class CallDialService {
       dto.organizationId,
     );
 
+    const voiceTaskSnapshot = await this.voiceTasks?.resolve(dto.organizationId, dto, orgAgent, template) ?? null;
+    const prepared = voiceTaskSnapshot ? await this.organizationAgentsService.prepareVoiceTask(orgAgent, voiceTaskSnapshot, enabledTools, dto.context) : { context: dto.context, enabledTools };
     const toNumber = resolveToNumber(dto, this.defaultCountryCode());
     const { trunk, fromNumber } = await this.resolveOutboundFrom(
       dto.organizationId,
@@ -220,8 +229,9 @@ export class CallDialService {
         participantIdentity,
         fromNumber,
         toNumber,
-        context: dto.context ?? null,
-        taskKey,
+        context: prepared.context ?? null,
+        voiceTaskSnapshot,
+        taskKey: voiceTaskSnapshot ? `custom_${voiceTaskSnapshot.taskId}` : taskKey,
         attemptCount: 1,
         dialStartedAt: new Date(),
       }),
@@ -239,7 +249,7 @@ export class CallDialService {
         fromNumber,
         toNumber,
         participantIdentity,
-        context: dto.context,
+        context: prepared.context,
         shouldWait,
         roomName,
       });
@@ -373,13 +383,15 @@ export class CallDialService {
       roomName,
     } = input;
 
+    const prepared = call.voiceTaskSnapshot ? await this.organizationAgentsService.prepareVoiceTask(orgAgent, call.voiceTaskSnapshot, enabledTools, context) : { context, enabledTools };
     const metadata = packOrgAgentJobMetadata(orgAgent, {
+      voiceTask: call.voiceTaskSnapshot,
       task: taskKey,
-      enabledTools,
+      enabledTools: prepared.enabledTools,
       direction: AgentDirection.OUTBOUND,
       medium: CallMedium.SIP,
       callId: call.id,
-      context,
+      context: prepared.context,
       participantIdentity,
     });
 

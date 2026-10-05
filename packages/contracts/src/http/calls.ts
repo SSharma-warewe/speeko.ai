@@ -27,6 +27,7 @@ export type CallRecord = {
   fromNumber: string | null;
   toNumber: string | null;
   context?: Record<string, unknown> | null;
+  voiceTaskSnapshot?: import('../voice-tasks.js').VoiceTaskSnapshot | null;
   taskKey: string | null;
   taskResult: Record<string, unknown> | null;
   taskStatus?: CallTaskStatus;
@@ -66,6 +67,7 @@ export type EnqueueCallItem = {
 export type EnqueueCallsRequest = {
   organizationAgentId: string;
   calls: EnqueueCallItem[];
+  voiceTaskId?: string | null;
   task?: string;
   sipTrunkId?: string;
   maxAttempts?: number;
@@ -82,6 +84,7 @@ export type EnqueueCallsResponse = {
 export type CreateUserOutboundCallRequest = {
   organizationAgentId: string;
   context: Record<string, unknown>;
+  voiceTaskId?: string | null;
   task?: string;
   toNumber?: string;
   sipTrunkId?: string;
@@ -90,6 +93,7 @@ export type CreateUserOutboundCallRequest = {
 
 export type CreateUserTestCallRequest = {
   organizationAgentId: string;
+  voiceTaskId?: string | null;
   task?: string;
   context?: Record<string, unknown>;
 };

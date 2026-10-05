@@ -1,3 +1,4 @@
+import { VoiceTasksModule } from '../voice-tasks/voice-tasks.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AgentsModule } from '../agents/agents.module';
@@ -12,6 +13,7 @@ import { UserIntegrationEndpointsController } from './user-integration-endpoints
 
 @Module({
   imports: [
+    VoiceTasksModule,
     TypeOrmModule.forFeature([IntegrationEndpoint]),
     OrganizationsModule,
     AgentsModule,

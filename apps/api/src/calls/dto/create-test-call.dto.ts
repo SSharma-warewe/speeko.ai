@@ -1,3 +1,4 @@
+import { IsOptional as VoiceTaskOptional, IsUUID as VoiceTaskUuid } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsObject,
@@ -9,6 +10,10 @@ import {
 } from 'class-validator';
 
 export class CreateTestCallDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Published configurable voice task.' })
+  @VoiceTaskOptional() @VoiceTaskUuid()
+  voiceTaskId?: string | null;
+
   @ApiPropertyOptional({
     example: 'inbound',
     description: 'Platform agent key (e.g. inbound, outbound). Required if agentId is omitted.',

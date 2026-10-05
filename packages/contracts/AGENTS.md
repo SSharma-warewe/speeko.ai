@@ -283,3 +283,11 @@ export type WhatsAppTaskRuntime = {
   result: Record<string, unknown> | null;
 };
 ```
+
+## Configurable voice-task contracts
+
+voice-tasks.ts exports VoiceTaskDefinition, VoiceTaskSnapshot (schemaVersion:1; published version>=1 or version:0 with draftRevision), VoiceTaskRecord, immutable VoiceTaskVersion history, create/update/test requests, validation and prompt compilation. voice-task-starters.ts exports the seven declarative platform starter definitions while KNOWN_TASK_KEYS continues to identify the seven legacy code factories.
+
+Definitions contain objective, directions, ordered phases, typed input/result fields, outcomes with required result references, selected KnownToolIds and VOICE_TASK_CHECKS. Supported checks are usable_answer, personal_loan_interest, property_interest, visit_attendance, loan_collection and booking_receipt. Validators reject executable extensions, unknown field/tool/check references, duplicate/reserved keys, invalid enum/default values and incompatible workflow checks. Tools remain deployed code; configuration cannot upload tool schemas, expressions or credentials.
+
+AgentJobMetadata.voiceTask carries the exact snapshot. Agent HTTP responses/assignment/PATCH expose defaultVoiceTaskId for both directions; call/test/batch and endpoint configuration expose voiceTaskId. CallRecord.voiceTaskSnapshot keeps historical definitions. InboundEnsurePayload.voiceTask carries only {taskId,version} so API persists the exact version selected during live refresh. Selectors voiceTaskId and legacy task are mutually exclusive. Legacy outbound defaultTaskKey remains null; configured outbound defaults use defaultVoiceTaskId.

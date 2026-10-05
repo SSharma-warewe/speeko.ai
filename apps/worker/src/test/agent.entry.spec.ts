@@ -238,7 +238,7 @@ describe('runAgentJob', () => {
     warmTtsBeforeStartMock.mockReset().mockResolvedValue(undefined);
     postCallCompleteMock.mockResolvedValue(undefined);
     postInboundEnsureMock.mockResolvedValue(undefined);
-    postInboundJobMetadataMock.mockResolvedValue(undefined);
+    postInboundJobMetadataMock.mockImplementation(async (request) => metadata({ callId: undefined, organizationAgentId: request.organizationAgentId, organizationId: request.organizationId, direction: "inbound", agentKey: "inbound" }));
   });
 
   afterEach(() => {
@@ -803,6 +803,13 @@ describe('runAgentJob', () => {
         posts.filter((p) => p.callId !== 'call-05').every((p) => p.payload.status === 'completed'),
       ).toBe(true);
     });
+  });
+
+  it('fails explicitly when inbound live metadata cannot be refreshed', async () => {
+    postInboundJobMetadataMock.mockResolvedValue(undefined);
+    const ctx = makeCtx(metadata({ organizationAgentId: 'oa-1', direction: 'inbound' }));
+    await expect(runJob(ctx)).rejects.toThrow(/refresh failed/);
+    expect(buildAgentRuntimeMock).not.toHaveBeenCalled();
   });
 
   describe('9. Inbound SIP ensure', () => {

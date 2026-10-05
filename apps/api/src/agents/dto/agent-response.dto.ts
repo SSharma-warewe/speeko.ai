@@ -24,6 +24,8 @@ export class AgentPromptDto {
 }
 
 export class AgentResponseDto {
+  @ApiPropertyOptional({ nullable: true, format: 'uuid' })
+  defaultVoiceTaskId?: string | null;
   @ApiProperty({ format: 'uuid' })
   id!: string;
 

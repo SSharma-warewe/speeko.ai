@@ -1,3 +1,5 @@
+import { Type } from 'class-transformer';
+import { IsInt, Min, ValidateNested } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsObject,
@@ -8,7 +10,11 @@ import {
 } from 'class-validator';
 
 /** Worker job start: upsert a `calls` row for an inbound SIP ring. */
+class InboundVoiceTaskDto { @IsUUID() taskId!: string; @IsInt() @Min(1) version!: number; }
 export class EnsureInboundCallDto {
+  @ApiPropertyOptional({ type: InboundVoiceTaskDto })
+  @IsOptional() @ValidateNested() @Type(() => InboundVoiceTaskDto)
+  voiceTask?: InboundVoiceTaskDto;
   @ApiProperty({
     example: 'call-+15551212_AbCd',
     description: 'LiveKit room name (unique upsert key)',

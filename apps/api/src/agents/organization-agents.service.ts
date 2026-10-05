@@ -1,3 +1,5 @@
+import { VoiceTasksService } from '../voice-tasks/voice-tasks.service';
+import type { VoiceTaskSnapshot } from '@call-agent/contracts';
 import {
   BadRequestException,
   ConflictException,
@@ -47,6 +49,7 @@ export class OrganizationAgentsService {
      */
     @InjectRepository(OrganizationIntegration)
     private readonly organizationIntegrationRepo: Repository<OrganizationIntegration>,
+    private readonly voiceTasks?: VoiceTasksService,
   ) {}
 
   private async loadWithTemplate(
@@ -153,6 +156,7 @@ export class OrganizationAgentsService {
       organizationAgentId,
     );
     const template = orgAgent.agent;
+    if (!orgAgent.isActive || !template?.isActive) throw new BadRequestException('Inbound agent is inactive');
     const preferred = orgAgentDefaultTaskKey(orgAgent, template);
     const taskKey =
       preferred && isKnownTaskKey(preferred)
@@ -164,9 +168,13 @@ export class OrganizationAgentsService {
       orgAgent.toolProfileId,
       organizationId,
     );
+    const voiceTask = await this.voiceTasks?.resolve(organizationId, {}, orgAgent, template);
+    const prepared = voiceTask ? await this.prepareVoiceTask(orgAgent, voiceTask, enabledTools) : { enabledTools, context: undefined };
     return packOrgAgentJobMetadata(orgAgent, {
+      voiceTask,
+      context: prepared.context,
       task: taskKey,
-      enabledTools,
+      enabledTools: prepared.enabledTools,
       direction: AgentDirection.INBOUND,
       medium: CallMedium.SIP,
     });
@@ -177,6 +185,7 @@ export class OrganizationAgentsService {
    * Multiple configs may share the same template (inbound/outbound).
    */
   async assign(organizationId: string, dto: AssignAgentDto) {
+    if (dto.defaultVoiceTaskId && dto.defaultTaskKey) throw new BadRequestException('Choose one default task selector');
     await this.organizationsService.findById(organizationId);
     const template = await this.agentsService.findById(dto.agentId);
 
@@ -217,6 +226,7 @@ export class OrganizationAgentsService {
       onExitInstructions: template.onExitInstructions ?? null,
       toolProfileId,
       calendarIntegrationId,
+      defaultVoiceTaskId: dto.defaultTaskKey ? null : dto.defaultVoiceTaskId === undefined ? template.defaultVoiceTaskId ?? null : dto.defaultVoiceTaskId,
       defaultTaskKey: storedDefaultTaskKey(
         template.direction,
         dto.defaultTaskKey,
@@ -232,6 +242,7 @@ export class OrganizationAgentsService {
       deliveryMode: template.deliveryMode,
       isActive: true,
     });
+    await this.validateDefaultTask(row, template);
     const saved = await this.organizationAgentsRepository.save(row);
     const withTemplate = await this.loadWithTemplate(organizationId, saved.id);
     return this.toResponse(withTemplate);
@@ -262,6 +273,7 @@ export class OrganizationAgentsService {
       onExitInstructions: source.onExitInstructions,
       toolProfileId: source.toolProfileId,
       calendarIntegrationId: source.calendarIntegrationId,
+      defaultVoiceTaskId: source.defaultVoiceTaskId ?? null,
       defaultTaskKey: storedDefaultTaskKey(
         source.agent?.direction ?? AgentDirection.INBOUND,
         isOutboundTemplate(source.agent) ? undefined : source.defaultTaskKey,
@@ -326,6 +338,9 @@ export class OrganizationAgentsService {
         row.calendarIntegrationId = dto.calendarIntegrationId;
       }
     }
+    if (dto.defaultVoiceTaskId && dto.defaultTaskKey) throw new BadRequestException('Choose defaultTaskKey or defaultVoiceTaskId, not both');
+    if (dto.defaultVoiceTaskId !== undefined) row.defaultVoiceTaskId = dto.defaultVoiceTaskId;
+    if (dto.defaultTaskKey !== undefined) row.defaultVoiceTaskId = null;
     const direction = row.agent?.direction;
     if (direction === AgentDirection.OUTBOUND) {
       if (dto.defaultTaskKey !== undefined) {
@@ -344,6 +359,7 @@ export class OrganizationAgentsService {
       row.isActive = dto.isActive;
     }
 
+    await this.validateDefaultTask(row, row.agent);
     await this.organizationAgentsRepository.save(row);
     const reloaded = await this.loadWithTemplate(organizationId, id);
     return this.toResponse(reloaded);
@@ -366,6 +382,19 @@ export class OrganizationAgentsService {
       }
       throw err;
     }
+  }
+
+  async prepareVoiceTask(row: OrganizationAgent, snapshot: VoiceTaskSnapshot, tools: string[], context: Record<string, unknown> = {}, validateContext = true) {
+    const calendar = row.calendarIntegrationId ? await this.organizationIntegrationRepo.findOne({ where: { id: row.calendarIntegrationId, organizationId: row.organizationId, isActive: true } }) : null;
+    return this.voiceTasks!.prepare(snapshot, row.agent.direction, tools, context, calendar?.provider, validateContext);
+  }
+  private async validateDefaultTask(row: OrganizationAgent, template: { defaultVoiceTaskId?: string | null }) {
+    const id = row.defaultVoiceTaskId ?? (row.defaultTaskKey ? null : template?.defaultVoiceTaskId);
+    if (!id) return;
+    const snapshot = await this.voiceTasks!.snapshot(row.organizationId, id);
+    const tools = await this.toolProfilesService.resolveEnabledToolIds(row.toolProfileId, row.organizationId);
+    // Context requirements are checked per call; assignment checks capabilities/calendar only.
+    await this.prepareVoiceTask({ ...row, agent: row.agent ?? template } as OrganizationAgent, snapshot, tools, {}, false);
   }
 
   private async assertCalendarIntegration(

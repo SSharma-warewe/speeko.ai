@@ -44,6 +44,7 @@ export type InboundJobMetadataRequest = {
 
 /** Worker → API POST /api/internal/calls/inbound (upsert by room name). */
 export type InboundEnsurePayload = {
+  voiceTask?: { taskId: string; version: number };
   roomName: string;
   organizationId?: string;
   organizationAgentId?: string;

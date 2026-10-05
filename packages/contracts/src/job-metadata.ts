@@ -33,6 +33,7 @@ export type AgentJobMetadata = {
   medium?: CallMedium;
   /** LiveKit TaskRegistry key. */
   task: string;
+  voiceTask?: import('./voice-tasks.js').VoiceTaskSnapshot | null;
   prompt: AgentJobPrompt;
   /** Worker ToolRegistry ids. */
   enabledTools: string[];

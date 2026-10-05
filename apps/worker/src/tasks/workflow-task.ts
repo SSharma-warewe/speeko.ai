@@ -69,7 +69,7 @@ export function createWorkflowTask<ResultT>(
       });
     },
     async onUserTurnCompleted(ctx, chatCtx, newMessage) {
-      if (realtime) {
+      if (realtime || meta.voiceTask) {
         return;
       }
       await runInboundScriptHook({
@@ -259,7 +259,7 @@ export async function handleInboundServiceTrackTurn(options: {
   userData: SessionUserData;
   userText: string;
 }): Promise<void> {
-  if (isRealtimeLlmModel(options.meta.model)) {
+  if (options.meta.voiceTask || isRealtimeLlmModel(options.meta.model)) {
     return;
   }
   if (options.meta.direction !== 'inbound') {

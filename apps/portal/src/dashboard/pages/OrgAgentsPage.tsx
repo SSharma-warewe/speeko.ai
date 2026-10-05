@@ -1,3 +1,5 @@
+import { VoiceTaskSelect } from "../components/VoiceTaskSelect";
+import { savedTaskSelection, defaultTaskSelection } from "../../lib/voice-tasks";
 import { useState, type CSSProperties, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Alert, Button, Field, Input } from "@call-agent/ui";
@@ -7,7 +9,6 @@ import {
   listAgentTemplates,
   listOrgAgents,
   listOrgToolProfiles,
-  TASK_KEYS,
   type Agent,
   type ToolProfile,
   UnauthorizedError,
@@ -85,7 +86,7 @@ export default function OrgAgentsPage() {
     }
     const template = templates.find((t) => t.id === nextAgentId);
     setToolProfileId(defaultProfileId(template, profiles));
-    setDefaultTaskKey(template?.defaultTaskKey || "general");
+    setDefaultTaskKey(template ? savedTaskSelection(template) : "");
     if (template && !name.trim()) {
       setName(template.name);
     }
@@ -99,10 +100,6 @@ export default function OrgAgentsPage() {
       return;
     }
     const template = data?.templates.find((t) => t.id === agentId);
-    if (template?.direction === "inbound" && !defaultTaskKey.trim()) {
-      setFormError("Inbound agents require a default task.");
-      return;
-    }
     const profiles = data?.profiles ?? [];
     const resolvedProfileId =
       (toolProfileId && profiles.some((p) => p.id === toolProfileId)
@@ -116,7 +113,7 @@ export default function OrgAgentsPage() {
         name: name.trim() || undefined,
         slug: slug.trim() || undefined,
         toolProfileId: resolvedProfileId,
-        ...(template?.direction === "inbound" ? { defaultTaskKey } : {}),
+        ...defaultTaskSelection(defaultTaskKey, template?.direction || "outbound"),
       });
       setAgentId("");
       setName("");
@@ -243,26 +240,14 @@ export default function OrgAgentsPage() {
                 )}
               </select>
             </Field>
-            {selectedTemplate?.direction === "inbound" ? (
+            {selectedTemplate ? (
               <Field
                 label="Default task"
                 htmlFor="assign-task"
                 required
                 hint="Workflow packed on inbound ring."
               >
-                <select
-                  id="assign-task"
-                  value={defaultTaskKey}
-                  onChange={(e) => setDefaultTaskKey(e.target.value)}
-                  disabled={submitting}
-                  style={selectStyle}
-                >
-                  {TASK_KEYS.map((k) => (
-                    <option key={k} value={k}>
-                      {k}
-                    </option>
-                  ))}
-                </select>
+                <VoiceTaskSelect admin orgId={orgId} direction={selectedTemplate.direction} legacy={selectedTemplate.direction === "inbound"} value={defaultTaskKey} onChange={e => setDefaultTaskKey(e.target.value)} disabled={submitting} emptyLabel="Platform default" />
               </Field>
             ) : null}
           </div>

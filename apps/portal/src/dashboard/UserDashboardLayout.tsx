@@ -56,6 +56,9 @@ const NAV: { section: string; items: readonly NavItem[] }[] = [
     section: "Configure",
     items: [
       {
+        to: "/dashboard/tasks", label: "Tasks", desc: "Workflows & completion",
+      },
+      {
         to: "/dashboard/agents",
         label: "Agents",
         desc: "Persona, task & test",
@@ -91,6 +94,7 @@ function pathInBranch(pathname: string, children: readonly NavLeaf[]): boolean {
 }
 
 function crumbFromPath(pathname: string): string {
+  if (pathname.startsWith("/dashboard/tasks")) return "Tasks";
   if (pathname.startsWith("/dashboard/crm")) return "CRM";
   if (pathname === "/dashboard") return "Overview";
   if (pathname.startsWith("/dashboard/enqueue")) return "Calls";

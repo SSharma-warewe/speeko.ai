@@ -1,3 +1,4 @@
+import { VoiceTask } from '../voice-tasks/voice-task.entity';
 import {
   Column,
   CreateDateColumn,
@@ -22,6 +23,12 @@ import { User } from '../users/user.entity';
 @Index('idx_integration_endpoints_organization_id', ['organizationId'])
 @Index('idx_integration_endpoints_public_id', ['publicId'], { unique: true })
 export class IntegrationEndpoint {
+  @Column({ name: 'voice_task_id', type: 'uuid', nullable: true })
+  voiceTaskId!: string | null;
+  @ManyToOne(() => VoiceTask, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'voice_task_id' })
+  voiceTask!: VoiceTask | null;
+
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 

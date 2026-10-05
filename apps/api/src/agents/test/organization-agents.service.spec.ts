@@ -1,3 +1,4 @@
+import { VoiceTasksService } from '../../voice-tasks/voice-tasks.service';
 import {
   BadRequestException,
   ConflictException,
@@ -143,6 +144,7 @@ describe('OrganizationAgentsService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: VoiceTasksService, useValue: { resolve: jest.fn().mockResolvedValue(null) } },
         OrganizationAgentsService,
         {
           provide: OrganizationAgentsRepository,

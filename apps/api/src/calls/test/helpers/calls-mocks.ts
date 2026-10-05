@@ -1,3 +1,4 @@
+import { VoiceTasksService } from '../../../voice-tasks/voice-tasks.service';
 import { ConfigService } from '@nestjs/config';
 import { Agent, AgentDirection } from '../../../agents/agent.entity';
 import { AgentsService } from '../../../agents/agents.service';
@@ -96,6 +97,7 @@ export const queueSettings = {
 
 export function createCallsHarness() {
   let callSeq = 0;
+  const voiceTasks = { resolve: jest.fn().mockResolvedValue(null), snapshot: jest.fn(), prepare: (...args: Parameters<VoiceTasksService["prepare"]>) => new VoiceTasksService({} as never).prepare(...args) };
 
   const callsRepository = {
     create: jest.fn((data) => ({ ...data }) as Call),
@@ -126,6 +128,7 @@ export function createCallsHarness() {
   };
 
   const organizationAgentsService = {
+    prepareVoiceTask: jest.fn(async (row, snapshot, tools, context) => voiceTasks.prepare(snapshot, row.agent.direction, tools, context, "ghl")),
     getEntityWithTemplate: jest
       .fn()
       .mockResolvedValue({ ...orgAgent, agent: template }),
@@ -280,6 +283,7 @@ export function createCallsHarness() {
     organizationAgentsService as unknown as OrganizationAgentsService,
     toolProfilesService as unknown as ToolProfilesService,
     livekit as unknown as LivekitService,
+    voiceTasks as unknown as VoiceTasksService,
   );
 
   const dial = new CallDialService(
@@ -293,6 +297,7 @@ export function createCallsHarness() {
     callBatchesService as unknown as CallBatchesService,
     queueRetryService as unknown as QueueRetryService,
     callFailure,
+    voiceTasks as unknown as VoiceTasksService,
   );
 
   const worker = new CallWorkerService(
@@ -305,6 +310,7 @@ export function createCallsHarness() {
     callBatchesService as unknown as CallBatchesService,
     queueRetryService as unknown as QueueRetryService,
     callFailure,
+    voiceTasks as unknown as VoiceTasksService,
   );
 
   const calls = new CallsService(
@@ -359,6 +365,7 @@ export function createCallsHarness() {
   }
 
   return {
+    voiceTasks,
     callsRepository,
     agentsService,
     organizationAgentsService,

@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class IntegrationEndpointResponseDto {
+  @ApiPropertyOptional({ nullable: true, format: 'uuid' })
+  voiceTaskId?: string | null;
   @ApiProperty({ format: 'uuid' })
   id!: string;
 

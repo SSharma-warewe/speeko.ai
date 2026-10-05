@@ -10,6 +10,10 @@ import type { CachedSaySession, TtsSynthesizer } from '../speech/tts-cache.js';
 export type { ToolEvent };
 
 export type SessionUserData = {
+  voiceTaskSnapshot?: import('@call-agent/contracts').VoiceTaskSnapshot;
+  bookingReceipt?: { toolId: 'scheduleGhlMeeting' | 'createCalendarEvent'; eventId: string; scheduledStart?: string; scheduledEnd?: string };
+  bookingWritePending?: boolean;
+  bookingWriteUncertain?: boolean;
   callId?: string;
   organizationId?: string;
   taskKey?: string;

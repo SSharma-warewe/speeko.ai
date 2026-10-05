@@ -1,8 +1,13 @@
+import { IsOptional as VoiceTaskOptional, IsUUID as VoiceTaskUuid } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, IsUUID, Matches, MaxLength, MinLength } from 'class-validator';
 import { SLUG_PATTERN } from '../../common/slug';
 
 export class AssignAgentDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Published configurable voice task.' })
+  @VoiceTaskOptional() @VoiceTaskUuid()
+  defaultVoiceTaskId?: string | null;
+
   @ApiProperty({
     description: 'Platform agent template id to create an org config from',
     format: 'uuid',

@@ -367,7 +367,8 @@ export function buildOpeningInstructions(meta: AgentJobMetadata): string | null 
   if (typeof custom === 'string' && custom.trim()) {
     base = appendRuntimeContext(custom.trim(), meta);
   } else {
-    base = appendRuntimeContext(defaultOpeningInstructions(meta), meta);
+    const opening = meta.voiceTask ? `Greet briefly. Task objective: ${meta.voiceTask.definition.objective}. Start the first phase with one short question: ${meta.voiceTask.definition.phases[0].instructions}. Do not reveal details before any required identity confirmation.` : defaultOpeningInstructions(meta);
+    base = appendRuntimeContext(opening, meta);
   }
   if (personaSpeaksHindi(meta)) {
     base = [

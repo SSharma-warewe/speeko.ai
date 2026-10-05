@@ -1,3 +1,4 @@
+import { IsOptional as VoiceTaskOptional, IsUUID as VoiceTaskUuid } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
@@ -15,6 +16,10 @@ import {
 } from 'class-validator';
 
 export class UpdateIntegrationEndpointDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Published configurable voice task.' })
+  @VoiceTaskOptional() @VoiceTaskUuid()
+  voiceTaskId?: string | null;
+
   @ApiPropertyOptional({ example: 'HubSpot leads' })
   @IsOptional()
   @IsString()

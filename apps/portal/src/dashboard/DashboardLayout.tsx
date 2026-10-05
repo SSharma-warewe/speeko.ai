@@ -15,6 +15,9 @@ const NAV = [
         desc: "Tenants & members",
       },
       {
+        to: "/admin-dashboard/tasks", label: "Tasks", desc: "Workflows & completion",
+      },
+      {
         to: "/admin-dashboard/agents",
         label: "Agent templates",
         desc: "Platform personas",
@@ -30,6 +33,7 @@ const NAV = [
 ] as const;
 
 function crumbFromPath(pathname: string): string {
+  if (pathname.startsWith("/admin-dashboard/tasks")) return "Task templates";
   if (pathname === "/admin-dashboard") return "Overview";
   if (pathname.startsWith("/admin-dashboard/organizations")) return "Organizations";
   if (pathname.startsWith("/admin-dashboard/agents")) return "Agent templates";

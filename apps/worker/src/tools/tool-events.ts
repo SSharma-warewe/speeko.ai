@@ -32,9 +32,9 @@ export function recordToolEvent(
 
   const okLabel =
     full.ok === true ? 'ok' : full.ok === false ? 'fail' : 'n/a';
-  const err = full.error ? ` error=${full.error}` : '';
+  const err = !userData.voiceTaskSnapshot && full.error ? ` error=${full.error}` : '';
   const ms = full.durationMs != null ? ` ${full.durationMs}ms` : '';
-  const sum = full.summary ? ` ${full.summary.slice(0, 160)}` : '';
+  const sum = !userData.voiceTaskSnapshot && full.summary ? ` ${full.summary.slice(0, 160)}` : '';
   console.log(
     `[tool:${full.toolId}] callId=${userData.callId ?? 'n/a'} → ${okLabel}${err}${ms}${sum}`,
   );

@@ -1,3 +1,4 @@
+import { IsOptional as VoiceTaskOptional, IsUUID as VoiceTaskUuid } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
@@ -13,6 +14,10 @@ import {
  * Org-user outbound dial. Organization is taken from the JWT (never from body).
  */
 export class CreateUserOutboundCallDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Published configurable voice task.' })
+  @VoiceTaskOptional() @VoiceTaskUuid()
+  voiceTaskId?: string | null;
+
   @ApiProperty({
     format: 'uuid',
     description: 'Organization-owned agent instance to use for the call',

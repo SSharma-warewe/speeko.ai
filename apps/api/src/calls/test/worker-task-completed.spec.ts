@@ -1,11 +1,15 @@
 import { workerReportedTaskCompleted } from '../lib/worker-task-completed';
 
 describe('workerReportedTaskCompleted', () => {
+  it('supports successful legacy completion tools only when the flag is omitted', () => {
+    expect(workerReportedTaskCompleted({ toolEvents: [{ toolId: 'complete_general_task', ok: true }] })).toBe(true);
+    expect(workerReportedTaskCompleted({ toolEvents: [{ toolId: 'complete_general_task', ok: false }] })).toBe(false);
+  });
   it('true when the worker flag is set', () => {
     expect(workerReportedTaskCompleted({ taskCompleted: true })).toBe(true);
   });
 
-  it('true when a complete_* tool succeeded', () => {
+  it('explicit false is authoritative even when a complete tool succeeded', () => {
     expect(
       workerReportedTaskCompleted({
         taskCompleted: false,
@@ -14,15 +18,15 @@ describe('workerReportedTaskCompleted', () => {
           { toolId: 'complete_demo_booking_task', ok: true },
         ],
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it('true when taskResult has a real workflow outcome', () => {
+  it('leftover result does not prove completion', () => {
     expect(
       workerReportedTaskCompleted({
         taskResult: { task: 'demo_booking', outcome: 'BOOKED_AND_QUALIFIED' },
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('false for synthetic NO_ANSWER leftover', () => {

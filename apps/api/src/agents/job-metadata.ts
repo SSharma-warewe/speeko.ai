@@ -7,6 +7,7 @@ import { resolveVoiceRuntime } from './voice-settings';
 export function packOrgAgentJobMetadata(
   orgAgent: OrganizationAgent,
   extras: {
+    voiceTask?: import('@call-agent/contracts').VoiceTaskSnapshot | null;
     task: string;
     enabledTools: string[];
     direction: AgentDirection;
@@ -24,7 +25,8 @@ export function packOrgAgentJobMetadata(
     agentKey: template.key,
     direction: extras.direction,
     medium: extras.medium,
-    task: extras.task,
+    task: extras.voiceTask ? `custom_${extras.voiceTask.taskId}` : extras.task,
+    ...(extras.voiceTask ? { voiceTask: extras.voiceTask } : {}),
     prompt: {
       systemPrompt: orgAgent.systemPrompt,
       onEnterInstructions: orgAgent.onEnterInstructions ?? null,

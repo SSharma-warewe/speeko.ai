@@ -68,7 +68,7 @@ export default function CallsListPage() {
                           ? c.fromNumber || c.participantIdentity || "—"
                           : c.toNumber || c.participantIdentity || "—"}
                       </td>
-                      <td className="ops-mono">{c.taskKey || "—"}</td>
+                      <td>{c.voiceTaskSnapshot ? `${c.voiceTaskSnapshot.definition.name} · ${c.voiceTaskSnapshot.version === 0 ? `draft r${c.voiceTaskSnapshot.draftRevision}` : `v${c.voiceTaskSnapshot.version}`}` : c.taskKey || "—"}</td>
                       <td className="ops-calls-cost-col">
                         <CallCostCell
                           cost={c.cost}

@@ -29,7 +29,7 @@ Scope: `apps/portal`. Inherit the [root instructions](../../AGENTS.md). This app
 ## Domain behavior
 
 - Org users run named org agent configurations; admins manage tenants, members, assigned tools, and platform templates. Human member role `agent` is not an AI template. Stored org roles are not currently a separate API permission system.
-- Agent persona is identity/tone/policies; workflows are code-defined tasks. Inbound org agents require a default task; outbound tasks are selected on calls/batches/endpoints. Preserve hook `null` (default) versus empty string (silent).
+- Agent persona is identity/tone/policies; workflows use saved voice tasks or legacy code-defined keys. Configured defaults support both directions; calls/batches/endpoints can override them. Preserve hook `null` (default) versus empty string (silent).
 - Voice choices come from the shared catalogs. Switching TTS/realtime model requires a compatible voice; show the effective template fallback returned by API. Do not expose platform runtime prompt layers as editable persona content.
 - Org profile creation must fetch assigned ids from `/api/users/tool-profiles/known-tools`. Profiles cannot grant tools beyond the admin allowlist; do not use the full exported worker catalog as the org picker.
 - Call tapes use `callDisplayOutcome`/`CallOutcomeBadge`; dossiers also show raw lifecycle status. Stale `taskResult` never proves task completion. Cost panels show list-price snapshots with markup zero, not invoices; recompute is admin-only.
@@ -94,7 +94,7 @@ Keep auth-provider boundaries intact during loading and refresh. A user token ca
 
 Org configs have their own name and unique-per-org slug plus template key/id. Many configs may share one inbound/outbound template. Create/clone copies the chosen source; later template edits do not rewrite saved org personas. Preserve effective template fallback for null voice settings.
 
-Inbound defaultTaskKey is required; outbound agents return null and tasks belong on calls/batches/dial endpoints. Persona controls company/tone/policies; onEnterInstructions is opening generation guidance and onExitInstructions is a spoken closing line. Null means built-in default and empty means silent. Do not trim silent hooks into null.
+Legacy inbound defaultTaskKey is required and legacy outbound defaultTaskKey is null. Configured defaultVoiceTaskId supports both directions; calls/batches/dial endpoints can override it. Persona controls company/tone/policies; onEnterInstructions is opening generation guidance and onExitInstructions is a spoken closing line. Null means built-in default and empty means silent. Do not trim silent hooks into null.
 
 Voice UI uses the shared model/voice/language catalogs. Native realtime speech ignores pipeline STT/TTS choices; changing TTS or realtime model changes allowed voices. Speaking-rate controls apply only to supported models and Inworld alone supports delivery mode. Org tools are selected from the API's assigned catalog, never blindly from every exported worker id.
 
@@ -123,3 +123,13 @@ Reuse both dashboard layouts, page headers, tables, tabs, composers, status badg
 Use standard typed API errors: missing resources render ResourceNotFound, authentication 401 clears the matching stored token, and scoped/provider 403 retains login. Match loading/disabled/submitting states and visible focus across forms. Check admin and org contexts independently.
 
 `VITE_API_URL` defaults to /api and `VITE_MARKETING_URL` selects branding links. Values are public build-time inputs and require rebuilding portal. Production `serve -s dist` supplies authenticated deep-link fallback. No GA4 marketing tag is added here.
+
+## Voice task editor and assignment
+
+Organization routes `/dashboard/tasks` and `/dashboard/tasks/:taskId`, platform routes `/admin-dashboard/tasks` and `/admin-dashboard/tasks/:taskId`, and organization-admin routes `/admin-dashboard/organizations/:orgId/tasks` and `/admin-dashboard/organizations/:orgId/tasks/:taskId` use the shared VoiceTasksPage editor. Task APIs are typed in lib/voice-tasks.ts; this client chooses the matching principal/scope. Navigation and organization tabs include Tasks.
+
+Users create or clone drafts, edit objectives/directions, reorder phases with keyboard-usable Move up/down buttons, author typed context/results, and select outcome requirements and code-owned completion checks. Renaming/removing fields updates references. Capability choices use the organization's API-assigned catalog; the selected test agent's effective tools are checked before testing, and the API validates tool/calendar compatibility again. Preview shows the compiled prompt and result definitions. Publish saves pending edits with optimistic revision checks, then creates an immutable version. Conflicts retain local edits. History can copy an older version into a new draft. Archive prevents new assignment; call history uses saved snapshots.
+
+Draft testing uses an existing active org agent's persona, voice, capabilities and integrations, and creates an immutable revision-zero snapshot. The explicit notice warns that tool-enabled tests can create real appointments. Join links open only after successful test creation. Platform template tests choose an organization explicitly. Published platform templates are read-only to org users until cloned.
+
+VoiceTaskSelect provides published choices alongside legacy keys for call tests, outbound dial/batch and dial endpoints. Both inbound/outbound org agents and platform templates expose configured default-task selection; legacy inbound selections remain available. Result dossiers show saved task name/version (or draft revision), outcome and authored fields. Agent defaults, operation overrides and endpoint configuration remain server-resolved, never inferred by the browser.

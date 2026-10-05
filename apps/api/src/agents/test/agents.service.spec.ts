@@ -1,3 +1,4 @@
+import { VoiceTasksService } from '../../voice-tasks/voice-tasks.service';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ToolProfilesService } from '../../tools/tool-profiles.service';
@@ -90,6 +91,7 @@ describe('AgentsService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: VoiceTasksService, useValue: {} },
         AgentsService,
         { provide: AgentsRepository, useValue: repository },
         { provide: ToolProfilesService, useValue: toolProfilesService },

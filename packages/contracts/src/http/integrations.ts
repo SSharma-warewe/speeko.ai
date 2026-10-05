@@ -75,6 +75,7 @@ export type IntegrationEndpoint = {
   name: string;
   publicId: string;
   organizationAgentId: string;
+  voiceTaskId?: string | null;
   taskKey: string;
   sipTrunkId: string | null;
   maxAttempts: number | null;
@@ -97,6 +98,7 @@ export type IntegrationEndpointSecret = IntegrationEndpoint & {
 export type CreateIntegrationEndpointRequest = {
   name: string;
   organizationAgentId: string;
+  voiceTaskId?: string | null;
   task?: string;
   sipTrunkId?: string;
   maxAttempts?: number;
@@ -108,6 +110,7 @@ export type CreateIntegrationEndpointRequest = {
 export type UpdateIntegrationEndpointRequest = {
   name?: string;
   organizationAgentId?: string;
+  voiceTaskId?: string | null;
   task?: string;
   sipTrunkId?: string | null;
   maxAttempts?: number | null;

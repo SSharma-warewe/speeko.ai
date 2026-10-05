@@ -1,3 +1,4 @@
+import { IsOptional as VoiceTaskOptional, IsUUID as VoiceTaskUuid } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
@@ -12,6 +13,10 @@ import { SLUG_PATTERN } from '../../common/slug';
 import { VoiceSettingsDto } from './voice-settings.dto';
 
 export class UpdateOrganizationAgentDto extends VoiceSettingsDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Published configurable voice task.' })
+  @VoiceTaskOptional() @VoiceTaskUuid()
+  defaultVoiceTaskId?: string | null;
+
   @ApiPropertyOptional({
     example: 'Booking confirmations',
     description: 'Display name for this org agent config',

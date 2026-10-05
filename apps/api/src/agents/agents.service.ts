@@ -1,3 +1,5 @@
+import { BadRequestException } from '@nestjs/common';
+import { VoiceTasksService } from '../voice-tasks/voice-tasks.service';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ToolProfilesService } from '../tools/tool-profiles.service';
 import { DEFAULT_TASK_KEY } from '../tools/known-tools';
@@ -40,6 +42,7 @@ export class AgentsService {
   constructor(
     private readonly agentsRepository: AgentsRepository,
     private readonly toolProfilesService: ToolProfilesService,
+    private readonly voiceTasks?: VoiceTasksService,
   ) {}
 
   findByKey(key: string): Promise<Agent | null> {
@@ -112,7 +115,13 @@ export class AgentsService {
         dto.onExitInstructions,
       );
     }
+    if (dto.defaultVoiceTaskId && dto.defaultTaskKey) throw new BadRequestException('Choose one default task selector');
+    if (dto.defaultVoiceTaskId !== undefined) {
+      if (dto.defaultVoiceTaskId) { const snapshot = await this.voiceTasks!.snapshot(null, dto.defaultVoiceTaskId); if (!snapshot.definition.directions.includes(agent.direction)) throw new BadRequestException('Task does not support template direction'); }
+      agent.defaultVoiceTaskId = dto.defaultVoiceTaskId;
+    }
     if (dto.defaultTaskKey !== undefined) {
+      agent.defaultVoiceTaskId = null;
       agent.defaultTaskKey = dto.defaultTaskKey;
     }
     if (dto.defaultToolProfileId !== undefined) {

@@ -2,6 +2,7 @@ import {
   AgentDirection,
   CallMedium,
   isDeliveryMode,
+  isVoiceTaskSnapshot,
   type AgentJobMetadata,
   type CompleteCallPayload,
 } from '@call-agent/contracts';
@@ -43,11 +44,12 @@ private parseHookField(
   return {
     ...dispatched,
     ...live,
+    voiceTask: live.voiceTask ?? undefined,
     callId: dispatched.callId,
     medium: dispatched.medium ?? live.medium,
     direction: dispatched.direction,
     participantIdentity: dispatched.participantIdentity,
-    context: dispatched.context ?? live.context,
+    context: live.voiceTask ? { ...dispatched.context, ...live.context } : dispatched.voiceTask ? live.context : dispatched.context ?? live.context,
   };
 }
   parseJobMetadata(raw: string | undefined | null): AgentJobMetadata {
@@ -79,10 +81,13 @@ private parseHookField(
     };
   }
 
+  let configured = false;
   try {
     const parsed = JSON.parse(raw) as Partial<AgentJobMetadata> & {
       tools?: unknown;
     };
+    configured = parsed.voiceTask != null;
+    if (configured && !isVoiceTaskSnapshot(parsed.voiceTask)) throw new Error('Invalid or unsupported voice task snapshot');
     const systemPrompt =
       typeof parsed.prompt?.systemPrompt === 'string' &&
       parsed.prompt.systemPrompt.trim()
@@ -113,6 +118,7 @@ private parseHookField(
       agentKey: typeof parsed.agentKey === 'string' ? parsed.agentKey : 'unknown',
       direction: parseDirection(parsed.direction),
       medium: this.parseMedium(parsed.medium),
+      voiceTask: parsed.voiceTask ?? undefined,
       task:
         typeof parsed.task === 'string' && parsed.task.trim()
           ? parsed.task.trim()
@@ -150,7 +156,8 @@ private parseHookField(
         ? parsed.deliveryMode
         : null,
     };
-  } catch {
+  } catch (err) {
+    if (configured || raw.includes('\"voiceTask\"')) throw err;
     return {
       callId: undefined,
       organizationId: undefined,

@@ -23,6 +23,7 @@ export function toCallResponse(
     toNumber: call.toNumber,
     context: call.context,
     taskKey: call.taskKey,
+    voiceTaskSnapshot: call.voiceTaskSnapshot ?? null,
     taskResult: call.taskResult,
     taskStatus: resolveTaskStatus(call),
     transcript: call.transcript,

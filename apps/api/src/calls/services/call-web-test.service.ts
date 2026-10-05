@@ -1,3 +1,5 @@
+import { VoiceTasksService } from '../../voice-tasks/voice-tasks.service';
+import type { VoiceTaskSnapshot } from '@call-agent/contracts';
 import {
   BadRequestException,
   Injectable,
@@ -42,6 +44,7 @@ export class CallWebTestService {
     private readonly organizationAgentsService: OrganizationAgentsService,
     private readonly toolProfilesService: ToolProfilesService,
     private readonly livekit: LivekitService,
+    private readonly voiceTasks?: VoiceTasksService,
   ) {}
 
   async createTestCall(dto: CreateTestCallDto): Promise<TestCallResponseDto> {
@@ -59,12 +62,15 @@ export class CallWebTestService {
       agent.defaultToolProfileId,
     );
 
+    const voiceTaskSnapshot = await this.voiceTasks?.resolve(null, dto, agent) ?? null;
+    const prepared = voiceTaskSnapshot ? this.voiceTasks!.prepare(voiceTaskSnapshot, agent.direction, enabledTools, dto.context) : { enabledTools, context: dto.context };
     return this.runWebTest({
+      voiceTaskSnapshot,
       organizationId: null,
       agent,
       taskKey,
-      enabledTools,
-      context: dto.context,
+      enabledTools: prepared.enabledTools,
+      context: prepared.context,
       roomPrefix: `test-${agent.key}`,
     });
   }
@@ -76,6 +82,7 @@ export class CallWebTestService {
   async createOrgAgentTestCall(
     organizationId: string,
     dto: CreateUserTestCallDto,
+    draftSnapshot?: VoiceTaskSnapshot,
   ): Promise<TestCallResponseDto> {
     const { orgAgent, template } = await requireActiveOrgAgent(
       this.organizationAgentsService,
@@ -93,13 +100,16 @@ export class CallWebTestService {
       organizationId,
     );
 
+    const voiceTaskSnapshot = draftSnapshot ?? await this.voiceTasks?.resolve(organizationId, dto, orgAgent, template) ?? null;
+    const prepared = voiceTaskSnapshot ? await this.organizationAgentsService.prepareVoiceTask(orgAgent, voiceTaskSnapshot, enabledTools, dto.context) : { context: dto.context, enabledTools };
     return this.runWebTest({
+      voiceTaskSnapshot,
       organizationId,
       agent: orgAgent,
       template,
       taskKey,
-      enabledTools,
-      context: dto.context,
+      enabledTools: prepared.enabledTools,
+      context: prepared.context,
       roomPrefix: `test-org-${template.key}`,
     });
   }
@@ -112,6 +122,7 @@ export class CallWebTestService {
     enabledTools: string[];
     context?: Record<string, unknown>;
     roomPrefix: string;
+    voiceTaskSnapshot?: VoiceTaskSnapshot | null;
   }): Promise<TestCallResponseDto> {
     const {
       organizationId = null,
@@ -143,7 +154,8 @@ export class CallWebTestService {
         livekitAgentName,
         participantIdentity,
         context: context ?? null,
-        taskKey,
+        taskKey: input.voiceTaskSnapshot ? `custom_${input.voiceTaskSnapshot.taskId}` : taskKey,
+        voiceTaskSnapshot: input.voiceTaskSnapshot ?? null,
         attemptCount: 1,
         dialStartedAt: new Date(),
       }),
@@ -154,7 +166,8 @@ export class CallWebTestService {
     try {
       const metadata: AgentJobMetadata = template
         ? packOrgAgentJobMetadata(agent as OrganizationAgent, {
-            task: taskKey,
+            task: call.taskKey!,
+            voiceTask: input.voiceTaskSnapshot,
             enabledTools,
             direction,
             medium: CallMedium.WEB,
@@ -168,7 +181,8 @@ export class CallWebTestService {
             agentKey,
             direction,
             medium: CallMedium.WEB,
-            task: taskKey,
+            task: call.taskKey!,
+            ...(input.voiceTaskSnapshot ? { voiceTask: input.voiceTaskSnapshot } : {}),
             prompt: {
               systemPrompt: agent.systemPrompt,
               onEnterInstructions: agent.onEnterInstructions ?? null,
@@ -187,7 +201,7 @@ export class CallWebTestService {
           callId: call.id,
           ...(organizationId ? { organizationId } : {}),
           agentKey,
-          task: taskKey,
+          task: call.taskKey!,
         }),
       });
 

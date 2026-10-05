@@ -1,4 +1,5 @@
 import { createDemoBookingTask } from './demo-booking.task.js';
+import { createConfigurableTask } from './configurable.task.js';
 import { createGeneralConversationTask } from './general-conversation.task.js';
 import { createInterviewBookingTask } from './interview-booking.task.js';
 import { createLoanCollectionTask } from './loan-collection.task.js';
@@ -29,7 +30,9 @@ export class TaskRegistry {
   }
 
   static create(ctx: TaskFactoryContext): voice.AgentTask<Record<string, unknown>> {
+    if (ctx.meta.voiceTask != null) return createConfigurableTask(ctx);
     const key = (ctx.meta.task || TASK_KEYS.general).trim();
+    if (key.startsWith('custom_')) throw new Error('Configured task is missing its definition snapshot');
     const factory = factories.get(key) ?? factories.get(TASK_KEYS.general)!;
     if (!factories.has(key)) {
       console.warn(

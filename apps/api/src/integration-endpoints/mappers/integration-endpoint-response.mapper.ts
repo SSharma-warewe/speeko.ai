@@ -18,6 +18,7 @@ export function toIntegrationEndpointResponse(
     publicId: row.publicId,
     organizationAgentId: row.organizationAgentId,
     taskKey: row.taskKey,
+    voiceTaskId: row.voiceTaskId ?? null,
     sipTrunkId: row.sipTrunkId,
     maxAttempts: row.maxAttempts,
     priority: row.priority,

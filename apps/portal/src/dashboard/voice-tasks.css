@@ -1,0 +1,36 @@
+.voice-task-editor {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.voice-task-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+}
+.voice-task-row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.voice-task-option {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin: 0.4rem 1rem 0.4rem 0;
+}
+.voice-task-preview {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  max-height: 35rem;
+  overflow: auto;
+}

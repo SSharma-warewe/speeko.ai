@@ -1,3 +1,4 @@
+import { VoiceTasksService } from '../../voice-tasks/voice-tasks.service';
 import {
   BadRequestException,
   forwardRef,
@@ -54,6 +55,7 @@ export class CallWorkerService {
     @Inject(forwardRef(() => QueueRetryService))
     private readonly queueRetryService: QueueRetryService,
     private readonly callFailure: CallFailureService,
+    private readonly voiceTasks?: VoiceTasksService,
   ) {}
 
   /**
@@ -88,7 +90,8 @@ export class CallWorkerService {
     const toNumber = this.trimOrNull(dto.toNumber);
     const participantIdentity =
       this.trimOrNull(dto.participantIdentity) ?? fromNumber;
-    const taskKey = resolveTaskKey(this.logger, dto.task);
+    const voiceTaskSnapshot = dto.voiceTask ? await this.voiceTasks!.snapshot(dto.organizationId ?? null, dto.voiceTask.taskId, dto.voiceTask.version, true) : null;
+    const taskKey = voiceTaskSnapshot ? `custom_${voiceTaskSnapshot.taskId}` : resolveTaskKey(this.logger, dto.task);
     const now = new Date();
 
     let call = this.callsRepository.create(
@@ -107,6 +110,7 @@ export class CallWorkerService {
         toNumber,
         context: this.buildInboundContext(dto, fromNumber, toNumber),
         taskKey,
+        voiceTaskSnapshot,
         attemptCount: 1,
         dialStartedAt: now,
         startedAt: now,
@@ -192,7 +196,7 @@ export class CallWorkerService {
     }
 
     if (dto.status === 'completed') {
-      const taskDone = workerReportedTaskCompleted(dto);
+      const taskDone = call.voiceTaskSnapshot ? dto.taskCompleted === true : workerReportedTaskCompleted(dto);
       applyCallEvent(
         call,
         taskDone

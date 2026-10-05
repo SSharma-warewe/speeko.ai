@@ -1,3 +1,4 @@
+import { VoiceTask } from '../voice-tasks/voice-task.entity';
 import {
   Column,
   CreateDateColumn,
@@ -20,6 +21,12 @@ export { AgentDirection };
  */
 @Entity({ name: 'agents' })
 export class Agent {
+  @Column({ name: 'default_voice_task_id', type: 'uuid', nullable: true })
+  defaultVoiceTaskId!: string | null;
+  @ManyToOne(() => VoiceTask, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'default_voice_task_id' })
+  voiceTask!: VoiceTask | null;
+
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 

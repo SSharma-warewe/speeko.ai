@@ -1,3 +1,5 @@
+import VoiceTasksPage from "./dashboard/pages/VoiceTasksPage";
+import "./dashboard/voice-tasks.css";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { RequireAdmin, RequireUser } from "./lib/auth";
 import DashboardLayout from "./dashboard/DashboardLayout";
@@ -83,6 +85,8 @@ export default function App() {
         <Route path="calls/:id" element={<UserCallDetailPage />} />
         <Route path="batches" element={<UserBatchesPage />} />
         <Route path="batches/:id" element={<UserBatchDetailPage />} />
+        <Route path="tasks" element={<VoiceTasksPage />} />
+        <Route path="tasks/:taskId" element={<VoiceTasksPage />} />
         <Route path="agents" element={<UserAgentsPage />} />
         <Route path="agents/:id" element={<UserAgentDetailPage />} />
         <Route path="queue" element={<UserQueuePage />} />
@@ -118,6 +122,8 @@ export default function App() {
         <Route path="organizations/:orgId" element={<OrganizationDetailPage />}>
           <Route index element={<OrgOverviewTab />} />
           <Route path="users" element={<OrgUsersPage />} />
+          <Route path="tasks" element={<VoiceTasksPage admin />} />
+          <Route path="tasks/:taskId" element={<VoiceTasksPage admin />} />
           <Route path="agents" element={<OrgAgentsPage />} />
           <Route path="agents/:agentId" element={<OrgAgentDetailPage />} />
           <Route path="tools" element={<OrgToolsPage />} />
@@ -134,6 +140,8 @@ export default function App() {
             }
           />
         </Route>
+        <Route path="tasks" element={<VoiceTasksPage admin />} />
+        <Route path="tasks/:taskId" element={<VoiceTasksPage admin />} />
         <Route path="agents" element={<AgentTemplatesPage />} />
         <Route path="agents/:id" element={<AgentTemplateDetailPage />} />
         <Route path="tool-profiles" element={<ToolProfilesPage />} />

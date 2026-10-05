@@ -219,5 +219,7 @@ export { ErrorCode, errorCodeFromStatus, isErrorCode } from './http/errors.js';
 export type { ErrorResponse } from './http/errors.js';
 
 export type * from './http/index.js';
+export * from './voice-tasks.js';
+export { VOICE_TASK_STARTERS } from './voice-task-starters.js';
 export { CRM_ACTIONS, CRM_SCOPES } from './crm.js';
 export type { CrmAction, CrmCommand, CrmResult } from './crm.js';

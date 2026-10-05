@@ -23,7 +23,7 @@ export const DEMO_CALLBACK_LINE_EN = 'No problem — when should I call back?';
 export const DEMO_CALLBACK_LINE_HI = 'कोई बात नहीं — कब वापस कॉल करूँ?';
 
 export function isOutboundDemoBooking(meta: AgentJobMetadata): boolean {
-  return meta.task === 'demo_booking' && meta.direction === 'outbound';
+  return !meta.voiceTask && meta.task === 'demo_booking' && meta.direction === 'outbound';
 }
 
 export function isOutboundDemoPipeline(meta: AgentJobMetadata): boolean {

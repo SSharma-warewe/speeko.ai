@@ -62,9 +62,8 @@ export class AgentJob {
         organizationAgentId: this.meta.organizationAgentId,
         organizationId: this.meta.organizationId,
       });
-      if (live) {
-        this.meta = this.jobMeta.mergeInboundJobMetadata(this.meta, live);
-      }
+      if (!live) throw new Error('Inbound live metadata refresh failed; refusing stale configuration');
+      this.meta = this.jobMeta.mergeInboundJobMetadata(this.meta, live);
     }
     this.roomName = this.ctx.job.room?.name ?? 'unknown';
     // Web tests join as Meet. SIP: wait for the party, then only outbound waits
@@ -159,6 +158,8 @@ export class AgentJob {
       organizationAgentId: this.meta.organizationAgentId,
       agentKey: this.meta.agentKey,
       task: this.meta.task,
+      ...(this.meta.voiceTask ? { voiceTask: { taskId: this.meta.voiceTask.taskId, version: this.meta.voiceTask.version } } : {}),
+      context: this.meta.context,
       fromNumber: info?.fromNumber,
       toNumber: info?.toNumber,
       participantIdentity: info?.identity ?? this.meta.participantIdentity,

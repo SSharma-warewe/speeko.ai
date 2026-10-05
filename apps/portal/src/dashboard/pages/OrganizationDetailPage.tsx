@@ -11,6 +11,7 @@ const TABS = [
   { to: ".", end: true, label: "Overview" },
   { to: "users", label: "Users" },
   { to: "agents", label: "Agents" },
+  { to: "tasks", label: "Tasks" },
   { to: "tools", label: "Tools" },
   { to: "sip-trunks", label: "SIP trunks" },
   { to: "queue", label: "Queue" },

@@ -1,3 +1,4 @@
+import { IsOptional as VoiceTaskOptional, IsUUID as VoiceTaskUuid } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
@@ -9,6 +10,10 @@ import {
 import { VoiceSettingsDto } from './voice-settings.dto';
 
 export class UpdateAgentDto extends VoiceSettingsDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Published configurable voice task.' })
+  @VoiceTaskOptional() @VoiceTaskUuid()
+  defaultVoiceTaskId?: string | null;
+
   @ApiPropertyOptional({
     description:
       'Persona system prompt only (identity, tone, policies). No workflow steps.',

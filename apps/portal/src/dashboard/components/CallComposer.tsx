@@ -1,3 +1,5 @@
+import { VoiceTaskSelect } from "./VoiceTaskSelect";
+import { taskSelection } from "../../lib/voice-tasks";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Alert, Button, Field, Input, Select, Textarea } from "@call-agent/ui";
@@ -7,7 +9,6 @@ import {
   enqueueUserCalls,
   listUserAgents,
   listUserOutboundTrunks,
-  TASK_KEYS,
   UnauthorizedError,
   type CallRecord,
 } from "../../lib/api";
@@ -77,7 +78,7 @@ export function CallComposer({
       const pick = preset ?? active[0];
       if (pick) {
         setOrganizationAgentId(pick.id);
-        setTask("general");
+        setTask("");
         applySkeletonForTask("general");
       }
     }
@@ -90,7 +91,7 @@ export function CallComposer({
   const handleAgentChange = (id: string) => {
     setOrganizationAgentId(id);
     if (!task) {
-      setTask("general");
+      setTask("");
       applySkeletonForTask("general");
     }
   };
@@ -130,9 +131,9 @@ export function CallComposer({
         organizationAgentId,
         calls: numbers.map((num) => ({
           toNumber: num,
-          context: { phoneNumber: num },
+          context: { ...JSON.parse(contextJson || "{}"), phoneNumber: num },
         })),
-        ...(task ? { task } : {}),
+        ...taskSelection(task),
         ...(sipTrunkId ? { sipTrunkId } : {}),
         ...(maxAttempts ? { maxAttempts: Number(maxAttempts) } : {}),
         ...(priority !== "" ? { priority: Number(priority) } : {}),
@@ -193,7 +194,7 @@ export function CallComposer({
         toNumber: toNumber.trim(),
         context,
         waitUntilAnswered: false,
-        ...(task ? { task } : {}),
+        ...taskSelection(task),
         ...(sipTrunkId ? { sipTrunkId } : {}),
       });
       setDialed(call);
@@ -358,19 +359,7 @@ export function CallComposer({
           </Field>
 
           <Field label="Task" htmlFor="calls-task">
-            <Select
-              id="calls-task"
-              value={task}
-              onChange={(e) => handleTaskChange(e.target.value)}
-              disabled={submitting}
-            >
-              <option value="">Agent default</option>
-              {TASK_KEYS.map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
-              ))}
-            </Select>
+            <VoiceTaskSelect value={task} onChange={(e) => handleTaskChange(e.target.value)} disabled={submitting} direction="outbound" />
           </Field>
 
           <Field label="SIP trunk" htmlFor="calls-trunk">
@@ -442,7 +431,7 @@ export function CallComposer({
           </Button>
         </div>
 
-        {mode === "dial" ? (
+        {true ? (
           <details className="ops-calls-advanced">
             <summary>Advanced — context JSON for “{effectiveTask}”</summary>
             <Field

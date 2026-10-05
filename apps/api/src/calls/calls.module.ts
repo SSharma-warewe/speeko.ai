@@ -1,3 +1,5 @@
+import { VoiceTasksModule } from '../voice-tasks/voice-tasks.module';
+import { UserVoiceTaskTestsController, AdminVoiceTaskTestsController, OrganizationVoiceTaskTestsController } from './voice-task-tests.controller';
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AgentsModule } from '../agents/agents.module';
@@ -19,6 +21,7 @@ import { UserCallsController } from './user-calls.controller';
 
 @Module({
   imports: [
+    VoiceTasksModule,
     TypeOrmModule.forFeature([Call]),
     forwardRef(() => AgentsModule),
     ToolsModule,
@@ -27,7 +30,7 @@ import { UserCallsController } from './user-calls.controller';
     PriceModule,
     forwardRef(() => QueueModule),
   ],
-  controllers: [CallsController, UserCallsController, InternalCallsController],
+  controllers: [CallsController, UserCallsController, InternalCallsController, UserVoiceTaskTestsController, AdminVoiceTaskTestsController, OrganizationVoiceTaskTestsController],
   providers: [
     CallsRepository,
     CallsService,

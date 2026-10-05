@@ -1,3 +1,5 @@
+import { VoiceTaskSelect } from "../components/VoiceTaskSelect";
+import { savedTaskSelection, defaultTaskSelection, taskSelection } from "../../lib/voice-tasks";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Alert, Button, Field, Input, Select, Textarea } from "@call-agent/ui";
@@ -22,7 +24,6 @@ import {
   getUserAgent,
   listUserCalendarIntegrations,
   listUserToolProfiles,
-  TASK_KEYS,
   type OrganizationIntegration,
   type ToolProfile,
   UnauthorizedError,
@@ -102,8 +103,8 @@ export default function UserAgentDetailPage() {
     setSilentEnd(exit === "");
     setOnEnterInstructions(enter && enter !== "" ? enter : "");
     setOnExitInstructions(exit && exit !== "" ? exit : "");
-    setDefaultTaskKey(data.agent.defaultTaskKey || "general");
-    setTestTaskKey(data.agent.defaultTaskKey || "general");
+    setDefaultTaskKey(savedTaskSelection(data.agent));
+    setTestTaskKey("");
     setToolProfileId(data.agent.toolProfileId || "");
     setCalendarIntegrationId(data.agent.calendarIntegrationId || "");
     setIsActive(data.agent.isActive);
@@ -125,11 +126,6 @@ export default function UserAgentDetailPage() {
       setFormError("Display name is required.");
       return;
     }
-    const inbound = data?.agent.direction === "inbound";
-    if (inbound && !defaultTaskKey.trim()) {
-      setFormError("Inbound agents require a default task.");
-      return;
-    }
     setSubmitting(true);
     try {
       await updateUserAgent(id, {
@@ -146,7 +142,7 @@ export default function UserAgentDetailPage() {
           : onExitInstructions.trim()
             ? onExitInstructions.trim()
             : null,
-        ...(inbound ? { defaultTaskKey } : {}),
+        ...defaultTaskSelection(defaultTaskKey, data?.agent.direction || "outbound"),
         toolProfileId: toolProfileId || undefined,
         calendarIntegrationId: calendarIntegrationId || null,
         isActive,
@@ -227,7 +223,7 @@ export default function UserAgentDetailPage() {
     try {
       const result = await createUserTestCall({
         organizationAgentId: id,
-        task: testTaskKey || undefined,
+        ...taskSelection(testTaskKey),
       });
       setMeetUrl(result.meetUrl);
       if (result.meetUrl) {
@@ -293,22 +289,7 @@ export default function UserAgentDetailPage() {
             Clone
           </Button>
           <div className="ops-desk-test">
-            <Select
-              aria-label="Web test task"
-              value={testTaskKey}
-              onChange={(e) => setTestTaskKey(e.target.value)}
-              disabled={testing || submitting}
-            >
-              {TASK_KEYS.map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
-              ))}
-              {testTaskKey &&
-              !(TASK_KEYS as readonly string[]).includes(testTaskKey) ? (
-                <option value={testTaskKey}>{testTaskKey}</option>
-              ) : null}
-            </Select>
+            <VoiceTaskSelect value={testTaskKey} onChange={(e) => setTestTaskKey(e.target.value)} disabled={testing || submitting} direction={agent.direction} />
             <Button
               type="button"
               variant="primary"
@@ -504,29 +485,14 @@ export default function UserAgentDetailPage() {
                 disabled={submitting}
               />
             </Field>
-            {agent.direction === "inbound" ? (
+            {true ? (
               <Field
                 label="Default task"
                 htmlFor="ua-task"
                 required
-                hint="Packed on inbound ring. Outbound sets task per call."
+                hint="Used unless a call or endpoint selects another task."
               >
-                <Select
-                  id="ua-task"
-                  value={defaultTaskKey}
-                  onChange={(e) => setDefaultTaskKey(e.target.value)}
-                  disabled={submitting}
-                >
-                  {TASK_KEYS.map((k) => (
-                    <option key={k} value={k}>
-                      {k}
-                    </option>
-                  ))}
-                  {defaultTaskKey &&
-                  !(TASK_KEYS as readonly string[]).includes(defaultTaskKey) ? (
-                    <option value={defaultTaskKey}>{defaultTaskKey}</option>
-                  ) : null}
-                </Select>
+                <VoiceTaskSelect value={defaultTaskKey} onChange={(e) => setDefaultTaskKey(e.target.value)} disabled={submitting} direction={agent?.direction} legacy={agent?.direction === "inbound"} emptyLabel="Platform default" />
               </Field>
             ) : null}
             <Field label="Tool profile" htmlFor="ua-tp">

@@ -1,3 +1,5 @@
+import { VoiceTaskSelect } from "../components/VoiceTaskSelect";
+import { taskSelection } from "../../lib/voice-tasks";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Alert, Button, Field, Input, Select, Textarea } from "@call-agent/ui";
@@ -13,7 +15,6 @@ import {
   listUserOutboundTrunks,
   previewGhlCalendars,
   rotateUserIntegrationEndpointKey,
-  TASK_KEYS,
   testUserOrgIntegration,
   UnauthorizedError,
   updateUserIntegrationEndpoint,
@@ -181,7 +182,7 @@ export default function UserIntegrationsPage() {
     setEditingId(ep.id);
     setName(ep.name);
     setOrganizationAgentId(ep.organizationAgentId);
-    setTask(ep.taskKey || "");
+    setTask(ep.voiceTaskId ? "voice:" + ep.voiceTaskId : ep.taskKey || "");
     setSipTrunkId(ep.sipTrunkId || "");
     setMaxAttempts(ep.maxAttempts != null ? String(ep.maxAttempts) : "");
     setPriority(String(ep.priority ?? 0));
@@ -259,7 +260,7 @@ export default function UserIntegrationsPage() {
         await updateUserIntegrationEndpoint(editingId, {
           name: name.trim(),
           organizationAgentId,
-          task: task || undefined,
+          ...(task ? taskSelection(task) : { task: "", voiceTaskId: null }),
           sipTrunkId: sipTrunkId || null,
           maxAttempts: maxAttempts ? Number(maxAttempts) : null,
           priority: priority !== "" ? Number(priority) : 0,
@@ -272,7 +273,7 @@ export default function UserIntegrationsPage() {
         const created = await createUserIntegrationEndpoint({
           name: name.trim(),
           organizationAgentId,
-          ...(task ? { task } : {}),
+          ...taskSelection(task),
           ...(sipTrunkId ? { sipTrunkId } : {}),
           ...(maxAttempts ? { maxAttempts: Number(maxAttempts) } : {}),
           ...(priority !== "" ? { priority: Number(priority) } : {}),
@@ -842,19 +843,7 @@ export default function UserIntegrationsPage() {
               </Field>
               <div className="ops-desk-pair">
                 <Field label="Task" htmlFor="ie-task">
-                  <Select
-                    id="ie-task"
-                    value={task}
-                    onChange={(e) => handleTaskChange(e.target.value)}
-                    disabled={submitting}
-                  >
-                    <option value="">Agent default</option>
-                    {TASK_KEYS.map((k) => (
-                      <option key={k} value={k}>
-                        {k}
-                      </option>
-                    ))}
-                  </Select>
+                  <VoiceTaskSelect value={task} onChange={(e) => handleTaskChange(e.target.value)} disabled={submitting} direction="outbound" />
                 </Field>
                 <Field label="Trunk" htmlFor="ie-trunk">
                   <Select

@@ -1,3 +1,4 @@
+import { VoiceTasksModule } from '../voice-tasks/voice-tasks.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { OrganizationIntegration } from '../organization-integrations/organization-integration.entity';
@@ -17,6 +18,7 @@ import { UserOrganizationAgentsController } from './user-organization-agents.con
 
 @Module({
   imports: [
+    VoiceTasksModule,
     // OrganizationIntegration entity only — avoids importing OrganizationIntegrationsModule
     // (that module imports AgentsModule for calendar tools → circular crash).
     TypeOrmModule.forFeature([Agent, OrganizationAgent, OrganizationIntegration]),

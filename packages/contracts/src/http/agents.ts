@@ -20,6 +20,7 @@ export type Agent = {
   isActive: boolean;
   prompt: AgentPrompt;
   /** Inbound org agents + templates: default workflow. Outbound org agents: null. */
+  defaultVoiceTaskId?: string | null;
   defaultTaskKey: string | null;
   toolProfileId: string | null;
   calendarIntegrationId?: string | null;
@@ -47,6 +48,7 @@ export type UpdateAgentTemplateRequest = {
   systemPrompt?: string;
   onEnterInstructions?: string | null;
   onExitInstructions?: string | null;
+  defaultVoiceTaskId?: string | null;
   defaultTaskKey?: string;
   defaultToolProfileId?: string;
   voice?: string | null;
@@ -66,6 +68,7 @@ export type AssignOrganizationAgentRequest = {
   slug?: string;
   toolProfileId?: string;
   calendarIntegrationId?: string;
+  defaultVoiceTaskId?: string | null;
   defaultTaskKey?: string;
 };
 
@@ -82,6 +85,7 @@ export type UpdateOrganizationAgentRequest = {
   onExitInstructions?: string | null;
   toolProfileId?: string;
   calendarIntegrationId?: string | null;
+  defaultVoiceTaskId?: string | null;
   defaultTaskKey?: string | null;
   voice?: string | null;
   model?: string | null;

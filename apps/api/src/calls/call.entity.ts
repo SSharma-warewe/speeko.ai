@@ -1,3 +1,4 @@
+import type { VoiceTaskSnapshot } from '@call-agent/contracts';
 import {
   Column,
   CreateDateColumn,
@@ -49,6 +50,9 @@ export type CallUsageSnapshot = {
 @Index('idx_calls_org_status_next', ['organizationId', 'status', 'nextAttemptAt'])
 @Index('idx_calls_dial_started_at', ['dialStartedAt'])
 export class Call {
+  @Column({ name: 'voice_task_snapshot', type: 'jsonb', nullable: true })
+  voiceTaskSnapshot!: VoiceTaskSnapshot | null;
+
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 

@@ -1,3 +1,4 @@
+import { captureBookingReceipt } from './booking-receipt.js';
 /**
  * HTTP client for worker calendar tools → Nest internal calendar proxy.
  * Uses the same API_BASE_URL + WORKER_CALLBACK_SECRET as call complete.
@@ -43,6 +44,11 @@ export async function callCalendarApi(
 
   const finish = (result: CalendarToolResult, args?: unknown): CalendarToolResult => {
     if (opts?.userData) {
+      captureBookingReceipt(opts.userData, toolId, result, body);
+      if (opts.userData.voiceTaskSnapshot && (toolId === 'scheduleGhlMeeting' || toolId === 'createCalendarEvent') && opts.userData.bookingWritePending) {
+        opts.userData.bookingWritePending = false;
+        if ((['network_error', 'bad_response', 'write_uncertain', 'nylas_error', 'ghl_appointment_missing_id'].includes(result.error ?? '') || /^ghl_appointment_(5\d\d|408)$/.test(result.error ?? '')) || (result.ok && !opts.userData.bookingReceipt)) opts.userData.bookingWriteUncertain = true;
+      }
       recordToolEvent(opts.userData, {
         toolId,
         args: args ?? sanitizeForStorage(body),
@@ -83,6 +89,13 @@ export async function callCalendarApi(
 
   const ns = opts?.namespace ?? 'calendar';
   const url = `${cfg.baseUrl}/api/internal/calls/${callId}/${ns}/${path}`;
+  const configuredBooking = opts?.userData?.voiceTaskSnapshot && (toolId === 'scheduleGhlMeeting' || toolId === 'createCalendarEvent');
+  if (configuredBooking) {
+    const state = opts!.userData!;
+    if (state.bookingReceipt) return { ok: true, data: { eventId: state.bookingReceipt.eventId, appointmentId: state.bookingReceipt.eventId }, message: 'Booking already succeeded. Do not create another appointment.' };
+    if (state.bookingWritePending || state.bookingWriteUncertain) return { ok: false, error: 'write_uncertain', message: 'A booking is pending or its outcome is unknown. Do not repeat the write; offer human follow-up.' };
+    state.bookingWritePending = true;
+  }
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -107,7 +120,7 @@ export async function callCalendarApi(
       );
       return finish({
         ok: false,
-        error: 'http_error',
+        error: configuredBooking && (res.status >= 500 || res.status === 408) ? 'write_uncertain' : 'http_error',
         message:
           (json && (json.message || json.error)) ||
           `Calendar API failed (${res.status}). Do not invent availability; ask to try again or offer a callback.`,

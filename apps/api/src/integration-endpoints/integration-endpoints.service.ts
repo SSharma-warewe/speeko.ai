@@ -1,3 +1,4 @@
+import { VoiceTasksService } from '../voice-tasks/voice-tasks.service';
 import {
   BadRequestException,
   ForbiddenException,
@@ -42,6 +43,7 @@ export class IntegrationEndpointsService {
     private readonly organizationAgentsService: OrganizationAgentsService,
     private readonly sipTrunksService: SipTrunksService,
     private readonly callDial: CallDialService,
+    private readonly voiceTasks?: VoiceTasksService,
   ) {}
 
   async listForOrg(
@@ -78,6 +80,8 @@ export class IntegrationEndpointsService {
       );
     }
 
+    const selected = await this.voiceTasks?.resolve(organizationId, dto, orgAgent, orgAgent.agent);
+    if (selected) { const tools = (await this.organizationAgentsService.getOne(organizationId, orgAgent.id)).enabledTools; await this.organizationAgentsService.prepareVoiceTask(orgAgent, selected, tools, {}, false); }
     const taskKey = this.resolveTaskKey(
       dto.task,
       orgAgentDefaultTaskKey(orgAgent, orgAgent.agent),
@@ -102,6 +106,7 @@ export class IntegrationEndpointsService {
       keyHash,
       organizationAgentId: orgAgent.id,
       taskKey,
+      voiceTaskId: selected?.taskId ?? null,
       sipTrunkId: dto.sipTrunkId ?? null,
       maxAttempts: dto.maxAttempts ?? null,
       priority: dto.priority ?? 0,
@@ -142,12 +147,16 @@ export class IntegrationEndpointsService {
       // If task not also patched, keep existing task_key (may still be valid).
     }
 
+    if (dto.task && dto.voiceTaskId) throw new BadRequestException('Choose task or voiceTaskId, not both');
+    if (dto.voiceTaskId !== undefined) row.voiceTaskId = dto.voiceTaskId;
     if (dto.task !== undefined) {
+      row.voiceTaskId = null;
       const orgAgent =
         await this.organizationAgentsService.getEntityWithTemplate(
           organizationId,
           row.organizationAgentId,
         );
+      if (!dto.task && !dto.voiceTaskId) row.voiceTaskId = (await this.voiceTasks?.resolve(organizationId, {}, orgAgent, orgAgent.agent))?.taskId ?? null;
       row.taskKey = this.resolveTaskKey(
         dto.task,
         orgAgentDefaultTaskKey(orgAgent, orgAgent.agent),
@@ -183,6 +192,12 @@ export class IntegrationEndpointsService {
       row.isActive = dto.isActive;
     }
 
+    if (row.voiceTaskId) {
+      const agent = await this.organizationAgentsService.getEntityWithTemplate(organizationId, row.organizationAgentId);
+      const snapshot = await this.voiceTasks!.snapshot(organizationId, row.voiceTaskId);
+      const tools = (await this.organizationAgentsService.getOne(organizationId, agent.id)).enabledTools;
+      await this.organizationAgentsService.prepareVoiceTask(agent, snapshot, tools, {}, false);
+    }
     const saved = await this.repository.save(row);
     return toIntegrationEndpointResponse(saved);
   }
@@ -243,7 +258,7 @@ export class IntegrationEndpointsService {
       endpoint.organizationId,
       {
         organizationAgentId: endpoint.organizationAgentId,
-        task: endpoint.taskKey,
+        ...(endpoint.voiceTaskId ? { voiceTaskId: endpoint.voiceTaskId } : { task: endpoint.taskKey }),
         sipTrunkId: endpoint.sipTrunkId ?? undefined,
         maxAttempts: endpoint.maxAttempts ?? undefined,
         priority: endpoint.priority,

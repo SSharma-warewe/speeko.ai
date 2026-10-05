@@ -1,3 +1,4 @@
+import { VoiceTaskSelect } from "../components/VoiceTaskSelect";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Alert, Button, Field, Textarea } from "@call-agent/ui";
@@ -35,6 +36,7 @@ export default function AgentTemplateDetailPage() {
     [id],
   );
 
+  const [defaultVoiceTaskId, setDefaultVoiceTaskId] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [onEnterInstructions, setOnEnterInstructions] = useState("");
   const [onExitInstructions, setOnExitInstructions] = useState("");
@@ -57,6 +59,7 @@ export default function AgentTemplateDetailPage() {
 
   useEffect(() => {
     if (data) {
+      setDefaultVoiceTaskId(data.defaultVoiceTaskId ? "voice:" + data.defaultVoiceTaskId : "");
       setSystemPrompt(data.prompt?.systemPrompt ?? "");
       const enter = data.prompt?.onEnterInstructions;
       const exit = data.prompt?.onExitInstructions;
@@ -83,6 +86,7 @@ export default function AgentTemplateDetailPage() {
     setSubmitting(true);
     try {
       await updateAgentTemplate(id, {
+        defaultVoiceTaskId: defaultVoiceTaskId ? defaultVoiceTaskId.slice(6) : null,
         systemPrompt,
         onEnterInstructions: silentStart
           ? ""
@@ -153,6 +157,7 @@ export default function AgentTemplateDetailPage() {
           <form className="ops-panel-body ops-form" onSubmit={handleSave}>
             {formError ? <Alert tone="error">{formError}</Alert> : null}
             {saved ? <Alert tone="success">Saved. Existing org agents are not updated.</Alert> : null}
+            <Field label="Default task"><VoiceTaskSelect admin legacy={false} direction={data.direction} value={defaultVoiceTaskId} onChange={e => setDefaultVoiceTaskId(e.target.value)} disabled={submitting} emptyLabel="General (legacy)" /></Field>
             <Field label="System prompt" htmlFor="tpl-prompt" required>
               <Textarea
                 id="tpl-prompt"

@@ -182,9 +182,9 @@ export class AgentRuntimeBuilder {
           ...(result as Record<string, unknown>),
         };
       }
-      console.log(
-        `[agent] task complete key=${this.meta.task} result=${JSON.stringify(userData.taskResult)}`,
-      );
+      console.log(this.meta.voiceTask
+        ? `[agent] task complete taskId=${this.meta.voiceTask.taskId} version=${this.meta.voiceTask.version} outcome=${userData.taskResult?.outcome ?? 'none'}`
+        : `[agent] task complete key=${this.meta.task} result=${JSON.stringify(userData.taskResult)}`);
       // Realtime goodbye already played on the task before complete().
       // Pipeline: hang up immediately; onExit session.say plays the canned line.
       hangUpCall(ctx.session, { reason: 'task_complete', userData });
@@ -246,7 +246,7 @@ export function phrasesToWarm(meta: AgentJobMetadata): string[] {
     return [];
   }
   const phrases: string[] = [];
-  if (meta.direction === 'inbound') {
+  if (meta.direction === 'inbound' && !meta.voiceTask) {
     phrases.push(...inboundServiceTrackLines(), ...inboundScriptCacheLines());
   }
   if (isOutboundDemoBooking(meta)) {

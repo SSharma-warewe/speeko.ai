@@ -1,9 +1,12 @@
+import type { VoiceTaskSnapshot } from '@call-agent/contracts';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AgentDirection } from '../../agents/agent.entity';
 import { CallCostSnapshotDto } from '../../price/dto/call-cost.dto';
 import { CallMedium, CallStatus, CallTaskStatus } from '../call.entity';
 
 export class CallResponseDto {
+  @ApiPropertyOptional({ nullable: true, type: Object })
+  voiceTaskSnapshot?: VoiceTaskSnapshot | null;
   @ApiProperty({ format: 'uuid' })
   id!: string;
 

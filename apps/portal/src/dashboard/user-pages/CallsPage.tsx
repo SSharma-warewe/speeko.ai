@@ -387,7 +387,7 @@ export default function UserCallsPage() {
                         <td>
                           <CallOutcomeBadge call={c} />
                         </td>
-                        <td className="ops-mono">{c.taskKey || "—"}</td>
+                        <td className="ops-mono">{c.voiceTaskSnapshot ? `${c.voiceTaskSnapshot.definition.name} · v${c.voiceTaskSnapshot.version}` : c.taskKey || "—"}</td>
                         <td className="ops-calls-cost-col">
                           <CallCostCell cost={c.cost} live={live} />
                         </td>

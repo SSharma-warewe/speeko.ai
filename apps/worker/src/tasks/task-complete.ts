@@ -9,6 +9,5 @@ export function markTaskFinished(
   taskKey: string,
   result: Record<string, unknown>,
 ): void {
-  userData.taskCompleted = true;
   userData.taskResult = { task: taskKey, ...result };
 }

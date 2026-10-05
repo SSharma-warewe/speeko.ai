@@ -848,3 +848,25 @@ Email uses global EmailService.send/sendText through Plunk POST /v1/send. Missin
 Get-demo GhlService.upsertLead is best-effort: platform PIT/location, source Speeko Get Demo, tags speeko-get-demo and direction, note with team/volume/integrations. Missing config/upstream failure does not block dial. Org tools/CRM never inherit these credentials.
 
 GHL lookup uses PIT-friendly GET /contacts/search/duplicate; upsert uses POST /contacts/upsert, source Speeko Voice Agent; both persist ghlContactId in calls.context. Free slots use Unix milliseconds, only open startIso/endIso times, capped at 12. Short windows expand to calendar days; naive/Z times plus IANA timezone are wall-clock, numeric offsets stay absolute. Booking needs a real contact id and never upserts; phone-like contactId is ignored. Missing contact differs from unavailable slot. Authorize before every upstream operation.
+
+## Configurable voice tasks
+
+VoiceTasksModule owns `voice_tasks` (nullable organization owner, draft JSONB, optimistic draft_revision, nullable published_version pointer, archive state and unique platform starter_key) and `voice_task_versions` (immutable definition JSONB keyed by task_id/version with published_at). Platform templates `agents` and tenant `organization_agents` have nullable default_voice_task_id FKs; `integration_endpoints` has nullable voice_task_id. These FKs restrict deletion. Calls store the resolved voice_task_snapshot JSONB independently of future edits. The organization owner FK cascades; task versions restrict deletion so published history is retained. An organization-id index supports task scoping.
+
+Entities remain the local schema authority under synchronize:true. The new schema was synchronized and verified in the isolated local voice_tasks_test database. **Erflow synchronization for this configurable voice-task change was explicitly deferred by the user (“leave er flow”).** Existing deferrals and the normal workflow for other changes remain in force.
+
+Task APIs share these routes under `/api/users/voice-tasks`, `/api/admin/voice-tasks`, and `/api/admin/organizations/:orgId/voice-tasks`:
+- GET list, GET :id, GET :id/versions.
+- POST create {definition}, POST :id/clone, PATCH :id/draft {revision,definition}.
+- POST :id/publish {revision}, POST :id/archive, POST :id/preview {revision}.
+- POST :id/test {revision,organizationAgentId,context?}; platform tests also require organizationId.
+
+User task scope comes only from the authenticated principal. Organization users can read published platform definitions, clone them and manage their own drafts. They cannot edit platform or foreign-tenant tasks. Platform-admin routes have AdminGuard. Draft updates use revision predicates; publishing locks the task and creates an immutable version transactionally. Tests use an exact revision/version-zero snapshot without publishing. Seven deterministic platform starters seed idempotently without rewriting existing templates.
+
+Call/test/batch and endpoint selectors accept voiceTaskId or a legacy task key, never both nonempty selectors. Organization and platform agent PATCH/assignment accepts defaultVoiceTaskId. Resolution is explicit operation or endpoint selection, then saved organization default, platform default, general. A saved legacy inbound default takes precedence over a platform configured default; existing legacy assignments remain intact. Outbound default_task_key retains its legacy null rule; default_voice_task_id supports both directions.
+
+Outbound creation and enqueue resolve once and store snapshots on calls, including retries. All calls in a batch use one version. Dispatch rechecks current tool-profile/organization allowlist and calendar compatibility without resolving a newer task version. Required input context is typed and defaults applied before execution. Inbound live metadata resolves the published version; ensure receives its {taskId,version} and persists that exact historical version even if publication changes between requests. Archived tasks cannot be newly assigned; in-flight snapshots and historical calls remain readable.
+
+Configured calls require taskCompleted:true. Explicit false always wins; taskResult never proves completion. A successful complete_* tool is a compatibility fallback only for legacy callbacks that omit the flag. A session ending without task completion remains incomplete and does not trigger an automatic dial retry.
+
+Verification: `VOICE_TASK_TEST_DATABASE_URL=postgresql://voice_test@127.0.0.1:55441/voice_tasks_test` enables `voice-tasks/test/voice-tasks.postgres.spec.ts`. The suite refuses other hosts/ports/database names, uses the voice_task_test schema, and exercises real publishing locks, revision conflicts, immutable history, starters, guards and tenant isolation. Calls `configured-dispatch.spec.ts` checks queued snapshots, permission revocation, draft isolation, inbound version races and callback flags; provider/LiveKit I/O is mocked. Never point this suite at a shared or production database.

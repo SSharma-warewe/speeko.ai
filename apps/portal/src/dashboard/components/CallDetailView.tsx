@@ -41,7 +41,10 @@ export function CallDetailView({
   const toolEvents = resolveToolEvents(call);
   const context = asRecord(call.context);
   const partyFacts = contextFacts(context);
-  const outcomeFacts = resultFacts(call.taskResult);
+  const outcomeFacts = call.voiceTaskSnapshot ? [
+    { label: 'Outcome', value: String(call.taskResult?.outcome || '—') },
+    ...call.voiceTaskSnapshot.definition.resultFields.map(f => ({ label: f.description || f.key, value: call.taskResult?.[f.key] == null ? '—' : String(call.taskResult[f.key]) })),
+  ] : resultFacts(call.taskResult);
   const live = isLive(call.status);
   const task = taskPresentation(call);
   const duration = callDuration(call);
@@ -79,7 +82,7 @@ export function CallDetailView({
         </li>
         <li>
           <span>Workflow</span>
-          <strong className="ops-mono">{call.taskKey || "—"}</strong>
+          <strong className="ops-mono">{call.voiceTaskSnapshot ? `${call.voiceTaskSnapshot.definition.name} · ${call.voiceTaskSnapshot.draftRevision ? "draft r" + call.voiceTaskSnapshot.draftRevision : "v" + call.voiceTaskSnapshot.version}` : call.taskKey || "—"}</strong>
         </li>
         <li>
           <span>Try</span>
