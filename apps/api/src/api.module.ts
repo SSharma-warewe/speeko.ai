@@ -1,3 +1,4 @@
+import { WhatsAppTasksModule } from './whatsapp-tasks/whatsapp-tasks.module';
 import { VoiceTasksModule } from './voice-tasks/voice-tasks.module';
 import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
@@ -57,6 +58,7 @@ import { WhatsappModule } from './whatsapp/whatsapp.module';
     ToolsModule,
     AgentsModule,
     VoiceTasksModule,
+    WhatsAppTasksModule,
     SipTrunksModule,
     SipDispatchRulesModule,
     CallsModule,

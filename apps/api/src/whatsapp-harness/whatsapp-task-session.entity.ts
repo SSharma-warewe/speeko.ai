@@ -35,8 +35,8 @@ export class WhatsAppTaskSession {
   @Column({ type: 'jsonb' }) configuration!: WhatsAppTaskConfiguration;
   @Column({ type: 'varchar', length: 20, default: 'active' }) status!:
     'active' | 'completed' | 'cancelled';
-  @Column({ type: 'varchar', length: 30, nullable: true }) outcome!:
-    'booked' | 'declined' | 'reset' | null;
+  @Column({ type: 'varchar', length: 64, nullable: true }) outcome!:
+    string | null;
   @Column({ type: 'jsonb', nullable: true }) result!: Record<
     string,
     unknown

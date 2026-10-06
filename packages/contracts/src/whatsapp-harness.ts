@@ -19,10 +19,13 @@ export type WhatsAppSessionSnapshot = {
 export type WhatsAppTurnCheckpoint = {
   session: WhatsAppSessionSnapshot;
   reply?: string;
+  completion?: import('./configurable-whatsapp-tasks.js').WhatsAppTaskCompletion;
   /** A model request only; the API checks quoted evidence and unresolved writes. */
   decline?: { evidence: string };
 };
 export type WhatsAppWorkerTurn = {
+  taskProtocolVersion?: 2;
+  sandbox?: true;
   id: string;
   conversationId: string;
   generation: number;

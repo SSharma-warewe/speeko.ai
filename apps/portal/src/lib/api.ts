@@ -1168,3 +1168,12 @@ export const updateUserWhatsAppAgent = (data: UpdateWhatsAppAgentRequest) =>
     method: "PATCH",
     body: data,
   });
+
+export const listUserWhatsAppConversations = () =>
+  userFetch<import('@call-agent/contracts').WhatsAppConversationSummary[]>(
+    '/users/whatsapp/conversations',
+  );
+export const getUserWhatsAppConversation = (id: string) =>
+  userFetch<import('@call-agent/contracts').WhatsAppConversationDetail>(
+    `/users/whatsapp/conversations/${id}`,
+  );

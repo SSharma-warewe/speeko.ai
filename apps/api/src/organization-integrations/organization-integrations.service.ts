@@ -1,5 +1,7 @@
+import { WhatsAppTasksService } from '../whatsapp-tasks/whatsapp-tasks.service';
 import {
   WHATSAPP_TASKS,
+  prepareWhatsAppTaskContext,
   WHATSAPP_AGENT_TOOL_IDS,
   isWhatsAppTaskKey,
   type WhatsAppTaskKey,
@@ -68,6 +70,7 @@ export class OrganizationIntegrationsService {
     @InjectRepository(OrganizationAgent)
     private readonly voiceAgents: Repository<OrganizationAgent>,
     private readonly toolProfiles: ToolProfilesService,
+    private readonly whatsappTasks: WhatsAppTasksService,
   ) {}
 
   async listForOrg(
@@ -187,6 +190,8 @@ export class OrganizationIntegrationsService {
 
   async getWhatsAppAgent(organizationId: string): Promise<{
     taskKey: WhatsAppTaskKey | null;
+    whatsappTaskId: string | null;
+    taskContext: Record<string, unknown>;
     systemPrompt: string | null;
     bookingVoiceAgentId: string | null;
     whatsappToolProfileId: string | null;
@@ -200,6 +205,8 @@ export class OrganizationIntegrationsService {
     );
     return {
       taskKey: row?.whatsappTaskKey ?? null,
+      whatsappTaskId: row?.whatsappTaskId ?? null,
+      taskContext: row?.whatsappTaskContext ?? {},
       systemPrompt: row?.systemPrompt ?? null,
       bookingVoiceAgentId: row?.bookingVoiceAgentId ?? null,
       whatsappToolProfileId: row?.whatsappToolProfileId ?? null,
@@ -212,8 +219,12 @@ export class OrganizationIntegrationsService {
     bookingVoiceAgentId?: string | null,
     whatsappToolProfileId?: string | null,
     taskKey?: WhatsAppTaskKey | null,
+    whatsappTaskId?: string | null,
+    taskContext?: Record<string, unknown>,
   ): Promise<{
     taskKey: WhatsAppTaskKey | null;
+    whatsappTaskId: string | null;
+    taskContext: Record<string, unknown>;
     systemPrompt: string | null;
     bookingVoiceAgentId: string | null;
     whatsappToolProfileId: string | null;
@@ -222,6 +233,35 @@ export class OrganizationIntegrationsService {
       organizationId,
       IntegrationProvider.WHATSAPP,
     );
+    const nextTaskId =
+      whatsappTaskId === undefined ? row.whatsappTaskId : whatsappTaskId;
+    const nextKey = taskKey === undefined ? row.whatsappTaskKey : taskKey;
+    if (nextTaskId && nextKey)
+      throw new BadRequestException(
+        'Choose a configured task or legacy task, not both',
+      );
+    if (nextTaskId) {
+      const selected = await this.whatsappTasks.snapshot(
+        organizationId,
+        nextTaskId,
+      );
+      try {
+        prepareWhatsAppTaskContext(
+          selected.definition,
+          taskContext ?? row.whatsappTaskContext ?? {},
+        );
+      } catch (error) {
+        throw new BadRequestException(
+          error instanceof Error ? error.message : 'Invalid task context',
+        );
+      }
+    }
+    row.whatsappTaskId = nextTaskId ?? null;
+    if (taskContext !== undefined) {
+      if (JSON.stringify(taskContext).length > 48000)
+        throw new BadRequestException('Task context exceeds 48 KB');
+      row.whatsappTaskContext = taskContext;
+    }
     const trimmed = systemPrompt.trim();
     const nextAgentId =
       bookingVoiceAgentId === undefined
@@ -298,11 +338,13 @@ export class OrganizationIntegrationsService {
     }
     if (taskKey !== undefined) row.whatsappTaskKey = taskKey;
     row.systemPrompt = trimmed.length > 0 ? trimmed : null;
-    if (row.whatsappTaskKey && trimmed)
+    if ((row.whatsappTaskKey || row.whatsappTaskId) && trimmed)
       await this.whatsAppTaskConfiguration(row);
     const saved = await this.repository.save(row);
     return {
       taskKey: saved.whatsappTaskKey ?? null,
+      whatsappTaskId: saved.whatsappTaskId ?? null,
+      taskContext: saved.whatsappTaskContext ?? {},
       systemPrompt: saved.systemPrompt ?? null,
       bookingVoiceAgentId: saved.bookingVoiceAgentId ?? null,
       whatsappToolProfileId: saved.whatsappToolProfileId ?? null,
@@ -313,10 +355,47 @@ export class OrganizationIntegrationsService {
   async whatsAppTaskConfiguration(
     row: OrganizationIntegration,
   ): Promise<WhatsAppTaskConfiguration> {
-    if (!isWhatsAppTaskKey(row.whatsappTaskKey) || !row.systemPrompt?.trim())
+    if (
+      (!row.whatsappTaskId && !isWhatsAppTaskKey(row.whatsappTaskKey)) ||
+      !row.systemPrompt?.trim()
+    )
       throw new BadRequestException(
         'Select a WhatsApp task and enter a persona.',
       );
+    const snapshot = row.whatsappTaskId
+      ? await this.whatsappTasks.snapshot(
+          row.organizationId,
+          row.whatsappTaskId,
+        )
+      : undefined;
+    let context: Record<string, unknown> = {};
+    try {
+      if (snapshot)
+        context = prepareWhatsAppTaskContext(
+          snapshot.definition,
+          row.whatsappTaskContext ?? {},
+        );
+    } catch (error) {
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'Invalid task context',
+      );
+    }
+    if (snapshot && snapshot.definition.toolIds.length === 0)
+      return {
+        key: 'configured',
+        version: snapshot.version,
+        objective: snapshot.definition.objective,
+        completionRule: 'configured',
+        snapshot,
+        context,
+        persona: row.systemPrompt!.trim(),
+        enabledTools: [],
+        toolProfileId: '',
+        voiceAgentId: '',
+        calendarIntegrationId: '',
+        locationId: '',
+        calendarId: '',
+      };
     if (!row.bookingVoiceAgentId || !row.whatsappToolProfileId)
       throw new BadRequestException(
         'Task requires a booking tool profile and GHL voice agent.',
@@ -329,10 +408,15 @@ export class OrganizationIntegrationsService {
       row.whatsappToolProfileId,
       row.organizationId,
     );
+    if (snapshot && snapshot.definition.toolIds.some((id) => !ids.includes(id)))
+      throw new BadRequestException(
+        'Task requires capabilities not assigned in the selected profile',
+      );
     if (
-      !ids.includes('scheduleGhlMeeting') ||
-      !ids.includes('checkGhlFreeSlots') ||
-      !(ids.includes('lookupGhlContact') || ids.includes('upsertGhlContact'))
+      !snapshot &&
+      (!ids.includes('scheduleGhlMeeting') ||
+        !ids.includes('checkGhlFreeSlots') ||
+        !(ids.includes('lookupGhlContact') || ids.includes('upsertGhlContact')))
     )
       throw new BadRequestException(
         'Task requires scheduleGhlMeeting, checkGhlFreeSlots and a contact tool assigned to this organization.',
@@ -361,19 +445,24 @@ export class OrganizationIntegrationsService {
       throw new BadRequestException(
         'Task requires a complete active GHL calendar connection.',
       );
-    const task = WHATSAPP_TASKS[row.whatsappTaskKey];
+    const task = WHATSAPP_TASKS[row.whatsappTaskKey ?? 'receptionist'];
     return {
-      key: row.whatsappTaskKey,
-      version: task.version,
-      objective: task.objective,
-      completionRule: 'ghl_appointment_created',
+      key: snapshot ? 'configured' : row.whatsappTaskKey!,
+      ...(snapshot ? { snapshot, context } : {}),
+      version: snapshot?.version ?? task.version,
+      objective: snapshot?.definition.objective ?? task.objective,
+      completionRule: snapshot ? 'configured' : 'ghl_appointment_created',
       persona: row.systemPrompt.trim(),
       toolProfileId: row.whatsappToolProfileId,
       voiceAgentId: agent.id,
       calendarIntegrationId: calendar.id,
       locationId: calendar.locationId,
       calendarId: calendar.calendarId,
-      enabledTools: WHATSAPP_AGENT_TOOL_IDS.filter((id) => ids.includes(id)),
+      enabledTools: WHATSAPP_AGENT_TOOL_IDS.filter(
+        (id) =>
+          ids.includes(id) &&
+          (!snapshot || snapshot.definition.toolIds.includes(id)),
+      ),
     };
   }
 

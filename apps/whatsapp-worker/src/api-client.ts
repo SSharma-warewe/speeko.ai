@@ -22,7 +22,7 @@ export class HarnessApiClient {
     for (let attempt = 0; ; attempt++) {
       try {
         const response = await fetch(
-          `${this.baseUrl.replace(/\/$/, '')}/api/internal/whatsapp/turns/${turn.id}/${action}`,
+          `${this.baseUrl.replace(/\/$/, '')}/api/internal/whatsapp/${turn.sandbox ? 'test-turns' : 'turns'}/${turn.id}/${action}`,
           {
             method: 'POST',
             headers: {

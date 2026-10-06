@@ -62,6 +62,8 @@ export class WhatsAppAgentController {
       dto.bookingVoiceAgentId,
       dto.whatsappToolProfileId,
       dto.taskKey,
+      dto.whatsappTaskId,
+      dto.taskContext,
     );
     return { ...config, platformPrompt: RECEPTIONIST_INSTRUCTION };
   }

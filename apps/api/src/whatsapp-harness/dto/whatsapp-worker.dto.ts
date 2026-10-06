@@ -16,6 +16,10 @@ export class WhatsAppLeaseDto {
   @ApiProperty() @IsUUID() leaseToken!: string;
 }
 export class WhatsAppCheckpointDto extends WhatsAppLeaseDto {
+  @ApiProperty({ required: false, type: Object })
+  @IsOptional()
+  @IsObject()
+  completion?: import('@call-agent/contracts').WhatsAppTaskCompletion;
   @ApiProperty({
     required: false,
     description:
@@ -43,4 +47,10 @@ export class WhatsAppToolDto extends WhatsAppLeaseDto {
   @IsIn(WHATSAPP_AGENT_TOOL_IDS)
   toolId!: WhatsAppAgentToolId;
   @ApiProperty() @IsObject() args!: Record<string, string>;
+}
+
+export class WhatsAppCompletionDto extends WhatsAppLeaseDto {
+  @ApiProperty({ type: Object })
+  @IsObject()
+  completion!: import('@call-agent/contracts').WhatsAppTaskCompletion;
 }

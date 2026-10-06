@@ -1,12 +1,8 @@
+import { turnSchema } from './turn-schema.js';
 import 'dotenv/config';
 import { createServer, type IncomingMessage } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
-import { z } from 'zod';
-import {
-  WHATSAPP_AGENT_TOOL_IDS,
-  WHATSAPP_TASK_KEYS,
-  type WhatsAppWorkerTurn,
-} from '@call-agent/contracts';
+import { type WhatsAppWorkerTurn } from '@call-agent/contracts';
 import { HarnessApiClient } from './api-client.js';
 import { runTurn } from './runner.js';
 
@@ -31,39 +27,6 @@ const timeoutMs = Math.min(
 const api = new HarnessApiClient(apiUrl, secret);
 const active = new Map<string, AbortController>();
 let stopping = false;
-const snapshot = z.object({
-  state: z.record(z.unknown()),
-  events: z.array(z.record(z.unknown())),
-});
-const turnSchema = z.object({
-  task: z
-    .object({
-      sessionId: z.string().uuid(),
-      key: z.enum(WHATSAPP_TASK_KEYS),
-      version: z.literal(1),
-      objective: z.string().min(1).max(20000),
-      completionRule: z.literal('ghl_appointment_created'),
-      status: z.enum(['active', 'completed', 'cancelled']),
-      result: z.record(z.unknown()).nullable(),
-    })
-    .nullable(),
-  id: z.string().uuid(),
-  conversationId: z.string().uuid(),
-  generation: z.number().int().positive(),
-  leaseToken: z.string().uuid(),
-  sender: z.string().regex(/^\d{6,20}$/),
-  body: z.string().min(1).max(4096),
-  prompt: z.string().min(1).max(20_000),
-  enabledTools: z.array(z.enum(WHATSAPP_AGENT_TOOL_IDS)),
-  session: snapshot,
-  checkpoint: z
-    .object({
-      session: snapshot,
-      reply: z.string().max(4096).optional(),
-      decline: z.object({ evidence: z.string().min(1).max(4096) }).optional(),
-    })
-    .nullable(),
-});
 
 async function readJson(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
@@ -118,6 +81,7 @@ const server = createServer(async (request, response) => {
       active: active.size,
       capacity,
       taskProtocolVersion: 1,
+      supportedTaskProtocolVersions: [1, 2],
     });
   const supplied = Buffer.from(
     String(request.headers['x-worker-secret'] ?? ''),
@@ -128,12 +92,19 @@ const server = createServer(async (request, response) => {
     !timingSafeEqual(supplied, expected)
   )
     return send(401, { error: 'unauthorized' });
-  if (request.url !== '/turns' || request.method !== 'POST')
+  if (
+    !['/turns', '/test-turns'].includes(request.url ?? '') ||
+    request.method !== 'POST'
+  )
     return send(404, { error: 'not_found' });
   try {
     const parsed = turnSchema.safeParse(await readJson(request));
     if (!parsed.success) return send(400, { error: 'invalid_turn' });
     const turn = parsed.data;
+    if ((request.url === '/test-turns') !== (turn.sandbox === true))
+      return send(400, { error: 'invalid_dispatch_purpose' });
+    if (turn.sandbox && !turn.task?.snapshot)
+      return send(400, { error: 'configured_test_required' });
     if (active.has(turn.id) || stopping || active.size >= capacity)
       return send(429, { error: 'worker_busy' });
     const controller = new AbortController();
