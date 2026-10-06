@@ -1,520 +1,1074 @@
-import { useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Button } from "@call-agent/ui";
+import { useEffect, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import { Alert, Button, Select, Skeleton } from '@call-agent/ui';
 import {
-  ApiError,
+  executeUserCrm,
   getUserQueueStats,
+  getUserWhatsAppAgent,
   listUserAgents,
-  listUserBatches,
   listUserCalls,
+  listUserOrgIntegrations,
+  listUserWhatsAppConversations,
+  listUserWhatsAppOutboundMessages,
   pauseUserQueue,
   resumeUserQueue,
   UnauthorizedError,
-  type Agent,
-  type CallBatch,
-  type CallRecord,
   type OrgQueueStats,
-} from "../../lib/api";
-import { useUserAuth } from "../../lib/auth";
-import { formatRelative } from "../../lib/format";
-import { CallCostCell } from "../components/CallCostCell";
-import { CallOutcomeBar } from "../components/CallOutcomeBar";
-import { CallsVolumeChart } from "../components/CallsVolumeChart";
-import { ErrorBlock } from "../components/ErrorBlock";
-import { LoadingBlock } from "../components/LoadingBlock";
-import { CallOutcomeBadge } from "../components/CallOutcomeBadge";
-import { StatusBadge } from "../components/StatusBadge";
-import { useUserAsync } from "../hooks/useAsync";
+} from '../../lib/api';
+import { useUserAuth } from '../../lib/auth';
+import { callDisplayOutcome } from '../../lib/call-outcome';
+import { formatRelative } from '../../lib/format';
+import { StatusBadge } from '../components/StatusBadge';
+import { useUserAsync } from '../hooks/useAsync';
+import { label, obj, rows, str } from './crm/CrmUi';
+import '../operations-overview.css';
 
-type KpiTone = "live" | "warn" | "ok" | "bad";
+type Channel = 'voice' | 'whatsapp' | 'crm' | 'agents';
+type Activity = {
+  id: string;
+  channel: Channel;
+  title: string;
+  detail: string;
+  time: string;
+  to: string;
+  status: string;
+  tone: string;
+};
+type LoadState = {
+  data: unknown;
+  error: string | null;
+  loading: boolean;
+  reload: () => void;
+};
 
 export default function UserOverviewPage() {
-  const navigate = useNavigate();
   const { logout } = useUserAuth();
-  const { data, error, loading, reload } = useUserAsync(async () => {
-    const [stats, calls, agents, batches] = await Promise.all([
-      getUserQueueStats(),
-      listUserCalls({ limit: 12 }),
-      listUserAgents(),
-      listUserBatches(),
-    ]);
-    return { stats, calls, agents, batches };
-  }, []);
+  const [tick, setTick] = useState(0);
+  const [crmTick, setCrmTick] = useState(0);
+  const [connectionId, setConnectionId] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [queueBusy, setQueueBusy] = useState(false);
+  const [queueError, setQueueError] = useState<string | null>(null);
+  const statsState = useUserAsync(getUserQueueStats, [tick]);
+  const calls = useUserAsync(() => listUserCalls({ limit: 12 }), [tick]);
+  const agents = useUserAsync(listUserAgents, [tick]);
+  const conversations = useUserAsync(listUserWhatsAppConversations, [tick]);
+  const messages = useUserAsync(listUserWhatsAppOutboundMessages, [tick]);
+  const whatsappAgent = useUserAsync(getUserWhatsAppAgent, [tick]);
+  const integrations = useUserAsync(listUserOrgIntegrations, [tick]);
 
   useEffect(() => {
-    const id = window.setInterval(() => reload(), 5000);
+    const id = window.setInterval(() => {
+      if (document.visibilityState === 'visible') setTick((value) => value + 1);
+    }, 30000);
     return () => window.clearInterval(id);
-  }, [reload]);
+  }, []);
 
-  const handlePauseResume = async (action: "pause" | "resume") => {
+  const refresh = () => {
+    setTick((value) => value + 1);
+    setCrmTick((value) => value + 1);
+  };
+  const refreshing = [
+    statsState,
+    calls,
+    agents,
+    conversations,
+    messages,
+    whatsappAgent,
+    integrations,
+  ].some((state) => state.loading);
+  const stats = statsState.error ? null : statsState.data;
+  const connections = (
+    integrations.error ? [] : (integrations.data ?? [])
+  ).filter((c) => c.provider === 'ghl_crm' && c.isActive);
+  const connection = connections.find((c) => c.id === connectionId);
+  const whatsappConnected =
+    !integrations.error &&
+    integrations.data?.some((c) => c.provider === 'whatsapp' && c.isActive);
+  const conversationRows = conversations.error
+    ? []
+    : (conversations.data ?? []);
+  const messageRows = messages.error ? [] : (messages.data ?? []);
+  const failedMessages = messageRows.filter(
+    (m) => m.status === 'failed',
+  ).length;
+  const skippedMessages = messageRows.filter(
+    (m) => m.status === 'skipped',
+  ).length;
+  const queueLabel = stats
+    ? stats.queue.paused
+      ? 'Paused'
+      : stats.queue.enabled && stats.dialer.globalEnabled
+        ? 'Running'
+        : 'Disabled'
+    : 'Unavailable';
+  const latestConversations = [...conversationRows].sort(
+    (a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt),
+  );
+  const activity: Activity[] = [
+    ...(calls.error ? [] : (calls.data ?? [])).map((c) => {
+      const outcome = callDisplayOutcome(c);
+      return {
+        id: `call-${c.id}`,
+        channel: 'voice' as const,
+        title: c.toNumber || c.participantIdentity || 'Voice call',
+        detail: `${c.direction} call`,
+        time: c.createdAt,
+        to: `/dashboard/calls/${c.id}`,
+        status: outcome.label,
+        tone: outcome.tone,
+      };
+    }),
+    ...messageRows.map((m) => ({
+      id: `message-${m.id}`,
+      channel: 'whatsapp' as const,
+      title: m.contactName || m.phone,
+      detail: m.templateName,
+      time: m.createdAt,
+      to: '/dashboard/whatsapp?tab=history',
+      status:
+        m.status === 'sent'
+          ? 'Sent'
+          : m.status === 'failed'
+            ? 'Failed'
+            : 'Skipped',
+      tone:
+        m.status === 'sent'
+          ? 'success'
+          : m.status === 'failed'
+            ? 'danger'
+            : 'warn',
+    })),
+    ...conversationRows.map((c) => ({
+      id: `conversation-${c.id}`,
+      channel: 'whatsapp' as const,
+      title: c.sender,
+      detail: 'Agent conversation updated',
+      time: c.updatedAt,
+      to: '/dashboard/whatsapp?tab=history',
+      status: 'Conversation',
+      tone: 'neutral',
+    })),
+  ].sort((a, b) => Date.parse(b.time) - Date.parse(a.time));
+  const visibleActivity = activity
+    .filter((item) => filter === 'all' || item.channel === filter)
+    .slice(0, 3);
+  const activityError = Boolean(
+    calls.error || messages.error || conversations.error,
+  );
+  const attention = [
+    ...(statsState.error
+      ? [
+          {
+            title: 'Voice overview unavailable',
+            detail: statsState.error,
+            to: '/dashboard/queue',
+          },
+        ]
+      : []),
+    ...(stats?.dialer.lastError
+      ? [
+          {
+            title: 'Dialer needs a look',
+            detail: stats.dialer.lastError,
+            to: '/dashboard/queue',
+          },
+        ]
+      : []),
+    ...(stats?.queue.paused
+      ? [
+          {
+            title: 'Outbound queue is paused',
+            detail: `${stats.counts.pending} calls waiting in the queue`,
+            to: '/dashboard/queue',
+          },
+        ]
+      : []),
+    ...(stats && !stats.queue.enabled
+      ? [
+          {
+            title: 'Outbound queue is disabled',
+            detail: 'Review queue settings to enable outbound processing',
+            to: '/dashboard/queue',
+          },
+        ]
+      : []),
+    ...(stats && !stats.dialer.globalEnabled
+      ? [
+          {
+            title: 'Outbound dialer is off',
+            detail: 'Queue processing is disabled at platform level',
+            to: '/dashboard/queue',
+          },
+        ]
+      : []),
+    ...(stats && stats.batches.paused > 0
+      ? [
+          {
+            title: `${stats.batches.paused} paused ${stats.batches.paused === 1 ? 'batch' : 'batches'}`,
+            detail: 'Review campaigns waiting to continue',
+            to: '/dashboard/batches',
+          },
+        ]
+      : []),
+    ...(failedMessages > 0
+      ? [
+          {
+            title: `${failedMessages} failed template ${failedMessages === 1 ? 'send' : 'sends'}`,
+            detail: 'In recent send history · inspect before resending',
+            to: '/dashboard/whatsapp?tab=history',
+          },
+        ]
+      : []),
+    ...(integrations.error
+      ? [
+          {
+            title: 'Connections unavailable',
+            detail: integrations.error,
+            to: '/dashboard/integrations',
+          },
+        ]
+      : []),
+    ...(messages.error || conversations.error || whatsappAgent.error
+      ? [
+          {
+            title: 'WhatsApp overview incomplete',
+            detail: 'Some WhatsApp data could not be loaded',
+            to: '/dashboard/whatsapp?tab=history',
+          },
+        ]
+      : []),
+    ...(agents.error
+      ? [
+          {
+            title: 'Agent overview unavailable',
+            detail: agents.error,
+            to: '/dashboard/agents',
+          },
+        ]
+      : []),
+  ];
+
+  const toggleQueue = async () => {
+    if (!stats || queueBusy) return;
+    setQueueBusy(true);
+    setQueueError(null);
     try {
-      if (action === "pause") await pauseUserQueue();
-      else await resumeUserQueue();
-      reload();
-    } catch (err) {
-      if (err instanceof UnauthorizedError) {
-        logout();
-        return;
-      }
-      window.alert(err instanceof ApiError ? err.message : "Queue action failed");
+      if (stats.queue.paused) await resumeUserQueue();
+      else await pauseUserQueue();
+      statsState.reload();
+    } catch (error) {
+      if (error instanceof UnauthorizedError) logout();
+      else
+        setQueueError(
+          error instanceof Error
+            ? error.message
+            : 'Queue action failed. Refresh the queue before trying again.',
+        );
+    } finally {
+      setQueueBusy(false);
     }
   };
 
-  if (loading && !data) return <LoadingBlock label="Loading overview" />;
-  if (error || !data) return <ErrorBlock message={error ?? "Failed to load"} onRetry={reload} />;
-
-  const { stats, calls, agents, batches } = data;
-  const activeAgents = agents.filter((a) => a.isActive).length;
-  const queueLabel = stats.queue.paused
-    ? "Paused"
-    : stats.queue.enabled
-      ? "Running"
-      : "Disabled";
-  const recentBatches = [...batches]
-    .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
-    .slice(0, 3);
-  const rate14 = successRate14(stats);
-  const pipeline = [
-    { key: "pending", label: "Pending", value: stats.counts.pending, color: "#ca8a04" },
-    { key: "creating", label: "Creating", value: stats.counts.creating, color: "#525252" },
-    { key: "dialing", label: "Dialing", value: stats.counts.dialing, color: "#854d0e" },
-    { key: "ready", label: "Live", value: stats.counts.ready, color: "#166534" },
-  ];
-  const pipeTotal = pipeline.reduce((n, p) => n + p.value, 0);
-
   return (
-    <div className="ops-ov">
-      <div className="ops-ov-strip">
-        <div className="ops-ov-strip-live">
-          <StatusBadge
-            status={stats.queue.paused ? "warn" : stats.queue.enabled ? "live" : "inactive"}
-            label={queueLabel}
-          />
-          <span className="ops-ov-strip-meta">
-            <span>
-              {stats.queue.inProgress}/{stats.queue.maxConcurrent} slots
-            </span>
-            <span className="ops-ov-dot" aria-hidden>
-              ·
-            </span>
-            <span>
-              {stats.queue.dialsLastMinute}/{stats.queue.maxDialsPerMinute} /min
-            </span>
-            <span className="ops-ov-dot" aria-hidden>
-              ·
-            </span>
-            <span>{stats.retries.scheduled} retries queued</span>
-            <span className="ops-ov-dot" aria-hidden>
-              ·
-            </span>
-            <span>tick {formatRelative(stats.dialer.lastTickAt)}</span>
+    <div className="ops-overview">
+      <header className="overview-header">
+        <div>
+          <span className="overview-eyebrow">
+            Your organization, at a glance
           </span>
-          {stats.dialer.lastError ? (
-            <span className="ops-ov-strip-error" title={stats.dialer.lastError}>
-              {stats.dialer.lastError}
+          <h1>
+            Operations overview
+            <span className="overview-title-dot" aria-hidden>
+              .
             </span>
-          ) : null}
+          </h1>
+          <p>Every conversation. Every channel. One clear picture.</p>
         </div>
-        <div className="ops-ov-strip-actions">
-          {stats.queue.paused ? (
-            <Button type="button" variant="primary" size="sm" onClick={() => handlePauseResume("resume")}>
-              Resume queue
-            </Button>
-          ) : (
-            <Button type="button" variant="secondary" size="sm" onClick={() => handlePauseResume("pause")}>
-              Pause queue
-            </Button>
-          )}
-          <Button type="button" variant="ghost" size="sm" onClick={reload}>
-            Refresh
-          </Button>
+        <div className="overview-header-actions">
           <Button
-            type="button"
-            variant="ghost"
+            variant="secondary"
             size="sm"
-            onClick={() => navigate("/dashboard/calls?compose=enqueue")}
+            onClick={refresh}
+            disabled={refreshing}
           >
-            Enqueue
+            <Icon kind="refresh" /> {refreshing ? 'Refreshing…' : 'Refresh'}
           </Button>
           <Button
-            type="button"
+            as="a"
+            href="/dashboard/calls?compose=enqueue"
+            size="sm"
             variant="primary"
-            size="sm"
-            onClick={() => navigate("/dashboard/calls")}
           >
-            Dial now
+            <span aria-hidden>+</span> Start calling
           </Button>
         </div>
-      </div>
+      </header>
 
-      <div className="ops-ov-kpis" role="list">
-        <KpiCell
-          to="/dashboard/calls?bucket=pending"
-          label="Pending"
-          value={stats.counts.pending}
-          hint={`${stats.counts.pendingReadyNow} ready`}
-          tone={stats.counts.pendingReadyNow > 0 && !stats.queue.paused ? "warn" : undefined}
-        />
-        <KpiCell
-          to="/dashboard/calls?bucket=pending"
-          label="Ready"
-          value={stats.counts.pendingReadyNow}
-          hint="claimable now"
-        />
-        <KpiCell
+      <div className="overview-metrics">
+        <Metric
+          channel="voice"
+          label="Calls in progress"
+          value={
+            stats
+              ? stats.counts.creating +
+                stats.counts.dialing +
+                stats.counts.ready
+              : undefined
+          }
+          hint={
+            stats
+              ? `${stats.counts.pending} queued · ${stats.counts.ready} live`
+              : 'Current voice activity'
+          }
           to="/dashboard/calls?bucket=in_progress"
-          label="Creating"
-          value={stats.counts.creating}
+          state={statsState}
         />
-        <KpiCell
-          to="/dashboard/calls?bucket=in_progress"
-          label="Dialing"
-          value={stats.counts.dialing}
-          hint={`${stats.queue.inProgress} in flight`}
-          tone={stats.counts.dialing > 0 ? "live" : undefined}
+        <Metric
+          channel="whatsapp"
+          label="Recent conversations"
+          value={conversations.data?.length}
+          hint="Latest 50 WhatsApp agent conversations"
+          to="/dashboard/whatsapp?tab=history"
+          state={conversations}
         />
-        <KpiCell
-          to="/dashboard/calls?bucket=in_progress"
-          label="Live"
-          value={stats.counts.ready}
-          tone={stats.counts.ready > 0 ? "ok" : undefined}
+        <Metric
+          channel="crm"
+          label="CRM connections"
+          value={integrations.data ? connections.length : undefined}
+          hint="Active HighLevel connections"
+          to="/dashboard/crm"
+          state={integrations}
         />
-        <KpiCell
-          to="/dashboard/calls?bucket=done"
-          label="Completed"
-          value={stats.counts.completed}
-        />
-        <KpiCell
-          to="/dashboard/calls?bucket=done"
-          label="Incomplete"
-          value={stats.counts.incomplete ?? 0}
-          tone={(stats.counts.incomplete ?? 0) > 0 ? "warn" : undefined}
-        />
-        <KpiCell
-          to="/dashboard/calls?bucket=done"
-          label="Failed"
-          value={stats.counts.failed}
-          tone={stats.counts.failed > 0 ? "bad" : undefined}
-        />
-        <KpiCell
-          to="/dashboard/calls?bucket=done"
-          label="Cancelled"
-          value={stats.counts.cancelled}
-        />
-        <KpiCell
-          to="/dashboard/calls?bucket=pending"
-          label="Retries"
-          value={stats.retries.scheduled}
-          hint={`avg ${formatAvgAttempt(stats.retries.avgAttemptCount)}`}
-        />
-        <KpiCell
-          to="/dashboard/batches"
-          label="Batches"
-          value={stats.batches.running}
-          hint={`${stats.batches.paused} paused`}
-        />
-        <KpiCell
+        <Metric
+          channel="agents"
+          label="Active voice agents"
+          value={agents.data?.filter((a) => a.isActive).length}
+          hint={
+            agents.data
+              ? `${agents.data.length} configured in your organization`
+              : 'Your named agent configurations'
+          }
           to="/dashboard/agents"
-          label="Agents"
-          value={agents.length}
-          hint={`${activeAgents} active`}
-        />
-        <KpiCell
-          to="/dashboard/calls?bucket=done"
-          label="14d rate"
-          value={rate14 == null ? "—" : `${rate14}%`}
-          hint="finished → done"
+          state={agents}
         />
       </div>
 
-      <div className="ops-ov-mid">
-        <section className="ops-panel ops-ov-cell">
-          <div className="ops-panel-head">
-            <h2>Calls made</h2>
-            <span className="ops-faint">Completed / incomplete / failed · UTC day</span>
+      <div className="overview-channels">
+        <section
+          className="overview-panel overview-voice"
+          aria-labelledby="overview-voice-title"
+        >
+          <PanelHead
+            channel="voice"
+            title="Voice"
+            id="overview-voice-title"
+            to="/dashboard/calls"
+          />
+          <SectionState state={statsState} label="voice activity">
+            {stats && (
+              <>
+                <div className="overview-channel-heading">
+                  <span>Outbound queue</span>
+                  <StatusBadge
+                    status={
+                      stats.queue.paused
+                        ? 'warn'
+                        : stats.queue.enabled && stats.dialer.globalEnabled
+                          ? 'running'
+                          : 'disabled'
+                    }
+                    label={queueLabel}
+                  />
+                </div>
+                <div className="overview-voice-numbers">
+                  <strong>
+                    {stats.daily
+                      .reduce((n, d) => n + d.completed, 0)
+                      .toLocaleString()}
+                  </strong>
+                  <div>
+                    completed calls<span>Last 14 days · UTC</span>
+                  </div>
+                  <span className="overview-rate">
+                    {completionRate(stats)}
+                    <small>completion</small>
+                  </span>
+                </div>
+                <VolumeChart stats={stats} />
+                <div className="overview-capacity">
+                  <span>Outbound capacity</span>
+                  <strong>
+                    {stats.queue.inProgress} / {stats.queue.maxConcurrent}
+                  </strong>
+                </div>
+                <progress
+                  className="overview-progress"
+                  max={Math.max(1, stats.queue.maxConcurrent)}
+                  value={stats.queue.inProgress}
+                  aria-label="Outbound call slots in use"
+                />
+                <div className="overview-channel-foot">
+                  <Link to="/dashboard/batches">
+                    {stats.batches.running} running batches ↗
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={toggleQueue}
+                    disabled={queueBusy || !stats.queue.enabled}
+                  >
+                    {queueBusy
+                      ? 'Updating…'
+                      : stats.queue.paused
+                        ? 'Resume queue'
+                        : 'Pause queue'}
+                  </button>
+                </div>
+              </>
+            )}
+          </SectionState>
+          {queueError && <Alert tone="error">{queueError}</Alert>}
+        </section>
+
+        <section
+          className="overview-panel overview-whatsapp"
+          aria-labelledby="overview-whatsapp-title"
+        >
+          <PanelHead
+            channel="whatsapp"
+            title="WhatsApp"
+            id="overview-whatsapp-title"
+            to="/dashboard/whatsapp"
+          />
+          <div className="overview-channel-heading">
+            <span>Customer messaging</span>
+            <StatusBadge
+              status={
+                integrations.error
+                  ? 'warn'
+                  : whatsappConnected
+                    ? 'success'
+                    : 'neutral'
+              }
+              label={
+                integrations.loading && !integrations.data
+                  ? 'Loading'
+                  : integrations.error
+                    ? 'Unavailable'
+                    : whatsappConnected
+                      ? 'Configured'
+                      : 'Not connected'
+              }
+            />
           </div>
-          <div className="ops-panel-body ops-ov-chart-body">
-            <CallsVolumeChart days={stats.daily ?? []} />
+          <SectionState state={messages} label="template sends">
+            <div className="overview-wa-numbers">
+              <div>
+                <strong>
+                  {messageRows.filter((m) => m.status === 'sent').length}
+                </strong>
+                <span>sent</span>
+              </div>
+              <div>
+                <strong>{failedMessages}</strong>
+                <span>failed</span>
+              </div>
+              <div>
+                <strong>{skippedMessages}</strong>
+                <span>skipped</span>
+              </div>
+            </div>
+            <p className="overview-caption">
+              Recent template send history · {messageRows.length} records
+            </p>
+          </SectionState>
+          <div className="overview-subheading">
+            Latest conversations
+            <Link to="/dashboard/whatsapp?tab=history">History ↗</Link>
+          </div>
+          <SectionState state={conversations} label="conversations">
+            {latestConversations.length ? (
+              <ul className="overview-conversations">
+                {latestConversations.slice(0, 2).map((c) => (
+                  <li key={c.id}>
+                    <Link to="/dashboard/whatsapp?tab=history">
+                      <span className="overview-contact-mark" aria-hidden>
+                        <Icon kind="whatsapp" />
+                      </span>
+                      <span className="overview-conversation-copy">
+                        <strong>{c.sender}</strong>
+                        <span>Conversation updated</span>
+                      </span>
+                      <time dateTime={c.updatedAt}>
+                        {formatRelative(c.updatedAt)}
+                      </time>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="overview-empty-inline">
+                Conversations will appear here when customers message you.
+              </p>
+            )}
+          </SectionState>
+          <div className="overview-channel-foot">
+            <Link to="/dashboard/whatsapp?tab=agent">
+              {whatsappAgent.error
+                ? 'Agent unavailable'
+                : !whatsappAgent.data
+                  ? 'Loading agent…'
+                  : whatsappAgent.data.whatsappTaskId ||
+                      whatsappAgent.data.taskKey
+                    ? 'Agent task configured'
+                    : 'Set up an agent'}{' '}
+              ↗
+            </Link>
+            <Link to="/dashboard/whatsapp?tab=send">Send template ↗</Link>
           </div>
         </section>
 
-        <section className="ops-panel ops-ov-cell">
-          <div className="ops-panel-head">
-            <h2>Pipeline</h2>
-            <span className="ops-faint">{pipeTotal} in queue or live</span>
-          </div>
-          <div className="ops-panel-body ops-ov-mix-body">
+        <section
+          className="overview-panel overview-crm"
+          aria-labelledby="overview-crm-title"
+        >
+          <PanelHead
+            channel="crm"
+            title="CRM"
+            id="overview-crm-title"
+            to={
+              connection
+                ? `/dashboard/crm?connection=${encodeURIComponent(connection.id)}`
+                : '/dashboard/crm'
+            }
+          />
+          <SectionState state={integrations} label="CRM connections">
+            {connections.length ? (
+              <>
+                <label
+                  className="overview-select-label"
+                  htmlFor="overview-crm-connection"
+                >
+                  HighLevel connection
+                </label>
+                <Select
+                  id="overview-crm-connection"
+                  value={connection?.id ?? ''}
+                  onChange={(e) => setConnectionId(e.target.value)}
+                >
+                  <option value="">Select a connection</option>
+                  {connections.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
+                {connection ? (
+                  <CrmSnapshot
+                    key={connection.id}
+                    connectionId={connection.id}
+                    refreshKey={crmTick}
+                  />
+                ) : (
+                  <div className="overview-crm-empty">
+                    <Icon kind="crm" />
+                    <strong>Your customer pipeline, here.</strong>
+                    <p>
+                      Choose a connection to see contacts and open
+                      opportunities.
+                    </p>
+                    <Link to="/dashboard/crm">Open CRM workspace ↗</Link>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="overview-crm-empty">
+                <Icon kind="crm" />
+                <strong>Bring your customer journey together.</strong>
+                <p>
+                  Connect HighLevel to see contacts and opportunities alongside
+                  your conversations.
+                </p>
+                <Link to="/dashboard/integrations?tab=crm">
+                  Connect your CRM ↗
+                </Link>
+              </div>
+            )}
+          </SectionState>
+        </section>
+      </div>
+
+      <div className="overview-bottom">
+        <section
+          className="overview-panel overview-activity"
+          aria-labelledby="overview-activity-title"
+        >
+          <div className="overview-section-head">
+            <div>
+              <h2 id="overview-activity-title">Recent activity</h2>
+              <span>Latest calls and WhatsApp updates</span>
+            </div>
             <div
-              className="ops-ov-pipe"
-              role="img"
-              aria-label={
-                pipeTotal === 0
-                  ? "No calls in the pipeline"
-                  : pipeline.map((p) => `${p.label} ${p.value}`).join(", ")
-              }
+              className="overview-filters"
+              role="group"
+              aria-label="Activity channel"
             >
-              {pipeTotal === 0 ? (
-                <span className="ops-ov-mix-empty" />
-              ) : (
-                pipeline
-                  .filter((p) => p.value > 0)
-                  .map((p) => (
+              {['all', 'voice', 'whatsapp'].map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={filter === value}
+                  className={filter === value ? 'is-selected' : ''}
+                  onClick={() => setFilter(value)}
+                >
+                  {value === 'all'
+                    ? 'All'
+                    : value === 'voice'
+                      ? 'Voice'
+                      : 'WhatsApp'}
+                </button>
+              ))}
+            </div>
+          </div>
+          {activityError && (
+            <div className="overview-partial" role="status">
+              Some activity is unavailable.{' '}
+              <button type="button" onClick={refresh} disabled={refreshing}>
+                Retry
+              </button>
+            </div>
+          )}
+          {visibleActivity.length ? (
+            <ol className="overview-activity-list">
+              {visibleActivity.map((item) => (
+                <li key={item.id}>
+                  <Link to={item.to}>
                     <span
-                      key={p.key}
-                      className="ops-ov-mix-seg"
-                      style={{ flexGrow: p.value, background: p.color }}
-                    />
-                  ))
+                      className={`overview-channel-icon is-${item.channel}`}
+                      aria-hidden
+                    >
+                      <Icon kind={item.channel} />
+                    </span>
+                    <span className="overview-activity-copy">
+                      <strong>{item.title}</strong>
+                      <span>{item.detail}</span>
+                    </span>
+                    <StatusBadge status={item.tone} label={item.status} />
+                    <time dateTime={item.time}>
+                      {formatRelative(item.time)}
+                    </time>
+                    <span className="overview-row-arrow" aria-hidden>
+                      ↗
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <div className="overview-activity-empty">
+              {calls.loading || conversations.loading || messages.loading ? (
+                <Skeleton variant="block" height={100} />
+              ) : (
+                <>
+                  <strong>
+                    {activityError
+                      ? 'Activity is unavailable'
+                      : 'A little quiet here, for now.'}
+                  </strong>
+                  <p>
+                    {activityError
+                      ? 'Refresh to load the latest updates.'
+                      : 'Your latest calls and WhatsApp updates will appear here.'}
+                  </p>
+                </>
               )}
             </div>
-            <ul className="ops-ov-legend is-pipe">
-              {pipeline.map((p) => (
-                <li key={p.key}>
-                  <span className="ops-ov-swatch" style={{ background: p.color }} />
-                  <span>{p.label}</span>
-                  <strong>{p.value}</strong>
+          )}
+        </section>
+
+        <aside
+          className="overview-panel overview-attention"
+          aria-labelledby="overview-attention-title"
+        >
+          <div className="overview-section-head">
+            <div>
+              <h2 id="overview-attention-title">
+                Needs attention{' '}
+                <span className="overview-attention-count">
+                  {attention.length}
+                </span>
+              </h2>
+              <span>Your next things to check</span>
+            </div>
+            <Icon kind="attention" />
+          </div>
+          {attention.length ? (
+            <ul className="overview-attention-list">
+              {attention.map((item) => (
+                <li key={item.title}>
+                  <Link to={item.to}>
+                    <span className="overview-attention-marker" aria-hidden />
+                    <span>
+                      <strong>{item.title}</strong>
+                      <span>{item.detail}</span>
+                    </span>
+                    <span aria-hidden>↗</span>
+                  </Link>
                 </li>
               ))}
             </ul>
-            <h3 className="ops-ov-subhead">Outcomes</h3>
-            <CallOutcomeBar
-              completed={stats.counts.completed}
-              incomplete={stats.counts.incomplete ?? 0}
-              failed={stats.counts.failed}
-              cancelled={stats.counts.cancelled}
-            />
-          </div>
-        </section>
-      </div>
-
-      <div className="ops-ov-floor">
-        <section className="ops-panel ops-ov-cell">
-          <div className="ops-panel-head">
-            <h2>Recent calls</h2>
-            <Link to="/dashboard/calls" className="ops-mono">
-              View all →
-            </Link>
-          </div>
-          <div className="ops-ov-ticker-body">
-            {calls.length === 0 ? (
-              <div className="ops-ov-empty">
+          ) : (
+            <div className="overview-all-clear">
+              <span aria-hidden>✓</span>
+              <div>
+                <strong>
+                  {refreshing
+                    ? 'Checking your operations…'
+                    : 'No flagged issues'}
+                </strong>
                 <p>
-                  No calls yet.{" "}
-                  <Link to="/dashboard/calls">Dial now</Link> or{" "}
-                  <Link to="/dashboard/calls?compose=enqueue">enqueue a batch</Link>.
+                  {refreshing
+                    ? 'Gathering the latest channel updates.'
+                    : 'No queue or recent send issues to review.'}
                 </p>
               </div>
-            ) : (
-              <ol className="ops-ov-tape">
-                {calls.map((c) => (
-                  <li key={c.id}>
-                    <TapeRow call={c} />
-                  </li>
-                ))}
-              </ol>
-            )}
+            </div>
+          )}
+          <div className="overview-attention-foot">
+            <Link to="/dashboard/integrations">Manage connections ↗</Link>
+            <Link to="/dashboard/queue">Queue settings ↗</Link>
           </div>
-        </section>
-
-        <aside className="ops-ov-side">
-          <section className="ops-panel">
-            <div className="ops-panel-head">
-              <h2>Capacity</h2>
-              <span className="ops-faint">
-                {stats.queue.availableSlots} free
-              </span>
-            </div>
-            <div className="ops-panel-body ops-ov-side-body">
-              <dl className="ops-ov-facts">
-                <div>
-                  <dt>In flight</dt>
-                  <dd>
-                    {stats.queue.inProgress}
-                    <span> / {stats.queue.maxConcurrent}</span>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Dial rate</dt>
-                  <dd>
-                    {stats.queue.dialsLastMinute}
-                    <span> / {stats.queue.maxDialsPerMinute}</span>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Retries</dt>
-                  <dd>
-                    {stats.retries.scheduled}
-                    <span> avg {formatAvgAttempt(stats.retries.avgAttemptCount)}</span>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Dialer</dt>
-                  <dd>{stats.dialer.globalEnabled ? "On" : "Off"}</dd>
-                </div>
-              </dl>
-            </div>
-          </section>
-
-          <section className="ops-panel">
-            <div className="ops-panel-head">
-              <h2>Batches</h2>
-              <Link to="/dashboard/batches" className="ops-mono">
-                All →
-              </Link>
-            </div>
-            <div className="ops-panel-body is-flush">
-              {recentBatches.length === 0 ? (
-                <div className="ops-ov-empty">
-                  <p>
-                    No batches.{" "}
-                    <Link to="/dashboard/calls?compose=enqueue">Enqueue one</Link>.
-                  </p>
-                </div>
-              ) : (
-                <ul className="ops-ov-side-list">
-                  {recentBatches.map((b) => (
-                    <li key={b.id}>
-                      <BatchRow batch={b} />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </section>
-
-          <section className="ops-panel">
-            <div className="ops-panel-head">
-              <h2>Agents</h2>
-              <Link to="/dashboard/agents" className="ops-mono">
-                All →
-              </Link>
-            </div>
-            <div className="ops-panel-body is-flush">
-              {agents.length === 0 ? (
-                <div className="ops-ov-empty">
-                  <p>
-                    No agents. <Link to="/dashboard/agents">Create one</Link>.
-                  </p>
-                </div>
-              ) : (
-                <ul className="ops-ov-side-list">
-                  {agents.slice(0, 5).map((a) => (
-                    <li key={a.id}>
-                      <AgentRow agent={a} />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </section>
         </aside>
+      </div>
+      <footer className="overview-footer">
+        <span>Auto-refresh every 30 seconds · CRM refreshes on request</span>
+        <span>
+          {stats
+            ? `Voice snapshot ${formatRelative(stats.asOf)}`
+            : 'Organization operations'}
+        </span>
+      </footer>
+    </div>
+  );
+}
+
+function CrmSnapshot({
+  connectionId,
+  refreshKey,
+}: {
+  connectionId: string;
+  refreshKey: number;
+}) {
+  const contacts = useUserAsync(
+    () =>
+      executeUserCrm(connectionId, {
+        action: 'contacts.list',
+        params: { limit: 50 },
+      }),
+    [refreshKey],
+  );
+  const opportunities = useUserAsync(
+    () =>
+      executeUserCrm(connectionId, {
+        action: 'opportunities.list',
+        params: { status: 'open', limit: 50, page: 1 },
+      }),
+    [refreshKey],
+  );
+  const contactRows = rows(contacts.data?.contacts);
+  const deals = rows(opportunities.data?.opportunities);
+  const to = `/dashboard/crm?connection=${encodeURIComponent(connectionId)}`;
+  return (
+    <div className="overview-crm-snapshot">
+      <div className="overview-crm-facts">
+        <SnapshotMetric
+          state={contacts}
+          count={contactRows.length}
+          to={to}
+          label="contacts in view"
+        />
+        <SnapshotMetric
+          state={opportunities}
+          count={deals.length}
+          to={`${to}&tab=opportunities`}
+          label="open deals in view"
+        />
+      </div>
+      <p className="overview-caption">
+        First 50 records per section · live from HighLevel
+      </p>
+      {contacts.error && (
+        <SectionState state={contacts} label="contacts">
+          {null}
+        </SectionState>
+      )}
+      <div className="overview-subheading">
+        Open opportunities<Link to={`${to}&tab=opportunities`}>Pipeline ↗</Link>
+      </div>
+      <SectionState state={opportunities} label="opportunities">
+        {deals.length ? (
+          <ul className="overview-deals">
+            {deals.slice(0, 2).map((deal, i) => (
+              <li key={str(deal.id) || i}>
+                <Link to={`${to}&tab=opportunities`}>
+                  <span>
+                    <strong>{label(deal) || 'Opportunity'}</strong>
+                    <span>
+                      {label(obj(deal.contact)) || 'Open opportunity'}
+                    </span>
+                  </span>
+                  <span aria-hidden>↗</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="overview-empty-inline">
+            No open opportunities in this connection.
+          </p>
+        )}
+      </SectionState>
+      <div className="overview-channel-foot">
+        <Link to={`${to}&tab=contacts`}>Contacts ↗</Link>
+        <Link to={`${to}&tab=calendar`}>Calendar ↗</Link>
       </div>
     </div>
   );
 }
 
-function KpiCell({
+function SnapshotMetric({
+  state,
+  count,
   to,
-  label,
-  value,
-  hint,
-  tone,
+  label: title,
 }: {
+  state: LoadState;
+  count: number;
   to: string;
   label: string;
-  value: string | number;
-  hint?: string;
-  tone?: KpiTone;
 }) {
   return (
-    <Link
-      to={to}
-      role="listitem"
-      className={`ops-ov-kpi${tone ? ` is-${tone}` : ""}`}
-    >
-      <span className="ops-ov-kpi-label">{label}</span>
-      <span className="ops-ov-kpi-value">{value}</span>
-      {hint ? <span className="ops-ov-kpi-hint">{hint}</span> : null}
+    <Link to={to}>
+      {state.loading && state.data === null ? (
+        <Skeleton width={40} height={27} />
+      ) : (
+        <strong>{state.error ? '—' : count.toLocaleString()}</strong>
+      )}
+      <span>
+        {title}
+        {state.error ? ' · unavailable' : ''}
+      </span>
     </Link>
   );
 }
 
-function TapeRow({ call }: { call: CallRecord }) {
-  const live = call.status === "dialing" || call.status === "ready" || call.status === "creating";
+function Metric({
+  channel,
+  label: title,
+  value,
+  hint,
+  to,
+  state,
+}: {
+  channel: Channel;
+  label: string;
+  value?: number;
+  hint: string;
+  to: string;
+  state: LoadState;
+}) {
   return (
-    <Link
-      to={`/dashboard/calls/${call.id}`}
-      className={`ops-ov-tape-row${live ? " is-live" : ""}`}
-    >
-      <CallOutcomeBadge call={call} />
-      <span className="ops-ov-tape-to">
-        {call.toNumber || call.participantIdentity || "—"}
+    <Link to={to} className={`overview-metric is-${channel}`}>
+      <div className="overview-metric-top">
+        <span>{title}</span>
+        <Icon kind={channel} />
+      </div>
+      {state.loading && state.data === null ? (
+        <Skeleton width={55} height={30} />
+      ) : (
+        <strong>
+          {state.error || value == null ? '—' : value.toLocaleString()}
+        </strong>
+      )}
+      <span className="overview-metric-hint">
+        {state.error ? 'Unavailable · open to review' : hint}
       </span>
-      <span className="ops-ov-tape-task">{call.taskKey || "—"}</span>
-      <span className="ops-ov-tape-meta">
-        {call.direction}
-        <span aria-hidden> · </span>
-        {call.medium}
+      <span className="overview-metric-arrow" aria-hidden>
+        ↗
       </span>
-      <span className="ops-ov-tape-try">
-        {call.attemptCount}/{call.maxAttempts}
-      </span>
-      <span className="ops-ov-tape-cost">
-        <CallCostCell cost={call.cost} live={live} />
-      </span>
-      <time className="ops-ov-tape-when" dateTime={call.createdAt}>
-        {formatRelative(call.createdAt)}
-      </time>
     </Link>
   );
 }
 
-function BatchRow({ batch }: { batch: CallBatch }) {
-  const done = batch.stats
-    ? batch.stats.completed +
-      (batch.stats.incomplete ?? 0) +
-      batch.stats.failed +
-      batch.stats.cancelled
-    : 0;
+function PanelHead({
+  channel,
+  title,
+  id,
+  to,
+}: {
+  channel: Channel;
+  title: string;
+  id: string;
+  to: string;
+}) {
   return (
-    <Link to={`/dashboard/batches/${batch.id}`} className="ops-ov-side-row">
-      <StatusBadge status={batch.status} />
-      <span className="ops-ov-side-copy">
-        <strong>{batch.taskKey || "batch"}</strong>
-        <span>
-          {done}/{batch.totalCount}
-          {batch.stats ? ` · ${batch.stats.pending} pending` : ""}
+    <div className="overview-panel-head">
+      <div>
+        <span className={`overview-channel-icon is-${channel}`} aria-hidden>
+          <Icon kind={channel} />
         </span>
-      </span>
-    </Link>
+        <h2 id={id}>{title}</h2>
+      </div>
+      <Link to={to} aria-label={`Open ${title}`}>
+        <Icon kind="arrow" />
+      </Link>
+    </div>
   );
 }
 
-function AgentRow({ agent }: { agent: Agent }) {
+function SectionState({
+  state,
+  label: name,
+  children,
+}: {
+  state: LoadState;
+  label: string;
+  children: ReactNode;
+}) {
+  if (state.error)
+    return (
+      <div className="overview-load-error">
+        <p>{state.error}</p>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={state.reload}
+          disabled={state.loading}
+        >
+          Retry {name}
+        </Button>
+      </div>
+    );
+  if (state.loading && state.data === null)
+    return (
+      <div
+        className="overview-loading"
+        role="status"
+        aria-label={`Loading ${name}`}
+      >
+        <Skeleton variant="block" height={50} />
+        <Skeleton width="75%" />
+      </div>
+    );
+  return <>{children}</>;
+}
+
+function completionRate(stats: OrgQueueStats) {
+  const completed = stats.daily.reduce((n, d) => n + d.completed, 0);
+  const finished = stats.daily.reduce(
+    (n, d) => n + d.completed + (d.incomplete ?? 0) + d.failed + d.cancelled,
+    0,
+  );
+  return finished ? `${Math.round((completed / finished) * 100)}%` : '—';
+}
+
+function VolumeChart({ stats }: { stats: OrgQueueStats }) {
+  const daily = stats.daily;
+  const max = Math.max(
+    1,
+    ...daily.map(
+      (d) => d.completed + (d.incomplete ?? 0) + d.failed + d.cancelled,
+    ),
+  );
   return (
-    <Link to={`/dashboard/agents/${agent.id}`} className="ops-ov-side-row">
-      <StatusBadge status={agent.direction} />
-      <span className="ops-ov-side-copy">
-        <strong>{agent.name}</strong>
-        <span>{agent.isActive ? "Active" : "Inactive"}</span>
-      </span>
-    </Link>
+    <div className="overview-chart">
+      <div
+        className="overview-chart-bars"
+        role="img"
+        aria-label={`Daily call outcomes, last 14 days: ${daily.map((d) => `${d.date}: ${d.completed} completed, ${d.incomplete ?? 0} incomplete, ${d.failed} failed, ${d.cancelled} cancelled`).join('; ') || 'No calls'}`}
+      >
+        {daily.length ? (
+          daily.map((d) => (
+            <div
+              key={d.date}
+              className="overview-chart-slot"
+              title={`${d.date} · ${d.completed} completed · ${d.incomplete ?? 0} incomplete · ${d.failed} failed · ${d.cancelled} cancelled`}
+            >
+              <div
+                className="overview-chart-bar"
+                style={{
+                  height: `${((d.completed + (d.incomplete ?? 0) + d.failed + d.cancelled) / max) * 100}%`,
+                }}
+              >
+                <span
+                  className="is-completed"
+                  style={{ flexGrow: d.completed }}
+                />
+                <span
+                  className="is-incomplete"
+                  style={{ flexGrow: d.incomplete ?? 0 }}
+                />
+                <span className="is-failed" style={{ flexGrow: d.failed }} />
+                <span
+                  className="is-cancelled"
+                  style={{ flexGrow: d.cancelled }}
+                />
+              </div>
+            </div>
+          ))
+        ) : (
+          <span className="overview-caption">No call outcomes yet</span>
+        )}
+      </div>
+      <div className="overview-chart-key">
+        <span>
+          <i className="is-completed" />
+          Completed
+        </span>
+        <span>
+          <i className="is-incomplete" />
+          Incomplete
+        </span>
+        <span>
+          <i className="is-failed" />
+          Failed
+        </span>
+        <span>
+          <i className="is-cancelled" />
+          Cancelled
+        </span>
+      </div>
+    </div>
   );
 }
 
-function successRate14(stats: OrgQueueStats): number | null {
-  const daily = stats.daily ?? [];
-  let finished = 0;
-  let completed = 0;
-  for (const d of daily) {
-    finished += d.completed + (d.incomplete ?? 0) + d.failed + d.cancelled;
-    completed += d.completed;
-  }
-  if (finished <= 0) return null;
-  return Math.round((completed / finished) * 100);
-}
-
-function formatAvgAttempt(value: number): string {
-  if (!Number.isFinite(value)) return "—";
-  return value.toFixed(1);
+function Icon({ kind }: { kind: Channel | 'refresh' | 'arrow' | 'attention' }) {
+  const paths = {
+    voice:
+      'M5 3h4l2 5-3 2a14 14 0 0 0 6 6l2-3 5 2v4a2 2 0 0 1-2 2C10 21 3 14 3 5a2 2 0 0 1 2-2Z',
+    whatsapp:
+      'M21 11.5a8.5 8.5 0 0 1-12.7 7.4L3 21l2-5.3A8.5 8.5 0 1 1 21 11.5ZM8 10h8M8 13h5',
+    crm: 'M4 5h16v14H4zM4 10h16M9 10v9M14 10v9',
+    agents:
+      'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M20 21v-2a4 4 0 0 0-3-3.9M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM17 3a4 4 0 0 1 0 8',
+    refresh:
+      'M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1',
+    arrow: 'M7 17 17 7M7 7h10v10',
+    attention: 'M12 3 2 21h20L12 3ZM12 9v5M12 17v.1',
+  };
+  return (
+    <svg
+      width="19"
+      height="19"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={paths[kind]} />
+    </svg>
+  );
 }

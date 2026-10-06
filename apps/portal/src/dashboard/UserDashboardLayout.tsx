@@ -28,7 +28,7 @@ const NAV: { section: string; items: readonly NavItem[] }[] = [
         to: "/dashboard",
         end: true,
         label: "Overview",
-        desc: "Live queue & activity",
+        desc: "Voice, WhatsApp & CRM",
       },
       {
         to: "/dashboard/calls",

@@ -25,6 +25,7 @@ Scope: `apps/portal`. Inherit the [root instructions](../../AGENTS.md). This app
 - Portal titles and body use IBM Plex Sans, technical values use IBM Plex Mono. [global.css](src/global.css) deliberately overrides marketing's display font; preserve this distinction.
 - Preserve the `.ops` shell and scrolling content column, responsive sidebar behavior, consistent spacing/status colors, focus visibility, labels, disabled/pending buttons, and reduced motion. Avoid page-specific reinventions of tables, tabs, or forms.
 - Use build-time `VITE_MARKETING_URL` through [marketing-url.ts](src/lib/marketing-url.ts) for cross-app branding links. Marketing landing pages and GA4 belong to web.
+- The org overview in `OverviewPage.tsx` is a compact operations screen with headline metrics, Voice/WhatsApp/CRM summaries, a filtered recent activity feed, and an attention list. Page layout lives in `dashboard/operations-overview.css`. Org reads load independently and refresh every 30 seconds while visible; unavailable sections show explicit errors rather than zero values. CRM requires an explicitly selected active named connection, remounts its snapshot on source changes to fence stale reads, and refreshes only on request. CRM counts describe the first 50 records in view, WhatsApp counts describe recent history (sent is not delivered), and voice completion uses the 14-day UTC outcome window. Keep the existing lifecycle outcome mapper and API-owned queue controls.
 
 ## Domain behavior
 
