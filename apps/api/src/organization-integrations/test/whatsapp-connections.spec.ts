@@ -1,3 +1,5 @@
+import { WhatsAppTasksService } from '../../whatsapp-tasks/whatsapp-tasks.service';
+import { WHATSAPP_TASK_STARTERS } from '@call-agent/contracts';
 import {
   BadRequestException,
   ConflictException,
@@ -36,6 +38,7 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
     getResponseForOrganization: jest.Mock;
     resolveEnabledToolIds: jest.Mock;
   };
+  let whatsappTasks: { snapshot: jest.Mock };
 
   const ORG_ID = 'org-id';
   const TOKEN = 'EAAG_super_secret_meta_token';
@@ -92,10 +95,12 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
           'scheduleGhlMeeting',
         ]),
     };
+    whatsappTasks = { snapshot: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrganizationIntegrationsService,
+        { provide: WhatsAppTasksService, useValue: whatsappTasks },
         { provide: OrganizationIntegrationsRepository, useValue: repository },
         {
           provide: OrganizationsService,
@@ -112,6 +117,76 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
       ],
     }).compile();
     service = module.get(OrganizationIntegrationsService);
+  });
+
+  it('assigns tool-free published tasks with typed context and no GHL source', async () => {
+    const definition = {
+      ...WHATSAPP_TASK_STARTERS.receptionist,
+      toolIds: [],
+      contextFields: [
+        { key: 'company', description: '', type: 'string', required: true },
+      ],
+    };
+    whatsappTasks.snapshot.mockResolvedValue({
+      schemaVersion: 1,
+      taskId: 'configured-task',
+      version: 3,
+      definition,
+    });
+    const row = waRow({
+      whatsappTaskKey: 'receptionist',
+      whatsappTaskContext: {},
+    });
+    repository.findByOrganization.mockResolvedValue([row]);
+    await expect(
+      service.updateWhatsAppAgent(
+        ORG_ID,
+        'Helpful',
+        null,
+        null,
+        undefined,
+        'configured-task',
+        { company: 'Example' },
+      ),
+    ).rejects.toThrow('not both');
+    expect(repository.save).not.toHaveBeenCalled();
+    const saved = await service.updateWhatsAppAgent(
+      ORG_ID,
+      'Helpful',
+      null,
+      null,
+      null,
+      'configured-task',
+      { company: 'Example' },
+    );
+    expect(saved).toMatchObject({
+      whatsappTaskId: 'configured-task',
+      taskKey: null,
+      taskContext: { company: 'Example' },
+    });
+    const config = await service.whatsAppTaskConfiguration(row);
+    expect(config).toMatchObject({
+      key: 'configured',
+      version: 3,
+      context: { company: 'Example' },
+      enabledTools: [],
+      calendarIntegrationId: '',
+    });
+    expect(toolProfiles.resolveEnabledToolIds).not.toHaveBeenCalled();
+    expect(voiceAgents.findOne).not.toHaveBeenCalled();
+    repository.save.mockClear();
+    await expect(
+      service.updateWhatsAppAgent(
+        ORG_ID,
+        '',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { company: false },
+      ),
+    ).rejects.toThrow('company');
+    expect(repository.save).not.toHaveBeenCalled();
   });
 
   describe('create whatsapp', () => {
@@ -280,6 +355,8 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
       const result = await service.getWhatsAppAgent(ORG_ID);
       expect(result).toEqual({
         taskKey: null,
+        whatsappTaskId: null,
+        taskContext: {},
         systemPrompt: 'Be brief.',
         bookingVoiceAgentId: null,
         whatsappToolProfileId: null,
@@ -290,6 +367,8 @@ describe('OrganizationIntegrationsService — WhatsApp + GHL contacts', () => {
     it('returns no org prompt when there is no WhatsApp connection', async () => {
       await expect(service.getWhatsAppAgent(ORG_ID)).resolves.toEqual({
         taskKey: null,
+        whatsappTaskId: null,
+        taskContext: {},
         systemPrompt: null,
         bookingVoiceAgentId: null,
         whatsappToolProfileId: null,

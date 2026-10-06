@@ -19,8 +19,10 @@ import { ParseResourceIdPipe } from '../common/parse-resource-id.pipe';
 import { ApiWorkerErrors } from '../common/swagger/api-errors';
 import { WhatsAppHarnessRepository } from './whatsapp-harness.repository';
 import { WhatsAppHarnessService } from './whatsapp-harness.service';
+import { checkpointSchema } from './turn-checkpoint';
 import {
   WhatsAppCheckpointDto,
+  WhatsAppCompletionDto,
   WhatsAppFailDto,
   WhatsAppLeaseDto,
   WhatsAppToolDto,
@@ -79,6 +81,22 @@ export class InternalWhatsAppHarnessController {
     @Body() dto: WhatsAppFailDto,
   ) {
     return this.repository.fail(id, dto.leaseToken, dto.errorCode);
+  }
+  @Post(':id/validate-completion')
+  @HttpCode(200)
+  validateCompletion(
+    @Param('id', ParseResourceIdPipe('WhatsApp turn')) id: string,
+    @Body() dto: WhatsAppCompletionDto,
+  ) {
+    if (!dto.completion)
+      throw new BadRequestException('Completion is required');
+    return this.validate(() =>
+      this.repository.checkCompletion(
+        id,
+        dto.leaseToken,
+        checkpointSchema.shape.completion.parse(dto.completion)!,
+      ),
+    );
   }
   @Post(':id/tools')
   @HttpCode(200)

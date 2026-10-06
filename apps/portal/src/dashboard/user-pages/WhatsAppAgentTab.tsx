@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { whatsappTasksClient } from '../../lib/task-studio';
 import { Link } from 'react-router-dom';
 import {
   WHATSAPP_AGENT_TOOL_IDS,
@@ -6,11 +7,12 @@ import {
   WHATSAPP_TASKS,
   WHATSAPP_TASK_COMPLETION,
   type WhatsAppTaskKey,
+  type WhatsAppTaskRecord,
   type Agent,
   type OrganizationIntegration,
   type ToolProfile,
 } from '@call-agent/contracts';
-import { Alert, Button, Field, Select, Textarea } from '@call-agent/ui';
+import { Alert, Button, Field, Input, Select, Textarea } from '@call-agent/ui';
 import {
   ApiError,
   getUserWhatsAppAgent,
@@ -74,6 +76,13 @@ export default function WhatsAppAgentTab({
   onGoConnections,
 }: Props) {
   const { logout } = useUserAuth();
+  const [tasks, setTasks] = useState<WhatsAppTaskRecord[]>([]);
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [savedTaskId, setSavedTaskId] = useState<string | null>(null);
+  const [taskContext, setTaskContext] = useState<Record<string, unknown>>({});
+  const [savedTaskContext, setSavedTaskContext] = useState<
+    Record<string, unknown>
+  >({});
   const [taskKey, setTaskKey] = useState<WhatsAppTaskKey | null>(null);
   const [savedTaskKey, setSavedTaskKey] = useState<WhatsAppTaskKey | null>(
     null,
@@ -108,56 +117,64 @@ export default function WhatsAppAgentTab({
       listUserOrgIntegrations(),
       listUserToolProfiles(),
       listUserKnownTools(),
+      whatsappTasksClient().list(),
     ])
-      .then(([config, agents, integrations, profiles, knownTools]) => {
-        if (!active) return;
-        const prompt = config.systemPrompt ?? '';
-        setTaskKey(config.taskKey);
-        setSavedTaskKey(config.taskKey);
-        setSavedPrompt(prompt);
-        setDraft(prompt);
-        setPlatformPrompt(config.platformPrompt);
-        setSavedBookingAgentId(config.bookingVoiceAgentId);
-        setBookingAgentId(config.bookingVoiceAgentId);
-        setSavedToolProfileId(config.whatsappToolProfileId);
-        setToolProfileId(config.whatsappToolProfileId);
-        const assigned = new Set(knownTools.toolIds);
-        setToolProfiles(
-          profiles
-            .map((profile) => ({
-              ...profile,
-              toolIds: profile.toolIds.filter((id) => assigned.has(id)),
-            }))
-            .filter((profile) => {
-              const ids = new Set(profile.toolIds);
-              return (
-                ids.has('scheduleGhlMeeting') &&
-                (!ids.has('scheduleGhlMeeting') ||
-                  (ids.has('checkGhlFreeSlots') &&
-                    (ids.has('lookupGhlContact') ||
-                      ids.has('upsertGhlContact'))))
-              );
-            }),
-        );
-        const activeGhlIds = new Set(
-          integrations
-            .filter(
-              (item: OrganizationIntegration) =>
-                item.provider === 'ghl' && item.isActive,
-            )
-            .map((item) => item.id),
-        );
-        setVoiceAgents(
-          agents.filter(
-            (agent: Agent) =>
-              agent.isActive &&
-              agent.calendarIntegrationId &&
-              activeGhlIds.has(agent.calendarIntegrationId),
-          ),
-        );
-        setFormError(null);
-        setSaved(false);
-      })
+      .then(
+        ([config, agents, integrations, profiles, knownTools, taskRows]) => {
+          if (!active) return;
+          const prompt = config.systemPrompt ?? '';
+          setTaskKey(config.taskKey);
+          setTasks(taskRows.filter((t) => t.published && !t.archived));
+          setTaskId(config.whatsappTaskId);
+          setSavedTaskId(config.whatsappTaskId);
+          setTaskContext(config.taskContext ?? {});
+          setSavedTaskContext(config.taskContext ?? {});
+          setSavedTaskKey(config.taskKey);
+          setSavedPrompt(prompt);
+          setDraft(prompt);
+          setPlatformPrompt(config.platformPrompt);
+          setSavedBookingAgentId(config.bookingVoiceAgentId);
+          setBookingAgentId(config.bookingVoiceAgentId);
+          setSavedToolProfileId(config.whatsappToolProfileId);
+          setToolProfileId(config.whatsappToolProfileId);
+          const assigned = new Set(knownTools.toolIds);
+          setToolProfiles(
+            profiles
+              .map((profile) => ({
+                ...profile,
+                toolIds: profile.toolIds.filter((id) => assigned.has(id)),
+              }))
+              .filter((profile) => {
+                const ids = new Set(profile.toolIds);
+                return (
+                  WHATSAPP_AGENT_TOOL_IDS.some((id) => ids.has(id)) &&
+                  (!ids.has('scheduleGhlMeeting') ||
+                    (ids.has('checkGhlFreeSlots') &&
+                      (ids.has('lookupGhlContact') ||
+                        ids.has('upsertGhlContact'))))
+                );
+              }),
+          );
+          const activeGhlIds = new Set(
+            integrations
+              .filter(
+                (item: OrganizationIntegration) =>
+                  item.provider === 'ghl' && item.isActive,
+              )
+              .map((item) => item.id),
+          );
+          setVoiceAgents(
+            agents.filter(
+              (agent: Agent) =>
+                agent.isActive &&
+                agent.calendarIntegrationId &&
+                activeGhlIds.has(agent.calendarIntegrationId),
+            ),
+          );
+          setFormError(null);
+          setSaved(false);
+        },
+      )
       .catch((err: unknown) => {
         if (!active) return;
         if (err instanceof UnauthorizedError) {
@@ -186,7 +203,13 @@ export default function WhatsAppAgentTab({
     );
   }
 
+  const selectedTask = tasks.find((t) => t.id === taskId);
+  const savedTask = tasks.find((t) => t.id === savedTaskId);
+  const requiredTools = selectedTask?.published?.definition.toolIds ?? [];
+  const needsGhl = Boolean(taskKey) || requiredTools.length > 0;
   const changed =
+    taskId !== savedTaskId ||
+    JSON.stringify(taskContext) !== JSON.stringify(savedTaskContext) ||
     taskKey !== savedTaskKey ||
     draft !== savedPrompt ||
     bookingAgentId !== savedBookingAgentId ||
@@ -205,12 +228,19 @@ export default function WhatsAppAgentTab({
   );
   const enabled =
     hasWhatsApp &&
-    Boolean(savedPrompt.trim() && savedTaskKey && savedProfile && savedAgent);
+    Boolean(
+      savedPrompt.trim() &&
+      (savedTaskKey || savedTask) &&
+      (savedTask?.published?.definition.toolIds.length === 0 ||
+        (savedProfile && savedAgent)),
+    );
   const setupSteps = [
     {
       label: 'Choose a task',
-      detail: taskKey ? WHATSAPP_TASKS[taskKey].name : 'Give your agent a goal',
-      complete: Boolean(taskKey),
+      detail:
+        selectedTask?.published?.definition.name ??
+        (taskKey ? WHATSAPP_TASKS[taskKey].name : 'Give your agent a goal'),
+      complete: Boolean(taskKey || selectedTask),
       href: '#wa-agent-task',
     },
     {
@@ -222,15 +252,20 @@ export default function WhatsAppAgentTab({
       href: '#wa-agent-prompt',
     },
     {
-      label: 'Assign booking tools',
+      label: 'Assign required tools',
       detail: selectedProfile?.name ?? 'Select a tool profile',
-      complete: Boolean(selectedProfile),
+      complete:
+        !needsGhl ||
+        Boolean(
+          selectedProfile &&
+          requiredTools.every((id) => selectedProfile.toolIds.includes(id)),
+        ),
       href: '#wa-agent-tools',
     },
     {
       label: 'Connect a calendar',
       detail: selectedAgent?.name ?? 'Select a voice agent',
-      complete: Boolean(selectedAgent),
+      complete: !needsGhl || Boolean(selectedAgent),
       href: '#wa-agent-booking',
     },
   ];
@@ -258,13 +293,19 @@ export default function WhatsAppAgentTab({
     setSaved(false);
     try {
       const result = await updateUserWhatsAppAgent({
-        taskKey,
+        taskKey: taskId ? null : taskKey,
+        whatsappTaskId: taskId,
+        taskContext,
         systemPrompt: draft,
-        bookingVoiceAgentId: bookingAgentId,
-        whatsappToolProfileId: toolProfileId,
+        bookingVoiceAgentId: needsGhl ? bookingAgentId : null,
+        whatsappToolProfileId: needsGhl ? toolProfileId : null,
       });
       const prompt = result.systemPrompt ?? '';
       setTaskKey(result.taskKey);
+      setTaskId(result.whatsappTaskId);
+      setSavedTaskId(result.whatsappTaskId);
+      setTaskContext(result.taskContext ?? {});
+      setSavedTaskContext(result.taskContext ?? {});
       setSavedTaskKey(result.taskKey);
       setSavedPrompt(prompt);
       setDraft(prompt);
@@ -356,64 +397,115 @@ export default function WhatsAppAgentTab({
                 <p>What should a successful conversation achieve?</p>
               </div>
             </div>
-            <fieldset
-              id="wa-agent-task"
-              className="wa-agent-tasks"
-              disabled={submitting || !hasWhatsApp}
-            >
-              <legend className="wa-agent-sr-only">Channel task</legend>
-              {WHATSAPP_TASK_KEYS.map((key) => (
-                <label
-                  key={key}
-                  className={
-                    'wa-agent-task-card' +
-                    (taskKey === key ? ' is-selected' : '')
-                  }
-                >
-                  <input
-                    type="radio"
-                    name="wa-agent-task"
-                    value={key}
-                    checked={taskKey === key}
-                    onChange={() => {
-                      setTaskKey(key);
-                      setSaved(false);
-                    }}
+            <Field label="Channel task" htmlFor="wa-agent-task">
+              <Select
+                id="wa-agent-task"
+                value={taskId ? 'configured:' + taskId : (taskKey ?? '')}
+                disabled={submitting || !hasWhatsApp}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setTaskId(
+                    value.startsWith('configured:') ? value.slice(11) : null,
+                  );
+                  setTaskKey(
+                    value.startsWith('configured:')
+                      ? null
+                      : ((value || null) as WhatsAppTaskKey | null),
+                  );
+                  setTaskContext({});
+                  setSaved(false);
+                }}
+              >
+                <option value="">Select a task</option>
+                {taskId && !selectedTask && (
+                  <option value={'configured:' + taskId} disabled>
+                    Saved task unavailable
+                  </option>
+                )}
+                <optgroup label="Published WhatsApp tasks">
+                  {tasks.map((t) => (
+                    <option key={t.id} value={'configured:' + t.id}>
+                      {t.published!.definition.name} · v{t.publishedVersion}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Legacy booking tasks">
+                  {WHATSAPP_TASK_KEYS.map((key) => (
+                    <option key={key} value={key}>
+                      {WHATSAPP_TASKS[key].name} (legacy)
+                    </option>
+                  ))}
+                </optgroup>
+              </Select>
+            </Field>
+            <p className="ops-muted">
+              {selectedTask?.published?.definition.description ??
+                (taskKey
+                  ? WHATSAPP_TASK_COMPLETION
+                  : 'Publish a task before assigning it.')}{' '}
+              <Link to="/dashboard/tasks?channel=whatsapp">
+                Manage WhatsApp tasks ↗
+              </Link>
+            </p>
+            {selectedTask?.published?.definition.contextFields.map((f) => (
+              <Field
+                key={f.key}
+                label={f.key + (f.required ? ' (required)' : '')}
+              >
+                <p className="ops-muted">{f.description}</p>
+                {f.type === 'enum' ? (
+                  <Select
+                    disabled={submitting || !hasWhatsApp}
+                    value={String(taskContext[f.key] ?? f.defaultValue ?? '')}
+                    onChange={(e) =>
+                      setTaskContext((v) => ({ ...v, [f.key]: e.target.value }))
+                    }
+                  >
+                    <option value="">Choose a value</option>
+                    {f.enumValues?.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </Select>
+                ) : f.type === 'boolean' ? (
+                  <Select
+                    disabled={submitting || !hasWhatsApp}
+                    value={String(taskContext[f.key] ?? f.defaultValue ?? '')}
+                    onChange={(e) =>
+                      setTaskContext((v) => {
+                        const next = { ...v };
+                        if (!e.target.value) delete next[f.key];
+                        else next[f.key] = e.target.value === 'true';
+                        return next;
+                      })
+                    }
+                  >
+                    <option value="">Unset</option>
+                    <option value="true">Yes</option>
+                    <option value="false">No</option>
+                  </Select>
+                ) : (
+                  <Input
+                    disabled={submitting || !hasWhatsApp}
+                    type={f.type === 'number' ? 'number' : 'text'}
+                    value={String(taskContext[f.key] ?? f.defaultValue ?? '')}
+                    onChange={(e) =>
+                      setTaskContext((v) => {
+                        const next = { ...v };
+                        if (!e.target.value) delete next[f.key];
+                        else
+                          next[f.key] =
+                            f.type === 'number'
+                              ? Number(e.target.value)
+                              : e.target.value;
+                        return next;
+                      })
+                    }
                   />
-                  <span className="wa-agent-task-icon">
-                    <AgentIcon
-                      name={key === 'receptionist' ? 'chat' : 'calendar'}
-                    />
-                  </span>
-                  <strong>{WHATSAPP_TASKS[key].name}</strong>
-                  <span className="wa-agent-task-description">
-                    {key === 'receptionist'
-                      ? 'Understand customer needs and arrange the right team appointment.'
-                      : 'Find a suitable time and guide customers through a confirmed booking.'}
-                  </span>
-                </label>
-              ))}
-            </fieldset>
-            <div className="wa-agent-task-note">
-              <span>
-                <AgentIcon name="check" />
-                {WHATSAPP_TASK_COMPLETION}
-              </span>
-              {taskKey ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={submitting || !hasWhatsApp}
-                  onClick={() => {
-                    setTaskKey(null);
-                    setSaved(false);
-                  }}
-                >
-                  Clear selection
-                </Button>
-              ) : null}
-            </div>
+                )}
+              </Field>
+            ))}
           </section>
 
           <section
@@ -715,6 +807,8 @@ export default function WhatsAppAgentTab({
                     disabled={submitting}
                     onClick={() => {
                       setTaskKey(savedTaskKey);
+                      setTaskId(savedTaskId);
+                      setTaskContext(savedTaskContext);
                       setDraft(savedPrompt);
                       setBookingAgentId(savedBookingAgentId);
                       setToolProfileId(savedToolProfileId);
@@ -761,9 +855,13 @@ export default function WhatsAppAgentTab({
               <div>
                 <dt>Purpose</dt>
                 <dd>
-                  {savedTaskKey
-                    ? WHATSAPP_TASKS[savedTaskKey].name
-                    : 'Not selected'}
+                  {savedTask?.published
+                    ? savedTask.published.definition.name +
+                      ' · v' +
+                      savedTask.publishedVersion
+                    : savedTaskKey
+                      ? WHATSAPP_TASKS[savedTaskKey].name
+                      : 'Not selected'}
                 </dd>
               </div>
               <div>
@@ -803,7 +901,7 @@ export default function WhatsAppAgentTab({
             <div>
               <strong>One conversation. One goal.</strong>
               <p>
-                A booking or a decline closes the session. Customers can send{' '}
+                The configured outcome closes the session. Customers can send{' '}
                 <code>/new</code> to start fresh. Saved changes apply to new
                 sessions.
               </p>

@@ -78,3 +78,9 @@ decline evidence, queued session isolation, snapshot immutability, reset fencing
 legacy retirement and final-send recovery. Its PostgreSQL tests require the
 isolated `whatsapp_harness_test` database at `127.0.0.1:55439`; never point them
 at another database. No test calls real Meta, OpenRouter or GHL services.
+
+## Configured task extension
+
+The legacy rules above apply to receptionist/appointment_booking keys. Configurable WhatsApp tasks use a pinned published definition and API-validated completion outcomes. A successful booking stores its receipt while the session stays active for any remaining required answers. The configured completion request commits terminal status/result and final reply together; cancellation requires current-message refusal evidence, and unresolved external writes block closure. New sessions resolve the current published version; active/history sessions retain their original snapshot. Archived tasks cannot start new sessions.
+
+The worker accepts versions 1 and 2 concurrently; health retains the version-1 field and advertises supportedTaskProtocolVersions. Configured dispatch requires version 2, while platform task:null and OTP behavior remain unchanged. Deploy compatible workers before API/portal. Portal sandbox sessions are stored separately, run on private /test-turns with simulated API tools, and cannot create production receipts or sends. New schema synchronization with canonical Erflow is still required; previous historical exceptions do not waive it.

@@ -1,3 +1,4 @@
+import { validateTaskCompletion } from '../whatsapp-tasks/task-completion';
 import { randomUUID } from 'node:crypto';
 import {
   ConflictException,
@@ -142,12 +143,15 @@ export class WhatsAppHarnessRepository {
       const running = await manager.count(WhatsAppTurn, {
         where: { status: 'running' },
       });
-      const available = Math.max(0, limit - running);
+      const [{ sandboxRunning }] = await manager.query(
+        `SELECT COUNT(*)::int AS "sandboxRunning" FROM whatsapp_task_test_turns WHERE status='running'`,
+      );
+      const available = Math.max(0, limit - running - sandboxRunning);
       if (!available) return [];
       const candidates: Array<{ id: string }> = await manager.query(
         `
         SELECT c.id FROM whatsapp_conversations c
-        WHERE (c.scope='platform' OR EXISTS (SELECT 1 FROM organization_integrations i WHERE i.id=c.connection_id AND i.is_active=true AND i.whatsapp_task_key IS NOT NULL AND NULLIF(TRIM(i.system_prompt),'') IS NOT NULL))
+        WHERE (c.scope='platform' OR EXISTS (SELECT 1 FROM organization_integrations i WHERE i.id=c.connection_id AND i.is_active=true AND (i.whatsapp_task_key IS NOT NULL OR i.whatsapp_task_id IS NOT NULL) AND NULLIF(TRIM(i.system_prompt),'') IS NOT NULL))
         AND EXISTS (SELECT 1 FROM whatsapp_agent_turns t WHERE t.conversation_id=c.id AND t.generation=c.generation AND t.status='pending' AND t.next_attempt_at<=NOW()
           AND NOT EXISTS (SELECT 1 FROM whatsapp_agent_turns earlier WHERE earlier.conversation_id=c.id AND earlier.generation=c.generation AND earlier.sequence<t.sequence AND earlier.status IN ('pending','failed')))
         AND NOT EXISTS (SELECT 1 FROM whatsapp_agent_turns t WHERE t.conversation_id=c.id AND t.status='running')
@@ -274,6 +278,7 @@ export class WhatsAppHarnessRepository {
             }),
           );
         turn.taskSessionId = active.id;
+        turn.taskProtocolVersion = active.configuration.snapshot ? 2 : 1;
         turn.baseSession = structuredClone(active.session);
         turn.checkpoint = null;
         await manager.save(turn);
@@ -302,6 +307,13 @@ export class WhatsAppHarnessRepository {
   ) {
     return this.withTurn(id, token, async ({ turn, task, manager }) => {
       // A repeated non-final callback must not erase a final answer.
+      if (checkpoint.completion)
+        await this.validateCompletion(
+          turn,
+          task,
+          manager,
+          checkpoint.completion,
+        );
       if (checkpoint.decline)
         await this.validateDecline(
           turn,
@@ -323,6 +335,7 @@ export class WhatsAppHarnessRepository {
   ) {
     if (
       !task ||
+      !!task.configuration.snapshot ||
       task.status !== 'active' ||
       !isExplicitBookingDecline(
         turn.body,
@@ -346,6 +359,66 @@ export class WhatsAppHarnessRepository {
       );
   }
 
+  private async validateCompletion(
+    turn: WhatsAppTurn,
+    task: WhatsAppTaskSession | null,
+    manager: EntityManager,
+    completion: import('@call-agent/contracts').WhatsAppTaskCompletion,
+  ) {
+    if (!task?.configuration.snapshot || task.status !== 'active')
+      throw new ConflictException(
+        'Configured task is required and must be active',
+      );
+    const operations = await manager.find(WhatsAppToolOperation, {
+      where: { taskSessionId: task.id },
+    });
+    if (
+      operations.some(
+        (o) =>
+          o.status === 'running' &&
+          ['scheduleGhlMeeting', 'upsertGhlContact'].includes(o.toolId),
+      )
+    )
+      throw new ConflictException(
+        'Resolve the unknown write outcome before closing the task',
+      );
+    const receipt =
+      operations.find(
+        (o) =>
+          o.toolId === 'scheduleGhlMeeting' &&
+          o.status === 'finished' &&
+          o.result?.ok === true &&
+          typeof o.result.appointmentId === 'string',
+      )?.result ?? null;
+    const errors = validateTaskCompletion(
+      task.configuration.snapshot.definition,
+      completion,
+      turn.body,
+      turn.baseSession ?? EMPTY_SESSION(),
+      receipt,
+    );
+    if (errors.length) throw new ConflictException(errors.join('; '));
+    return task.configuration.snapshot.definition.outcomes.find(
+      (o) => o.key === completion.outcome,
+    )!;
+  }
+  async checkCompletion(
+    id: string,
+    token: string,
+    completion: import('@call-agent/contracts').WhatsAppTaskCompletion,
+  ) {
+    return this.withTurn(id, token, async ({ turn, task, manager }) => {
+      try {
+        await this.validateCompletion(turn, task, manager, completion);
+        return { ok: true };
+      } catch (error) {
+        if (error instanceof ConflictException)
+          return { ok: false, error: error.message };
+        throw error;
+      }
+    });
+  }
+
   async complete(
     id: string,
     token: string,
@@ -356,11 +429,33 @@ export class WhatsAppHarnessRepository {
       token,
       async ({ turn, conversation, task, manager }) => {
         if (turn.status === 'succeeded') return { success: true };
+        if (!checkpoint.reply?.trim())
+          throw new ConflictException('Final reply is required');
         turn.status = 'succeeded';
         turn.checkpoint = checkpoint;
         if (conversation.scope !== 'platform' && !task)
           throw new ConflictException('WhatsApp task is required');
+        if (checkpoint.completion && !task)
+          throw new ConflictException('Configured task is required');
         if (task) {
+          if (checkpoint.completion) {
+            const outcome = await this.validateCompletion(
+              turn,
+              task,
+              manager,
+              checkpoint.completion,
+            );
+            task.status = outcome.terminalStatus;
+            task.outcome = outcome.key;
+            task.result = {
+              ...checkpoint.completion.fields,
+              outcome: outcome.key,
+              taskId: task.configuration.snapshot!.taskId,
+              taskVersion: task.configuration.snapshot!.version,
+            };
+            task.closedAt = new Date();
+            task.terminalTurnId = turn.id;
+          }
           if (checkpoint.decline) {
             await this.validateDecline(
               turn,
@@ -580,7 +675,13 @@ export class WhatsAppHarnessRepository {
         // Only final confirmation recovery may run after successful closure.
         if (
           task.status !== 'active' &&
-          !(task.status === 'completed' && task.terminalTurnId === turn.id)
+          !(
+            (task.status === 'completed' ||
+              (task.status === 'cancelled' &&
+                !!task.configuration.snapshot &&
+                !!turn.checkpoint?.reply)) &&
+            task.terminalTurnId === turn.id
+          )
         )
           throw new ConflictException('WhatsApp task session is closed');
       } else if (conversation.scope !== 'platform' && !turn.taskProtocolVersion)
@@ -665,6 +766,20 @@ export class WhatsAppHarnessRepository {
         if (task.status !== 'active')
           throw new ConflictException('WhatsApp task session is closed');
         if (
+          task.configuration.snapshot &&
+          toolId === 'upsertGhlContact' &&
+          (await manager.count(WhatsAppToolOperation, {
+            where: {
+              taskSessionId: task.id,
+              toolId: 'upsertGhlContact',
+              status: 'running',
+            },
+          }))
+        )
+          throw new ConflictException(
+            'Contact write outcome is unknown; do not submit another write',
+          );
+        if (
           toolId === 'scheduleGhlMeeting' &&
           (await manager.count(WhatsAppToolOperation, {
             where: { taskSessionId: task.id, toolId, status: 'running' },
@@ -722,6 +837,7 @@ export class WhatsAppHarnessRepository {
         update(conversation);
         task.toolState = conversation.toolState;
         if (
+          !task.configuration.snapshot &&
           operation.toolId === 'scheduleGhlMeeting' &&
           result.ok === true &&
           typeof result.appointmentId === 'string' &&

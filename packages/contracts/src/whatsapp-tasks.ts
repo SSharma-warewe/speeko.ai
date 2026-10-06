@@ -24,10 +24,12 @@ export function isWhatsAppTaskKey(value: unknown): value is WhatsAppTaskKey {
   return WHATSAPP_TASK_KEYS.some((key) => key === value);
 }
 export type WhatsAppTaskConfiguration = {
-  key: WhatsAppTaskKey;
+  key: WhatsAppTaskKey | 'configured';
   version: number;
   objective: string;
-  completionRule: 'ghl_appointment_created';
+  completionRule: 'ghl_appointment_created' | 'configured';
+  snapshot?: import('./configurable-whatsapp-tasks.js').WhatsAppTaskSnapshot;
+  context?: Record<string, unknown>;
   persona: string;
   toolProfileId: string;
   voiceAgentId: string;
@@ -38,10 +40,12 @@ export type WhatsAppTaskConfiguration = {
 };
 export type WhatsAppTaskRuntime = {
   sessionId: string;
-  key: WhatsAppTaskKey;
+  key: WhatsAppTaskKey | 'configured';
   version: number;
   objective: string;
-  completionRule: 'ghl_appointment_created';
+  completionRule: 'ghl_appointment_created' | 'configured';
+  snapshot?: import('./configurable-whatsapp-tasks.js').WhatsAppTaskSnapshot;
+  context?: Record<string, unknown>;
   status: 'active' | 'completed' | 'cancelled';
   result: Record<string, unknown> | null;
 };

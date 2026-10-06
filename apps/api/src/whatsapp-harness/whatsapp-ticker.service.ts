@@ -59,9 +59,16 @@ export class WhatsAppTickerService {
                 signal: AbortSignal.timeout(3000),
               });
               const protocol = health.ok
-                ? ((await health.json()) as { taskProtocolVersion?: number })
+                ? ((await health.json()) as {
+                    taskProtocolVersion?: number;
+                    supportedTaskProtocolVersions?: number[];
+                  })
                 : null;
-              if (protocol?.taskProtocolVersion !== 1) {
+              if (
+                runtime.taskProtocolVersion === 2
+                  ? !protocol?.supportedTaskProtocolVersions?.includes(2)
+                  : protocol?.taskProtocolVersion !== 1
+              ) {
                 await this.repository.fail(
                   turn.id,
                   turn.leaseToken!,

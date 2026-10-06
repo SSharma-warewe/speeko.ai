@@ -454,3 +454,13 @@ The HTTP body limit is 3,000,000 bytes. Health response contains ready, active, 
 Heartbeat runs every 10 seconds without overlap. A failed heartbeat aborts execution. Worker turn timeout defaults 90000ms and is clamped 30000–150000ms; capacity defaults 4 and clamps 1–100 via WHATSAPP_WORKER_CONCURRENCY. API global ticker capacity defaults 4; coordinate the values. Shutdown stops acceptance, aborts work as implemented, and exposes unready health.
 
 On error the worker posts a bounded failure code (turn_aborted or model_error) and logs turn id only. Preserve cancellation/deadline/final-checkpoint behavior. Do not add reasoning, message bodies, phone numbers, leases, provider keys, or raw upstream errors to logs.
+
+## Configurable task protocol 2
+
+The worker supports legacy jobs and configured snapshots. Health retains taskProtocolVersion:1 and adds supportedTaskProtocolVersions:[1,2]. Configured jobs require taskProtocolVersion:2, key configured, completionRule configured and a valid WhatsAppTaskSnapshot. Published snapshots run through /turns; version-zero draft snapshots are accepted only on /test-turns with sandbox:true. Closed configured jobs require a final checkpoint and need no active business tools. Dispatch route and purpose must agree.
+
+turn-schema.ts validates both protocols; task-builder.ts compiles phases/objective/results/outcomes with persona and data-only context, and builds the typed complete_whatsapp_task ADK tool. Lifecycle completion is separate from business capability ids and is validated by API validate-completion before the final checkpoint includes its completion request. The API validates again before committing closure. Configured bookings do not break the model loop or end the session automatically; legacy booking/refusal behavior remains intact. Invalid completion returns blockers so the model can collect missing answers.
+
+Sandbox uses the same runner, with HarnessApiClient selecting /api/internal/whatsapp/test-turns only for trusted sandbox dispatch. API owns test persistence, simulated receipts and tool activity. Worker still has no database or provider credentials; test and production receipts cannot cross. API claims sandbox capacity alongside production leases, with production priority. Reset test callbacks are fenced by the API.
+
+Run npm run test:whatsapp-worker for deterministic ADK tests of dynamic schemas, completion blockers, booking-followup questions, checkpoint recovery, callback isolation and dual-version/draft-purpose dispatch validation. Update task protocol documentation and deploy dual-version workers before API/portal.

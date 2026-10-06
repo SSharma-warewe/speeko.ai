@@ -1,3 +1,4 @@
+import { WhatsAppTask } from '../whatsapp-tasks/whatsapp-task.entity';
 import {
   Column,
   CreateDateColumn,
@@ -86,6 +87,18 @@ export class OrganizationIntegration {
     nullable: true,
   })
   whatsappTaskKey!: import('@call-agent/contracts').WhatsAppTaskKey | null;
+
+  @Column({ name: 'whatsapp_task_id', type: 'uuid', nullable: true })
+  whatsappTaskId!: string | null;
+  @ManyToOne(() => WhatsAppTask, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'whatsapp_task_id' })
+  whatsappTask!: WhatsAppTask | null;
+  @Column({
+    name: 'whatsapp_task_context',
+    type: 'jsonb',
+    default: () => "'{}'::jsonb",
+  })
+  whatsappTaskContext!: Record<string, unknown>;
 
   /** Existing voice agent whose GHL calendar powers WhatsApp booking. */
   @Column({ name: 'booking_voice_agent_id', type: 'uuid', nullable: true })

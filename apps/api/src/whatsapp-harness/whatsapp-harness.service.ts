@@ -1,3 +1,5 @@
+import { checkpointSchema, stripThoughts } from './turn-checkpoint';
+export { checkpointSchema } from './turn-checkpoint';
 import { createHash } from 'node:crypto';
 import {
   ConflictException,
@@ -54,30 +56,6 @@ const toolArgs = {
     })
     .strict(),
 };
-const sessionSchema = z
-  .object({
-    state: z.record(z.unknown()),
-    events: z.array(z.record(z.unknown())).max(2000),
-  })
-  .strict();
-export const checkpointSchema = z.object({
-  session: sessionSchema,
-  reply: z.string().trim().min(1).max(4096).optional(),
-  decline: z
-    .object({ evidence: z.string().trim().min(1).max(4096) })
-    .strict()
-    .optional(),
-});
-
-function stripThoughts(checkpoint: WhatsAppTurnCheckpoint) {
-  for (const event of checkpoint.session.events) {
-    const content = event.content as
-      { parts?: Array<{ thought?: boolean }> } | undefined;
-    if (Array.isArray(content?.parts))
-      content.parts = content.parts.filter((part) => part && !part.thought);
-  }
-  return checkpoint;
-}
 
 @Injectable()
 export class WhatsAppHarnessService {
@@ -123,7 +101,8 @@ export class WhatsAppHarnessService {
       }
       if (
         !connection.systemPrompt?.trim() ||
-        !isWhatsAppTaskKey(connection.whatsappTaskKey)
+        (!connection.whatsappTaskId &&
+          !isWhatsAppTaskKey(connection.whatsappTaskKey))
       )
         continue;
       const org = await this.organizations.findById(connection.organizationId);
@@ -187,14 +166,17 @@ export class WhatsAppHarnessService {
       };
     }
     const connection = await this.connection(conversation);
-    if (!isWhatsAppTaskKey(connection.whatsappTaskKey))
+    if (
+      !connection.whatsappTaskId &&
+      !isWhatsAppTaskKey(connection.whatsappTaskKey)
+    )
       throw new ForbiddenException('Select a WhatsApp task');
     const task = await this.repository.bindTask(turn.id, turn.leaseToken!, () =>
       this.integrations.whatsAppTaskConfiguration(connection),
     );
     const config = task.configuration;
     let enabledTools: WhatsAppAgentToolId[] = [];
-    if (task.status === 'active') {
+    if (task.status === 'active' && config.enabledTools.length) {
       await this.profiles.getResponseForOrganization(
         connection.organizationId,
         config.toolProfileId,
@@ -216,8 +198,12 @@ export class WhatsAppHarnessService {
       enabledTools,
       session: turn.baseSession ?? task.session,
       checkpoint: turn.taskSessionId ? turn.checkpoint : null,
+      ...(config.snapshot ? { taskProtocolVersion: 2 as const } : {}),
       task: {
         sessionId: task.id,
+        ...(config.snapshot
+          ? { snapshot: config.snapshot, context: config.context }
+          : {}),
         key: config.key,
         version: config.version,
         objective: config.objective,
@@ -264,7 +250,11 @@ export class WhatsAppHarnessService {
       throw new ForbiddenException('WhatsApp task session is closed');
     const config = task.configuration;
     conversation.toolState = task.toolState;
-    if (!connection.isActive || !isWhatsAppTaskKey(connection.whatsappTaskKey))
+    if (
+      !connection.isActive ||
+      (!connection.whatsappTaskId &&
+        !isWhatsAppTaskKey(connection.whatsappTaskKey))
+    )
       throw new ForbiddenException('WhatsApp tools are not connected');
     await this.profiles.getResponseForOrganization(
       connection.organizationId,
@@ -418,17 +408,24 @@ export class WhatsAppHarnessService {
       return { ok: false, error: 'operation_outcome_unknown' };
     }
     if (
-      toolId === 'scheduleGhlMeeting' &&
       !result.ok &&
-      (result.error === 'network_error' ||
-        result.error === 'ghl_appointment_missing_id' ||
-        /^ghl_appointment_5\d\d$/.test(String(result.error)))
+      ((toolId === 'upsertGhlContact' &&
+        ![
+          'calendar_unavailable',
+          'contact_upsert_unavailable',
+          'email or phone is required',
+        ].includes(String(result.error)) &&
+        !/^ghl upsert 4\d\d$/.test(String(result.error))) ||
+        (toolId === 'scheduleGhlMeeting' &&
+          (result.error === 'network_error' ||
+            result.error === 'ghl_appointment_missing_id' ||
+            /^ghl_appointment_5\d\d$/.test(String(result.error)))))
     )
       return {
         ok: false,
         error: 'operation_outcome_unknown',
         message:
-          'The booking outcome is uncertain. Do not repeat or claim success.',
+          'The external write outcome is uncertain. Do not repeat or claim success.',
       };
     await this.repository.finishTool(
       reservation.operation,

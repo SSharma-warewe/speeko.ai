@@ -8,6 +8,7 @@ import type { ToolProfilesService } from '../../tools/tool-profiles.service';
 import type { WhatsAppBookingService } from '../../whatsapp-agent/whatsapp-booking.service';
 import type { MetaWhatsAppClient } from '../../meta-whatsapp/meta-whatsapp.client';
 import { PlatformWhatsAppConfig } from '../../meta-whatsapp/platform-whatsapp.config';
+import { WHATSAPP_TASK_STARTERS } from '@call-agent/contracts';
 import type { OtpDeliveryService } from '../otp-delivery.service';
 
 describe('WhatsApp harness API boundaries', () => {
@@ -32,7 +33,11 @@ describe('WhatsApp harness API boundaries', () => {
     getResponseForOrganization: jest.fn(),
     resolveEnabledToolIds: jest.fn(),
   };
-  const booking = { lookupContact: jest.fn(), scheduleMeeting: jest.fn() };
+  const booking = {
+    lookupContact: jest.fn(),
+    upsertContact: jest.fn(),
+    scheduleMeeting: jest.fn(),
+  };
   const meta = { sendText: jest.fn() };
   const otpDelivery = { sendReserved: jest.fn(), isConfigured: jest.fn() };
   const connection = {
@@ -175,6 +180,101 @@ describe('WhatsApp harness API boundaries', () => {
     });
     await platformService().ingestWebhook(platformPayload());
     expect(repository.ingest).not.toHaveBeenCalled();
+  });
+  it('dispatches configured selectors and authorizes only their pinned capabilities', async () => {
+    const original = task.configuration;
+    const definition = {
+      ...WHATSAPP_TASK_STARTERS.receptionist,
+      toolIds: ['lookupGhlContact'],
+      phases: [
+        {
+          title: 'Assist',
+          instructions: 'Help the customer',
+          fieldKeys: [],
+          toolIds: ['lookupGhlContact'],
+        },
+      ],
+      outcomes: [
+        {
+          key: 'resolved',
+          description: 'Question answered',
+          terminalStatus: 'completed',
+          requiredFields: [],
+          checks: ['usable_customer_message'],
+        },
+      ],
+    };
+    try {
+      task.configuration = {
+        ...original,
+        key: 'configured',
+        completionRule: 'configured',
+        version: 2,
+        context: { company: 'Example' },
+        snapshot: {
+          schemaVersion: 1,
+          taskId: 'b20f60eb-ef3e-4a46-82ec-f41cd713f58b',
+          version: 2,
+          definition,
+        },
+        enabledTools: ['lookupGhlContact'],
+      } as never;
+      integrations.getEntityForOrg.mockResolvedValue({
+        ...connection,
+        whatsappTaskKey: null,
+        whatsappTaskId: 'newly-selected-task',
+        bookingVoiceAgentId: 'new-voice',
+        whatsappToolProfileId: 'new-profile',
+      });
+      repository.getConversation.mockResolvedValue(conversation);
+      profiles.resolveEnabledToolIds.mockResolvedValue([
+        'lookupGhlContact',
+        'scheduleGhlMeeting',
+      ]);
+      const turn = {
+        id: 'turn',
+        conversationId: 'conversation',
+        generation: 1,
+        leaseToken: 'lease',
+        body: 'Hello',
+        baseSession: null,
+        checkpoint: null,
+      } as never;
+      const runtime = await service.runtime(turn);
+      expect(runtime).toMatchObject({
+        taskProtocolVersion: 2,
+        enabledTools: ['lookupGhlContact'],
+        task: {
+          key: 'configured',
+          version: 2,
+          snapshot: { taskId: 'b20f60eb-ef3e-4a46-82ec-f41cd713f58b' },
+          context: { company: 'Example' },
+        },
+      });
+      await service.executeTool('turn', 'lease', 'lookupGhlContact', {});
+      expect(booking.lookupContact).toHaveBeenCalledWith(
+        expect.objectContaining({
+          voiceAgentId: 'voice',
+          calendarIntegrationId: 'calendar',
+        }),
+        expect.anything(),
+      );
+      await expect(
+        service.executeTool('turn', 'lease', 'scheduleGhlMeeting', {
+          startTime: '2030-01-01T10:00:00Z',
+        }),
+      ).rejects.toThrow('no longer assigned');
+      task.configuration = {
+        ...task.configuration,
+        enabledTools: [],
+        toolProfileId: '',
+      } as never;
+      profiles.resolveEnabledToolIds.mockClear();
+      expect((await service.runtime(turn)).enabledTools).toEqual([]);
+      expect(profiles.resolveEnabledToolIds).not.toHaveBeenCalled();
+    } finally {
+      task.configuration = original;
+    }
   });
   it('dispatches the immutable task persona and history, not later channel changes or credentials', async () => {
     repository.getConversation.mockResolvedValue(conversation);
@@ -427,5 +527,28 @@ describe('WhatsApp harness API boundaries', () => {
       expect(JSON.stringify(method.mock.calls)).not.toContain('Hidden');
       expect(JSON.stringify(method.mock.calls)).toContain('Visible');
     }
+  });
+  it('keeps uncertain contact writes reserved and records definitive validation failures', async () => {
+    profiles.resolveEnabledToolIds.mockResolvedValue(['upsertGhlContact']);
+    booking.upsertContact.mockResolvedValue({
+      ok: false,
+      error: 'network_error',
+    });
+    expect(
+      await service.executeTool('turn', 'lease', 'upsertGhlContact', {
+        firstName: 'Test',
+      }),
+    ).toMatchObject({ error: 'operation_outcome_unknown' });
+    expect(repository.finishTool).not.toHaveBeenCalled();
+    booking.upsertContact.mockResolvedValue({
+      ok: false,
+      error: 'ghl upsert 400',
+    });
+    expect(
+      await service.executeTool('turn', 'lease', 'upsertGhlContact', {
+        firstName: 'Test',
+      }),
+    ).toMatchObject({ error: 'ghl upsert 400' });
+    expect(repository.finishTool).toHaveBeenCalledTimes(1);
   });
 });

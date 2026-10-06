@@ -1,11 +1,20 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import {
+  IsObject,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 import {
   WHATSAPP_TASK_KEYS,
   type WhatsAppTaskKey,
 } from '@call-agent/contracts';
 
 export class WhatsAppAgentConfigDto {
+  @ApiProperty({ nullable: true }) whatsappTaskId!: string | null;
+  @ApiProperty({ type: Object }) taskContext!: Record<string, unknown>;
   @ApiProperty({ enum: WHATSAPP_TASK_KEYS, nullable: true })
   taskKey!: WhatsAppTaskKey | null;
   @ApiProperty({
@@ -37,6 +46,14 @@ export class WhatsAppAgentConfigDto {
 }
 
 export class UpdateWhatsAppAgentDto {
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  @IsUUID()
+  whatsappTaskId?: string | null;
+  @ApiProperty({ required: false, type: Object })
+  @IsOptional()
+  @IsObject()
+  taskContext?: Record<string, unknown>;
   @ApiProperty({ enum: WHATSAPP_TASK_KEYS, nullable: true, required: false })
   @IsOptional()
   @IsIn(WHATSAPP_TASK_KEYS)

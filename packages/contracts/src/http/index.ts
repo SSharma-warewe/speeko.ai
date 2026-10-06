@@ -1,8 +1,4 @@
-export {
-  ErrorCode,
-  errorCodeFromStatus,
-  isErrorCode,
-} from './errors.js';
+export { ErrorCode, errorCodeFromStatus, isErrorCode } from './errors.js';
 export type { ErrorResponse } from './errors.js';
 
 export type {
@@ -118,3 +114,5 @@ export type {
   UpdateWhatsAppAgentRequest,
   WhatsAppAgentConfig,
 } from './whatsapp-agent.js';
+
+export * from './whatsapp-conversations.js';

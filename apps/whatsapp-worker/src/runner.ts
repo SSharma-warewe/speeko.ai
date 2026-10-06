@@ -1,3 +1,4 @@
+import { taskInstructions } from './task-builder.js';
 import {
   LlmAgent,
   Runner,
@@ -34,7 +35,11 @@ export async function runTurn(
 ): Promise<WhatsAppTurnCheckpoint> {
   // Crash between final checkpoint and complete: use the persisted answer.
   if (turn.checkpoint?.reply) return turn.checkpoint;
-  if (turn.task?.status === 'completed' && turn.task.result) {
+  if (
+    !turn.task?.snapshot &&
+    turn.task?.status === 'completed' &&
+    turn.task.result
+  ) {
     const checkpoint = {
       session: turn.session,
       reply: bookingConfirmation(turn.task.result, turn.sender),
@@ -43,6 +48,7 @@ export async function runTurn(
     return checkpoint;
   }
   const lifecycle: {
+    completion?: import('@call-agent/contracts').WhatsAppTaskCompletion;
     booking?: Record<string, unknown>;
     decline?: { evidence: string };
   } = {};
@@ -61,7 +67,7 @@ export async function runTurn(
       }),
     instruction: () =>
       buildWhatsAppInstruction(
-        `${turn.prompt}\n\n${capabilities}${turn.task ? `\n\nTASK (primary objective): ${turn.task.objective}\nSuccess requires the scheduleGhlMeeting tool to return ok=true with an appointmentId. Contact capture and text alone never finish the task. Offer only checked slots and book only after the customer agrees. If the customer explicitly refuses booking, call declineBooking with their exact current-message quote, then politely acknowledge. Do not request cancellation because of a tool error.` : ''}`,
+        `${turn.prompt}\n\n${capabilities}${turn.task?.snapshot ? `\n\n${taskInstructions(turn)}` : turn.task ? `\n\nTASK (primary objective): ${turn.task.objective}\nSuccess requires the scheduleGhlMeeting tool to return ok=true with an appointmentId. Contact capture and text alone never finish the task. Offer only checked slots and book only after the customer agrees. If the customer explicitly refuses booking, call declineBooking with their exact current-message quote, then politely acknowledge. Do not request cancellation because of a tool error.` : ''}`,
         turn.sender,
       ),
     tools: buildTools(turn, api, signal, lifecycle),
@@ -96,7 +102,19 @@ export async function runTurn(
     runConfig: { maxLlmCalls: 12 },
   })) {
     if (event.errorCode) throw new Error('model_error');
-    if (lifecycle.booking) {
+    if (lifecycle.completion) {
+      const outcome = turn.task!.snapshot!.definition.outcomes.find(
+        (o) => o.key === lifecycle.completion!.outcome,
+      )!;
+      reply =
+        outcome.terminalStatus === 'cancelled'
+          ? 'Understood. I will stop this task. Thank you! This session has ended.'
+          : outcome.checks.includes('booking_receipt') && lifecycle.booking
+            ? bookingConfirmation(lifecycle.booking, turn.sender)
+            : 'Thank you! Your request is complete. This session has ended.';
+      break;
+    }
+    if (!turn.task?.snapshot && lifecycle.booking) {
       reply = bookingConfirmation(lifecycle.booking, turn.sender);
       break;
     }
@@ -110,6 +128,7 @@ export async function runTurn(
   if (!reply) throw new Error('empty_reply');
   const checkpoint: WhatsAppTurnCheckpoint = {
     session: store.snapshot(),
+    ...(lifecycle.completion ? { completion: lifecycle.completion } : {}),
     reply: reply.slice(0, 4096),
     ...(lifecycle.decline && !lifecycle.booking
       ? { decline: lifecycle.decline }

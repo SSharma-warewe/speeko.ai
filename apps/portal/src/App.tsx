@@ -86,6 +86,10 @@ export default function App() {
         <Route path="batches" element={<UserBatchesPage />} />
         <Route path="batches/:id" element={<UserBatchDetailPage />} />
         <Route path="tasks" element={<VoiceTasksPage />} />
+        <Route
+          path="tasks/whatsapp/:taskId"
+          element={<VoiceTasksPage whatsapp />}
+        />
         <Route path="tasks/:taskId" element={<VoiceTasksPage />} />
         <Route path="agents" element={<UserAgentsPage />} />
         <Route path="agents/:id" element={<UserAgentDetailPage />} />
@@ -123,6 +127,10 @@ export default function App() {
           <Route index element={<OrgOverviewTab />} />
           <Route path="users" element={<OrgUsersPage />} />
           <Route path="tasks" element={<VoiceTasksPage admin />} />
+          <Route
+            path="tasks/whatsapp/:taskId"
+            element={<VoiceTasksPage admin whatsapp />}
+          />
           <Route path="tasks/:taskId" element={<VoiceTasksPage admin />} />
           <Route path="agents" element={<OrgAgentsPage />} />
           <Route path="agents/:agentId" element={<OrgAgentDetailPage />} />
@@ -141,6 +149,10 @@ export default function App() {
           />
         </Route>
         <Route path="tasks" element={<VoiceTasksPage admin />} />
+        <Route
+          path="tasks/whatsapp/:taskId"
+          element={<VoiceTasksPage admin whatsapp />}
+        />
         <Route path="tasks/:taskId" element={<VoiceTasksPage admin />} />
         <Route path="agents" element={<AgentTemplatesPage />} />
         <Route path="agents/:id" element={<AgentTemplateDetailPage />} />

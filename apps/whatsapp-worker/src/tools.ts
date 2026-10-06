@@ -1,3 +1,4 @@
+import { completionTool } from './task-builder.js';
 import { FunctionTool } from '@google/adk';
 import { Type, type Schema } from '@google/genai';
 import type { WhatsAppWorkerTurn } from '@call-agent/contracts';
@@ -8,6 +9,7 @@ export function buildTools(
   api: HarnessApiClient,
   signal?: AbortSignal,
   lifecycle?: {
+    completion?: import('@call-agent/contracts').WhatsAppTaskCompletion;
     decline?: { evidence: string };
     booking?: Record<string, unknown>;
   },
@@ -68,7 +70,11 @@ export function buildTools(
         new FunctionTool({
           ...definition,
           execute: async (args) => {
-            if (lifecycle?.booking || lifecycle?.decline)
+            if (
+              lifecycle?.completion ||
+              (!turn.task?.snapshot && lifecycle?.booking) ||
+              lifecycle?.decline
+            )
               return { ok: false, error: 'task_closed' };
             const result = await api.post<Record<string, unknown>>(
               turn,
@@ -88,7 +94,9 @@ export function buildTools(
           },
         }),
     );
-  if (turn.task?.status === 'active' && lifecycle)
+  if (turn.task?.snapshot && turn.task.status === 'active' && lifecycle)
+    tools.push(completionTool(turn, api, signal, lifecycle));
+  if (!turn.task?.snapshot && turn.task?.status === 'active' && lifecycle)
     tools.push(
       new FunctionTool({
         name: 'declineBooking',
