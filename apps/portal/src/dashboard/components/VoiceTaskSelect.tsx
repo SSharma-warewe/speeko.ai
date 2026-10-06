@@ -14,6 +14,7 @@ export function VoiceTaskSelect({
   id,
   label = 'Task',
   emptyLabel = 'Agent default',
+  tasks: providedTasks,
 }: {
   value: string;
   onChange: ChangeEventHandler<HTMLSelectElement>;
@@ -25,10 +26,12 @@ export function VoiceTaskSelect({
   id?: string;
   label?: string;
   emptyLabel?: string;
+  tasks?: VoiceTaskRecord[];
 }) {
   const [tasks, setTasks] = useState<VoiceTaskRecord[]>([]);
   const [error, setError] = useState('');
   useEffect(() => {
+    if (providedTasks) return;
     let active = true;
     voiceTasksClient(admin, orgId)
       .list()
@@ -44,8 +47,8 @@ export function VoiceTaskSelect({
     return () => {
       active = false;
     };
-  }, [admin, orgId]);
-  const available = tasks.filter(
+  }, [admin, orgId, providedTasks]);
+  const available = (providedTasks ?? tasks).filter(
     (t) =>
       !t.archived &&
       t.published &&

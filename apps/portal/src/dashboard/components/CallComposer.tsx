@@ -1,5 +1,5 @@
 import { VoiceTaskSelect } from "./VoiceTaskSelect";
-import { taskSelection } from "../../lib/voice-tasks";
+import { taskSelection, voiceTasksClient } from "../../lib/voice-tasks";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Alert, Button, Field, Input, Select, Textarea } from "@call-agent/ui";
@@ -8,12 +8,16 @@ import {
   createUserOutboundCall,
   enqueueUserCalls,
   listUserAgents,
+  listUserAgentTemplates,
   listUserOutboundTrunks,
   UnauthorizedError,
   type CallRecord,
 } from "../../lib/api";
 import { useUserAuth } from "../../lib/auth";
-import { formatTaskContextSkeleton } from "../../lib/task-context-skeletons";
+import {
+  callContextTaskSelection,
+  formatTaskContextSkeleton,
+} from "../../lib/task-context-skeletons";
 import { StatusBadge } from "./StatusBadge";
 import { useUserAsync } from "../hooks/useAsync";
 
@@ -36,11 +40,13 @@ export function CallComposer({
 }: Props) {
   const { logout } = useUserAuth();
   const { data, error, loading, reload } = useUserAsync(async () => {
-    const [agents, trunks] = await Promise.all([
+    const [agents, trunks, tasks, templates] = await Promise.all([
       listUserAgents(),
       listUserOutboundTrunks(),
+      voiceTasksClient().list(),
+      listUserAgentTemplates(),
     ]);
-    return { agents, trunks };
+    return { agents, trunks, tasks, templates };
   }, []);
 
   const [organizationAgentId, setOrganizationAgentId] = useState("");
@@ -62,11 +68,31 @@ export function CallComposer({
   } | null>(null);
   const [dialed, setDialed] = useState<CallRecord | null>(null);
 
-  const effectiveTask = task || "general";
+  const selectedAgent = data?.agents.find(
+    (agent) => agent.id === organizationAgentId,
+  );
+  const agentTemplate = data?.templates.find(
+    (template) => template.id === selectedAgent?.agentId,
+  );
+  const effectiveTask = callContextTaskSelection(
+    task,
+    selectedAgent,
+    agentTemplate,
+  );
+  const publishedTask = data?.tasks.find(
+    (record) => `voice:${record.id}` === effectiveTask,
+  )?.published;
+  const contextTemplate = formatTaskContextSkeleton(
+    effectiveTask,
+    publishedTask?.definition,
+  );
+  const taskLabel = publishedTask
+    ? `${publishedTask.definition.name} · v${publishedTask.version}`
+    : effectiveTask;
 
-  const applySkeletonForTask = (taskKey: string | null | undefined) => {
-    setContextJson(formatTaskContextSkeleton(taskKey || "general"));
-  };
+  useEffect(() => {
+    setContextJson(contextTemplate);
+  }, [task, effectiveTask, contextTemplate]);
 
   useEffect(() => {
     if (!data) return;
@@ -79,7 +105,6 @@ export function CallComposer({
       if (pick) {
         setOrganizationAgentId(pick.id);
         setTask("");
-        applySkeletonForTask("general");
       }
     }
     if (!sipTrunkId && data.trunks.length > 0) {
@@ -90,15 +115,10 @@ export function CallComposer({
 
   const handleAgentChange = (id: string) => {
     setOrganizationAgentId(id);
-    if (!task) {
-      setTask("");
-      applySkeletonForTask("general");
-    }
   };
 
   const handleTaskChange = (value: string) => {
     setTask(value);
-    applySkeletonForTask(value || "general");
   };
 
   const handleEnqueue = async (e: FormEvent) => {
@@ -117,7 +137,9 @@ export function CallComposer({
       return;
     }
     if (numbers.length === 0) {
-      setFormError("Enter at least one phone number (one per line or comma-separated).");
+      setFormError(
+        "Enter at least one phone number (one per line or comma-separated).",
+      );
       return;
     }
     if (numbers.length > 50) {
@@ -147,7 +169,9 @@ export function CallComposer({
         logout();
         return;
       }
-      setFormError(err instanceof ApiError ? err.message : "Could not enqueue calls.");
+      setFormError(
+        err instanceof ApiError ? err.message : "Could not enqueue calls.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -178,8 +202,8 @@ export function CallComposer({
           return;
         }
         context = {
-          phoneNumber: toNumber.trim(),
           ...(parsed as Record<string, unknown>),
+          phoneNumber: toNumber.trim(),
         };
       } catch {
         setFormError("Context JSON is invalid.");
@@ -204,7 +228,9 @@ export function CallComposer({
         logout();
         return;
       }
-      setFormError(err instanceof ApiError ? err.message : "Could not place call.");
+      setFormError(
+        err instanceof ApiError ? err.message : "Could not place call.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -262,7 +288,9 @@ export function CallComposer({
             Enqueued {enqueueOk.count} call{enqueueOk.count === 1 ? "" : "s"}.{" "}
             <Link to={`/dashboard/batches/${enqueueOk.batchId}`}>Batch</Link>
             {" · "}
-            <Link to={`/dashboard/calls?compose=enqueue&batchId=${enqueueOk.batchId}`}>
+            <Link
+              to={`/dashboard/calls?compose=enqueue&batchId=${enqueueOk.batchId}`}
+            >
               Filter list
             </Link>
           </Alert>
@@ -281,14 +309,19 @@ export function CallComposer({
         {error ? (
           <Alert tone="error">
             {error}{" "}
-            <button type="button" className="ops-calls-text-btn" onClick={reload}>
+            <button
+              type="button"
+              className="ops-calls-text-btn"
+              onClick={reload}
+            >
               Retry
             </button>
           </Alert>
         ) : null}
         {data && activeAgents.length === 0 ? (
           <Alert tone="info">
-            No active agents. <Link to="/dashboard/agents">Configure agents</Link>
+            No active agents.{" "}
+            <Link to="/dashboard/agents">Configure agents</Link>
           </Alert>
         ) : null}
         {data && trunks.length === 0 ? (
@@ -359,7 +392,14 @@ export function CallComposer({
           </Field>
 
           <Field label="Task" htmlFor="calls-task">
-            <VoiceTaskSelect value={task} onChange={(e) => handleTaskChange(e.target.value)} disabled={submitting} direction="outbound" />
+            <VoiceTaskSelect
+              id="calls-task"
+              value={task}
+              onChange={(e) => handleTaskChange(e.target.value)}
+              disabled={submitting || loading}
+              direction="outbound"
+              tasks={data?.tasks ?? []}
+            />
           </Field>
 
           <Field label="SIP trunk" htmlFor="calls-trunk">
@@ -425,7 +465,9 @@ export function CallComposer({
             variant="primary"
             size="md"
             loading={submitting}
-            disabled={submitting || activeAgents.length === 0}
+            disabled={
+              submitting || loading || !!error || activeAgents.length === 0
+            }
           >
             {mode === "enqueue" ? "Enqueue batch" : "Place call"}
           </Button>
@@ -433,18 +475,18 @@ export function CallComposer({
 
         {true ? (
           <details className="ops-calls-advanced">
-            <summary>Advanced — context JSON for “{effectiveTask}”</summary>
+            <summary>Advanced — context JSON for “{taskLabel}”</summary>
             <Field
               label="Context"
               htmlFor="calls-ctx"
-              hint="Merged with phoneNumber from To number. Changing the task resets this template."
+              hint="Published task inputs and defaults. phoneNumber comes from the destination. Changing the task resets this template."
             >
               <Textarea
                 id="calls-ctx"
                 value={contextJson}
                 onChange={(e) => setContextJson(e.target.value)}
                 rows={7}
-                disabled={submitting}
+                disabled={submitting || loading}
                 className="ops-mono"
               />
             </Field>
