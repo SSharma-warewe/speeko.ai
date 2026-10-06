@@ -217,12 +217,6 @@ export function realtimeVoiceCatalog(
   return options;
 }
 
-export function featuredVoiceCatalog(
-  ttsModel: string | null | undefined,
-): TtsVoiceOption[] {
-  return [...featuredVoicesForTtsModel(ttsModel)];
-}
-
 export function extraVoiceCatalog(
   ttsModel: string | null | undefined,
 ): TtsVoiceOption[] {

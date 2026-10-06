@@ -788,7 +788,7 @@ Names/defaults below are documented configuration, never real credential values.
 | `PLUNK_API_KEY` | API | Plunk secret key (`sk_…`); empty/unset soft-disables email (invite/reset send no-ops). Required on the **api** service in production for mail to leave the box |
 | `PLUNK_API_BASE` | API | Optional Plunk API origin (default `https://next-api.useplunk.com`). Origin only — do not include `/v1/send`. Legacy hosted Plunk is `https://api.useplunk.com` |
 | `EMAIL_FROM` | API | Default From header (must be a domain verified in Plunk) |
-| `EMAIL_NOTIFY_TO` | API | Optional platform inbox for product notify mail; read via `EmailService.getNotifyTo()` |
+| `EMAIL_NOTIFY_TO` | API | Reserved optional platform inbox; currently unused |
 | `PORTAL_PUBLIC_URL` | API | Public portal origin for invite/reset links (e.g. `https://portal.speeko.ai`) |
 | `PASSWORD_INVITE_TTL_MS` | API | Set-password invite TTL (default 7 days) |
 | `PASSWORD_RESET_TTL_MS` | API | Forgot-password reset TTL (default 1 hour) |

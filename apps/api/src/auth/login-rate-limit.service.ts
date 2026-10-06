@@ -36,12 +36,4 @@ export class LoginRateLimitService {
   reset(): void {
     this.limiter.reset();
   }
-
-  getMaxAttempts(): number {
-    return this.maxAttempts;
-  }
-
-  getWindowMs(): number {
-    return this.windowMs;
-  }
 }

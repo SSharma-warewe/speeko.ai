@@ -1,7 +1,5 @@
 import { useEffect, useRef } from "react";
 
-export const GA_MEASUREMENT_ID = "G-5XRJR460G9";
-
 declare global {
   interface Window {
     dataLayer?: unknown[];

@@ -394,6 +394,55 @@ export type WhatsAppTaskRuntime = {
 };
 ```
 
+## Worker job payload (API → WhatsApp worker)
+
+The WhatsApp equivalent of voice [AgentJobMetadata](../../packages/contracts/src/job-metadata.ts) is [WhatsAppWorkerTurn](../../packages/contracts/src/whatsapp-harness.ts). The API builds this JSON object in [WhatsAppHarnessService.runtime](../api/src/whatsapp-harness/whatsapp-harness.service.ts) and sends it as the entire body of `POST ${WHATSAPP_WORKER_URL}/turns`, with `Content-Type: application/json` and `X-Worker-Secret` supplied separately in headers. The worker receives one customer-message turn per job, rather than a LiveKit room/participant `JobContext`.
+
+Illustrative first turn for an org appointment-booking task (all values are fictional; angle-bracket placeholders must be replaced with API-issued UUIDs, including the current lease, before dispatch):
+
+```json
+{
+  "id": "<turn UUID>",
+  "conversationId": "<conversation UUID>",
+  "generation": 1,
+  "leaseToken": "<current lease UUID>",
+  "sender": "15550102000",
+  "body": "Can I book an appointment for tomorrow afternoon?",
+  "prompt": "You are the appointment receptionist for Example Company. Be concise and polite. Ask one question at a time.",
+  "enabledTools": [
+    "lookupGhlContact",
+    "upsertGhlContact",
+    "checkGhlFreeSlots",
+    "scheduleGhlMeeting"
+  ],
+  "session": {
+    "state": {},
+    "events": []
+  },
+  "checkpoint": null,
+  "task": {
+    "sessionId": "<task-session UUID>",
+    "key": "appointment_booking",
+    "version": 1,
+    "objective": "Arrange one appointment for this customer. Find or create their contact, check open slots, ask which slot they want, and create the agreed GHL booking.",
+    "completionRule": "ghl_appointment_created",
+    "status": "active",
+    "result": null
+  }
+}
+```
+
+- `id` identifies the durable turn and its callback URL; `conversationId` identifies the channel/customer conversation. `generation` fences resets, while `leaseToken` authorizes callbacks for this execution attempt. The API validates the live lease/generation; these values are not model instructions.
+- `sender` is the digit-only WhatsApp customer number (no `+`); `body` is the current inbound text passed as the ADK user message. Prior messages belong in the session snapshot.
+- `prompt` is the persona from the immutable org task configuration. `enabledTools` is the snapshotted capability list intersected with currently permitted profile/org tools; API tool callbacks recheck live authorization. No tool schemas or executable implementations travel in the job.
+- `session.state` and `session.events` are API-persisted ADK state/history. Empty objects/arrays illustrate a new session; later turns receive existing memory. ADK uses `task.sessionId` as its session id for org jobs, or `conversationId` for platform jobs.
+- `checkpoint` is null when there is no saved execution checkpoint. Otherwise it contains `{ session, reply?, decline? }`, with `decline: { evidence }` when present. A saved nonempty `reply` is returned for completion without another model request; a completed task with an API booking receipt can also regenerate its final confirmation without booking again.
+- `task` carries workflow identity, version, objective, completion rule, API-owned status, and nullable result. It is a required field: platform receptionist jobs use `task: null`, `enabledTools: []`, and the platform persona. OTP delivery never becomes a worker job.
+
+Org/profile/calendar configuration and provider credentials remain API-owned; the worker gets the runtime task projection above, not the full `WhatsAppTaskConfiguration`. The model is selected by `WHATSAPP_AGENT_MODEL`, not a job field. The runner adds capability/task instructions and a fresh sender-local clock to the persona for each model request.
+
+Acceptance returns `202 { "accepted": true }`. The worker checkpoints and completes through `/api/internal/whatsapp/turns/:id/...` with the same lease and worker-secret header. Completion returns a session/reply checkpoint to the API, which persists and sends the reply through its Meta outbox; the worker does not send WhatsApp messages directly. A generated reply is not evidence of task completion: a booking needs the API-persisted successful appointment receipt.
+
 ## Dispatch validation and response limits
 
 Dispatch validates UUID id/conversationId/leaseToken, positive integer generation, digit-only sender length 6–20, body length 1–4096, and persona length 1–20000. enabledTools can contain only the four shared GHL ids. Session state/events are JSON object structures; checkpoint is nullable with optional reply up to 4096 and decline evidence 1–4096.

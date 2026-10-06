@@ -211,10 +211,6 @@ export class GhlService {
     return Boolean(this.apiKey && this.locationId);
   }
 
-  isCalendarEnabled(): boolean {
-    return Boolean(this.calendarToken && this.locationId && this.calendarId);
-  }
-
   /**
    * Upsert a marketing get-demo lead as a GHL contact, then add tags + a note.
    * Never throws — failures return `{ ok: false }` so the demo dial still runs.

@@ -175,12 +175,3 @@ export function sanitizeForStorage(value: unknown, depth = 0): unknown {
   }
   return String(value).slice(0, MAX_STRING);
 }
-
-export function summarizeToolEvents(
-  events: ToolEvent[] | undefined,
-): string {
-  if (!events?.length) return 'none';
-  return events
-    .map((e) => `${e.toolId}:${e.ok === false ? 'fail' : e.ok === true ? 'ok' : '?'}`)
-    .join(',');
-}

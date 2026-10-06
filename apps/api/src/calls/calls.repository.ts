@@ -52,13 +52,6 @@ export class CallsRepository {
     });
   }
 
-  findRecentByOrganization(
-    organizationId: string,
-    limit = 50,
-  ): Promise<Call[]> {
-    return this.findByOrganization(organizationId, { limit });
-  }
-
   findByOrganization(
     organizationId: string,
     filter: ListCallsFilter = {},

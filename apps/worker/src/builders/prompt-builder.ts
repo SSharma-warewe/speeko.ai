@@ -282,34 +282,6 @@ function isLikelyIanaTimeZone(value: string): boolean {
   }
 }
 
-export type FormattedClock = {
-  timeZone: string;
-  weekday: string;
-  date: string;
-  time: string;
-  utcIso: string;
-};
-
-/** @deprecated prefer snapshotCallClock / formatDayInTimeZone */
-export function formatClockInTimeZone(now: Date, timeZone: string): FormattedClock {
-  const day = formatDayInTimeZone(now, timeZone);
-  const time = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-    timeZoneName: 'short',
-  }).format(now);
-  return {
-    timeZone: day.timeZone,
-    weekday: day.weekday,
-    date: day.longDate,
-    time,
-    utcIso: now.toISOString(),
-  };
-}
-
 function formatDayInTimeZone(now: Date, timeZone: string): FormattedDay & { timeZone: string } {
   let tz = timeZone;
   try {

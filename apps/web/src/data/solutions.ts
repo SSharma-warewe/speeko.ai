@@ -15,13 +15,6 @@ export type ToolCopy = {
   scene: string;
 };
 
-export const TOOL_GROUPS: { id: ToolGroupId; title: string; hint: string }[] = [
-  { id: "call", title: "Call control", hint: "How the session ends or hands off" },
-  { id: "appointments", title: "Appointments", hint: "Confirm, book, or cancel a visit" },
-  { id: "calendar", title: "Calendar", hint: "Nylas — live free/busy and events" },
-  { id: "ghl", title: "GoHighLevel", hint: "Contacts + open slots + meetings" },
-];
-
 export const TOOL_COPY: ToolCopy[] = [
   {
     id: TOOL_IDS.endCall,
@@ -158,83 +151,6 @@ export const TOOL_BY_ID: Record<KnownToolId, ToolCopy> = Object.fromEntries(
 
 export function toolChip(id: KnownToolId): string {
   return TOOL_BY_ID[id]?.shortId ?? id;
-}
-
-export type ProfileKind = "platform" | "custom";
-
-export type ToolProfileExample = {
-  key: string;
-  name: string;
-  kind: ProfileKind;
-  toolIds: KnownToolId[];
-  accomplishes: string;
-};
-
-export const PROFILE_EXAMPLES: ToolProfileExample[] = [
-  {
-    key: "default",
-    name: "Default",
-    kind: "platform",
-    toolIds: [TOOL_IDS.endCall],
-    accomplishes: "Talk, then hang up. The seeded inbound starter — no calendar, no book.",
-  },
-  {
-    key: "outbound",
-    name: "Outbound",
-    kind: "platform",
-    toolIds: [
-      TOOL_IDS.endCall,
-      TOOL_IDS.booking,
-      TOOL_IDS.cancelBooking,
-      TOOL_IDS.transferCall,
-      TOOL_IDS.lookupCustomer,
-      TOOL_IDS.confirmAppointment,
-    ],
-    accomplishes:
-      "Work a list: look someone up, confirm or cancel, book a new time, or hand off to a human.",
-  },
-  {
-    key: "after-hours",
-    name: "After-hours clinic",
-    kind: "custom",
-    toolIds: [
-      TOOL_IDS.endCall,
-      TOOL_IDS.lookupCustomer,
-      TOOL_IDS.checkCalendarAvailability,
-      TOOL_IDS.createCalendarEvent,
-      TOOL_IDS.transferCall,
-    ],
-    accomplishes: "Answer after close, greet a known patient, offer a real free slot, or escalate.",
-  },
-  {
-    key: "demo-setter",
-    name: "Demo setter",
-    kind: "custom",
-    toolIds: [
-      TOOL_IDS.endCall,
-      TOOL_IDS.lookupGhlContact,
-      TOOL_IDS.upsertGhlContact,
-      TOOL_IDS.checkGhlFreeSlots,
-      TOOL_IDS.scheduleGhlMeeting,
-    ],
-    accomplishes: "Find or create the GHL contact, read open times, book the demo, hang up.",
-  },
-];
-
-export function describeProfile(ids: readonly string[]): string {
-  const selected = TOOL_COPY.filter(
-    (t) => ids.includes(t.id) && t.id !== TOOL_IDS.endCall,
-  );
-  if (selected.length === 0) {
-    return "This agent can talk, then hang up. Add tools to let it act on the call.";
-  }
-  const verbs = selected.map((t) => t.verb);
-  if (verbs.length === 1) {
-    return `This agent can ${verbs[0]} — then hang up.`;
-  }
-  const head = verbs.slice(0, -1).join(", ");
-  const last = verbs[verbs.length - 1];
-  return `This agent can ${head}, and ${last} — then hang up.`;
 }
 
 export type Playbook = {
@@ -461,77 +377,3 @@ export const LANES: Record<SolutionSlug, SolutionLane> = {
     },
   },
 };
-
-export const OPTIONAL_TOOL_IDS: KnownToolId[] = TOOL_COPY.filter(
-  (t) => t.id !== TOOL_IDS.endCall,
-).map((t) => t.id);
-
-export const HUB_STARTER_IDS: KnownToolId[] = [
-  TOOL_IDS.endCall,
-  TOOL_IDS.lookupCustomer,
-  TOOL_IDS.confirmAppointment,
-];
-
-export type AgentHelpCard = {
-  id: string;
-  kicker: string;
-  title: string;
-  body: string;
-  href: string;
-};
-
-/** Concrete jobs an assembled profile can finish — not feature bullets. */
-export const AGENT_HELPS: AgentHelpCard[] = [
-  {
-    id: "nights",
-    kicker: "Coverage",
-    title: "Answer when the desk is dark",
-    body: "After-hours inbound still looks someone up, offers a real free slot, or transfers. The book is updated before anyone is back in the morning.",
-    href: "/solutions/ai-calling-agents",
-  },
-  {
-    id: "list",
-    kicker: "Outbound",
-    title: "Work tomorrow’s list",
-    body: "Confirm, reschedule, or cancel against the booking id. Voicemail is not a workflow — the list row is done when the call ends.",
-    href: "/solutions/ai-calling-agents",
-  },
-  {
-    id: "pipeline",
-    kicker: "Sales",
-    title: "Put the next meeting on the calendar",
-    body: "Find or create the GHL contact, read open slots, book. Qualification is the task; the tools are how the demo actually lands.",
-    href: "/solutions/ai-calling-agents",
-  },
-  {
-    id: "humans",
-    kicker: "Handoff",
-    title: "Leave humans the exceptions",
-    body: "Billing disputes, clinical questions, “I want a person” — transfer with a reason. Everything else hangs up clean.",
-    href: "/solutions/ai-calling-agents",
-  },
-];
-
-export type AgentFitStep = {
-  step: string;
-  title: string;
-  body: string;
-};
-
-export const AGENT_FIT: AgentFitStep[] = [
-  {
-    step: "01",
-    title: "Persona talks",
-    body: "The system prompt is who the agent is — company, tone, policies. It does not contain the booking steps.",
-  },
-  {
-    step: "02",
-    title: "Tools act",
-    body: "Only enabled ids can run. No calendar on the profile means it cannot check or create events, no matter what it says.",
-  },
-  {
-    step: "03",
-    title: "Your stack stays the book",
-    body: "Nylas or GoHighLevel holds the slots. The CRM enqueues the call. Speeko does not invent a second calendar.",
-  },
-];

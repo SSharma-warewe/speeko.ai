@@ -77,7 +77,7 @@ The old root guide's technical content is available directly in the guides below
 - Auth, seeds, integrations, queue retries/sweepers, routes, agent/job shapes, modules, adapters and costs: [API architecture/routes](apps/api/AGENTS.md#architecture-and-api-routes).
 - Test conventions/commands, PostgreSQL restrictions, suite references and original scenarios: [API testing](apps/api/AGENTS.md#testing-reference) and local worker/frontend checklists.
 - Persona/task/tool composition, SIP gating, pipeline/realtime speech, Hindi handling, providers, Sarvam and callbacks: [voice runtime](apps/worker/AGENTS.md#detailed-runtime).
-- ADK dispatch/checkpoints, leases/generation/task fences, receipts/refusal/reset, uncertain sends and protocol rollout: [WhatsApp](apps/whatsapp-worker/AGENTS.md).
+- WhatsApp worker job object and field meanings: [worker job payload](apps/whatsapp-worker/AGENTS.md#worker-job-payload-api--whatsapp-worker). ADK dispatch/checkpoints, leases/generation/task fences, receipts/refusal/reset, uncertain sends and protocol rollout: [WhatsApp](apps/whatsapp-worker/AGENTS.md).
 - Route metadata/redirects/SEO/GEO/analytics, form states and OTP/demo: [web](apps/web/AGENTS.md).
 - Org/admin routes/guards, typed errors/design, agents/calls/integrations, WhatsApp and CRM: [portal](apps/portal/AGENTS.md).
 - Exports/catalogs, full dispatch/callback/turn/task wire shapes and consumer builds: [contracts](packages/contracts/AGENTS.md).

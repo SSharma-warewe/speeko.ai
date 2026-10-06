@@ -131,9 +131,3 @@ export type KeywordPath = (typeof KEYWORD_PATHS)[number];
 export function marketingUrl(path: string): string {
   return path === "/" ? `${MARKETING_ORIGIN}/` : `${MARKETING_ORIGIN}${path}`;
 }
-
-export function marketingRouteByPath(
-  path: string,
-): MarketingRoute | undefined {
-  return MARKETING_ROUTES.find((route) => route.path === path);
-}

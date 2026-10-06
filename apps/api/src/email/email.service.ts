@@ -34,7 +34,6 @@ export class EmailService {
   private readonly apiKey: string;
   private readonly apiBase: string;
   private readonly defaultFrom: string;
-  private readonly notifyTo: string | null;
 
   constructor(private readonly config: ConfigService) {
     this.apiKey = this.config.get<string>('PLUNK_API_KEY')?.trim() ?? '';
@@ -43,19 +42,12 @@ export class EmailService {
     );
     this.defaultFrom =
       this.config.get<string>('EMAIL_FROM')?.trim() || DEFAULT_FROM;
-    const notify = this.config.get<string>('EMAIL_NOTIFY_TO')?.trim() ?? '';
-    this.notifyTo = notify || null;
 
     if (!this.apiKey) {
       this.logger.warn(
         'Email disabled: PLUNK_API_KEY is not set. EmailService.send() will no-op.',
       );
     }
-  }
-
-  /** Optional platform inbox for future contact/lead notifications. */
-  getNotifyTo(): string | null {
-    return this.notifyTo;
   }
 
   isEnabled(): boolean {

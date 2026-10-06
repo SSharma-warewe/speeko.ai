@@ -23,7 +23,7 @@ Scope: `apps/web`. Inherit the [root instructions](../../AGENTS.md). This is the
 - Use `@call-agent/ui` primitives and [UI instructions](../../packages/ui/AGENTS.md). Import its stylesheet once in `main.tsx`; shared tokens/keyframes belong in the package, page layouts remain here.
 - Preserve marketing Newsreader display typography, IBM Plex Sans body, IBM Plex Mono technical labels, existing gold/dark CTA variants, and spacing from [global.css](src/global.css). `--mkt-pad` is 56px, 28px below 1080px, and 16px below 720px.
 - Follow existing responsive sections, focus states, reduced motion, and readable mobile forms. Keep main CTA wording and destination consistent with the surrounding page.
-- Cross-app links use [portal-url.ts](src/lib/portal-url.ts) and build-time `VITE_PORTAL_URL`; API requests use `VITE_API_URL` (default `/api`). Never put server keys in Vite variables.
+- When adding portal cross-app links, use build-time `VITE_PORTAL_URL`; API requests use `VITE_API_URL` (default `/api`). Never put server keys in Vite variables.
 
 ## Get-demo and public access
 
@@ -103,6 +103,6 @@ Use the existing MarketingNav/Footer and section/page CSS alongside shared Butto
 
 Match CTA styling, wording, destinations, readable line lengths, gold/dark treatment, section spacing, responsive navigation, and form density to adjacent pages. Do not add a different font/button system for a new landing page. Motion honors reduced-motion and never carries status alone.
 
-`VITE_API_URL` defaults to `/api` through the local proxy; production needs the public API prefix. `VITE_PORTAL_URL` selects portal sign-in/deep links. Both are public build-time inputs requiring a web rebuild when changed.
+`VITE_API_URL` defaults to `/api` through the local proxy; production needs the public API prefix. `VITE_PORTAL_URL` is reserved for portal sign-in/deep links and currently has no consumer. Both are public build-time inputs requiring a web rebuild when changed.
 
 For a changed route, check the catalog, React registration, canonical aliases, navigation, sitemap, robots, static output, privacy/FAQ schema, GA page-view behavior and both byte-identical GEO files. Check mobile and keyboard/focus usability for UI changes. Run `npm run typecheck:web` and `npm run build:web` when code changes; documentation-only edits require content/link checks without real OTP calls.

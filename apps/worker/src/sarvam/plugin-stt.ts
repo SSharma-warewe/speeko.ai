@@ -14,7 +14,6 @@ import {
 import { toSarvamRealtimeLanguage } from './realtime-language.js';
 import { TELEPHONY_DEFAULTS } from './realtime-stt.js';
 
-export const DEFAULT_SARVAM_STT_PLUGIN_URL = 'ws://127.0.0.1:8091/stt';
 /** Loopback only. Never put this on the URL (access logs). */
 export const SARVAM_PLUGIN_API_KEY_HEADER = 'X-Sarvam-Api-Key';
 const SAMPLE_RATE = 16000;
