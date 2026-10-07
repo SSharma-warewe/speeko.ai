@@ -41,4 +41,8 @@ export class UsersRepository {
   save(user: User): Promise<User> {
     return this.repo.save(user);
   }
+
+  async updateName(id: string, name: string): Promise<void> {
+    await this.repo.update(id, { name });
+  }
 }

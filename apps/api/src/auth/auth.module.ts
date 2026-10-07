@@ -13,8 +13,8 @@ import { PasswordPublicRateLimitGuard } from './guards/password-public-rate-limi
 import { JwtStrategy } from './jwt.strategy';
 import { LoginRateLimitService } from './login-rate-limit.service';
 import { PasswordResetToken } from './password-reset-token.entity';
-import { PasswordResetTokensRepository } from './password-reset-tokens.repository';
-import { PasswordTokensService } from './password-tokens.service';
+import { PasswordLifecycleRepository } from './password-lifecycle.repository';
+import { PasswordLifecycleService } from './password-lifecycle.service';
 
 @Module({
   imports: [
@@ -29,7 +29,10 @@ import { PasswordTokensService } from './password-tokens.service';
       useFactory: (config: ConfigService) => ({
         secret: config.getOrThrow<string>('JWT_SECRET'),
         signOptions: {
-          expiresIn: config.get<string>('JWT_EXPIRES_IN', '8h') as `${number}${'s' | 'm' | 'h' | 'd'}`,
+          expiresIn: config.get<string>(
+            'JWT_EXPIRES_IN',
+            '8h',
+          ) as `${number}${'s' | 'm' | 'h' | 'd'}`,
         },
       }),
     }),
@@ -41,8 +44,8 @@ import { PasswordTokensService } from './password-tokens.service';
     LoginRateLimitService,
     LoginRateLimitGuard,
     PasswordPublicRateLimitGuard,
-    PasswordResetTokensRepository,
-    PasswordTokensService,
+    PasswordLifecycleRepository,
+    PasswordLifecycleService,
   ],
   exports: [AuthService, JwtModule, PassportModule],
 })

@@ -13,8 +13,11 @@ import { UserRole } from '../../users/user.entity';
 import { EmailService } from '../../email/email.service';
 import { AuthService } from '../auth.service';
 import { LoginRateLimitService } from '../login-rate-limit.service';
-import { PasswordTokenPurpose } from '../password-reset-token.entity';
-import { PasswordTokensService } from '../password-tokens.service';
+import {
+  PasswordTokenKind,
+  PasswordTokenPurpose,
+} from '../password-reset-token.entity';
+import { PasswordLifecycleService } from '../password-lifecycle.service';
 
 jest.mock('../../common/password.util', () => ({
   normalizeEmail: (email: string) => email.trim().toLowerCase(),
@@ -36,23 +39,18 @@ describe('AuthService', () => {
   let adminsService: {
     findByEmail: jest.Mock;
     findById: jest.Mock;
-    updatePasswordHash: jest.Mock;
     updateName: jest.Mock;
   };
   let usersService: {
     findByOrgAndEmail: jest.Mock;
     findById: jest.Mock;
-    updatePasswordHash: jest.Mock;
     updateName: jest.Mock;
   };
   let emailService: { send: jest.Mock };
   let passwordTokens: {
-    issueUserToken: jest.Mock;
-    issueAdminToken: jest.Mock;
-    findValid: jest.Mock;
-    markUsed: jest.Mock;
-    invalidateForUser: jest.Mock;
-    invalidateForAdmin: jest.Mock;
+    issueToken: jest.Mock;
+    replacePasswordFromToken: jest.Mock;
+    changePassword: jest.Mock;
   };
   let rateLimit: { consume: jest.Mock };
   let organizationsService: {
@@ -102,13 +100,11 @@ describe('AuthService', () => {
     adminsService = {
       findByEmail: jest.fn(),
       findById: jest.fn(),
-      updatePasswordHash: jest.fn().mockResolvedValue(undefined),
       updateName: jest.fn().mockResolvedValue(undefined),
     };
     usersService = {
       findByOrgAndEmail: jest.fn(),
       findById: jest.fn(),
-      updatePasswordHash: jest.fn().mockResolvedValue(undefined),
       updateName: jest.fn().mockResolvedValue(undefined),
     };
     organizationsService = {
@@ -125,14 +121,13 @@ describe('AuthService', () => {
         return fallback ?? '8h';
       }),
     };
-    emailService = { send: jest.fn().mockResolvedValue({ ok: true, id: 'em' }) };
+    emailService = {
+      send: jest.fn().mockResolvedValue({ ok: true, id: 'em' }),
+    };
     passwordTokens = {
-      issueUserToken: jest.fn().mockResolvedValue('raw-token-value-32b'),
-      issueAdminToken: jest.fn().mockResolvedValue('raw-admin-token-32b'),
-      findValid: jest.fn(),
-      markUsed: jest.fn().mockResolvedValue(undefined),
-      invalidateForUser: jest.fn().mockResolvedValue(undefined),
-      invalidateForAdmin: jest.fn().mockResolvedValue(undefined),
+      issueToken: jest.fn().mockResolvedValue('raw-token-value-32b'),
+      replacePasswordFromToken: jest.fn().mockResolvedValue(undefined),
+      changePassword: jest.fn().mockResolvedValue(undefined),
     };
     rateLimit = {
       consume: jest.fn().mockReturnValue({ allowed: true, retryAfterSec: 0 }),
@@ -151,7 +146,7 @@ describe('AuthService', () => {
         { provide: JwtService, useValue: jwtService },
         { provide: ConfigService, useValue: configService },
         { provide: EmailService, useValue: emailService },
-        { provide: PasswordTokensService, useValue: passwordTokens },
+        { provide: PasswordLifecycleService, useValue: passwordTokens },
         { provide: LoginRateLimitService, useValue: rateLimit },
       ],
     }).compile();
@@ -388,7 +383,10 @@ describe('AuthService', () => {
         typ: 'admin',
         email: activeAdmin.email,
       });
-      const payload = jwtService.sign.mock.calls[0][0] as Record<string, unknown>;
+      const payload = jwtService.sign.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
       expect(payload).not.toHaveProperty('orgId');
       expect(payload).not.toHaveProperty('role');
     });
@@ -519,9 +517,11 @@ describe('AuthService', () => {
     it('updates user display name and returns the profile without hashes', async () => {
       let current = { ...activeUserInOrgA };
       usersService.findById.mockImplementation(async () => current);
-      usersService.updateName.mockImplementation(async (_id: string, name: string) => {
-        current = { ...current, name };
-      });
+      usersService.updateName.mockImplementation(
+        async (_id: string, name: string) => {
+          current = { ...current, name };
+        },
+      );
 
       const profile = await service.updateUserProfile(activeUserInOrgA.id, {
         name: '  Ada Lovelace  ',
@@ -561,9 +561,11 @@ describe('AuthService', () => {
     it('updates admin display name and returns the profile without hashes', async () => {
       let current = { ...activeAdmin };
       adminsService.findById.mockImplementation(async () => current);
-      adminsService.updateName.mockImplementation(async (_id: string, name: string) => {
-        current = { ...current, name };
-      });
+      adminsService.updateName.mockImplementation(
+        async (_id: string, name: string) => {
+          current = { ...current, name };
+        },
+      );
 
       const profile = await service.updateAdminProfile(activeAdmin.id, {
         name: '  Ops Lead  ',
@@ -599,207 +601,192 @@ describe('AuthService', () => {
   });
 
   describe('change / set / forgot / reset password', () => {
-    it('changes user password when current matches', async () => {
+    const principal = {
+      kind: PasswordTokenKind.USER,
+      id: activeUserInOrgA.id,
+      organizationId: orgA.id,
+    };
+    const reset = {
+      email: activeUserInOrgA.email,
+      organizationSlug: orgA.slug,
+      token: 'reset-token-value-xxxx',
+      newPassword: 'NewPass123!',
+    };
+    beforeEach(() => {
+      organizationsService.findBySlug.mockResolvedValue(orgA);
+      usersService.findByOrgAndEmail.mockResolvedValue(activeUserInOrgA);
       usersService.findById.mockResolvedValue(activeUserInOrgA);
-
-      const result = await service.changeUserPassword(activeUserInOrgA.id, {
-        currentPassword: 'OldPass123!',
-        newPassword: 'NewPass123!',
+      adminsService.findById.mockResolvedValue(activeAdmin);
+      adminsService.findByEmail.mockResolvedValue(activeAdmin);
+    });
+    it('changes passwords through the lifecycle and notifies after commit', async () => {
+      await expect(
+        service.changeUserPassword(activeUserInOrgA.id, {
+          currentPassword: 'old',
+          newPassword: reset.newPassword,
+        }),
+      ).resolves.toEqual({ ok: true });
+      expect(passwordTokens.changePassword).toHaveBeenCalledWith({
+        principal,
+        email: reset.email,
+        currentPassword: 'old',
+        newPassword: reset.newPassword,
       });
-
-      expect(result).toEqual({ ok: true });
-      expect(usersService.updatePasswordHash).toHaveBeenCalledWith(
-        activeUserInOrgA.id,
-        'new-hash',
-      );
-      expect(passwordTokens.invalidateForUser).toHaveBeenCalledWith(
-        activeUserInOrgA.id,
-      );
       expect(emailService.send).toHaveBeenCalledWith(
         expect.objectContaining({
-          to: activeUserInOrgA.email,
           subject: 'Your Speeko password was changed',
         }),
       );
-      expect(JSON.stringify(result)).not.toContain('new-hash');
+      expect(
+        passwordTokens.changePassword.mock.invocationCallOrder[0],
+      ).toBeLessThan(emailService.send.mock.invocationCallOrder[0]);
     });
-
-    it('rejects change when current password is wrong', async () => {
-      usersService.findById.mockResolvedValue(activeUserInOrgA);
-      verifyPasswordMock.mockResolvedValue(false);
-
+    it('does not notify when a password change fails', async () => {
+      passwordTokens.changePassword.mockRejectedValue(
+        new UnauthorizedException('Invalid credentials'),
+      );
       await expect(
         service.changeUserPassword(activeUserInOrgA.id, {
-          currentPassword: 'WrongPass99!',
-          newPassword: 'NewPass123!',
+          currentPassword: 'wrong',
+          newPassword: reset.newPassword,
         }),
       ).rejects.toBeInstanceOf(UnauthorizedException);
-      expect(usersService.updatePasswordHash).not.toHaveBeenCalled();
+      expect(emailService.send).not.toHaveBeenCalled();
     });
-
-    it('sets password from a valid invite token', async () => {
-      organizationsService.findBySlug.mockResolvedValue(orgA);
+    it('sets password through the invite lifecycle', async () => {
       usersService.findByOrgAndEmail.mockResolvedValue({
         ...activeUserInOrgA,
         passwordHash: null,
       });
-      passwordTokens.findValid.mockResolvedValue({
-        userId: activeUserInOrgA.id,
+      await expect(service.setUserPassword(reset)).resolves.toEqual({
+        ok: true,
+      });
+      expect(passwordTokens.replacePasswordFromToken).toHaveBeenCalledWith({
+        principal,
+        email: reset.email,
         purpose: PasswordTokenPurpose.INVITE,
+        token: reset.token,
+        newPassword: reset.newPassword,
       });
-
-      const result = await service.setUserPassword({
-        email: activeUserInOrgA.email,
-        organizationSlug: orgA.slug,
-        token: 'invite-token-value-xx',
-        newPassword: 'NewPass123!',
-      });
-
-      expect(result).toEqual({ ok: true });
-      expect(usersService.updatePasswordHash).toHaveBeenCalledWith(
-        activeUserInOrgA.id,
-        'new-hash',
+    });
+    it('rejects invite when a password is already set', async () => {
+      await expect(service.setUserPassword(reset)).rejects.toBeInstanceOf(
+        BadRequestException,
       );
-      expect(passwordTokens.markUsed).toHaveBeenCalled();
+      expect(passwordTokens.replacePasswordFromToken).not.toHaveBeenCalled();
     });
-
-    it('rejects set-password when the user already has a password', async () => {
-      organizationsService.findBySlug.mockResolvedValue(orgA);
-      usersService.findByOrgAndEmail.mockResolvedValue(activeUserInOrgA);
-
-      await expect(
-        service.setUserPassword({
-          email: activeUserInOrgA.email,
-          organizationSlug: orgA.slug,
-          token: 'invite-token-value-xx',
-          newPassword: 'NewPass123!',
-        }),
-      ).rejects.toBeInstanceOf(BadRequestException);
-      expect(usersService.updatePasswordHash).not.toHaveBeenCalled();
-    });
-
-    it('forgot always returns ok and emails a reset when the user has a password', async () => {
-      organizationsService.findBySlug.mockResolvedValue(orgA);
-      usersService.findByOrgAndEmail.mockResolvedValue(activeUserInOrgA);
-
-      await expect(
-        service.forgotUserPassword({
-          email: activeUserInOrgA.email,
-          organizationSlug: orgA.slug,
-        }),
-      ).resolves.toEqual({ ok: true });
-
-      expect(passwordTokens.issueUserToken).toHaveBeenCalledWith(
+    it('forgot returns ok and preserves the reset link', async () => {
+      await expect(service.forgotUserPassword(reset)).resolves.toEqual({
+        ok: true,
+      });
+      expect(passwordTokens.issueToken).toHaveBeenCalledWith(
         expect.objectContaining({
-          userId: activeUserInOrgA.id,
+          principal,
           purpose: PasswordTokenPurpose.RESET,
         }),
       );
       expect(emailService.send).toHaveBeenCalledWith(
         expect.objectContaining({
-          to: activeUserInOrgA.email,
           subject: 'Reset your Speeko password',
+          html: expect.stringContaining('raw-token-value-32b'),
         }),
       );
     });
-
-    it('forgot re-issues an invite when the user has no password', async () => {
-      organizationsService.findBySlug.mockResolvedValue(orgA);
+    it('forgot reissues invite for a user without a password', async () => {
       usersService.findByOrgAndEmail.mockResolvedValue({
         ...activeUserInOrgA,
         passwordHash: null,
       });
-
-      await service.forgotUserPassword({
-        email: activeUserInOrgA.email,
-        organizationSlug: orgA.slug,
-      });
-
-      expect(passwordTokens.issueUserToken).toHaveBeenCalledWith(
+      await service.forgotUserPassword(reset);
+      expect(passwordTokens.issueToken).toHaveBeenCalledWith(
         expect.objectContaining({ purpose: PasswordTokenPurpose.INVITE }),
       );
       expect(emailService.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          subject: 'Set your Speeko password',
-        }),
+        expect.objectContaining({ subject: 'Set your Speeko password' }),
       );
     });
-
-    it('forgot returns ok without leaking a missing account', async () => {
-      organizationsService.findBySlug.mockResolvedValue(orgA);
+    it('does not disclose a missing account', async () => {
       usersService.findByOrgAndEmail.mockResolvedValue(null);
-
-      await expect(
-        service.forgotUserPassword({
-          email: 'nobody@acme.com',
-          organizationSlug: orgA.slug,
-        }),
-      ).resolves.toEqual({ ok: true });
-      expect(passwordTokens.issueUserToken).not.toHaveBeenCalled();
+      await expect(service.forgotUserPassword(reset)).resolves.toEqual({
+        ok: true,
+      });
+      expect(passwordTokens.issueToken).not.toHaveBeenCalled();
       expect(emailService.send).not.toHaveBeenCalled();
     });
-
-    it('invite still succeeds when Plunk is disabled', async () => {
+    it('does not disclose eligibility changes while issuance waits for the lock', async () => {
+      passwordTokens.issueToken.mockRejectedValue(
+        new BadRequestException('Invalid or expired reset link'),
+      );
+      await expect(service.forgotUserPassword(reset)).resolves.toEqual({
+        ok: true,
+      });
+      await expect(
+        service.forgotAdminPassword(activeAdmin.email),
+      ).resolves.toEqual({ ok: true });
+      expect(emailService.send).not.toHaveBeenCalled();
+    });
+    it('resets through one lifecycle operation', async () => {
+      await expect(service.resetUserPassword(reset)).resolves.toEqual({
+        ok: true,
+      });
+      expect(passwordTokens.replacePasswordFromToken).toHaveBeenCalledWith({
+        principal,
+        email: reset.email,
+        purpose: PasswordTokenPurpose.RESET,
+        token: reset.token,
+        newPassword: reset.newPassword,
+      });
+    });
+    it('does not email when consumption fails', async () => {
+      passwordTokens.replacePasswordFromToken.mockRejectedValue(
+        new BadRequestException('Invalid or expired reset link'),
+      );
+      await expect(service.resetUserPassword(reset)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(emailService.send).not.toHaveBeenCalled();
+    });
+    it('email failure preserves a committed reset response', async () => {
       emailService.send.mockResolvedValue({
         ok: false,
         skipped: true,
         error: 'email disabled',
       });
-      const warn = jest.spyOn(
-        (service as unknown as { logger: { warn: (m: string) => void } })
-          .logger,
-        'warn',
-      );
-
-      await service.sendUserInvite(activeUserInOrgA, {
-        name: orgA.name,
-        slug: orgA.slug,
+      await expect(service.resetUserPassword(reset)).resolves.toEqual({
+        ok: true,
       });
-
-      expect(passwordTokens.issueUserToken).toHaveBeenCalled();
-      expect(emailService.send).toHaveBeenCalled();
-      expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining('Invite email not sent'),
-      );
-      warn.mockRestore();
     });
-
-    it('reset updates the hash for a valid token', async () => {
-      organizationsService.findBySlug.mockResolvedValue(orgA);
-      usersService.findByOrgAndEmail.mockResolvedValue(activeUserInOrgA);
-      passwordTokens.findValid.mockResolvedValue({
-        userId: activeUserInOrgA.id,
-        purpose: PasswordTokenPurpose.RESET,
+    it('admin reset and change use a distinct admin principal', async () => {
+      await service.resetAdminPassword({
+        email: activeAdmin.email,
+        token: reset.token,
+        newPassword: reset.newPassword,
       });
-
-      const result = await service.resetUserPassword({
-        email: activeUserInOrgA.email,
-        organizationSlug: orgA.slug,
-        token: 'reset-token-value-xxxx',
-        newPassword: 'NewPass123!',
-      });
-
-      expect(result).toEqual({ ok: true });
-      expect(usersService.updatePasswordHash).toHaveBeenCalledWith(
-        activeUserInOrgA.id,
-        'new-hash',
-      );
-    });
-
-    it('reset rejects an invalid token without leaking hashes', async () => {
-      organizationsService.findBySlug.mockResolvedValue(orgA);
-      usersService.findByOrgAndEmail.mockResolvedValue(activeUserInOrgA);
-      passwordTokens.findValid.mockResolvedValue(null);
-
-      await expect(
-        service.resetUserPassword({
-          email: activeUserInOrgA.email,
-          organizationSlug: orgA.slug,
-          token: 'bad-token-value-xxxxx',
-          newPassword: 'NewPass123!',
+      expect(passwordTokens.replacePasswordFromToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          principal: { kind: PasswordTokenKind.ADMIN, id: activeAdmin.id },
         }),
-      ).rejects.toBeInstanceOf(BadRequestException);
-      expect(usersService.updatePasswordHash).not.toHaveBeenCalled();
+      );
+      await service.changeAdminPassword(activeAdmin.id, {
+        currentPassword: 'old',
+        newPassword: reset.newPassword,
+      });
+      expect(passwordTokens.changePassword).toHaveBeenCalledWith(
+        expect.objectContaining({
+          principal: { kind: PasswordTokenKind.ADMIN, id: activeAdmin.id },
+        }),
+      );
+    });
+    it('invite succeeds with disabled email', async () => {
+      emailService.send.mockResolvedValue({
+        ok: false,
+        skipped: true,
+        error: 'email disabled',
+      });
+      await expect(
+        service.sendUserInvite(activeUserInOrgA as never, orgA),
+      ).resolves.toBeUndefined();
+      expect(passwordTokens.issueToken).toHaveBeenCalled();
     });
   });
 });

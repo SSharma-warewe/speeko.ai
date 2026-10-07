@@ -25,4 +25,8 @@ export class AdminsRepository {
   save(admin: Admin): Promise<Admin> {
     return this.repo.save(admin);
   }
+
+  async updateName(id: string, name: string): Promise<void> {
+    await this.repo.update(id, { name });
+  }
 }

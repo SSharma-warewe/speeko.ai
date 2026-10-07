@@ -11,6 +11,7 @@ describe('AdminsService', () => {
     findById: jest.Mock;
     create: jest.Mock;
     save: jest.Mock;
+    updateName: jest.Mock;
   };
 
   const activeAdmin: Admin = {
@@ -25,6 +26,7 @@ describe('AdminsService', () => {
 
   beforeEach(async () => {
     repository = {
+      updateName: jest.fn(),
       findByEmail: jest.fn(),
       findById: jest.fn(),
       create: jest.fn(),
@@ -201,18 +203,21 @@ describe('AdminsService', () => {
       await service.updateName(activeAdmin.id, 'Ops Lead');
 
       expect(repository.findById).toHaveBeenCalledWith(activeAdmin.id);
-      expect(repository.save).toHaveBeenCalledWith(
-        expect.objectContaining({ id: activeAdmin.id, name: 'Ops Lead' }),
+      expect(repository.updateName).toHaveBeenCalledWith(
+        activeAdmin.id,
+        'Ops Lead',
       );
+      expect(repository.save).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when the admin is missing', async () => {
       repository.findById.mockResolvedValue(null);
 
-      await expect(service.updateName('missing', 'Ops Lead')).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(
+        service.updateName('missing', 'Ops Lead'),
+      ).rejects.toBeInstanceOf(NotFoundException);
       expect(repository.save).not.toHaveBeenCalled();
+      expect(repository.updateName).not.toHaveBeenCalled();
     });
   });
 });

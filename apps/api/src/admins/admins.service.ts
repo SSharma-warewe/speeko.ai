@@ -29,16 +29,9 @@ export class AdminsService {
     return this.adminsRepository.save(admin);
   }
 
-  async updatePasswordHash(id: string, passwordHash: string): Promise<void> {
-    const admin = await this.getOrThrow(id);
-    admin.passwordHash = passwordHash;
-    await this.adminsRepository.save(admin);
-  }
-
   async updateName(id: string, name: string): Promise<void> {
-    const admin = await this.getOrThrow(id);
-    admin.name = name;
-    await this.adminsRepository.save(admin);
+    await this.getOrThrow(id);
+    await this.adminsRepository.updateName(id, name);
   }
 
   async getOrThrow(id: string): Promise<Admin> {

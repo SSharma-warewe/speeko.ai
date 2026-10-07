@@ -11,11 +11,7 @@ import { JwtService } from '@nestjs/jwt';
 import { AdminsService } from '../admins/admins.service';
 import { EmailService } from '../email/email.service';
 import { throwTooManyRequests } from '../common/http-too-many-requests';
-import {
-  hashPassword,
-  normalizeEmail,
-  verifyPassword,
-} from '../common/password.util';
+import { normalizeEmail, verifyPassword } from '../common/password.util';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { User } from '../users/user.entity';
 import { UsersService } from '../users/users.service';
@@ -23,7 +19,10 @@ import { JwtPayload } from './auth.types';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { ResetPasswordDto, AdminResetPasswordDto } from './dto/reset-password.dto';
+import {
+  ResetPasswordDto,
+  AdminResetPasswordDto,
+} from './dto/reset-password.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
 import { TokenResponseDto } from './dto/token-response.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -35,15 +34,15 @@ import {
   buildResetEmail,
 } from './password-mail';
 import {
-  PasswordResetToken,
   PasswordTokenKind,
   PasswordTokenPurpose,
 } from './password-reset-token.entity';
-import { PasswordTokensService } from './password-tokens.service';
+import { PasswordLifecycleService } from './password-lifecycle.service';
+import { INVALID_PASSWORD_LINK } from './password-lifecycle.types';
 
 const DEFAULT_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_RESET_TTL_MS = 60 * 60 * 1000;
-const INVALID_LINK = 'Invalid or expired reset link';
+const INVALID_LINK = INVALID_PASSWORD_LINK;
 
 @Injectable()
 export class AuthService {
@@ -57,7 +56,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
     private readonly emailService: EmailService,
-    private readonly passwordTokens: PasswordTokensService,
+    private readonly passwords: PasswordLifecycleService,
     private readonly rateLimit: LoginRateLimitService,
   ) {}
 
@@ -172,16 +171,18 @@ export class AuthService {
     org: { name: string; slug: string },
   ): Promise<void> {
     const ttlMs = this.inviteTtlMs();
-    const raw = await this.passwordTokens.issueUserToken({
-      userId: user.id,
+    const raw = await this.passwords.issueToken({
+      principal: {
+        kind: PasswordTokenKind.USER,
+        id: user.id,
+        organizationId: user.organizationId,
+      },
       purpose: PasswordTokenPurpose.INVITE,
       ttlMs,
     });
     const origin = this.portalOrigin();
     if (!origin) {
-      this.logger.warn(
-        'Invite email skipped: PORTAL_PUBLIC_URL is not set',
-      );
+      this.logger.warn('Invite email skipped: PORTAL_PUBLIC_URL is not set');
       return;
     }
     const url = this.buildPortalUrl(origin, '/set-password', {
@@ -213,14 +214,17 @@ export class AuthService {
     if (!user.organization || !user.organization.isActive) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    return this.replaceVerifiedPassword({
-      currentPassword: dto.currentPassword,
-      newPassword: dto.newPassword,
-      storedHash: user.passwordHash,
-      persist: (hash) => this.usersService.updatePasswordHash(user.id, hash),
-      invalidate: () => this.passwordTokens.invalidateForUser(user.id),
+    await this.passwords.changePassword({
+      principal: {
+        kind: PasswordTokenKind.USER,
+        id: user.id,
+        organizationId: user.organizationId,
+      },
       email: user.email,
+      ...dto,
     });
+    await this.sendPasswordChanged(user.email);
+    return { ok: true };
   }
 
   async changeAdminPassword(
@@ -232,14 +236,13 @@ export class AuthService {
     if (!admin || !admin.isActive) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    return this.replaceVerifiedPassword({
-      currentPassword: dto.currentPassword,
-      newPassword: dto.newPassword,
-      storedHash: admin.passwordHash,
-      persist: (hash) => this.adminsService.updatePasswordHash(admin.id, hash),
-      invalidate: () => this.passwordTokens.invalidateForAdmin(admin.id),
+    await this.passwords.changePassword({
+      principal: { kind: PasswordTokenKind.ADMIN, id: admin.id },
       email: admin.email,
+      ...dto,
     });
+    await this.sendPasswordChanged(admin.email);
+    return { ok: true };
   }
 
   async setUserPassword(dto: SetPasswordDto): Promise<{ ok: true }> {
@@ -254,21 +257,19 @@ export class AuthService {
     if (!user || !user.isActive || user.passwordHash) {
       throw new BadRequestException(INVALID_LINK);
     }
-    const token = await this.passwordTokens.findValid({
-      rawToken: dto.token,
-      kind: PasswordTokenKind.USER,
-      purpose: PasswordTokenPurpose.INVITE,
-    });
-    if (!token || token.userId !== user.id) {
-      throw new BadRequestException(INVALID_LINK);
-    }
-    return this.commitNewPassword({
+    await this.passwords.replacePasswordFromToken({
+      principal: {
+        kind: PasswordTokenKind.USER,
+        id: user.id,
+        organizationId: user.organizationId,
+      },
       email: user.email,
+      purpose: PasswordTokenPurpose.INVITE,
+      token: dto.token,
       newPassword: dto.newPassword,
-      persist: (hash) => this.usersService.updatePasswordHash(user.id, hash),
-      invalidate: () => this.passwordTokens.invalidateForUser(user.id),
-      token,
     });
+    await this.sendPasswordChanged(user.email);
+    return { ok: true };
   }
 
   async forgotUserPassword(dto: ForgotPasswordDto): Promise<{ ok: true }> {
@@ -283,11 +284,21 @@ export class AuthService {
     if (!user || !user.isActive) {
       return { ok: true };
     }
-    if (!user.passwordHash) {
-      await this.sendUserInvite(user, { name: org.name, slug: org.slug });
-      return { ok: true };
+    try {
+      if (!user.passwordHash) {
+        await this.sendUserInvite(user, { name: org.name, slug: org.slug });
+      } else {
+        await this.sendUserReset(user, org.slug);
+      }
+    } catch (error) {
+      // Account eligibility can change while waiting for the lifecycle lock.
+      // Keep the public forgot-password response nondisclosing in that race.
+      if (
+        !(error instanceof BadRequestException) ||
+        error.message !== INVALID_LINK
+      )
+        throw error;
     }
-    await this.sendUserReset(user, org.slug);
     return { ok: true };
   }
 
@@ -297,11 +308,21 @@ export class AuthService {
       return { ok: true };
     }
     const ttlMs = this.resetTtlMs();
-    const raw = await this.passwordTokens.issueAdminToken({
-      adminId: admin.id,
-      purpose: PasswordTokenPurpose.RESET,
-      ttlMs,
-    });
+    let raw: string;
+    try {
+      raw = await this.passwords.issueToken({
+        principal: { kind: PasswordTokenKind.ADMIN, id: admin.id },
+        purpose: PasswordTokenPurpose.RESET,
+        ttlMs,
+      });
+    } catch (error) {
+      if (
+        error instanceof BadRequestException &&
+        error.message === INVALID_LINK
+      )
+        return { ok: true };
+      throw error;
+    }
     await this.sendResetMail({
       to: admin.email,
       path: '/admin-reset-password',
@@ -324,21 +345,19 @@ export class AuthService {
     if (!user || !user.isActive || !user.passwordHash) {
       throw new BadRequestException(INVALID_LINK);
     }
-    const token = await this.passwordTokens.findValid({
-      rawToken: dto.token,
-      kind: PasswordTokenKind.USER,
-      purpose: PasswordTokenPurpose.RESET,
-    });
-    if (!token || token.userId !== user.id) {
-      throw new BadRequestException(INVALID_LINK);
-    }
-    return this.commitNewPassword({
+    await this.passwords.replacePasswordFromToken({
+      principal: {
+        kind: PasswordTokenKind.USER,
+        id: user.id,
+        organizationId: user.organizationId,
+      },
       email: user.email,
+      purpose: PasswordTokenPurpose.RESET,
+      token: dto.token,
       newPassword: dto.newPassword,
-      persist: (hash) => this.usersService.updatePasswordHash(user.id, hash),
-      invalidate: () => this.passwordTokens.invalidateForUser(user.id),
-      token,
     });
+    await this.sendPasswordChanged(user.email);
+    return { ok: true };
   }
 
   async resetAdminPassword(dto: AdminResetPasswordDto): Promise<{ ok: true }> {
@@ -346,27 +365,25 @@ export class AuthService {
     if (!admin || !admin.isActive) {
       throw new BadRequestException(INVALID_LINK);
     }
-    const token = await this.passwordTokens.findValid({
-      rawToken: dto.token,
-      kind: PasswordTokenKind.ADMIN,
-      purpose: PasswordTokenPurpose.RESET,
-    });
-    if (!token || token.adminId !== admin.id) {
-      throw new BadRequestException(INVALID_LINK);
-    }
-    return this.commitNewPassword({
+    await this.passwords.replacePasswordFromToken({
+      principal: { kind: PasswordTokenKind.ADMIN, id: admin.id },
       email: admin.email,
+      purpose: PasswordTokenPurpose.RESET,
+      token: dto.token,
       newPassword: dto.newPassword,
-      persist: (hash) => this.adminsService.updatePasswordHash(admin.id, hash),
-      invalidate: () => this.passwordTokens.invalidateForAdmin(admin.id),
-      token,
     });
+    await this.sendPasswordChanged(admin.email);
+    return { ok: true };
   }
 
   private async sendUserReset(user: User, orgSlug: string): Promise<void> {
     const ttlMs = this.resetTtlMs();
-    const raw = await this.passwordTokens.issueUserToken({
-      userId: user.id,
+    const raw = await this.passwords.issueToken({
+      principal: {
+        kind: PasswordTokenKind.USER,
+        id: user.id,
+        organizationId: user.organizationId,
+      },
       purpose: PasswordTokenPurpose.RESET,
       ttlMs,
     });
@@ -433,48 +450,6 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
     return this.signToken(payload);
-  }
-
-  private async replaceVerifiedPassword(params: {
-    currentPassword: string;
-    newPassword: string;
-    storedHash: string;
-    persist: (hash: string) => Promise<void>;
-    invalidate: () => Promise<void>;
-    email: string;
-  }): Promise<{ ok: true }> {
-    const valid = await verifyPassword(
-      params.currentPassword,
-      params.storedHash,
-    );
-    if (!valid) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-    if (params.currentPassword === params.newPassword) {
-      throw new BadRequestException(
-        'New password must be different from the current password',
-      );
-    }
-    const nextHash = await hashPassword(params.newPassword);
-    await params.persist(nextHash);
-    await params.invalidate();
-    await this.sendPasswordChanged(params.email);
-    return { ok: true };
-  }
-
-  private async commitNewPassword(params: {
-    email: string;
-    newPassword: string;
-    persist: (hash: string) => Promise<void>;
-    invalidate: () => Promise<void>;
-    token: PasswordResetToken;
-  }): Promise<{ ok: true }> {
-    const nextHash = await hashPassword(params.newPassword);
-    await params.persist(nextHash);
-    await this.passwordTokens.markUsed(params.token);
-    await params.invalidate();
-    await this.sendPasswordChanged(params.email);
-    return { ok: true };
   }
 
   private async sendResetMail(params: {

@@ -15,7 +15,7 @@ import { LoginRateLimitGuard } from '../guards/login-rate-limit.guard';
 import { PasswordPublicRateLimitGuard } from '../guards/password-public-rate-limit.guard';
 import { JwtStrategy } from '../jwt.strategy';
 import { LoginRateLimitService } from '../login-rate-limit.service';
-import { PasswordTokensService } from '../password-tokens.service';
+import { PasswordLifecycleService } from '../password-lifecycle.service';
 
 const JWT_SECRET = 'test-secret-for-protected-routes';
 const WRONG_SECRET = 'wrong-secret-other-key';
@@ -89,14 +89,11 @@ describe('Auth protected routes (JwtAuthGuard + AdminGuard)', () => {
           useValue: { send: jest.fn(), sendText: jest.fn() },
         },
         {
-          provide: PasswordTokensService,
+          provide: PasswordLifecycleService,
           useValue: {
-            issueUserToken: jest.fn(),
-            issueAdminToken: jest.fn(),
-            findValid: jest.fn(),
-            markUsed: jest.fn(),
-            invalidateForUser: jest.fn(),
-            invalidateForAdmin: jest.fn(),
+            issueToken: jest.fn(),
+            replacePasswordFromToken: jest.fn(),
+            changePassword: jest.fn(),
           },
         },
         {
@@ -104,7 +101,6 @@ describe('Auth protected routes (JwtAuthGuard + AdminGuard)', () => {
           useValue: {
             findByEmail: jest.fn(),
             findById: adminsFindById,
-            updatePasswordHash: jest.fn(),
             updateName: jest.fn().mockResolvedValue(undefined),
           },
         },
@@ -113,7 +109,6 @@ describe('Auth protected routes (JwtAuthGuard + AdminGuard)', () => {
           useValue: {
             findByOrgAndEmail: jest.fn(),
             findById: usersFindById,
-            updatePasswordHash: jest.fn(),
             updateName: jest.fn().mockResolvedValue(undefined),
           },
         },

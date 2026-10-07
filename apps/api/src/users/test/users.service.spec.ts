@@ -1,7 +1,4 @@
-import {
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from '../../auth/auth.service';
 import { Organization } from '../../organizations/organization.entity';
@@ -19,6 +16,7 @@ describe('UsersService', () => {
     findByOrganizationOrdered: jest.Mock;
     create: jest.Mock;
     save: jest.Mock;
+    updateName: jest.Mock;
   };
   let organizationsService: {
     findById: jest.Mock;
@@ -59,6 +57,7 @@ describe('UsersService', () => {
 
   beforeEach(async () => {
     usersRepository = {
+      updateName: jest.fn(),
       findByIdWithOrganization: jest.fn(),
       findByOrgAndEmail: jest.fn(),
       findByOrganizationOrdered: jest.fn(),
@@ -253,9 +252,9 @@ describe('UsersService', () => {
         new NotFoundException(`Organization not found: ${ORG_ID}`),
       );
 
-      await expect(
-        service.listByOrganization(ORG_ID),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.listByOrganization(ORG_ID)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
 
       expect(usersRepository.findByOrganizationOrdered).not.toHaveBeenCalled();
     });
@@ -312,9 +311,11 @@ describe('UsersService', () => {
       expect(usersRepository.findByIdWithOrganization).toHaveBeenCalledWith(
         USER_ID,
       );
-      expect(usersRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({ id: USER_ID, name: 'Ada Lovelace' }),
+      expect(usersRepository.updateName).toHaveBeenCalledWith(
+        USER_ID,
+        'Ada Lovelace',
       );
+      expect(usersRepository.save).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when the user is missing', async () => {
@@ -324,6 +325,7 @@ describe('UsersService', () => {
         NotFoundException,
       );
       expect(usersRepository.save).not.toHaveBeenCalled();
+      expect(usersRepository.updateName).not.toHaveBeenCalled();
     });
   });
 

@@ -69,16 +69,9 @@ export class UsersService {
     });
   }
 
-  async updatePasswordHash(id: string, passwordHash: string): Promise<void> {
-    const user = await this.getOrThrow(id);
-    user.passwordHash = passwordHash;
-    await this.usersRepository.save(user);
-  }
-
   async updateName(id: string, name: string): Promise<void> {
-    const user = await this.getOrThrow(id);
-    user.name = name;
-    await this.usersRepository.save(user);
+    await this.getOrThrow(id);
+    await this.usersRepository.updateName(id, name);
   }
 
   async listByOrganization(organizationId: string): Promise<User[]> {
