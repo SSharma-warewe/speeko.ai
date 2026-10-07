@@ -1,6 +1,9 @@
-import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
-import { OrganizationAgentsService } from '../agents/organization-agents.service';
-import { CallsRepository } from '../calls/calls.repository';
+import { Injectable, Logger } from '@nestjs/common';
+import { TOOL_IDS, KnownToolId } from '@call-agent/contracts';
+import {
+  CallCapabilityAuthorizationService,
+  NylasCalendarAuthorization,
+} from '../call-capabilities/call-capability-authorization.service';
 import {
   CalendarCancelEventDto,
   CalendarCreateEventDto,
@@ -9,7 +12,6 @@ import {
   CalendarToolResponseDto,
 } from './dto/calendar-tool.dto';
 import { IntegrationProvider } from './organization-integration.entity';
-import { OrganizationIntegrationsService } from './organization-integrations.service';
 import { NylasService } from './nylas.service';
 
 /**
@@ -21,10 +23,7 @@ export class CalendarToolsService {
   private readonly logger = new Logger(CalendarToolsService.name);
 
   constructor(
-    private readonly callsRepository: CallsRepository,
-    @Inject(forwardRef(() => OrganizationAgentsService))
-    private readonly organizationAgentsService: OrganizationAgentsService,
-    private readonly organizationIntegrationsService: OrganizationIntegrationsService,
+    private readonly authorization: CallCapabilityAuthorizationService,
     private readonly nylas: NylasService,
   ) {}
 
@@ -32,7 +31,10 @@ export class CalendarToolsService {
     callId: string,
     dto: CalendarFreeBusyDto,
   ): Promise<CalendarToolResponseDto> {
-    const resolved = await this.resolveIntegration(callId);
+    const resolved = await this.resolveIntegration(
+      callId,
+      TOOL_IDS.checkCalendarAvailability,
+    );
     if (!resolved.ok) {
       this.logCalendarOutcome(callId, 'free-busy', resolved);
       return resolved;
@@ -47,7 +49,13 @@ export class CalendarToolsService {
         message:
           'startTime and endTime must be unix seconds or ISO-8601 date-time strings.',
       };
-      this.logCalendarOutcome(callId, 'free-busy', res, dto.startTime, dto.endTime);
+      this.logCalendarOutcome(
+        callId,
+        'free-busy',
+        res,
+        dto.startTime,
+        dto.endTime,
+      );
       return res;
     }
     if (end <= start) {
@@ -56,20 +64,29 @@ export class CalendarToolsService {
         error: 'invalid_range',
         message: 'endTime must be after startTime.',
       };
-      this.logCalendarOutcome(callId, 'free-busy', res, unixToIso(start), unixToIso(end));
+      this.logCalendarOutcome(
+        callId,
+        'free-busy',
+        res,
+        unixToIso(start),
+        unixToIso(end),
+      );
       return res;
     }
 
     const past = pastWindowError(start, end);
     if (past) {
-      this.logCalendarOutcome(callId, 'free-busy', past, unixToIso(start), unixToIso(end));
+      this.logCalendarOutcome(
+        callId,
+        'free-busy',
+        past,
+        unixToIso(start),
+        unixToIso(end),
+      );
       return past;
     }
 
-    const email =
-      dto.email?.trim() ||
-      resolved.integration.email?.trim() ||
-      null;
+    const email = dto.email?.trim() || resolved.creds.email?.trim() || null;
     if (!email) {
       const res = {
         ok: false as const,
@@ -77,7 +94,13 @@ export class CalendarToolsService {
         message:
           'No email on the calendar integration. Set email on the Nylas connection (grant mailbox) so free/busy can run.',
       };
-      this.logCalendarOutcome(callId, 'free-busy', res, unixToIso(start), unixToIso(end));
+      this.logCalendarOutcome(
+        callId,
+        'free-busy',
+        res,
+        unixToIso(start),
+        unixToIso(end),
+      );
       return res;
     }
 
@@ -93,7 +116,13 @@ export class CalendarToolsService {
         error: 'nylas_error',
         message: result.message,
       };
-      this.logCalendarOutcome(callId, 'free-busy', res, unixToIso(start), unixToIso(end));
+      this.logCalendarOutcome(
+        callId,
+        'free-busy',
+        res,
+        unixToIso(start),
+        unixToIso(end),
+      );
       return res;
     }
 
@@ -104,7 +133,13 @@ export class CalendarToolsService {
         error: 'free_busy_error',
         message: row.error,
       };
-      this.logCalendarOutcome(callId, 'free-busy', res, unixToIso(start), unixToIso(end));
+      this.logCalendarOutcome(
+        callId,
+        'free-busy',
+        res,
+        unixToIso(start),
+        unixToIso(end),
+      );
       return res;
     }
 
@@ -150,7 +185,10 @@ export class CalendarToolsService {
     callId: string,
     dto: CalendarListEventsDto,
   ): Promise<CalendarToolResponseDto> {
-    const resolved = await this.resolveIntegration(callId);
+    const resolved = await this.resolveIntegration(
+      callId,
+      TOOL_IDS.listCalendarEvents,
+    );
     if (!resolved.ok) return resolved;
 
     const start = dto.startTime ? parseTimeToUnix(dto.startTime) : undefined;
@@ -206,7 +244,10 @@ export class CalendarToolsService {
     callId: string,
     dto: CalendarCreateEventDto,
   ): Promise<CalendarToolResponseDto> {
-    const resolved = await this.resolveIntegration(callId);
+    const resolved = await this.resolveIntegration(
+      callId,
+      TOOL_IDS.createCalendarEvent,
+    );
     if (!resolved.ok) {
       this.logCalendarOutcome(callId, 'create-event', resolved);
       return resolved;
@@ -230,25 +271,36 @@ export class CalendarToolsService {
         error: 'invalid_range',
         message: 'endTime must be after startTime.',
       };
-      this.logCalendarOutcome(callId, 'create-event', res, unixToIso(start), unixToIso(end));
+      this.logCalendarOutcome(
+        callId,
+        'create-event',
+        res,
+        unixToIso(start),
+        unixToIso(end),
+      );
       return res;
     }
 
     const past = pastWindowError(start, end);
     if (past) {
-      this.logCalendarOutcome(callId, 'create-event', past, unixToIso(start), unixToIso(end));
+      this.logCalendarOutcome(
+        callId,
+        'create-event',
+        past,
+        unixToIso(start),
+        unixToIso(end),
+      );
       return past;
     }
 
-    const participants =
-      dto.participantEmail?.trim()
-        ? [
-            {
-              email: dto.participantEmail.trim(),
-              name: dto.participantName?.trim() || undefined,
-            },
-          ]
-        : undefined;
+    const participants = dto.participantEmail?.trim()
+      ? [
+          {
+            email: dto.participantEmail.trim(),
+            name: dto.participantName?.trim() || undefined,
+          },
+        ]
+      : undefined;
 
     const result = await this.nylas.createEvent(resolved.creds, {
       title: dto.title.trim(),
@@ -266,7 +318,13 @@ export class CalendarToolsService {
         error: 'nylas_error',
         message: result.message,
       };
-      this.logCalendarOutcome(callId, 'create-event', res, unixToIso(start), unixToIso(end));
+      this.logCalendarOutcome(
+        callId,
+        'create-event',
+        res,
+        unixToIso(start),
+        unixToIso(end),
+      );
       return res;
     }
 
@@ -284,7 +342,13 @@ export class CalendarToolsService {
         location: e.location ?? dto.location ?? null,
       },
     };
-    this.logCalendarOutcome(callId, 'create-event', res, unixToIso(start), unixToIso(end));
+    this.logCalendarOutcome(
+      callId,
+      'create-event',
+      res,
+      unixToIso(start),
+      unixToIso(end),
+    );
     return res;
   }
 
@@ -292,7 +356,10 @@ export class CalendarToolsService {
     callId: string,
     dto: CalendarCancelEventDto,
   ): Promise<CalendarToolResponseDto> {
-    const resolved = await this.resolveIntegration(callId);
+    const resolved = await this.resolveIntegration(
+      callId,
+      TOOL_IDS.cancelCalendarEvent,
+    );
     if (!resolved.ok) return resolved;
 
     const eventId = dto.eventId.trim();
@@ -300,7 +367,8 @@ export class CalendarToolsService {
       return {
         ok: false,
         error: 'missing_event_id',
-        message: 'eventId is required (from createCalendarEvent or listCalendarEvents).',
+        message:
+          'eventId is required (from createCalendarEvent or listCalendarEvents).',
       };
     }
 
@@ -316,98 +384,15 @@ export class CalendarToolsService {
     };
   }
 
-  private async resolveIntegration(
+  private resolveIntegration(
     callId: string,
-  ): Promise<CalendarResolveResult> {
-    const call = await this.callsRepository.findById(callId);
-    if (!call) {
-      return {
-        ok: false,
-        error: 'call_not_found',
-        message: 'Call not found for calendar tool request.',
-      };
-    }
-
-    if (!call.organizationId || !call.organizationAgentId) {
-      return {
-        ok: false,
-        error: 'no_org_agent',
-        message:
-          'This call has no organization agent. Calendar tools require an org agent with a linked Nylas calendar integration. Platform template web tests cannot use org calendars.',
-      };
-    }
-
-    let orgAgent;
-    try {
-      orgAgent = await this.organizationAgentsService.getEntityWithTemplate(
-        call.organizationId,
-        call.organizationAgentId,
-      );
-    } catch {
-      return {
-        ok: false,
-        error: 'agent_not_found',
-        message: 'Organization agent for this call was not found.',
-      };
-    }
-
-    if (!orgAgent.calendarIntegrationId) {
-      return {
-        ok: false,
-        error: 'calendar_not_linked',
-        message:
-          'No calendar integration is linked to this agent. In the portal, open the agent and select a Nylas calendar connection under Calendar integration.',
-      };
-    }
-
-    let integration;
-    try {
-      integration =
-        await this.organizationIntegrationsService.getEntityForOrg(
-          call.organizationId,
-          orgAgent.calendarIntegrationId,
-        );
-    } catch {
-      return {
-        ok: false,
-        error: 'integration_not_found',
-        message:
-          'The linked calendar integration was not found. Re-link a valid Nylas connection on the agent.',
-      };
-    }
-
-    if (!integration.isActive) {
-      return {
-        ok: false,
-        error: 'integration_inactive',
-        message: 'The linked calendar integration is inactive.',
-      };
-    }
-
-    if (integration.provider !== IntegrationProvider.NYLAS) {
-      return {
-        ok: false,
-        error: 'unsupported_provider',
-        message: `Provider ${integration.provider} is not supported for calendar tools.`,
-      };
-    }
-
-    this.logger.log(
-      `calendar resolve callId=${callId} integration=${integration.id} grant=${integration.grantId} ` +
-        `email=${integration.email ? 'set' : 'empty'} calendarId=${integration.calendarId || 'primary'}`,
+    toolId: KnownToolId,
+  ): Promise<NylasCalendarAuthorization> {
+    return this.authorization.authorizeCalendarTool(
+      callId,
+      toolId,
+      IntegrationProvider.NYLAS,
     );
-
-    return {
-      ok: true,
-      integration,
-      creds: {
-        apiKey: integration.apiKey,
-        grantId: integration.grantId ?? '',
-        calendarId: integration.calendarId || 'primary',
-        apiUri: integration.apiUri,
-        email: integration.email,
-      },
-    };
   }
 
   private logCalendarOutcome(
@@ -422,8 +407,7 @@ export class CalendarToolsService {
       startIso || endIso
         ? ` start=${startIso ?? '-'} end=${endIso ?? '-'}`
         : '';
-    const busy =
-      busyCount != null ? ` busySlots=${busyCount}` : '';
+    const busy = busyCount != null ? ` busySlots=${busyCount}` : '';
     if (res.ok) {
       this.logger.log(
         `calendar ${op} callId=${callId} ok=true${window}${busy} msg=${(res.message ?? '').slice(0, 160)}`,
@@ -455,22 +439,6 @@ function pastWindowError(
       `Re-resolve “today/tomorrow” from the authoritative call clock and call again with correct year/month/day. Do not invent free times.`,
   };
 }
-
-type CalendarResolveResult =
-  | {
-      ok: true;
-      integration: Awaited<
-        ReturnType<OrganizationIntegrationsService['getEntityForOrg']>
-      >;
-      creds: {
-        apiKey: string;
-        grantId: string;
-        calendarId: string;
-        apiUri: string;
-        email: string | null;
-      };
-    }
-  | { ok: false; error: string; message: string };
 
 /** Accept unix seconds (number or numeric string) or ISO-8601. */
 export function parseTimeToUnix(value: string): number | null {

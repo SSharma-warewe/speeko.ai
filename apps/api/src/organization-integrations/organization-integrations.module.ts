@@ -1,3 +1,4 @@
+import { CallCapabilitiesModule } from '../call-capabilities/call-capabilities.module';
 import { WhatsAppTasksModule } from '../whatsapp-tasks/whatsapp-tasks.module';
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -17,6 +18,7 @@ import { UserOrganizationIntegrationsController } from './user-organization-inte
 
 @Module({
   imports: [
+    CallCapabilitiesModule,
     TypeOrmModule.forFeature([OrganizationIntegration, OrganizationAgent]),
     OrganizationsModule,
     WhatsAppTasksModule,

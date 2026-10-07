@@ -1,3 +1,4 @@
+import { calendarAuthorizationFixture } from '../../call-capabilities/test/calendar-authorization-fixture';
 import { ConfigService } from '@nestjs/config';
 import { OrganizationAgentsService } from '../../agents/organization-agents.service';
 import { CallsRepository } from '../../calls/calls.repository';
@@ -336,7 +337,9 @@ describe('GhlService calendar', () => {
       }),
     ).resolves.toEqual({ ok: true, contactId: 'ct_9', created: true });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(String(fetchMock.mock.calls[1][0])).toContain('/contacts/ct_9/notes');
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      '/contacts/ct_9/notes',
+    );
   });
 
   it('maps 401 contact upsert to a contacts.write message and does not log the token', async () => {
@@ -673,8 +676,11 @@ describe('GhlCalendarToolsService', () => {
     };
     service = new GhlCalendarToolsService(
       callsRepository as unknown as CallsRepository,
-      organizationAgentsService as unknown as OrganizationAgentsService,
-      organizationIntegrationsService as unknown as OrganizationIntegrationsService,
+      calendarAuthorizationFixture(
+        () => callsRepository.findById(),
+        () => organizationAgentsService.getEntityWithTemplate(),
+        () => organizationIntegrationsService.getEntityForOrg(),
+      ),
       ghl as unknown as GhlService,
     );
   });
@@ -751,7 +757,12 @@ describe('GhlCalendarToolsService', () => {
     ghl.getFreeSlots.mockResolvedValue({
       ok: true,
       slotMinutes: 30,
-      slots: [{ startIso: '2026-08-14T10:00:00+05:30', endIso: '2026-08-14T10:30:00+05:30' }],
+      slots: [
+        {
+          startIso: '2026-08-14T10:00:00+05:30',
+          endIso: '2026-08-14T10:30:00+05:30',
+        },
+      ],
     });
     const startTime = '2028-06-15T09:00:00+05:30';
     const endTime = '2028-06-15T18:00:00+05:30';
@@ -789,7 +800,12 @@ describe('GhlCalendarToolsService', () => {
       ok: true,
       slotMinutes: 30,
       timezone: 'Asia/Kolkata',
-      slots: [{ startIso: '2028-06-15T15:30:00+05:30', endIso: '2028-06-15T16:00:00+05:30' }],
+      slots: [
+        {
+          startIso: '2028-06-15T15:30:00+05:30',
+          endIso: '2028-06-15T16:00:00+05:30',
+        },
+      ],
     });
     const res = await service.freeSlots(CALL_ID, {
       startTime: '2028-06-15T15:00:00Z',

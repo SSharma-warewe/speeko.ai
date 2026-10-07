@@ -1,9 +1,12 @@
-import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
-import { OrganizationAgentsService } from '../agents/organization-agents.service';
+import { Injectable, Logger } from '@nestjs/common';
+import { TOOL_IDS, KnownToolId } from '@call-agent/contracts';
+import {
+  CallCapabilityAuthorizationService,
+  GhlCalendarAuthorization,
+} from '../call-capabilities/call-capability-authorization.service';
 import { Call } from '../calls/call.entity';
 import { CallsRepository } from '../calls/calls.repository';
 import { IntegrationProvider } from '../organization-integrations/organization-integration.entity';
-import { OrganizationIntegrationsService } from '../organization-integrations/organization-integrations.service';
 import {
   GhlCalendarToolResponseDto,
   GhlFreeSlotsDto,
@@ -12,7 +15,6 @@ import {
   GhlUpsertContactDto,
 } from './dto/ghl-calendar-tool.dto';
 import { GhlService } from './ghl.service';
-import type { GhlCalendarCreds } from './ghl.types';
 import {
   GHL_SLOT_MINUTES,
   addMinutesKeepingOffset,
@@ -33,9 +35,7 @@ export class GhlCalendarToolsService {
 
   constructor(
     private readonly callsRepository: CallsRepository,
-    @Inject(forwardRef(() => OrganizationAgentsService))
-    private readonly organizationAgentsService: OrganizationAgentsService,
-    private readonly organizationIntegrationsService: OrganizationIntegrationsService,
+    private readonly authorization: CallCapabilityAuthorizationService,
     private readonly ghl: GhlService,
   ) {}
 
@@ -43,7 +43,7 @@ export class GhlCalendarToolsService {
     callId: string,
     dto: GhlFreeSlotsDto,
   ): Promise<GhlCalendarToolResponseDto> {
-    const resolved = await this.resolveGhl(callId);
+    const resolved = await this.resolveGhl(callId, TOOL_IDS.checkGhlFreeSlots);
     if (!resolved.ok) {
       return resolved;
     }
@@ -86,9 +86,7 @@ export class GhlCalendarToolsService {
       creds,
     );
     if (!result.ok) {
-      this.logger.warn(
-        `ghl free-slots callId=${callId} error=${result.error}`,
-      );
+      this.logger.warn(`ghl free-slots callId=${callId} error=${result.error}`);
       return {
         ok: false,
         error: result.error,
@@ -118,7 +116,7 @@ export class GhlCalendarToolsService {
     callId: string,
     dto: GhlScheduleMeetingDto,
   ): Promise<GhlCalendarToolResponseDto> {
-    const resolved = await this.resolveGhl(callId);
+    const resolved = await this.resolveGhl(callId, TOOL_IDS.scheduleGhlMeeting);
     if (!resolved.ok) {
       return resolved;
     }
@@ -222,7 +220,7 @@ export class GhlCalendarToolsService {
     callId: string,
     dto: GhlUpsertContactDto,
   ): Promise<GhlCalendarToolResponseDto> {
-    const resolved = await this.resolveGhl(callId);
+    const resolved = await this.resolveGhl(callId, TOOL_IDS.upsertGhlContact);
     if (!resolved.ok) {
       return resolved;
     }
@@ -296,7 +294,7 @@ export class GhlCalendarToolsService {
     callId: string,
     dto: GhlLookupContactDto,
   ): Promise<GhlCalendarToolResponseDto> {
-    const resolved = await this.resolveGhl(callId);
+    const resolved = await this.resolveGhl(callId, TOOL_IDS.lookupGhlContact);
     if (!resolved.ok) {
       return resolved;
     }
@@ -329,7 +327,9 @@ export class GhlCalendarToolsService {
       };
     }
     if (!result.found) {
-      this.logger.log(`ghl lookup contact callId=${callId} ok=true found=false`);
+      this.logger.log(
+        `ghl lookup contact callId=${callId} ok=true found=false`,
+      );
       return {
         ok: true,
         message:
@@ -360,117 +360,17 @@ export class GhlCalendarToolsService {
     };
   }
 
-  private async resolveGhl(
+  private resolveGhl(
     callId: string,
-  ): Promise<GhlResolveResult> {
-    const call = await this.callsRepository.findById(callId);
-    if (!call) {
-      return {
-        ok: false,
-        error: 'call_not_found',
-        message: 'Call not found for GHL calendar tool request.',
-      };
-    }
-
-    if (!call.organizationId || !call.organizationAgentId) {
-      return {
-        ok: false,
-        error: 'no_org_agent',
-        message:
-          'This call has no organization agent. GHL calendar tools require an org agent with a linked GoHighLevel calendar. Platform template web tests cannot use org calendars.',
-      };
-    }
-
-    let orgAgent;
-    try {
-      orgAgent = await this.organizationAgentsService.getEntityWithTemplate(
-        call.organizationId,
-        call.organizationAgentId,
-      );
-    } catch {
-      return {
-        ok: false,
-        error: 'agent_not_found',
-        message: 'Organization agent for this call was not found.',
-      };
-    }
-
-    if (!orgAgent.calendarIntegrationId) {
-      return {
-        ok: false,
-        error: 'calendar_not_linked',
-        message:
-          'No calendar integration is linked to this agent. In the portal, open the agent and select a GoHighLevel calendar connection.',
-      };
-    }
-
-    let integration;
-    try {
-      integration =
-        await this.organizationIntegrationsService.getEntityForOrg(
-          call.organizationId,
-          orgAgent.calendarIntegrationId,
-        );
-    } catch {
-      return {
-        ok: false,
-        error: 'integration_not_found',
-        message:
-          'The linked calendar integration was not found. Re-link a valid GoHighLevel connection on the agent.',
-      };
-    }
-
-    if (!integration.isActive) {
-      return {
-        ok: false,
-        error: 'integration_inactive',
-        message: 'The linked calendar integration is inactive.',
-      };
-    }
-
-    if (integration.provider !== IntegrationProvider.GHL) {
-      return {
-        ok: false,
-        error: 'unsupported_provider',
-        message:
-          'This agent is linked to a Nylas calendar. Enable Nylas calendar tools, or link a GoHighLevel connection instead.',
-      };
-    }
-
-    const locationId = integration.locationId?.trim() ?? '';
-    const calendarId = integration.calendarId?.trim() ?? '';
-    if (!locationId || !calendarId) {
-      return {
-        ok: false,
-        error: 'ghl_incomplete',
-        message:
-          'The GoHighLevel connection is missing location id or calendar id. Edit it in Integrations.',
-      };
-    }
-
-    this.logger.log(
-      `ghl resolve callId=${callId} integration=${integration.id} location=${locationId} calendarId=${calendarId}`,
+    toolId: KnownToolId,
+  ): Promise<GhlCalendarAuthorization> {
+    return this.authorization.authorizeCalendarTool(
+      callId,
+      toolId,
+      IntegrationProvider.GHL,
     );
-
-    return {
-      ok: true,
-      call,
-      creds: {
-        token: integration.apiKey,
-        locationId,
-        calendarId,
-      },
-    };
   }
 }
-
-type GhlResolveResult =
-  | {
-      ok: true;
-      call: Call;
-      creds: GhlCalendarCreds;
-    }
-  | { ok: false; error: string; message: string };
 
 function contextField(
   context: Record<string, unknown> | null | undefined,
@@ -546,13 +446,7 @@ export function resolveIdentity(
     contextField(context, 'phone', 'phoneNumber', 'toNumber');
   const full =
     usableIdentityToken(dto.participantName) ||
-    contextField(
-      context,
-      'name',
-      'customerName',
-      'fullName',
-      'patientName',
-    );
+    contextField(context, 'name', 'customerName', 'fullName', 'patientName');
   const first =
     usableIdentityToken(dto.firstName) ||
     contextField(context, 'firstName', 'first_name') ||
@@ -562,8 +456,7 @@ export function resolveIdentity(
     usableIdentityToken(dto.lastName) ||
     contextField(context, 'lastName', 'last_name') ||
     lastFromFull;
-  const name =
-    full || (first && last ? `${first} ${last}` : first || last);
+  const name = full || (first && last ? `${first} ${last}` : first || last);
   const company =
     usableIdentityToken(dto.company) ||
     contextField(context, 'company', 'companyName');

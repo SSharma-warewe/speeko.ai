@@ -1,3 +1,5 @@
+import { calendarAuthorizationFixture } from '../../call-capabilities/test/calendar-authorization-fixture';
+import { CallCapabilityAuthorizationService } from '../../call-capabilities/call-capability-authorization.service';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrganizationAgentsService } from '../../agents/organization-agents.service';
@@ -67,6 +69,14 @@ describe('CalendarToolsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CalendarToolsService,
+        {
+          provide: CallCapabilityAuthorizationService,
+          useValue: calendarAuthorizationFixture(
+            () => callsRepository.findById(),
+            () => organizationAgentsService.getEntityWithTemplate(),
+            () => organizationIntegrationsService.getEntityForOrg(),
+          ),
+        },
         { provide: CallsRepository, useValue: callsRepository },
         {
           provide: OrganizationAgentsService,
@@ -141,7 +151,10 @@ describe('CalendarToolsService', () => {
 
     it('2. no_org_agent when call lacks org/agent ids', async () => {
       mockResolvedHappyPath({
-        call: { organizationId: null as unknown as string, organizationAgentId: null as unknown as string },
+        call: {
+          organizationId: null as unknown as string,
+          organizationAgentId: null as unknown as string,
+        },
       });
 
       const result = await service.freeBusy(CALL_ID, {

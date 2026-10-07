@@ -1,7 +1,6 @@
+import { CallCapabilitiesModule } from '../call-capabilities/call-capabilities.module';
 import { Global, Module, forwardRef } from '@nestjs/common';
-import { AgentsModule } from '../agents/agents.module';
 import { CallsModule } from '../calls/calls.module';
-import { OrganizationIntegrationsModule } from '../organization-integrations/organization-integrations.module';
 import { GhlCalendarToolsService } from './ghl-calendar-tools.service';
 import { GhlService } from './ghl.service';
 import { InternalGhlCalendarController } from './internal-ghl-calendar.controller';
@@ -12,11 +11,7 @@ import { InternalGhlCalendarController } from './internal-ghl-calendar.controlle
  */
 @Global()
 @Module({
-  imports: [
-    forwardRef(() => CallsModule),
-    forwardRef(() => AgentsModule),
-    forwardRef(() => OrganizationIntegrationsModule),
-  ],
+  imports: [CallCapabilitiesModule, forwardRef(() => CallsModule)],
   controllers: [InternalGhlCalendarController],
   providers: [GhlService, GhlCalendarToolsService],
   exports: [GhlService],

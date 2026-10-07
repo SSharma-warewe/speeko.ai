@@ -17,6 +17,8 @@ Scope: `apps/api`. Inherit the [root instructions](../../AGENTS.md). Nest API ow
 - Admin/user are separate principals (`JWT.typ=admin|user`). Protected controllers use `JwtAuthGuard` plus the appropriate `AdminGuard`/`UserGuard`. Org routes derive tenant id through [orgIdFrom](src/auth/org-id.ts); never accept a client org id as authority.
 - JWT strategy reloads principal and org from DB on every authenticated request. Missing/inactive principals or inactive orgs are rejected; live profile fields replace stale claims. Member roles are stored but not enforced as additional permission tiers.
 - Login requires org slug/id for users, bcrypt passwords, separate admin login, and Bearer access JWT only. Password invites/resets store SHA-256 token hashes, revoke siblings on reissue/use, and never expose password hashes. Boot seeds an absent admin without overwriting an existing password.
+- `PasswordLifecycleService` owns complete issuance, token replacement, and authenticated password-change operations. `PasswordLifecycleRepository` owns their database transactions: lock the existing user/admin row with `FOR UPDATE` before token writes, reload activity/email/tenant state, replace the password and consume/invalidate tokens together. All replicas use this serialization point; do not restore a caller-managed validate → password write → token consumption sequence. Bcrypt runs outside the transaction; authenticated changes recheck the verified original hash under the lock. Invitations require no existing password; resets require an existing password. Send emails only after commit; delivery failure does not undo the password change, and forgot-password remains nondisclosing if eligibility changes while waiting for the lock.
+- User/admin profile-name writes update only the `name` column. Never save a previously loaded principal's password hash during unrelated profile edits; that can overwrite a committed concurrent reset. The former public `updatePasswordHash` helpers are removed; existing-principal password replacement belongs exclusively to the lifecycle transaction.
 - Login, password, OTP, and demo guards retain origin/IP/rate-limit behavior. Fixed-window login/demo counters are per API process, not replica-wide; proxy/IP and CORS normalization use shared common helpers.
 - Public integration enqueue uses hashed `ca_live_…` endpoint keys via Bearer or `X-Api-Key`, not JWT. Return full keys only on create/rotate. Endpoint configuration fixes agent/task/trunk/queue; request carries phone/context/external id only.
 - Internal voice and WhatsApp callbacks use `WorkerSecretGuard`/`X-Worker-Secret`; WhatsApp also checks current UUID turn lease/generation. Public Meta verification/ingest and OTP/demo must not acquire JWT guards.
@@ -32,6 +34,8 @@ Scope: `apps/api`. Inherit the [root instructions](../../AGENTS.md). Nest API ow
 - Persona is separate from workflow and capabilities. Inbound org agents require `defaultTaskKey`; outbound configs store null and use call/endpoint task → template → general. Many named org agents may share one template; template PATCH does not retro-update their personas.
 - Tool profiles store ids, never schemas/code. Org metadata is profile ∩ allowlist; null allowlist preserves legacy full access, new orgs get `["endCall"]`, explicit sets always keep endCall. Org custom profiles cannot exceed assigned tools.
 - Calendar providers are `nylas`/`ghl`. Resolve active same-org links at execution; no platform GHL-env fallback. All GHL HTTP uses `GhlService`, Meta uses `MetaWhatsAppClient`, LiveKit SDK uses `LivekitService`, mail uses global `EmailService`.
+- Both call-calendar paths use the leaf `CallCapabilitiesModule` before every operation. Its repository reads the current call, org, org agent, active template, profile/tools, and linked integration in one joined query. Require active same-org resources, a platform/same-org profile, exact tool membership intersected with the pure org allowlist normalization, and provider credentials. Null allowlists retain legacy full access; missing/empty profiles grant no calendar tools. Inbound SIP uses the org agent's profile without a template fallback; outbound and org web tests fall back to the template default profile. Configured calls must also permit the tool in their persisted task snapshot; never resolve a newer definition or require the pinned task to remain active.
+- Calendar authorization uses the **current linked calendar on each request**, including changes after call creation. Each method supplies fixed contract ids: GHL free slots/contact lookup/contact upsert/appointment creation use `checkGhlFreeSlots`/`lookupGhlContact`/`upsertGhlContact`/`scheduleGhlMeeting`; Nylas free/busy/event listing/event creation/event cancellation use `checkCalendarAvailability`/`listCalendarEvents`/`createCalendarEvent`/`cancelCalendarEvent`. Legacy `booking`/`cancelBooking` do not grant these operations. Worker secret, DTO validation, and HTTP 200 `{ ok: false, error, message }` denials remain; `organization_inactive`, `agent_inactive`, and `tool_not_allowed` are API-local denials. Denial performs no provider I/O or context writes. Do not cache authorization, hold a transaction/lock over provider HTTP, or automatically retry uncertain writes. Revocation cannot undo an already-submitted provider request.
 - GHL free slots expose open times only; booking needs a real contact id from lookup/upsert/context and does not create contacts. Persist looked-up/upserted ids in call context. Preserve timezone normalization and missing-contact versus unavailable-slot errors.
 - CRM uses active `ghl_crm` connections, strict `CRM_ACTIONS`, location/membership authorization, redacted errors, and no automatic write retry. It is live upstream data, not a mirror or agent-calendar provider. Read [CRM README](src/crm/README.md).
 - PriceService owns cost calculations/snapshots and attempts; markup stays zero. Sarvam rates use the dated price catalog/conversion; BYO OpenAI/xAI charges are not in LiveKit snapshots. Org summaries are JWT-scoped; recompute stays admin-only.
@@ -638,6 +642,21 @@ npm run test:e2e
 
 Jest 30 path filter flag: **`--testPathPatterns`** (plural), not `--testPathPattern`.
 
+### Isolated password and calendar security integration tests
+
+[Password concurrency](src/auth/test/password-lifecycle.postgres.spec.ts) and [live calendar authorization](src/call-capabilities/test/call-capabilities.postgres.spec.ts) use real PostgreSQL with mocked mail/provider HTTP. Configure `API_SECURITY_TEST_DATABASE_URL` only for a dedicated disposable database named **`api_security_test`** on **`127.0.0.1:55445`**. The fixture rejects any other host, port, database, or URL options before mutation, and never falls back to the application database. It synchronizes existing entities and truncates fixture rows only in separate `auth_security_test` and `call_capability_test` schemas. Password races use independent connections and barriers based on actual PostgreSQL lock waiters, rather than timing-dependent sleeps.
+
+Run from the monorepo root with the dedicated fixture configured:
+
+```powershell
+# Set API_SECURITY_TEST_DATABASE_URL to the dedicated fixture connection URL.
+npx jest --testPathPatterns='auth/test|ghl/test|organization-integrations/test|calls/test/configured-dispatch' --runInBand --no-coverage
+npx jest --testPathPatterns='password-lifecycle.postgres|call-capabilities.postgres|common/test/api-security-database' --runInBand --no-coverage
+npm run build:api
+```
+
+The PostgreSQL suites skip when the variable is unset; a skipped suite does not establish atomicity. Coverage includes same/sibling-token consumption, issuance races, stale verified credentials, expiry after lock acquisition, forced rollback, post-commit email behavior, all eight calendar operation mappings, live revocation/reassignment, tenant/activity checks, pinned task capabilities, current calendar changes, worker authentication, and construction of the actual auth/calendar Nest module graph. This refactor adds no tables, columns, indexes, or foreign keys and needs no migration/Erflow update. Release affects only API; the concurrency guarantee requires every API replica to run the new password lifecycle. Use the normal deployment runbook and smoke-test test principals/provider fixtures before release.
+
 ### Layout & conventions
 
 ```
@@ -650,7 +669,7 @@ apps/api/src/<module>/test/
 |------|--------|
 | **Target** | Services, guards, strategies, pure utils — where business rules live |
 | **Skip by default** | Thin controllers (one-line pass-through), TypeORM repositories (pass-through), entities, Swagger DTOs |
-| **Dependencies** | Mock repositories / sibling services / `ConfigService` / external I/O (`fetch`, LiveKit, Plunk) — **no real Postgres** in mocked unit tests; the separately gated harness integration suite is the documented exception |
+| **Dependencies** | Mock repositories / sibling services / `ConfigService` / external I/O (`fetch`, LiveKit, Plunk) — **no real Postgres** in mocked unit tests; separately gated harness and password/calendar security integration suites use their documented isolated fixtures |
 | **Nest wiring** | `Test.createTestingModule` with `{ provide: X, useValue: mock }` **or** `new Service(mockDeps)` for simple constructors |
 | **Assertions** | Exception **types** + important user-facing messages; call args to mocks; return shapes |
 | **Security** | Prefer explicit cases for authz, tenant isolation, secret redaction, inactive principal rejection |
@@ -663,7 +682,7 @@ apps/api/src/<module>/test/
 | Service | **Yes** | Happy path, not-found/conflict, normalization, org scoping, status gates |
 | Guard / strategy | **Yes** | Allow/deny matrix, principal shape from DB, worker secret, rate limit |
 | Controller | Optional | Only if non-trivial orchestration; else covered via service + thin guard tests |
-| Repository | No | TypeORM only; integration tests later if needed |
+| Repository | Integration where necessary | Atomic state changes and joined authorization require the isolated PostgreSQL suites; omit unit tests that only mirror TypeORM calls |
 | Voice worker | Yes, existing src/test suites | Mock sessions/providers; lifecycle, builders, workflows, pure helpers and callback contracts |
 | Portal / web SPA | Limited | Root Jest includes portal pure helper specs; no dedicated Vitest/Playwright script currently exists |
 
