@@ -1,0 +1,30 @@
+.human-call-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+.human-call-strip > div:first-child {
+  display: grid;
+  gap: 0.35rem;
+  flex: 1;
+}
+.human-call-strip span {
+  font-size: 0.85rem;
+}
+.human-call-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+.human-call-strip .human-call-actions {
+  margin-top: 0;
+}
+.human-call-strip a {
+  font-size: 0.85rem;
+}

@@ -946,6 +946,12 @@ export const listUserCalls = (params?: ListCallsQuery) => {
 export const getUserCall = (id: string) =>
   userFetch<CallRecord>(`/users/calls/${id}`);
 
+export const getActiveHumanCall = () => userFetch<import('@call-agent/contracts').ActiveHumanCallResponse>('/users/calls/human/active');
+export const createHumanCall = (data: import('@call-agent/contracts').CreateHumanCallRequest) =>
+  userFetch<import('@call-agent/contracts').HumanCallResponse>('/users/calls/human', { method: 'POST', body: JSON.stringify(data) });
+export const joinHumanCall = (id: string) => userFetch<import('@call-agent/contracts').HumanCallResponse>(`/users/calls/${id}/human/join`, { method: 'POST' });
+export const endHumanCall = (id: string) => userFetch<import('@call-agent/contracts').HumanCallResponse>(`/users/calls/${id}/human/end`, { method: 'POST' });
+
 export const getUserCostSummary = (opts?: { from?: string; to?: string }) => {
   const q = new URLSearchParams();
   if (opts?.from) q.set("from", opts.from);

@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useSearchParams } from 'react-router-dom';
+import { HumanCallComposer, useHumanCalls } from '../../components/HumanCalls';
 import { Button, Field, Input } from "@call-agent/ui";
 import { useUserAsync } from "../../hooks/useAsync";
 import {
@@ -25,11 +27,14 @@ export default function CrmContacts({
   connectionId: string;
 }) {
   const { api, busy, error, notice, mutate, clear } = useCrmApi(connectionId);
+  const humanCalls = useHumanCalls();
+  const [params] = useSearchParams();
+  const [callContact, setCallContact] = useState<Row | null>(null);
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
   const [cursor, setCursor] = useState<string | undefined>();
   const [editor, setEditor] = useState<Row | null>(null);
-  const [selected, setSelected] = useState<Row | null>(null);
+  const [selected, setSelected] = useState<Row | null>(() => params.get('contact') ? { id: params.get('contact') } : null);
   const state = useUserAsync(
     () => api("contacts.list", { query: search, cursor, limit: 50 }),
     [search, cursor],
@@ -134,6 +139,7 @@ export default function CrmContacts({
                     </td>
                     <td data-label="Actions">
                       <div className="ops-row-actions">
+                        {humanCalls.enabled && <Button size="sm" disabled={busy || Boolean(humanCalls.active) || !contact.phone || contact.dnd === true} onClick={() => setCallContact(contact)}>Call</Button>}
                         <Button
                           size="sm"
                           variant="secondary"
@@ -245,8 +251,10 @@ export default function CrmContacts({
           contactId={str(selected.id)}
           contactName={label(selected)}
           onClose={() => setSelected(null)}
+          onCall={setCallContact}
         />
       )}
+      {callContact && <HumanCallComposer connectionId={connectionId} contact={{ id: str(callContact.id), name: label(callContact), phone: str(callContact.phone) }} onClose={() => setCallContact(null)} />}
     </div>
   );
 }
@@ -390,19 +398,25 @@ function ContactDetail({
   contactId,
   contactName,
   onClose,
+  onCall,
 }: {
   connectionId: string;
   contactId: string;
   contactName: string;
   onClose: () => void;
+  onCall: (contact: Row) => void;
 }) {
   const { api, busy, error, notice, mutate, clear } = useCrmApi(connectionId);
+  const humanCalls = useHumanCalls();
+  const contactState = useUserAsync(() => api('contacts.get', { id: contactId }), [contactId]);
+  const contact = obj(contactState.data?.contact);
   const [tab, setTab] = useState<"notes" | "tasks">("notes");
   const [editor, setEditor] = useState<Row | null>(null);
   const state = useUserAsync(() => api(`${tab}.list`, { contactId }), [tab]);
   const records = rows(state.data?.[tab]);
   return (
     <CrmDrawer title={contactName} onClose={onClose} busy={busy}>
+      {humanCalls.enabled && <Button size="sm" disabled={busy || Boolean(humanCalls.active) || !contact.phone || contact.dnd === true} onClick={() => onCall(contact)}>Call {label(contact)}</Button>}
       <div className="crm-activity-toolbar">
         <div>
           <span className="crm-eyebrow">Contact activity</span>

@@ -128,7 +128,11 @@ export function createCallsHarness() {
     const call = await callsRepository.findByIdAndOrganization(id, organizationId);
     return call ? { ...call, ...patch } : null;
   });
-  const queueAdmission = { beginDial: jest.fn() };
+  const queueAdmission = { beginDial: jest.fn(), admitImmediate: jest.fn(async (_orgId: string, id: string) => {
+    const saved = await Promise.all(callsRepository.save.mock.results.map(result => result.value as Promise<Call>));
+    const call = saved.find(row => row.id === id)!;
+    return { ...call, status: CallStatus.DIALING, dialStartedAt: new Date(), attemptCount: 1 };
+  }) };
   const admitCall = (call: Call) => {
     queueAdmission.beginDial.mockResolvedValueOnce({ ...call, status: CallStatus.DIALING, queueLockedAt: null });
     return `admission-${call.id}`;

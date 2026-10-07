@@ -357,6 +357,7 @@ export function priceAttempt(
   input: PriceAttemptInput,
   config: PriceRuntimeConfig,
 ): CallCostAttempt {
+  if (input.executionType === 'human') return priceHumanAttempt(input, config);
   const roomMs = sessionDurationMs(input);
   const roomMinutes = billedMinutesFromMs(roomMs, ROOM_MIN_SECONDS);
   const unknownModels: string[] = [];
@@ -397,6 +398,26 @@ export function priceAttempt(
     lines,
     unknownModels: uniqueUnknown,
   };
+}
+
+/** Browser waiting and the answered phone leg are separate observed estimates. */
+function priceHumanAttempt(input: PriceAttemptInput, config: PriceRuntimeConfig): CallCostAttempt {
+  const end = input.endedAt ? new Date(input.endedAt).getTime() : NaN;
+  const minutes = (start: Date | string | null | undefined) => start && Number.isFinite(end)
+    ? billedMinutesFromMs(Math.max(0, end - new Date(start).getTime()), ROOM_MIN_SECONDS) : 0;
+  const browserMinutes = minutes(input.browserJoinedAt);
+  const sipMinutes = minutes(input.answeredAt);
+  const rates = resolveTransportRates(config.plan);
+  const lines: CallCostLine[] = [];
+  const add = (key: CallCostLine['key'], label: string, quantity: number, rate: number) => {
+    if (quantity > 0) pushLine(lines, { key, label, quantity, unit: 'minutes', unitPriceUsd: rate,
+      amountUsd: amountFromPerMinute(quantity, rate), notes: 'Observed human-call duration estimate; not a carrier CDR or invoice; 10s minimum.' });
+  };
+  add('webrtc', 'WebRTC participant (human, including waiting)', browserMinutes, rates.webrtcUsdPerMinute);
+  add('sip', 'Third-party SIP minutes', sipMinutes, rates.sipUsdPerMinute);
+  if (config.sipVendorUsdPerMin > 0) add('sip_vendor', 'SIP carrier (estimate)', sipMinutes, config.sipVendorUsdPerMin);
+  if (input.krispEnabled) add('krisp', 'Voice isolation (Krisp)', sipMinutes, rates.krispUsdPerMinute);
+  return { attempt: Math.max(1, input.attempt || 1), billedMinutes: roundUsd(sipMinutes), totalUsd: sumUsd(lines.map(line => line.amountUsd)), lines, unknownModels: [] };
 }
 
 function lineMergeKey(line: CallCostLine): string {

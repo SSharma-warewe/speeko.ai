@@ -5,6 +5,10 @@ import { CallCostSnapshotDto } from '../../price/dto/call-cost.dto';
 import { CallMedium, CallStatus, CallTaskStatus } from '../call.entity';
 
 export class CallResponseDto {
+  @ApiProperty({ enum: ['agent', 'human'], default: 'agent' })
+  executionType!: 'agent' | 'human';
+  @ApiPropertyOptional({ type: Object, nullable: true })
+  humanCall?: import('@call-agent/contracts').HumanCallSummary | null;
   @ApiPropertyOptional({ nullable: true, type: Object })
   voiceTaskSnapshot?: VoiceTaskSnapshot | null;
   @ApiProperty({ format: 'uuid' })

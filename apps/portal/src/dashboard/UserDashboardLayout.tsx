@@ -4,6 +4,7 @@ import { LiveDot } from "@call-agent/ui";
 import { useUserAuth } from "../lib/auth";
 import { initialsFromName } from "../lib/format";
 import "./DashboardLayout.css";
+import { HumanCallsProvider } from './components/HumanCalls';
 
 type NavLeaf = {
   to: string;
@@ -293,9 +294,11 @@ export default function UserDashboardLayout() {
             Org ops
           </span>
         </div>
-        <main className="ops-content">
-          <Outlet />
-        </main>
+        <HumanCallsProvider>
+          <main className="ops-content">
+            <Outlet />
+          </main>
+        </HumanCallsProvider>
       </div>
     </div>
   );

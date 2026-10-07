@@ -33,6 +33,9 @@ export class CallsRepository {
   saveMany(calls: Call[]): Promise<Call[]> {
     return this.repo.save(calls);
   }
+  async updateCost(call: Call): Promise<void> {
+    await this.repo.update(call.id, { cost: call.cost, costUsd: call.costUsd });
+  }
 
   /** Field-only control write; a stale pending view cannot undo queue admission. */
   async updateIfStatus(id: string, organizationId: string, status: CallStatus, patch: CallControlPatch): Promise<Call | null> {
@@ -43,7 +46,7 @@ export class CallsRepository {
   }
 
   findById(id: string): Promise<Call | null> {
-    return this.repo.findOne({ where: { id } });
+    return this.repo.findOne({ where: { id }, relations: { humanSession: true } });
   }
 
   findByRoomName(roomName: string): Promise<Call | null> {
@@ -54,11 +57,12 @@ export class CallsRepository {
     id: string,
     organizationId: string,
   ): Promise<Call | null> {
-    return this.repo.findOne({ where: { id, organizationId } });
+    return this.repo.findOne({ where: { id, organizationId }, relations: { humanSession: true } });
   }
 
   findRecent(limit = 50): Promise<Call[]> {
     return this.repo.find({
+      relations: { humanSession: true },
       order: { createdAt: 'DESC' },
       take: limit,
     });
@@ -86,6 +90,7 @@ export class CallsRepository {
 
     return this.repo.find({
       where,
+      relations: { humanSession: true },
       order: { createdAt: 'DESC' },
       take: filter.limit ?? 50,
     });

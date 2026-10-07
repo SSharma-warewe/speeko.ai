@@ -18,6 +18,7 @@ import {
   RoomConfiguration,
   SIPMediaConfig,
   SIPTransport,
+  TrackSource,
 } from '@livekit/protocol';
 import { livekitHttpHost } from './livekit-url.util';
 
@@ -91,6 +92,7 @@ export type CreateSipDispatchRuleParams = {
 };
 
 export type CreateSipParticipantParams = {
+  humanCall?: boolean;
   sipTrunkId: string;
   phoneNumber: string;
   roomName: string;
@@ -118,6 +120,8 @@ export class LivekitService {
   private readonly roomClient: RoomServiceClient;
   private readonly dispatchClient: AgentDispatchClient;
   private readonly sipClient: SipClient;
+  private readonly humanRoomClient: RoomServiceClient;
+  private readonly humanSipClient: SipClient;
 
   constructor(private readonly config: ConfigService) {
     this.livekitUrl = this.config.getOrThrow<string>('LIVEKIT_URL');
@@ -128,6 +132,8 @@ export class LivekitService {
     this.roomClient = new RoomServiceClient(host, this.apiKey, this.apiSecret);
     this.dispatchClient = new AgentDispatchClient(host, this.apiKey, this.apiSecret);
     this.sipClient = new SipClient(host, this.apiKey, this.apiSecret);
+    this.humanRoomClient = new RoomServiceClient(host, this.apiKey, this.apiSecret, { requestTimeout: 5, failover: false });
+    this.humanSipClient = new SipClient(host, this.apiKey, this.apiSecret, { requestTimeout: 10, failover: false });
   }
 
   getUrl(): string {
@@ -239,6 +245,41 @@ export class LivekitService {
       `https://meet.livekit.io/custom?liveKitUrl=${encodeURIComponent(this.livekitUrl)}` +
       `&token=${encodeURIComponent(participantToken)}`
     );
+  }
+
+  async createHumanParticipantToken(identity: string, name: string, roomName: string): Promise<string> {
+    const token = new AccessToken(this.apiKey, this.apiSecret, { identity, name, ttl: '10m' });
+    token.addGrant({ roomJoin: true, room: roomName, canSubscribe: true,
+      canPublishSources: [TrackSource.MICROPHONE], canPublishData: false });
+    return token.toJwt();
+  }
+
+  /** Reads must distinguish an absent room from an unavailable provider. */
+  async observeHumanRoom(roomName: string) {
+    try { return await this.bounded(this.humanRoomClient.listParticipants(roomName)); }
+    catch (error) { if (this.isMissingRoom(error)) return null; throw error; }
+  }
+
+  async deleteHumanRoom(roomName: string): Promise<void> {
+    try { await this.bounded(this.humanRoomClient.deleteRoom(roomName)); }
+    catch (error) { if (!this.isMissingRoom(error)) throw error; }
+    if (await this.observeHumanRoom(roomName) !== null) throw new Error('Human call room cleanup is unconfirmed');
+  }
+
+  async createHumanRoom(name: string): Promise<void> {
+    await this.bounded(this.humanRoomClient.createRoom({ name, emptyTimeout: 180, departureTimeout: 30, maxParticipants: 2 }));
+  }
+
+  private isMissingRoom(error: unknown): boolean {
+    const value = error as { status?: number; code?: string };
+    return value?.status === 404 || value?.code === 'not_found';
+  }
+
+  private async bounded<T>(promise: Promise<T>): Promise<T> {
+    let timer: ReturnType<typeof setTimeout>;
+    try { return await Promise.race([promise, new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('LiveKit observation timed out')), 5000);
+    })]); } finally { clearTimeout(timer!); }
   }
 
   async createSipOutboundTrunk(params: CreateSipOutboundTrunkParams): Promise<{
@@ -433,7 +474,7 @@ export class LivekitService {
       });
     }
 
-    const participant = await this.sipClient.createSipParticipant(
+    const participant = await (params.humanCall ? this.humanSipClient : this.sipClient).createSipParticipant(
       params.sipTrunkId,
       params.phoneNumber,
       params.roomName,

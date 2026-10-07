@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config';
-import { SIPTransport } from '@livekit/protocol';
+import { SIPTransport, TrackSource } from '@livekit/protocol';
 
 type RoomClientMock = {
   createRoom: jest.Mock;
@@ -140,14 +140,43 @@ describe('LivekitService', () => {
     sipClientInstances.length = 0;
     accessTokenInstances.length = 0;
     const svc = new LivekitService(makeConfig(env));
-    roomClient = roomClientInstances[roomClientInstances.length - 1];
+    roomClient = roomClientInstances[0];
     dispatchClient = dispatchClientInstances[dispatchClientInstances.length - 1];
-    sipClient = sipClientInstances[sipClientInstances.length - 1];
+    sipClient = sipClientInstances[0];
     return svc;
   }
 
   beforeEach(() => {
     service = makeService();
+  });
+
+  describe('human call adapter', () => {
+    it('issues microphone-only room-scoped ten-minute tokens with no SIP/admin grants', async () => {
+      await service.createHumanParticipantToken('human-user', 'Caller', 'human-room');
+      const token = accessTokenInstances.at(-1)!;
+      expect(token.ctorArgs[2]).toMatchObject({ ttl: '10m', identity: 'human-user' });
+      expect(token.addGrant).toHaveBeenCalledWith({ roomJoin: true, room: 'human-room', canSubscribe: true, canPublishSources: [TrackSource.MICROPHONE], canPublishData: false });
+    });
+    it('does not mistake failed observations for an absent room', async () => {
+      roomClientInstances[1].listParticipants.mockRejectedValueOnce(new Error('network'));
+      await expect(service.observeHumanRoom('human-room')).rejects.toThrow('network');
+      roomClientInstances[1].listParticipants.mockRejectedValueOnce({ code: 'not_found' });
+      await expect(service.observeHumanRoom('human-room')).resolves.toBeNull();
+    });
+    it('cleanup propagates failure and requires verified room removal', async () => {
+      const client = roomClientInstances[1];
+      client.deleteRoom.mockRejectedValueOnce(new Error('network'));
+      await expect(service.deleteHumanRoom('human-room')).rejects.toThrow('network');
+      client.deleteRoom.mockResolvedValue(undefined); client.listParticipants.mockResolvedValue([]);
+      await expect(service.deleteHumanRoom('human-room')).rejects.toThrow('unconfirmed');
+      client.listParticipants.mockRejectedValue({ code: 'not_found' });
+      await expect(service.deleteHumanRoom('human-room')).resolves.toBeUndefined();
+    });
+    it('human SIP dial uses its dedicated no-failover client', async () => {
+      sipClientInstances[1].createSipParticipant.mockResolvedValue({ participantId: 'p', participantIdentity: 'sip', roomName: 'human-room', sipCallId: 's' });
+      await service.createSipParticipant({ humanCall: true, sipTrunkId: 'ST_test', phoneNumber: '+15551234567', roomName: 'human-room' });
+      expect(sipClient.createSipParticipant).not.toHaveBeenCalled(); expect(sipClientInstances[1].createSipParticipant).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('config / getters', () => {

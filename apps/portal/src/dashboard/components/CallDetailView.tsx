@@ -60,7 +60,7 @@ export function CallDetailView({
 
       <div className="ops-call-hero">
         <PageHeader
-          eyebrow={`${call.medium.toUpperCase()} · ${call.direction.toUpperCase()}`}
+          eyebrow={`${call.executionType === 'human' ? 'HUMAN CALL' : call.medium.toUpperCase()} · ${call.direction.toUpperCase()}`}
           title={party}
           description={subtitle}
           actions={
@@ -74,6 +74,7 @@ export function CallDetailView({
       </div>
 
       <ul className="ops-call-facts">
+        {call.humanCall && <><li><span>Caller</span><strong>{call.humanCall.callerName}</strong></li><li><span>CRM contact</span><strong>{call.humanCall.crmIntegrationId ? <Link to={`/dashboard/crm?tab=contacts&connection=${encodeURIComponent(call.humanCall.crmIntegrationId)}&contact=${encodeURIComponent(call.humanCall.crmContactId)}`}>{call.humanCall.contactName}</Link> : call.humanCall.contactName}</strong></li></>}
         <li>
           <span>Task</span>
           <strong>
@@ -134,7 +135,9 @@ export function CallDetailView({
           <div className="ops-panel-body ops-call-talk-body">
             {transcript.length === 0 ? (
               <p className="ops-muted ops-call-empty">
-                {live || call.status === "pending"
+                {call.executionType === 'human'
+                  ? "Human calls are not recorded or transcribed."
+                  : live || call.status === "pending"
                   ? "No transcript yet. It appears after the worker completes the call."
                   : "No transcript was recorded for this call."}
               </p>
@@ -215,7 +218,7 @@ export function CallDetailView({
         </aside>
       </div>
 
-      <section className="ops-panel ops-call-tools">
+      {call.executionType !== 'human' && <section className="ops-panel ops-call-tools">
         <div className="ops-panel-head">
           <h2>Tools</h2>
           <span className="ops-faint">
@@ -242,7 +245,7 @@ export function CallDetailView({
             </ol>
           )}
         </div>
-      </section>
+      </section>}
 
       <section className="ops-panel ops-call-plumb">
         <div className="ops-panel-head">
@@ -490,6 +493,7 @@ function hasNested(result: Record<string, unknown>): boolean {
 }
 
 function taskPresentation(call: CallRecord): { status: string; label: string } {
+  if (call.executionType === 'human' || call.taskStatus === 'not_applicable') return { status: 'neutral', label: 'Not applicable' };
   if (call.taskStatus === "completed" || call.status === "completed") {
     return { status: "completed", label: "Completed" };
   }

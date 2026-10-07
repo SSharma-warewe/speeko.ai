@@ -20,6 +20,9 @@ export enum CallLifecycleEvent {
   CANCEL = 'cancel',
   RETRY_NOW = 'retry_now',
   LATE_COMPLETE = 'late_complete',
+  HUMAN_DIAL_STARTED = 'human_dial_started',
+  HUMAN_ENDED = 'human_ended',
+  HUMAN_CANCELLED = 'human_cancelled',
 }
 
 /** New row (not yet persisted / no prior status). */
@@ -38,6 +41,9 @@ export type CallTransition = {
  * and documentation for SQL claim/release.
  */
 export const CALL_TRANSITION_TABLE: readonly CallTransition[] = [
+  { from: CallStatus.CREATING, event: CallLifecycleEvent.HUMAN_DIAL_STARTED, to: CallStatus.DIALING },
+  { from: CallStatus.READY, event: CallLifecycleEvent.HUMAN_ENDED, to: CallStatus.COMPLETED },
+  ...[CallStatus.CREATING, CallStatus.DIALING].map(from => ({ from, event: CallLifecycleEvent.HUMAN_CANCELLED, to: CallStatus.CANCELLED })),
   { from: null, event: CallLifecycleEvent.ENQUEUE, to: CallStatus.PENDING },
   {
     from: null,
@@ -227,6 +233,7 @@ type CallStatusHolder = Pick<Call, 'status' | 'taskStatus'>;
 function taskStatusForEvent(
   event: CallLifecycleEvent,
 ): CallTaskStatus | undefined {
+  if ([CallLifecycleEvent.HUMAN_DIAL_STARTED, CallLifecycleEvent.HUMAN_ENDED, CallLifecycleEvent.HUMAN_CANCELLED].includes(event)) return CallTaskStatus.NOT_APPLICABLE;
   if (event === CallLifecycleEvent.TASK_COMPLETE) {
     return CallTaskStatus.COMPLETED;
   }

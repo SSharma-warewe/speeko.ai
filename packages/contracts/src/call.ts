@@ -4,7 +4,7 @@
  * - in_progress: CREATING | DIALING | READY
  * - done: COMPLETED | INCOMPLETE | FAILED | CANCELLED
  *
- * `completed` = session ended AND the LiveKit task called complete_*.
+ * `completed` = agent task completed, or an answered human session ended.
  * `incomplete` = live conversation ended without task.complete().
  * `failed` = never had a successful conversation (no answer / SIP / timeout).
  */
@@ -22,6 +22,7 @@ export type CallStatus = (typeof CallStatus)[keyof typeof CallStatus];
 
 /** Workflow flag — do not infer from task_result JSON. */
 export const CallTaskStatus = {
+  NOT_APPLICABLE: 'not_applicable',
   PENDING: 'pending',
   COMPLETED: 'completed',
   INCOMPLETE: 'incomplete',
@@ -40,6 +41,9 @@ export const CallMedium = {
   SIP: 'sip',
 } as const;
 export type CallMedium = (typeof CallMedium)[keyof typeof CallMedium];
+
+export const CallExecutionType = { AGENT: 'agent', HUMAN: 'human' } as const;
+export type CallExecutionType = (typeof CallExecutionType)[keyof typeof CallExecutionType];
 
 /** Dial / session failure classification for queue retry policy. */
 export const CallFailureCode = {

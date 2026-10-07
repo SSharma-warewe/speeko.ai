@@ -65,6 +65,11 @@ describe('CallsService', () => {
   });
 
   describe('cancel / retry / prioritize', () => {
+    it('rejects AI retry for a failed human call without writing it', async () => {
+      callsRepository.findByIdAndOrganization.mockResolvedValue(makeCall({ executionType: 'human', status: CallStatus.FAILED }));
+      await expect(calls.retryNowForOrg(ORG_ID, CALL_ID)).rejects.toBeInstanceOf(BadRequestException);
+      expect(callsRepository.updateIfStatus).not.toHaveBeenCalled();
+    });
     it('25. cancel pending succeeds and marks batch', async () => {
       const call = makeCall({
         id: CALL_ID,

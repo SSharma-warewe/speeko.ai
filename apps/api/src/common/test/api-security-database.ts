@@ -20,7 +20,7 @@ export function assertSecurityDatabaseUrl(url: string) {
 }
 
 export async function securityDatabase(
-  schema: 'auth_security_test' | 'call_capability_test' | 'queue_admission_test',
+  schema: 'auth_security_test' | 'call_capability_test' | 'queue_admission_test' | 'human_call_test',
 ) {
   assertSecurityDatabaseUrl(securityDatabaseUrl!);
   const root = resolve(process.cwd(), 'apps/api/src');

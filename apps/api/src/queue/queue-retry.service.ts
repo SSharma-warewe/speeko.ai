@@ -33,6 +33,7 @@ export class QueueRetryService {
     now?: Date;
   }): RetryDecision {
     const { call, settings, failureCode } = input;
+    if (call.executionType === 'human') return { action: 'fail', failureCode };
     const now = input.now ?? new Date();
 
     if (failureCode === CallFailureCode.CANCELLED) {

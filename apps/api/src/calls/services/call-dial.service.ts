@@ -235,14 +235,16 @@ export class CallDialService {
         context: prepared.context ?? null,
         voiceTaskSnapshot,
         taskKey: voiceTaskSnapshot ? `custom_${voiceTaskSnapshot.taskId}` : taskKey,
-        attemptCount: 1,
-        dialStartedAt: new Date(),
+        attemptCount: 0,
+        dialStartedAt: null,
       }),
     );
     initializeCallStatus(call, CallLifecycleEvent.START_IMMEDIATE);
     call = await this.callsRepository.save(call);
 
     try {
+      await this.queueSettingsService.getOrCreate(dto.organizationId);
+      call = await this.queueAdmission.admitImmediate(dto.organizationId, call.id);
       call = await this.executeSipDial({
         call,
         orgAgent,

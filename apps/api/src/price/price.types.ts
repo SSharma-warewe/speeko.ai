@@ -17,6 +17,8 @@ export type {
 };
 
 export type PriceAttemptInput = {
+  executionType?: 'agent' | 'human';
+  browserJoinedAt?: Date | string | null;
   attempt: number;
   medium: string;
   usage?: { models?: unknown[]; modelUsage?: unknown[]; [key: string]: unknown } | null;

@@ -27,6 +27,15 @@ import {
 } from './helpers/calls-mocks';
 
 describe('CallWorkerService', () => {
+  it('rejects human worker completion before transcript, task, or cost writes', async () => {
+    const h = createCallsHarness();
+    const call = h.makeCall({ executionType: 'human', status: CallStatus.READY, taskStatus: CallTaskStatus.NOT_APPLICABLE });
+    h.callsRepository.findById.mockResolvedValue(call);
+    await expect(h.worker.completeFromWorker(CALL_ID, { status: 'completed', taskCompleted: true, transcript: [{ role: 'assistant', content: 'unexpected' }] })).rejects.toBeInstanceOf(BadRequestException);
+    expect(h.callsRepository.save).not.toHaveBeenCalled();
+    expect(h.priceService.fillCostIfMissing).not.toHaveBeenCalled();
+    expect(call.taskStatus).toBe(CallTaskStatus.NOT_APPLICABLE);
+  });
   let callsRepository: ReturnType<typeof createCallsHarness>['callsRepository'];
   let agentsService: ReturnType<typeof createCallsHarness>['agentsService'];
   let organizationAgentsService: ReturnType<typeof createCallsHarness>['organizationAgentsService'];

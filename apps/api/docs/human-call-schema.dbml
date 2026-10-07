@@ -1,0 +1,43 @@
+// Additive schema delta for canonical Erflow synchronization.
+// Read the canonical DBML before applying; existing tables below are references,
+// not replacement definitions. Erflow synchronization is outstanding and was
+// explicitly deferred for this change by the user on 2026-10-07 ("leave er flow").
+// Existing calls: ADD execution_type varchar(20) NOT NULL DEFAULT 'agent'.
+// Existing calls.task_status additionally accepts 'not_applicable' (varchar).
+
+Table human_call_sessions {
+  id uuid [pk]
+  call_id uuid [not null, unique, ref: > calls.id]
+  organization_id uuid [not null, ref: > organizations.id]
+  user_id uuid [ref: > users.id]
+  caller_name varchar(255) [not null]
+  crm_integration_id uuid [ref: > organization_integrations.id]
+  crm_contact_id varchar(100) [not null]
+  contact_name varchar(255) [not null]
+  contact_phone varchar(32) [not null]
+  request_id uuid [not null]
+  selection jsonb [not null]
+  browser_identity varchar(100) [not null]
+  sip_identity varchar(100) [not null]
+  phase varchar(30) [not null, default: 'preparing']
+  join_deadline timestamptz [not null]
+  room_ready_at timestamptz
+  dial_attempted_at timestamptz
+  dial_settled_at timestamptz
+  browser_joined_at timestamptz
+  browser_missing_since timestamptz
+  end_reason varchar(100)
+  terminal_status varchar(30)
+  lease_token uuid
+  lease_until timestamptz
+  next_check_at timestamptz [not null, default: `CURRENT_TIMESTAMP`]
+  cleanup_started_at timestamptz
+  finished_at timestamptz
+  indexes {
+    (organization_id, request_id) [unique, name: 'uq_human_call_request']
+    next_check_at [name: 'idx_human_call_due']
+  }
+}
+// Partial unique index uq_human_call_active_user ON user_id WHERE finished_at IS NULL.
+// call_id/organization_id FKs: ON DELETE CASCADE.
+// user_id/crm_integration_id FKs: ON DELETE SET NULL (snapshots remain).

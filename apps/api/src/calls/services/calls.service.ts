@@ -63,6 +63,7 @@ export class CallsService {
     callId: string,
   ): Promise<CallResponseDto> {
     const call = await this.requireOrgCall(organizationId, callId);
+    if (call.executionType === 'human') throw new BadRequestException('Start a new human call instead of retrying an AI job');
 
     if (call.status === CallStatus.PENDING) {
       call.nextAttemptAt = new Date();

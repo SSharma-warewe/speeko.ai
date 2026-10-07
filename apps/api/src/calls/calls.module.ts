@@ -18,11 +18,17 @@ import { CallWebTestService } from './services/call-web-test.service';
 import { CallWorkerService } from './services/call-worker.service';
 import { CallsService } from './services/calls.service';
 import { UserCallsController } from './user-calls.controller';
+import { HumanCallSession } from './human-call-session.entity';
+import { HumanCallSessionsRepository } from './human-call-sessions.repository';
+import { HumanCallsService } from './services/human-calls.service';
+import { UserHumanCallsController } from './user-human-calls.controller';
+import { CrmModule } from '../crm/crm.module';
 
 @Module({
   imports: [
     VoiceTasksModule,
-    TypeOrmModule.forFeature([Call]),
+    TypeOrmModule.forFeature([Call, HumanCallSession]),
+    CrmModule,
     forwardRef(() => AgentsModule),
     ToolsModule,
     LivekitModule,
@@ -30,8 +36,10 @@ import { UserCallsController } from './user-calls.controller';
     PriceModule,
     forwardRef(() => QueueModule),
   ],
-  controllers: [CallsController, UserCallsController, InternalCallsController, UserVoiceTaskTestsController, AdminVoiceTaskTestsController, OrganizationVoiceTaskTestsController],
+  controllers: [UserHumanCallsController, CallsController, UserCallsController, InternalCallsController, UserVoiceTaskTestsController, AdminVoiceTaskTestsController, OrganizationVoiceTaskTestsController],
   providers: [
+    HumanCallSessionsRepository,
+    HumanCallsService,
     CallsRepository,
     CallsService,
     CallWebTestService,

@@ -1,0 +1,290 @@
+import { randomUUID } from 'node:crypto';
+import { DataSource } from 'typeorm';
+import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  securityDatabase,
+  securityDatabaseUrl,
+} from '../../common/test/api-security-database';
+import { Organization } from '../../organizations/organization.entity';
+import { User } from '../../users/user.entity';
+import { Call } from '../call.entity';
+import { HumanCallSession } from '../human-call-session.entity';
+import { HumanCallSessionsRepository } from '../human-call-sessions.repository';
+import { QueueAdmissionRepository } from '../../queue/queue-admission.repository';
+import { OrganizationQueueSettings } from '../../queue/organization-queue-settings.entity';
+import { QueueAdmission } from '../../queue/queue-admission.entity';
+import { newCallRow } from '../lib/call-row';
+
+jest.setTimeout(30000);
+(securityDatabaseUrl ? describe : describe.skip)(
+  'Human calls on isolated PostgreSQL',
+  () => {
+    let db: DataSource,
+      replica: DataSource,
+      sessions: HumanCallSessionsRepository,
+      other: HumanCallSessionsRepository;
+    let admission: QueueAdmissionRepository,
+      secondAdmission: QueueAdmissionRepository;
+    const orgId = randomUUID(),
+      userId = randomUUID();
+    const actor = {
+      id: userId,
+      orgId,
+      typ: 'user' as const,
+      name: 'Caller',
+      email: 'caller@example.com',
+      role: 'agent',
+    };
+    const request = () => ({
+      crmIntegrationId: randomUUID(),
+      crmContactId: 'contact',
+      sipTrunkId: randomUUID(),
+      requestId: randomUUID(),
+    });
+    beforeAll(async () => {
+      const fixture = await securityDatabase('human_call_test');
+      db = fixture.db;
+      replica = await fixture.connect();
+      sessions = new HumanCallSessionsRepository(db);
+      other = new HumanCallSessionsRepository(replica);
+      admission = new QueueAdmissionRepository(db);
+      secondAdmission = new QueueAdmissionRepository(replica);
+    });
+    afterAll(async () => {
+      await replica?.destroy();
+      await db?.destroy();
+    });
+    beforeEach(async () => {
+      await db.query('TRUNCATE human_call_test.organizations CASCADE');
+      await db.getRepository(Organization).save({
+        id: orgId,
+        name: 'Human tests',
+        slug: 'human-tests',
+        isActive: true,
+      });
+      await db.getRepository(User).save({
+        id: userId,
+        organizationId: orgId,
+        email: actor.email,
+        isActive: true,
+      });
+      await db.getRepository(OrganizationQueueSettings).save({
+        organizationId: orgId,
+        maxConcurrent: 1,
+        maxDialsPerMinute: 20,
+      });
+    });
+    const newHumanCall = () =>
+      db.getRepository(Call).create(
+        newCallRow({
+          executionType: 'human',
+          organizationId: orgId,
+          direction: 'outbound',
+          medium: 'sip',
+          taskStatus: 'not_applicable',
+            toNumber: '+919123456789',
+        }),
+      );
+    // Creation uses a real FK; connection/provider ownership is tested by CRM's own suites.
+    async function create(repository = sessions, input = request()) {
+      const result = await repository.create(
+        actor,
+        input,
+        newHumanCall(),
+        'Contact',
+      );
+      return result;
+    }
+    it('serializes concurrent starts for the same user across replicas', async () => {
+      // Use nullable CRM FK because this test exercises session transactions independently of provider fixtures.
+      const original = request();
+      const callA = newHumanCall(),
+        callB = newHumanCall();
+      // Fixture an active CRM connection to satisfy the persisted reference.
+      await seedConnection(original.crmIntegrationId);
+      const results = await Promise.allSettled([
+        sessions.create(actor, original, callA, 'Contact'),
+        other.create(
+          actor,
+          { ...original, requestId: randomUUID() },
+          callB,
+          'Contact',
+        ),
+      ]);
+      expect(results.filter((row) => row.status === 'fulfilled')).toHaveLength(
+        1,
+      );
+      expect(
+        (
+          results.find(
+            (row) => row.status === 'rejected',
+          ) as PromiseRejectedResult
+        ).reason,
+      ).toBeInstanceOf(ConflictException);
+      expect(await db.getRepository(Call).count()).toBe(1);
+    });
+    async function seedConnection(id: string) {
+      // Dynamically import the owner entity; no real credentials are used.
+      const { OrganizationIntegration } =
+        await import('../../organization-integrations/organization-integration.entity');
+      await db.getRepository(OrganizationIntegration).save({
+        id,
+        organizationId: orgId,
+        provider: 'ghl_crm',
+        name: 'Test CRM',
+        apiKey: 'test-placeholder',
+        apiKeyPrefix: 'test',
+        locationId: 'test-location',
+        isActive: true,
+      });
+    }
+    it('replays request IDs without a second call and fences join/end ownership', async () => {
+      const input = request();
+      await seedConnection(input.crmIntegrationId);
+      const first = await create(sessions, input);
+      const replay = await create(other, input);
+      expect(replay.created).toBe(false);
+      expect(replay.session.callId).toBe(first.session.callId);
+      await expect(
+        other.owned(first.session.callId, { ...actor, id: randomUUID() }),
+      ).rejects.toThrow(NotFoundException);
+      await expect(
+        other.owned(first.session.callId, { ...actor, orgId: randomUUID() }),
+      ).rejects.toThrow(NotFoundException);
+    });
+    it('leases each due session to only one replica and rejects stale updates', async () => {
+      const input = request();
+      await seedConnection(input.crmIntegrationId);
+      const { session } = await create(sessions, input);
+      await db
+        .getRepository(HumanCallSession)
+        .update(session.id, { leaseUntil: null, leaseToken: null });
+      const [a, b] = await Promise.all([sessions.claimDue(), other.claimDue()]);
+      expect(a.length + b.length).toBe(1);
+      expect(
+        await sessions.mutate(session.id, randomUUID(), (current) => {
+          current.phase = 'ending';
+        }),
+      ).toBeNull();
+    });
+    it('returns a typed conflict when different users race on the same request ID', async () => {
+      const input = request();
+      await seedConnection(input.crmIntegrationId);
+      const secondUser = await db.getRepository(User).save({
+        id: randomUUID(),
+        organizationId: orgId,
+        email: 'second@example.com',
+        isActive: true,
+      });
+      const results = await Promise.allSettled([
+        sessions.create(actor, input, newHumanCall(), 'Contact'),
+        other.create(
+          { ...actor, id: secondUser.id },
+          input,
+          newHumanCall(),
+          'Contact',
+        ),
+      ]);
+      expect(results.filter((row) => row.status === 'fulfilled')).toHaveLength(
+        1,
+      );
+      expect(
+        (
+          results.find(
+            (row) => row.status === 'rejected',
+          ) as PromiseRejectedResult
+        ).reason,
+      ).toBeInstanceOf(ConflictException);
+      expect(await db.getRepository(Call).count()).toBe(1);
+    });
+    it('preserves caller and contact snapshots after user and connection deletion', async () => {
+      const input = request();
+      await seedConnection(input.crmIntegrationId);
+      const { session } = await create(sessions, input);
+      await db.getRepository(User).delete(userId);
+      const { OrganizationIntegration } =
+        await import('../../organization-integrations/organization-integration.entity');
+      await db
+        .getRepository(OrganizationIntegration)
+        .delete(input.crmIntegrationId);
+      const historical = (await sessions.find(session.id))!;
+      expect(historical.userId).toBeNull();
+      expect(historical.crmIntegrationId).toBeNull();
+      expect(historical.callerName).toBe(actor.name);
+      expect(historical.contactName).toBe('Contact');
+      expect(historical.contactPhone).toBe('+919123456789');
+      expect(await sessions.actorActive(historical)).toBe(false);
+    });
+    it('counts an immediate AI dial once after downstream call updates', async () => {
+      const ai = await db.getRepository(Call).save(newHumanCall());
+      await db.getRepository(Call).update(ai.id, { executionType: 'agent' });
+      const admitted = await admission.admitImmediate(orgId, ai.id);
+      admitted.startedAt = new Date();
+      admitted.livekitDispatchId = 'dispatch';
+      await db.getRepository(Call).save(admitted);
+      expect(await admission.countRateUsage(orgId)).toBe(1);
+    });
+    it('manual and immediate AI admission contend for one shared slot without counting a prepared session', async () => {
+      const input = request();
+      await seedConnection(input.crmIntegrationId);
+      const { session } = await create(sessions, input);
+      await db
+        .getRepository(HumanCallSession)
+        .update(session.id, { phase: 'waiting_for_user' });
+      const ai = await db.getRepository(Call).save(
+        db.getRepository(Call).create(
+          newCallRow({
+            organizationId: orgId,
+            direction: 'outbound',
+            medium: 'sip',
+          }),
+        ),
+      );
+      const results = await Promise.allSettled([
+        admission.admitImmediate(orgId, session.callId, {
+          sessionId: session.id,
+          leaseToken: session.leaseToken!,
+        }),
+        secondAdmission.admitImmediate(orgId, ai.id),
+      ]);
+      expect(results.filter((row) => row.status === 'fulfilled')).toHaveLength(
+        1,
+      );
+      expect(await db.getRepository(QueueAdmission).count()).toBe(1);
+      expect(await admission.countRateUsage(orgId)).toBe(1);
+    });
+    it('pause and rolling rate limits block manual admission without an external-write marker', async () => {
+      const input = request();
+      await seedConnection(input.crmIntegrationId);
+      const { session } = await create(sessions, input);
+      await db
+        .getRepository(HumanCallSession)
+        .update(session.id, { phase: 'waiting_for_user' });
+      await db
+        .getRepository(OrganizationQueueSettings)
+        .update({ organizationId: orgId }, { paused: true });
+      await expect(
+        admission.admitImmediate(orgId, session.callId, {
+          sessionId: session.id,
+          leaseToken: session.leaseToken!,
+        }),
+      ).rejects.toThrow(ConflictException);
+      expect((await sessions.find(session.id))?.dialAttemptedAt).toBeNull();
+      await db
+        .getRepository(OrganizationQueueSettings)
+        .update(
+          { organizationId: orgId },
+          { paused: false, maxDialsPerMinute: 1 },
+        );
+      await db
+        .getRepository(QueueAdmission)
+        .save({ organizationId: orgId, admittedAt: new Date() });
+      await expect(
+        admission.admitImmediate(orgId, session.callId, {
+          sessionId: session.id,
+          leaseToken: session.leaseToken!,
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
+  },
+);

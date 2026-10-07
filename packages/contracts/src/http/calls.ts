@@ -10,6 +10,8 @@ import type { CallCostSnapshot } from '../price.js';
 import type { ToolEvent } from '../worker-callback.js';
 
 export type CallRecord = {
+  executionType?: import('../call.js').CallExecutionType;
+  humanCall?: import('./human-calls.js').HumanCallSummary | null;
   id: string;
   organizationId: string | null;
   organizationAgentId: string | null;

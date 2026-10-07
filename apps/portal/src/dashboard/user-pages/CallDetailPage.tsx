@@ -57,7 +57,7 @@ export default function UserCallDetailPage() {
   if (error || !data) return <ErrorBlock message={error ?? "Failed to load"} onRetry={reload} />;
 
   const pending = data.status === "pending";
-  const canRetry = pending || data.status === "failed";
+  const canRetry = data.executionType !== 'human' && (pending || data.status === "failed");
 
   return (
     <CallDetailView

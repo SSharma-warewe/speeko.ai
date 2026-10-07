@@ -6,6 +6,7 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
+  OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -19,6 +20,7 @@ import {
   DEFAULT_RETRY_ON,
 } from '@call-agent/contracts';
 import type { CallTranscriptItem } from '@call-agent/contracts';
+import type { HumanCallSession } from './human-call-session.entity';
 import { Agent, AgentDirection } from '../agents/agent.entity';
 import { OrganizationAgent } from '../agents/organization-agent.entity';
 import { Organization } from '../organizations/organization.entity';
@@ -50,6 +52,11 @@ export type CallUsageSnapshot = {
 @Index('idx_calls_org_status_next', ['organizationId', 'status', 'nextAttemptAt'])
 @Index('idx_calls_dial_started_at', ['dialStartedAt'])
 export class Call {
+  @Column({ name: 'execution_type', type: 'varchar', length: 20, default: 'agent' })
+  executionType!: 'agent' | 'human';
+
+  @OneToOne('HumanCallSession', 'call')
+  humanSession?: HumanCallSession;
   @Column({ name: 'voice_task_snapshot', type: 'jsonb', nullable: true })
   voiceTaskSnapshot!: VoiceTaskSnapshot | null;
 

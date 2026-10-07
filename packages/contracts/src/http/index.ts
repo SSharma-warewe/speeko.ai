@@ -116,3 +116,4 @@ export type {
 } from './whatsapp-agent.js';
 
 export * from './whatsapp-conversations.js';
+export * from './human-calls.js';

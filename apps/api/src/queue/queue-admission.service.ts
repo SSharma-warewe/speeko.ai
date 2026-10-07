@@ -18,6 +18,9 @@ export class QueueAdmissionService {
   beginDial(admissionId: string) {
     return this.repository.beginDial(admissionId, this.leaseSeconds());
   }
+  admitImmediate(organizationId: string, callId: string, human?: { sessionId: string; leaseToken: string }) {
+    return this.repository.admitImmediate(organizationId, callId, human);
+  }
 
   @Interval(60000)
   async prune(): Promise<void> {

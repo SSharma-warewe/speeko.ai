@@ -64,30 +64,10 @@ describe('QueueClaimService', () => {
   }
 
   it('1. countInProgress queries creating/dialing/ready for org', async () => {
-    callRepo.count.mockResolvedValue(2);
+    dataSource.query.mockResolvedValue([{ count: 2 }]);
     await expect(service.countInProgress(ORG_ID)).resolves.toBe(2);
-    expect(callRepo.count).toHaveBeenCalledWith({
-      where: [
-        {
-          organizationId: ORG_ID,
-          direction: AgentDirection.OUTBOUND,
-          medium: CallMedium.SIP,
-          status: CallStatus.CREATING,
-        },
-        {
-          organizationId: ORG_ID,
-          direction: AgentDirection.OUTBOUND,
-          medium: CallMedium.SIP,
-          status: CallStatus.DIALING,
-        },
-        {
-          organizationId: ORG_ID,
-          direction: AgentDirection.OUTBOUND,
-          medium: CallMedium.SIP,
-          status: CallStatus.READY,
-        },
-      ],
-    });
+    expect(dataSource.query).toHaveBeenCalledWith(expect.stringContaining("status IN ('dialing','ready')"), [ORG_ID]);
+    expect(dataSource.query.mock.calls[0][0]).toContain("execution_type = 'agent' AND queue_locked_at IS NOT NULL");
   });
 
   it('counts committed admission rate usage through the shared repository', async () => {

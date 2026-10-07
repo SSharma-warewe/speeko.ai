@@ -221,6 +221,7 @@ export class QueueStatsService {
       FROM calls
       WHERE organization_id = $1
         AND created_at >= ((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date - ($6::int - 1))
+        AND execution_type = 'agent'
       GROUP BY 1
       ORDER BY 1
       `,

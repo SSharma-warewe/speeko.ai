@@ -364,7 +364,7 @@ export default function UserCallsPage() {
                     const busy = busyId === c.id;
                     const canCancel = c.status === "pending";
                     const canRetry =
-                      c.status === "pending" || c.status === "failed";
+                      c.executionType !== 'human' && (c.status === "pending" || c.status === "failed");
                     const canPrioritize = c.status === "pending";
                     const party = isInbound
                       ? c.fromNumber || c.participantIdentity || "—"
@@ -379,7 +379,7 @@ export default function UserCallsPage() {
                           <Link to={`/dashboard/calls/${c.id}`} className="ops-calls-party">
                             <span className="ops-calls-party-num ops-mono">{party}</span>
                             <span className="ops-calls-party-meta">
-                              <span className="ops-mono">{c.medium}</span>
+                              <span className="ops-mono">{c.executionType === 'human' ? 'Human call' : c.medium}</span>
                               <span className="ops-mono">{shortId(c.id, 8)}</span>
                             </span>
                           </Link>

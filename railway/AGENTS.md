@@ -23,6 +23,10 @@ Scope: `railway` configs; root Dockerfiles and deployment work must also consult
 
 ## Verification
 
+Human CRM calling adds API-only HUMAN_CRM_CALLS_ENABLED (default false); it is not a Vite input. Deploy API/schema and portal, complete isolated transaction tests, then run an authorized live Meet/SIP acceptance call before enabling it. Immediate AI admission enforcement applies regardless of this flag. For rollback disable new human sessions but keep the compatible supervisor/API until active sessions and cleanup complete; retain schema/history. Monitor HumanCallsService observation failures and cleanup-overdue errors. No voice/WhatsApp worker runtime deployment is needed solely for human calling. Canonical Erflow synchronization for this change is outstanding and was explicitly deferred by the user on 2026-10-07; future changes still require synchronization.
+
+For the 2026-10-07 human-call rollout, the user explicitly authorized GitHub publication, Railway redeployment, and enabling the feature before live acceptance; the user will perform the deployed Meet/SIP test. This is a rollout-specific exception to the acceptance-before-enable sequence. Keep acceptance unverified until the user reports its result.
+
 - Check Docker build context, copied packages, script names, entrypoints, runtime/build env ownership, bind addresses, ports, health checks, and selected service/config.
 - After an authorized deploy, verify terminal deployment status, API Swagger, affected SPA deep links/HTML, voice registration plus sidecar health, or WhatsApp readiness/protocol as applicable. Upload completion alone is not rollout success.
 - Documentation-only changes need link/command/config review, not production deploys or service restarts.

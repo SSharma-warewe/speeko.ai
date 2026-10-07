@@ -59,7 +59,7 @@ export default function CallsListPage() {
                       <td>
                         <CallOutcomeBadge call={c} />
                       </td>
-                      <td className="ops-mono">{c.medium}</td>
+                      <td className="ops-mono">{c.executionType === 'human' ? 'Human call' : c.medium}</td>
                       <td>
                         <StatusBadge status={c.direction} />
                       </td>

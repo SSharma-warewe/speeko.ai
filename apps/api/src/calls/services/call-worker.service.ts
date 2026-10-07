@@ -137,6 +137,8 @@ export class CallWorkerService {
       throw new NotFoundException(`Call not found: ${id}`);
     }
 
+    if (call.executionType === 'human') throw new BadRequestException('Human calls do not accept worker completion');
+
     if (isTerminalCallStatus(call.status)) {
       if (dto.transcript && !call.transcript) {
         call.transcript = dto.transcript as CallTranscriptItem[];

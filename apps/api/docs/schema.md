@@ -18,6 +18,10 @@ Detailed instructions and reference material now live directly in the [owning AG
 
 [Read this section in AGENTS.md](../AGENTS.md#schema-current).
 
+### Human CRM call additions
+
+[Current behavior and schema workflow](../AGENTS.md#human-crm-calling); [additive Erflow schema delta](human-call-schema.dbml). Canonical synchronization is outstanding and was explicitly deferred for this change by the user on 2026-10-07.
+
 ### WhatsApp harness schema
 
 [Read this section in AGENTS.md](../AGENTS.md#whatsapp-harness-schema).

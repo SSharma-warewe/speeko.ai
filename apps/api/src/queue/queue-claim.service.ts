@@ -17,28 +17,10 @@ export class QueueClaimService {
   ) {}
 
   async countInProgress(organizationId: string): Promise<number> {
-    return this.callRepo.count({
-      where: [
-        {
-          organizationId,
-          direction: AgentDirection.OUTBOUND,
-          medium: CallMedium.SIP,
-          status: CallStatus.CREATING,
-        },
-        {
-          organizationId,
-          direction: AgentDirection.OUTBOUND,
-          medium: CallMedium.SIP,
-          status: CallStatus.DIALING,
-        },
-        {
-          organizationId,
-          direction: AgentDirection.OUTBOUND,
-          medium: CallMedium.SIP,
-          status: CallStatus.READY,
-        },
-      ],
-    });
+    const [row] = await this.dataSource.query(`SELECT COUNT(*)::int AS count FROM calls
+      WHERE organization_id = $1 AND direction = 'outbound' AND medium = 'sip'
+      AND (status IN ('dialing','ready') OR (status = 'creating' AND execution_type = 'agent' AND queue_locked_at IS NOT NULL))`, [organizationId]);
+    return row.count;
   }
 
   countDialsLastMinute(organizationId: string): Promise<number> {
@@ -68,7 +50,7 @@ export class QueueClaimService {
       `
       SELECT id
       FROM calls
-      WHERE (
+      WHERE execution_type = 'agent' AND ((
         status = $1
         AND COALESCE(dial_started_at, started_at, updated_at)
             < NOW() - make_interval(secs => $2)
@@ -77,7 +59,7 @@ export class QueueClaimService {
         AND COALESCE(answered_at, dial_started_at, started_at, updated_at)
             < NOW() - make_interval(secs => $4)
       )
-      ORDER BY updated_at ASC
+      ) ORDER BY updated_at ASC
       LIMIT $5
       `,
       [

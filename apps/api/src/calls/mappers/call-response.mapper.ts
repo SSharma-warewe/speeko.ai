@@ -6,6 +6,16 @@ export function toCallResponse(
   options: { includeCost?: boolean } = {},
 ): CallResponseDto {
   const dto: CallResponseDto = {
+    executionType: call.executionType ?? 'agent',
+    humanCall: call.humanSession ? {
+      callerName: call.humanSession.callerName,
+      contactName: call.humanSession.contactName,
+      crmIntegrationId: call.humanSession.crmIntegrationId,
+      crmContactId: call.humanSession.crmContactId,
+      phase: call.humanSession.phase,
+      joinDeadline: call.humanSession.joinDeadline.toISOString(),
+      endReason: call.humanSession.endReason,
+    } : null,
     id: call.id,
     organizationId: call.organizationId,
     organizationAgentId: call.organizationAgentId,
@@ -60,6 +70,7 @@ export function resolveTaskStatus(
   call: Pick<Call, 'status' | 'taskStatus'>,
 ): CallTaskStatus {
   if (
+    call.taskStatus === CallTaskStatus.NOT_APPLICABLE ||
     call.taskStatus === CallTaskStatus.COMPLETED ||
     call.taskStatus === CallTaskStatus.INCOMPLETE
   ) {

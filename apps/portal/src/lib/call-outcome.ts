@@ -3,6 +3,7 @@ import { CallFailureCode, CallStatus } from "@call-agent/contracts";
 export type CallOutcomeTone = "success" | "warn" | "danger" | "info" | "neutral";
 
 export type CallOutcomeSource = {
+  executionType?: string;
   status: string;
   lastFailureCode?: string | null;
   taskResult?: Record<string, unknown> | null;
@@ -52,6 +53,7 @@ const WORKFLOW_OUTCOMES: Record<string, CallDisplayOutcome> = {
  */
 export function callDisplayOutcome(call: CallOutcomeSource): CallDisplayOutcome {
   const status = call.status.trim().toLowerCase();
+  if (call.executionType === 'human' && status === CallStatus.COMPLETED) return { label: 'Call ended', tone: 'neutral' };
 
   if (status === CallStatus.PENDING) return { label: "Queued", tone: "warn" };
   if (status === CallStatus.CREATING) return { label: "Connecting", tone: "info" };

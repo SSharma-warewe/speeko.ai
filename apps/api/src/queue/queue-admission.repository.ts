@@ -1,4 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
+import { applyCallEvent, CallLifecycleEvent } from '../calls/lib/call-state-machine';
+import { HumanCallSession } from '../calls/human-call-session.entity';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
@@ -55,6 +57,7 @@ export class QueueAdmissionRepository {
         error_message = COALESCE(error_message, 'Stale claim reclaimed'), updated_at = $2
         WHERE organization_id = $1 AND direction = 'outbound' AND medium = 'sip'
           AND status = 'creating' AND queue_locked_at IS NOT NULL
+          AND execution_type = 'agent'
           AND queue_locked_at <= $2::timestamptz - make_interval(secs => $3)`,
         [organizationId, now, leaseSeconds],
       );
@@ -74,7 +77,7 @@ export class QueueAdmissionRepository {
       const [usage] = await manager.query(
         `SELECT COUNT(*)::int AS count FROM calls
         WHERE organization_id = $1 AND direction = 'outbound' AND medium = 'sip'
-          AND status IN ('creating', 'dialing', 'ready')`,
+          AND (status IN ('dialing', 'ready') OR (status = 'creating' AND execution_type = 'agent' AND queue_locked_at IS NOT NULL))`,
         [organizationId],
       );
       const [rate] = await manager.query(QUEUE_RATE_USAGE_SQL, [
@@ -135,6 +138,7 @@ export class QueueAdmissionRepository {
         const [candidate] = await manager.query(
           `SELECT c.id, c.batch_id FROM calls c
           WHERE c.organization_id = $1 AND c.direction = 'outbound' AND c.medium = 'sip'
+            AND c.execution_type = 'agent'
             AND c.status = 'pending' AND c.next_attempt_at IS NOT NULL AND c.next_attempt_at <= $2
             AND c.attempt_count < c.max_attempts
             AND (c.batch_id IS NULL OR c.batch_id = ANY($3::uuid[]))
@@ -190,7 +194,7 @@ export class QueueAdmissionRepository {
         .update(Call)
         .set({ status: CallStatus.DIALING, queueLockedAt: null })
         .where(
-          `id = :callId AND status = 'creating' AND direction = 'outbound' AND medium = 'sip'
+          `id = :callId AND execution_type = 'agent' AND status = 'creating' AND direction = 'outbound' AND medium = 'sip'
           AND EXISTS (SELECT 1 FROM queue_admissions a WHERE a.id = :admissionId
             AND a.call_id = calls.id AND a.organization_id = calls.organization_id
             AND a.admitted_at = calls.queue_locked_at
@@ -213,6 +217,36 @@ export class QueueAdmissionRepository {
       now,
     ]);
     return Number(row.count);
+  }
+
+  /** Immediate AI and human starts serialize with queued admission on settings. */
+  async admitImmediate(organizationId: string, callId: string, human?: { sessionId: string; leaseToken: string }): Promise<Call> {
+    return this.db.transaction('READ COMMITTED', async manager => {
+      const settings = await manager.findOne(OrganizationQueueSettings, { where: { organizationId }, lock: { mode: 'pessimistic_write' } });
+      const org = await manager.findOneBy(Organization, { id: organizationId });
+      const [{ now }] = await manager.query('SELECT clock_timestamp()::text AS now');
+      if (!org?.isActive || !settings?.enabled || settings.paused || quietHoursState(new Date(now), settings) !== 'open') {
+        throw new ConflictException('Outbound calling is disabled, paused, or outside allowed hours');
+      }
+      const call = await manager.findOne(Call, { where: { id: callId, organizationId }, lock: { mode: 'pessimistic_write' } });
+      if (!call || call.status !== CallStatus.CREATING || call.direction !== 'outbound' || call.medium !== 'sip') throw new ConflictException('Call is no longer ready for admission');
+      let session: HumanCallSession | null = null;
+      if (human) {
+        session = await manager.findOne(HumanCallSession, { where: { id: human.sessionId, callId }, lock: { mode: 'pessimistic_write' } });
+        if (!session || session.phase !== 'waiting_for_user' || session.leaseToken !== human.leaseToken || !session.leaseUntil || session.leaseUntil <= new Date(now) || session.dialAttemptedAt) throw new ConflictException('Human call is no longer ready to dial');
+      } else if (call.executionType === 'human') throw new ConflictException('Human call requires a supervisor lease');
+      const [usage] = await manager.query(`SELECT COUNT(*)::int AS count FROM calls WHERE organization_id = $1 AND direction = 'outbound' AND medium = 'sip'
+        AND id <> $2 AND (status IN ('dialing','ready') OR (status = 'creating' AND execution_type = 'agent' AND queue_locked_at IS NOT NULL))`, [organizationId, callId]);
+      const [rate] = await manager.query(QUEUE_RATE_USAGE_SQL, [organizationId, now]);
+      if (usage.count >= settings.maxConcurrent || rate.count >= settings.maxDialsPerMinute) throw new ConflictException('Outbound concurrency or dial-rate limit reached');
+      applyCallEvent(call, human ? CallLifecycleEvent.HUMAN_DIAL_STARTED : CallLifecycleEvent.DISPATCH, CallStatus.DIALING);
+      await manager.update(Call, { id: call.id }, { status: call.status, taskStatus: call.taskStatus, attemptCount: 1, queueLockedAt: null });
+      // Preserve database microseconds so the rate query does not double-count.
+      await manager.query('UPDATE calls SET dial_started_at = $2::timestamptz WHERE id = $1', [call.id, now]);
+      await manager.insert(QueueAdmission, { id: randomUUID(), organizationId, callId, admittedAt: now });
+      if (session) await manager.update(HumanCallSession, { id: session.id }, { phase: 'dialing', dialAttemptedAt: now });
+      return manager.findOneByOrFail(Call, { id: callId });
+    });
   }
 
   async prune(): Promise<void> {

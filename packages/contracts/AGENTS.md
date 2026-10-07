@@ -49,6 +49,8 @@ Null voice model defaults are Gemma LLM, Inworld TTS-2, and Deepgram Nova-3 STT.
 
 Call lifecycle values are pending, creating, dialing, ready, failed, completed, incomplete, and cancelled. `taskCompleted` is explicit: a leftover `taskResult` is not completion evidence. Inbound metadata has no unique call id at publish; the worker obtains it by API upsert. Empty hook strings mean silent; null/undefined hooks select defaults.
 
+Human CRM call contracts add CallExecutionType (agent/human), CallTaskStatus.NOT_APPLICABLE, and http/human-calls.ts request/phase/summary/response types. CallRecord exposes executionType and optional humanCall history metadata. A completed human call means an answered session ended, not a workflow result. HumanCallResponse may include ephemeral meetUrl only on create/join; ActiveHumanCallResponse exposes enabled and nullable active without credentials. No worker job/callback protocol changes are required. Keep date strings and ordinary history free of join tokens, operational leases, or provider credentials.
+
 WhatsApp model is `openai/gpt-5.6-luna`; permitted GHL ids are lookupGhlContact, upsertGhlContact, checkGhlFreeSlots, scheduleGhlMeeting. Version-1 `receptionist` and `appointment_booking` tasks share `ghl_appointment_created` completion. API-persisted appointment receipts are the authority. Platform turns have `task: null`; OTP is not a model turn.
 
 ## Wire definitions

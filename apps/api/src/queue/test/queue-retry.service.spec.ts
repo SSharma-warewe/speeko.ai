@@ -57,6 +57,9 @@ describe('QueueRetryService', () => {
   }
 
   // ── decide ──────────────────────────────────────────────────────────
+  it('never automatically retries a human call even when the org retries that SIP failure', () => {
+    expect(service.decide({ call: makeCall({ executionType: 'human' }), settings: makeSettings(), failureCode: CallFailureCode.NO_ANSWER })).toEqual({ action: 'fail', failureCode: CallFailureCode.NO_ANSWER });
+  });
 
   it('1. cancelled always fails even if listed in retryOn', () => {
     const decision = service.decide({

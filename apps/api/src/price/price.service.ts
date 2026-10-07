@@ -240,6 +240,7 @@ export class PriceService {
     if (filter.callId) {
       const call = await this.dataSource.getRepository(Call).findOne({
         where: { id: filter.callId },
+        relations: { humanSession: true },
       });
       if (!call) {
         throw new NotFoundException(`Call not found: ${filter.callId}`);
@@ -264,6 +265,7 @@ export class PriceService {
     const qb = this.dataSource
       .getRepository(Call)
       .createQueryBuilder('c')
+      .leftJoinAndSelect('c.humanSession', 'humanSession')
       .where('c.created_at >= :from', { from })
       .andWhere('c.created_at < :to', { to })
       .orderBy('c.created_at', 'ASC')
@@ -302,6 +304,8 @@ export class PriceService {
 
   private inputFromCall(call: Call, krispEnabled: boolean): PriceAttemptInput {
     return {
+      executionType: call.executionType ?? 'agent',
+      browserJoinedAt: call.humanSession?.browserJoinedAt,
       attempt: Math.max(1, call.attemptCount || 1),
       medium: call.medium ?? CallMedium.WEB,
       usage: call.usage,

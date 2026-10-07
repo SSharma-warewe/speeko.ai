@@ -388,7 +388,7 @@ export default function UserOverviewPage() {
                       .toLocaleString()}
                   </strong>
                   <div>
-                    completed calls<span>Last 14 days · UTC</span>
+                    completed AI calls<span>Last 14 days · UTC</span>
                   </div>
                   <span className="overview-rate">
                     {completionRate(stats)}

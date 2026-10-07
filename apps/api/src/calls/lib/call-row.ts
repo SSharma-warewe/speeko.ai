@@ -14,6 +14,7 @@ export function newCallRow(
   partial: DeepPartial<Call> & Pick<Call, 'direction'>,
 ): DeepPartial<Call> {
   return {
+    executionType: 'agent',
     organizationId: null,
     organizationAgentId: null,
     agentId: null,
