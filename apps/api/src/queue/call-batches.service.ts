@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { CallStatus } from '../calls/call.entity';
@@ -70,65 +66,27 @@ export class CallBatchesService {
     organizationId: string,
     batchId: string,
   ): Promise<CallBatchResponseDto> {
-    const batch = await this.requireForOrg(organizationId, batchId);
-    this.assertBatchMutable(batch, 'pause');
-    batch.status = CallBatchStatus.PAUSED;
-    batch.pausedAt = new Date();
-    const saved = await this.repo.save(batch);
-    return toCallBatchResponse(saved);
+    return toCallBatchResponse(
+      await this.repo.transition(organizationId, batchId, 'pause'),
+    );
   }
 
   async resume(
     organizationId: string,
     batchId: string,
   ): Promise<CallBatchResponseDto> {
-    const batch = await this.requireForOrg(organizationId, batchId);
-    this.assertBatchMutable(batch, 'resume');
-    batch.status = CallBatchStatus.RUNNING;
-    batch.pausedAt = null;
-    const saved = await this.repo.save(batch);
-    return toCallBatchResponse(saved);
+    return toCallBatchResponse(
+      await this.repo.transition(organizationId, batchId, 'resume'),
+    );
   }
 
   async cancel(
     organizationId: string,
     batchId: string,
   ): Promise<CallBatchResponseDto> {
-    const batch = await this.requireForOrg(organizationId, batchId);
-    if (batch.status === CallBatchStatus.CANCELLED) {
-      return toCallBatchResponse(batch);
-    }
-
-    batch.status = CallBatchStatus.CANCELLED;
-    batch.cancelledAt = new Date();
-    await this.repo.save(batch);
-
-    await this.dataSource.query(
-      `
-      UPDATE calls
-      SET
-        status = $1,
-        ended_at = NOW(),
-        next_attempt_at = NULL,
-        queue_locked_at = NULL,
-        last_failure_code = $2,
-        last_failure_at = NOW(),
-        error_message = COALESCE(error_message, 'Batch cancelled'),
-        updated_at = NOW()
-      WHERE batch_id = $3
-        AND organization_id = $4
-        AND status = $5
-      `,
-      [
-        CallStatus.CANCELLED,
-        'cancelled',
-        batchId,
-        organizationId,
-        CallStatus.PENDING,
-      ],
+    return toCallBatchResponse(
+      await this.repo.transition(organizationId, batchId, 'cancel'),
     );
-
-    return toCallBatchResponse(batch);
   }
 
   async maybeMarkCompleted(batchId: string): Promise<void> {
@@ -175,18 +133,6 @@ export class CallBatchesService {
       throw new NotFoundException(`Batch not found: ${batchId}`);
     }
     return batch;
-  }
-
-  private assertBatchMutable(
-    batch: CallBatch,
-    action: 'pause' | 'resume',
-  ): void {
-    if (batch.status === CallBatchStatus.CANCELLED) {
-      throw new BadRequestException(`Cannot ${action} a cancelled batch`);
-    }
-    if (batch.status === CallBatchStatus.COMPLETED) {
-      throw new BadRequestException(`Cannot ${action} a completed batch`);
-    }
   }
 
   async statsForBatch(batchId: string): Promise<CallBatchStatsDto> {

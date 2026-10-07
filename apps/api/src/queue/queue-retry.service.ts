@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { parseQuietTime, quietHoursState } from './quiet-hours';
 import {
   applyCallEvent,
   CallLifecycleEvent,
@@ -95,18 +96,13 @@ export class QueueRetryService {
       const tz = settings.quietHoursTimezone || 'UTC';
       const localParts = this.localTimeParts(at, tz);
       const minutes = localParts.hour * 60 + localParts.minute;
-      const start = this.parseHhMm(settings.quietHoursStart);
-      const end = this.parseHhMm(settings.quietHoursEnd);
+      const start = parseQuietTime(settings.quietHoursStart);
+      const end = parseQuietTime(settings.quietHoursEnd);
       if (start === null || end === null) {
         return at;
       }
 
-      const inQuiet =
-        start < end
-          ? minutes >= start && minutes < end
-          : minutes >= start || minutes < end; // overnight window
-
-      if (!inQuiet) {
+      if (quietHoursState(at, settings) !== 'quiet') {
         return at;
       }
 
@@ -237,15 +233,6 @@ export class QueueRetryService {
     call.endedAt = call.endedAt ?? new Date();
     call.queueLockedAt = null;
     call.nextAttemptAt = null;
-  }
-
-  private parseHhMm(value: string): number | null {
-    const m = /^(\d{2}):(\d{2})$/.exec(value.trim());
-    if (!m) return null;
-    const h = Number(m[1]);
-    const min = Number(m[2]);
-    if (h > 23 || min > 59) return null;
-    return h * 60 + min;
   }
 
   private localTimeParts(

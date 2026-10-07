@@ -11,6 +11,10 @@ export type ListCallsFilter = {
   direction?: AgentDirection;
 };
 
+export type CallControlPatch = Partial<Pick<Call, 'status' | 'endedAt' | 'nextAttemptAt' |
+  'queueLockedAt' | 'lastFailureCode' | 'lastFailureAt' | 'errorMessage' | 'priority' |
+  'maxAttempts' | 'roomName' | 'livekitDispatchId' | 'livekitSipCallId'>>;
+
 @Injectable()
 export class CallsRepository {
   constructor(
@@ -28,6 +32,14 @@ export class CallsRepository {
 
   saveMany(calls: Call[]): Promise<Call[]> {
     return this.repo.save(calls);
+  }
+
+  /** Field-only control write; a stale pending view cannot undo queue admission. */
+  async updateIfStatus(id: string, organizationId: string, status: CallStatus, patch: CallControlPatch): Promise<Call | null> {
+    return this.repo.manager.transaction(async manager => {
+      const result = await manager.update(Call, { id, organizationId, status }, patch);
+      return result.affected ? manager.findOneByOrFail(Call, { id, organizationId }) : null;
+    });
   }
 
   findById(id: string): Promise<Call | null> {

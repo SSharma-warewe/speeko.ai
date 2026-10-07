@@ -14,6 +14,8 @@ describe('OrganizationQueueSettingsService', () => {
     findByOrganizationId: jest.Mock;
     create: jest.Mock;
     save: jest.Mock;
+    insertDefaults: jest.Mock;
+    updateLocked: jest.Mock;
     findEnabledAndNotPaused: jest.Mock;
     findAll: jest.Mock;
   };
@@ -51,8 +53,10 @@ describe('OrganizationQueueSettingsService', () => {
       findByOrganizationId: jest.fn(),
       create: jest.fn((data) => ({ ...data }) as OrganizationQueueSettings),
       save: jest.fn(async (row: OrganizationQueueSettings) => ({ ...row })),
+      insertDefaults: jest.fn(async (row: OrganizationQueueSettings) => ({ ...row })),
       findEnabledAndNotPaused: jest.fn(),
       findAll: jest.fn(),
+      updateLocked: jest.fn(async (id, patch) => ({ ...await repo.findByOrganizationId(id), ...patch })),
     };
     organizationsService = {
       findById: jest.fn().mockResolvedValue({ id: ORG_ID }),
@@ -78,7 +82,7 @@ describe('OrganizationQueueSettingsService', () => {
   it('2. getOrCreate missing creates platform defaults', async () => {
     config.get.mockReturnValue(undefined);
     repo.findByOrganizationId.mockResolvedValue(null);
-    repo.save.mockImplementation(async (row) => row);
+    repo.insertDefaults.mockImplementation(async (row) => row);
 
     const result = await service.getOrCreate(ORG_ID);
     expect(organizationsService.findById).toHaveBeenCalledWith(ORG_ID);
@@ -166,7 +170,7 @@ describe('OrganizationQueueSettingsService', () => {
     expect(result.quietHoursStart).toBe('22:00');
     // Unchanged
     expect(result.maxDialsPerMinute).toBe(QUEUE_DEFAULTS.maxDialsPerMinute);
-    expect(repo.save).toHaveBeenCalled();
+    expect(repo.updateLocked).toHaveBeenCalledWith(ORG_ID, expect.objectContaining({ maxConcurrent: result.maxConcurrent }));
   });
 
   it('7. setPaused true/false', async () => {
@@ -189,5 +193,12 @@ describe('OrganizationQueueSettingsService', () => {
       NotFoundException,
     );
     expect(repo.findByOrganizationId).not.toHaveBeenCalled();
+  });
+
+  it('ignores persistence fields that are not queue-setting inputs', async () => {
+    repo.findByOrganizationId.mockResolvedValue(makeSettings());
+    await service.update(ORG_ID, { paused: true, organizationId: 'foreign-org' } as never);
+    expect(repo.updateLocked).toHaveBeenCalledWith(ORG_ID, { paused: true });
+    expect(repo.save).not.toHaveBeenCalled();
   });
 });

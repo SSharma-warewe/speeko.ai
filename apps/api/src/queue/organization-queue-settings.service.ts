@@ -1,12 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { CallFailureCode } from '../calls/call.entity';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { UpdateQueueSettingsDto } from './dto/update-queue-settings.dto';
-import {
-  OrganizationQueueSettings,
-  QueueBackoffStrategy,
-} from './organization-queue-settings.entity';
+import { OrganizationQueueSettings } from './organization-queue-settings.entity';
 import { OrganizationQueueSettingsRepository } from './organization-queue-settings.repository';
 import { QUEUE_DEFAULTS, queuePositiveInt } from './queue.defaults';
 
@@ -21,7 +17,9 @@ export class OrganizationQueueSettingsService {
   /**
    * Load settings or create with platform defaults (lazy seed).
    */
-  async getOrCreate(organizationId: string): Promise<OrganizationQueueSettings> {
+  async getOrCreate(
+    organizationId: string,
+  ): Promise<OrganizationQueueSettings> {
     await this.organizationsService.findById(organizationId);
     const existing = await this.repo.findByOrganizationId(organizationId);
     if (existing) {
@@ -64,64 +62,44 @@ export class OrganizationQueueSettingsService {
       quietHoursTimezone: QUEUE_DEFAULTS.quietHoursTimezone,
       claimBatchSize: QUEUE_DEFAULTS.claimBatchSize,
     });
-    return this.repo.save(settings);
+    return this.repo.insertDefaults(settings);
   }
 
   async update(
     organizationId: string,
     dto: UpdateQueueSettingsDto,
   ): Promise<OrganizationQueueSettings> {
-    const settings = await this.getOrCreate(organizationId);
-
-    if (dto.enabled !== undefined) settings.enabled = dto.enabled;
-    if (dto.paused !== undefined) settings.paused = dto.paused;
-    if (dto.maxConcurrent !== undefined) {
-      settings.maxConcurrent = dto.maxConcurrent;
-    }
-    if (dto.maxDialsPerMinute !== undefined) {
-      settings.maxDialsPerMinute = dto.maxDialsPerMinute;
-    }
-    if (dto.defaultMaxAttempts !== undefined) {
-      settings.defaultMaxAttempts = dto.defaultMaxAttempts;
-    }
-    if (dto.backoffStrategy !== undefined) {
-      settings.backoffStrategy = dto.backoffStrategy as QueueBackoffStrategy;
-    }
-    if (dto.backoffBaseSeconds !== undefined) {
-      settings.backoffBaseSeconds = dto.backoffBaseSeconds;
-    }
-    if (dto.backoffMaxSeconds !== undefined) {
-      settings.backoffMaxSeconds = dto.backoffMaxSeconds;
-    }
-    if (dto.retryOn !== undefined) {
-      settings.retryOn = dto.retryOn as CallFailureCode[];
-    }
-    if (dto.quietHoursEnabled !== undefined) {
-      settings.quietHoursEnabled = dto.quietHoursEnabled;
-    }
-    if (dto.quietHoursStart !== undefined) {
-      settings.quietHoursStart = dto.quietHoursStart;
-    }
-    if (dto.quietHoursEnd !== undefined) {
-      settings.quietHoursEnd = dto.quietHoursEnd;
-    }
-    if (dto.quietHoursTimezone !== undefined) {
-      settings.quietHoursTimezone = dto.quietHoursTimezone;
-    }
-    if (dto.claimBatchSize !== undefined) {
-      settings.claimBatchSize = dto.claimBatchSize;
-    }
-
-    return this.repo.save(settings);
+    await this.getOrCreate(organizationId);
+    const fields: Array<keyof UpdateQueueSettingsDto> = [
+      'enabled',
+      'paused',
+      'maxConcurrent',
+      'maxDialsPerMinute',
+      'defaultMaxAttempts',
+      'backoffStrategy',
+      'backoffBaseSeconds',
+      'backoffMaxSeconds',
+      'retryOn',
+      'quietHoursEnabled',
+      'quietHoursStart',
+      'quietHoursEnd',
+      'quietHoursTimezone',
+      'claimBatchSize',
+    ];
+    const patch = Object.fromEntries(
+      fields
+        .filter((key) => dto[key] !== undefined)
+        .map((key) => [key, dto[key]]),
+    );
+    return this.repo.updateLocked(organizationId, patch);
   }
 
   async setPaused(
     organizationId: string,
     paused: boolean,
   ): Promise<OrganizationQueueSettings> {
-    const settings = await this.getOrCreate(organizationId);
-    settings.paused = paused;
-    return this.repo.save(settings);
+    await this.getOrCreate(organizationId);
+    return this.repo.updateLocked(organizationId, { paused });
   }
 
   async findEnabledAndNotPaused(): Promise<OrganizationQueueSettings[]> {

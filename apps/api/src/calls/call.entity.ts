@@ -203,7 +203,7 @@ export class Call {
   @Column({ name: 'last_failure_at', type: 'timestamptz', nullable: true })
   lastFailureAt!: Date | null;
 
-  /** When the current dial attempt started (rate-limit window). */
+  /** Queue admission time, or immediate dial start. Queue rate history lives in queue_admissions. */
   @Column({ name: 'dial_started_at', type: 'timestamptz', nullable: true })
   dialStartedAt!: Date | null;
 

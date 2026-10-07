@@ -164,9 +164,12 @@ export class QueueStatsService {
       LEFT JOIN call_batches b ON b.id = c.batch_id
       WHERE c.organization_id = $1
         AND c.status = $2
+        AND c.direction = 'outbound'
+        AND c.medium = 'sip'
+        AND c.attempt_count < c.max_attempts
         AND c.next_attempt_at IS NOT NULL
         AND c.next_attempt_at <= NOW()
-        AND (b.id IS NULL OR b.status = $3)
+        AND (c.batch_id IS NULL OR (b.organization_id = c.organization_id AND b.status = $3))
       `,
       [organizationId, CallStatus.PENDING, CallBatchStatus.RUNNING],
     );

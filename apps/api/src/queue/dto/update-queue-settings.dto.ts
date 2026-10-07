@@ -48,7 +48,7 @@ export class UpdateQueueSettingsDto {
     example: 30,
     minimum: 1,
     maximum: 600,
-    description: 'Max dial starts per rolling minute',
+    description: 'Max committed outbound SIP queue admissions per rolling minute; observed immediate starts also consume available budget',
   })
   @IsOptional()
   @Type(() => Number)

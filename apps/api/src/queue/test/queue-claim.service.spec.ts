@@ -1,5 +1,5 @@
 import { AgentDirection } from '../../agents/agent.entity';
-import { Call, CallStatus } from '../../calls/call.entity';
+import { Call, CallMedium, CallStatus } from '../../calls/call.entity';
 import { CallBatchStatus } from '../call-batch.entity';
 import { QUEUE_DEFAULTS } from '../queue.defaults';
 import { QueueClaimService } from '../queue-claim.service';
@@ -50,6 +50,7 @@ describe('QueueClaimService', () => {
       dataSource as never,
       callRepo as never,
       config as never,
+      { countRateUsage: jest.fn().mockResolvedValue(7) } as never,
     );
   });
 
@@ -70,134 +71,27 @@ describe('QueueClaimService', () => {
         {
           organizationId: ORG_ID,
           direction: AgentDirection.OUTBOUND,
+          medium: CallMedium.SIP,
           status: CallStatus.CREATING,
         },
         {
           organizationId: ORG_ID,
           direction: AgentDirection.OUTBOUND,
+          medium: CallMedium.SIP,
           status: CallStatus.DIALING,
         },
         {
           organizationId: ORG_ID,
           direction: AgentDirection.OUTBOUND,
+          medium: CallMedium.SIP,
           status: CallStatus.READY,
         },
       ],
     });
   });
 
-  it('2. countInProgressExcluding SQL includes org, exclude id, statuses', async () => {
-    dataSource.query.mockResolvedValue([{ cnt: 1 }]);
-    await expect(
-      service.countInProgressExcluding(ORG_ID, CALL_ID),
-    ).resolves.toBe(1);
-    expect(dataSource.query).toHaveBeenCalledWith(
-      expect.stringContaining('organization_id'),
-      [
-        ORG_ID,
-        CALL_ID,
-        [CallStatus.CREATING, CallStatus.DIALING, CallStatus.READY],
-        AgentDirection.OUTBOUND,
-      ],
-    );
-  });
-
-  it('3. countDialsLastMinute parses cnt from query result', async () => {
-    dataSource.query.mockResolvedValue([{ cnt: 7 }]);
+  it('counts committed admission rate usage through the shared repository', async () => {
     await expect(service.countDialsLastMinute(ORG_ID)).resolves.toBe(7);
-    expect(dataSource.query).toHaveBeenCalledWith(
-      expect.stringContaining('direction'),
-      [ORG_ID, AgentDirection.OUTBOUND],
-    );
-  });
-
-  it('4. releaseClaimToPending returns true when rows affected', async () => {
-    // TypeORM/pg shape: [rows, affectedCount]
-    dataSource.query.mockResolvedValue([[], 1]);
-    await expect(service.releaseClaimToPending(CALL_ID)).resolves.toBe(true);
-    expect(dataSource.query).toHaveBeenCalledWith(
-      expect.stringContaining('UPDATE calls'),
-      [CallStatus.PENDING, CALL_ID, CallStatus.CREATING],
-    );
-  });
-
-  it('5. releaseClaimToPending returns false when no rows affected', async () => {
-    dataSource.query.mockResolvedValue([[], 0]);
-    await expect(service.releaseClaimToPending(CALL_ID)).resolves.toBe(false);
-  });
-
-  it('6. claimPending limit≤0 returns [] without query runner', async () => {
-    await expect(service.claimPending(ORG_ID, 0)).resolves.toEqual([]);
-    await expect(service.claimPending(ORG_ID, -1)).resolves.toEqual([]);
-    expect(dataSource.createQueryRunner).not.toHaveBeenCalled();
-  });
-
-  it('7. claimPending happy path: select → update creating → ordered find', async () => {
-    qr.query
-      .mockResolvedValueOnce([{ id: CALL_ID_2 }, { id: CALL_ID }]) // select
-      .mockResolvedValueOnce([[], 2]); // update
-    const c1 = makeCall(CALL_ID);
-    const c2 = makeCall(CALL_ID_2);
-    callRepo.find.mockResolvedValue([c1, c2]);
-
-    const result = await service.claimPending(ORG_ID, 2);
-
-    expect(qr.connect).toHaveBeenCalled();
-    expect(qr.startTransaction).toHaveBeenCalled();
-    expect(qr.query).toHaveBeenNthCalledWith(
-      1,
-      expect.stringContaining('FOR UPDATE OF c SKIP LOCKED'),
-      [ORG_ID, CallStatus.PENDING, CallBatchStatus.RUNNING, 2],
-    );
-    expect(qr.query).toHaveBeenNthCalledWith(
-      2,
-      expect.stringContaining('attempt_count = attempt_count + 1'),
-      [CallStatus.CREATING, [CALL_ID_2, CALL_ID]],
-    );
-    expect(qr.commitTransaction).toHaveBeenCalled();
-    expect(qr.release).toHaveBeenCalled();
-    // Preserves claim order (ids from select)
-    expect(result.map((c) => c.id)).toEqual([CALL_ID_2, CALL_ID]);
-  });
-
-  it('8. claimPending no locked rows commits and returns []', async () => {
-    qr.query.mockResolvedValueOnce([]);
-    await expect(service.claimPending(ORG_ID, 5)).resolves.toEqual([]);
-    expect(qr.commitTransaction).toHaveBeenCalled();
-    expect(callRepo.find).not.toHaveBeenCalled();
-  });
-
-  it('9. claimPending error rolls back and rethrows; always releases', async () => {
-    qr.query.mockRejectedValueOnce(new Error('deadlock'));
-    await expect(service.claimPending(ORG_ID, 1)).rejects.toThrow('deadlock');
-    expect(qr.rollbackTransaction).toHaveBeenCalled();
-    expect(qr.release).toHaveBeenCalled();
-  });
-
-  it('10. reclaimStale uses lease env or default 120; returns affected count', async () => {
-    config.get.mockReturnValue(undefined);
-    dataSource.query.mockResolvedValue([[], 3]);
-    await expect(service.reclaimStale(ORG_ID)).resolves.toBe(3);
-    expect(dataSource.query).toHaveBeenCalledWith(
-      expect.stringContaining('Stale claim reclaimed'),
-      [
-        CallStatus.PENDING,
-        'unknown',
-        ORG_ID,
-        CallStatus.CREATING,
-        QUEUE_DEFAULTS.claimLeaseSeconds,
-      ],
-    );
-
-    config.get.mockImplementation((key: string) =>
-      key === 'QUEUE_CLAIM_LEASE_SECONDS' ? '90' : undefined,
-    );
-    dataSource.query.mockResolvedValue([[], 1]);
-    await service.reclaimStale(ORG_ID);
-    expect(dataSource.query).toHaveBeenLastCalledWith(
-      expect.any(String),
-      expect.arrayContaining([90]),
-    );
   });
 
   it('11. findStaleInFlight loads calls by id with default thresholds', async () => {

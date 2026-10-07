@@ -7,6 +7,7 @@ import { OrganizationAgentsService } from '../../../agents/organization-agents.s
 import { LivekitService } from '../../../livekit/livekit.service';
 import { CallBatchesService } from '../../../queue/call-batches.service';
 import { OrganizationQueueSettingsService } from '../../../queue/organization-queue-settings.service';
+import { QueueAdmissionService } from '../../../queue/queue-admission.service';
 import { QueueClaimService } from '../../../queue/queue-claim.service';
 import { QueueRetryService } from '../../../queue/queue-retry.service';
 import { PriceService } from '../../../price/price.service';
@@ -100,6 +101,7 @@ export function createCallsHarness() {
   const voiceTasks = { resolve: jest.fn().mockResolvedValue(null), snapshot: jest.fn(), prepare: (...args: Parameters<VoiceTasksService["prepare"]>) => new VoiceTasksService({} as never).prepare(...args) };
 
   const callsRepository = {
+    updateIfStatus: jest.fn(),
     create: jest.fn((data) => ({ ...data }) as Call),
     save: jest.fn(async (row: Call) => ({
       ...row,
@@ -122,6 +124,15 @@ export function createCallsHarness() {
     findByOrganization: jest.fn(),
   };
 
+  callsRepository.updateIfStatus = jest.fn(async (id, organizationId, status, patch) => {
+    const call = await callsRepository.findByIdAndOrganization(id, organizationId);
+    return call ? { ...call, ...patch } : null;
+  });
+  const queueAdmission = { beginDial: jest.fn() };
+  const admitCall = (call: Call) => {
+    queueAdmission.beginDial.mockResolvedValueOnce({ ...call, status: CallStatus.DIALING, queueLockedAt: null });
+    return `admission-${call.id}`;
+  };
   const agentsService = {
     findById: jest.fn(),
     findByKey: jest.fn(),
@@ -297,6 +308,7 @@ export function createCallsHarness() {
     callBatchesService as unknown as CallBatchesService,
     queueRetryService as unknown as QueueRetryService,
     callFailure,
+    queueAdmission as unknown as QueueAdmissionService,
     voiceTasks as unknown as VoiceTasksService,
   );
 
@@ -365,6 +377,7 @@ export function createCallsHarness() {
   }
 
   return {
+    queueAdmission, admitCall,
     voiceTasks,
     callsRepository,
     agentsService,

@@ -10,7 +10,7 @@ export const QUEUE_DEFAULTS = {
   backoffBaseSeconds: 60,
   backoffMaxSeconds: 3600,
   retryOn: [...DEFAULT_RETRY_ON] as CallFailureCode[],
-  /** Prefer small claims; dialer re-checks slots before each dial. */
+  /** Prefer small reservations to keep queued dispatch within its claim lease. */
   claimBatchSize: 1,
   quietHoursTimezone: 'UTC',
   dialerIntervalMs: 2000,

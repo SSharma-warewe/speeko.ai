@@ -42,6 +42,7 @@ describe('CallDialService', () => {
   let worker: ReturnType<typeof createCallsHarness>['worker'];
   let callFailure: ReturnType<typeof createCallsHarness>['callFailure'];
   let calls: ReturnType<typeof createCallsHarness>['calls'];
+  let admitCall: ReturnType<typeof createCallsHarness>['admitCall'];
   let makeCall: ReturnType<typeof createCallsHarness>['makeCall'];
 
   beforeEach(() => {
@@ -62,6 +63,7 @@ describe('CallDialService', () => {
     callFailure = h.callFailure;
     calls = h.calls;
     makeCall = h.makeCall;
+    admitCall = h.admitCall;
   });
 
   describe('enqueueCallsForOrg', () => {
@@ -276,7 +278,7 @@ describe('CallDialService', () => {
         roomName: null,
       });
 
-      const result = await dial.dialClaimedCall(claimed);
+      const result = await dial.dialClaimedCall(admitCall(claimed));
 
       expect(result.status).toBe(CallStatus.DIALING);
       expect(result.queueLockedAt).toBeNull();
@@ -290,7 +292,7 @@ describe('CallDialService', () => {
         status: CallStatus.CREATING,
       });
 
-      const result = await dial.dialClaimedCall(claimed);
+      const result = await dial.dialClaimedCall(admitCall(claimed));
 
       expect(result.status).toBe(CallStatus.FAILED);
       expect(result.lastFailureCode).toBe(CallFailureCode.UNKNOWN);
@@ -314,7 +316,7 @@ describe('CallDialService', () => {
         roomName: 'out-old',
       });
 
-      const result = await dial.dialClaimedCall(claimed);
+      const result = await dial.dialClaimedCall(admitCall(claimed));
 
       expect(queueRetryService.resetForRequeue).toHaveBeenCalled();
       expect(result.status).toBe(CallStatus.PENDING);

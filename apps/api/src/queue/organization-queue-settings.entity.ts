@@ -36,11 +36,11 @@ export class OrganizationQueueSettings {
   @Column({ type: 'boolean', default: false })
   paused!: boolean;
 
-  /** Max simultaneous in-flight calls (creating/dialing/ready). */
+  /** Max simultaneous outbound SIP reservations/legs (creating/dialing/ready). */
   @Column({ name: 'max_concurrent', type: 'int', default: 5 })
   maxConcurrent!: number;
 
-  /** Max dial starts in a rolling 60s window. */
+  /** Max committed queue admissions in a rolling 60s window (plus observed immediate starts). */
   @Column({ name: 'max_dials_per_minute', type: 'int', default: 30 })
   maxDialsPerMinute!: number;
 

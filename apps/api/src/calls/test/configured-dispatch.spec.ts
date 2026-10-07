@@ -33,12 +33,12 @@ describe('configured call snapshots', () => {
     ]);
     h.voiceTasks.resolve.mockResolvedValue({ ...snapshot, version: 2 });
     await h.dial.dialClaimedCall(
-      h.makeCall({
+      h.admitCall(h.makeCall({
         id: CALL_ID,
         status: CallStatus.CREATING,
         taskKey: `custom_${snapshot.taskId}`,
         voiceTaskSnapshot: snapshot,
-      }),
+      })),
     );
     expect(
       JSON.parse(h.livekit.createAgentDispatch.mock.calls[0][0].metadata)
@@ -54,10 +54,10 @@ describe('configured call snapshots', () => {
     };
     h.toolProfilesService.resolveEnabledToolIds.mockResolvedValue(['endCall']);
     await h.dial.dialClaimedCall(
-      h.makeCall({
+      h.admitCall(h.makeCall({
         status: CallStatus.CREATING,
         voiceTaskSnapshot: configured,
-      }),
+      })),
     );
     expect(h.livekit.createAgentDispatch).not.toHaveBeenCalled();
     expect(h.livekit.createSipParticipant).not.toHaveBeenCalled();

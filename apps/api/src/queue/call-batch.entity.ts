@@ -60,7 +60,7 @@ export class CallBatch {
   @Column({ name: 'max_attempts', type: 'int', nullable: true })
   maxAttempts!: number | null;
 
-  /** Optional batch-level concurrency override (null = use org). */
+  /** Additional batch concurrency ceiling (null = org ceiling; never raises org capacity). */
   @Column({ name: 'max_concurrent', type: 'int', nullable: true })
   maxConcurrent!: number | null;
 

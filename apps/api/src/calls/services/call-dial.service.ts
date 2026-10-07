@@ -16,6 +16,7 @@ import { LivekitService } from '../../livekit/livekit.service';
 import { CallBatchesService } from '../../queue/call-batches.service';
 import { OrganizationQueueSettingsService } from '../../queue/organization-queue-settings.service';
 import { QueueRetryService } from '../../queue/queue-retry.service';
+import { QueueAdmissionService } from '../../queue/queue-admission.service';
 import { SipTrunk } from '../../sip-trunks/sip-trunk.entity';
 import { SipTrunksService } from '../../sip-trunks/sip-trunks.service';
 import { ToolProfilesService } from '../../tools/tool-profiles.service';
@@ -58,6 +59,8 @@ export class CallDialService {
     @Inject(forwardRef(() => QueueRetryService))
     private readonly queueRetryService: QueueRetryService,
     private readonly callFailure: CallFailureService,
+    @Inject(forwardRef(() => QueueAdmissionService))
+    private readonly queueAdmission: QueueAdmissionService,
     private readonly voiceTasks?: VoiceTasksService,
   ) {}
 
@@ -268,91 +271,98 @@ export class CallDialService {
   }
 
   /**
-   * Dial a queue-claimed call (status already creating, attempt_count incremented).
+   * Begin one admitted call under its lease, then prepare/dial outside the transaction.
    * On failure applies retry policy instead of always terminal failed.
    */
-  async dialClaimedCall(call: Call): Promise<Call> {
-    if (!call.organizationId || !call.organizationAgentId) {
-      applyCallEvent(call, CallLifecycleEvent.DIAL_FAILED, CallStatus.FAILED);
-      call.errorMessage = 'Queued call missing organization or agent';
-      call.lastFailureCode = CallFailureCode.UNKNOWN;
-      call.lastFailureAt = new Date();
-      call.endedAt = new Date();
-      call.queueLockedAt = null;
-      return this.callsRepository.save(call);
-    }
-
-    const orgAgent =
-      await this.organizationAgentsService.getEntityWithTemplate(
-        call.organizationId,
-        call.organizationAgentId,
-      );
-    const template = orgAgent.agent;
-    if (!template) {
-      call.errorMessage = 'Organization agent missing template';
-      return this.callFailure.applyFailure({
-        call,
-        failureCode: CallFailureCode.UNKNOWN,
-      });
-    }
-
-    const taskKey =
-      call.taskKey ??
-      resolveOrgAgentTaskKey(this.logger, null, orgAgent, template);
-    const enabledTools = await this.toolProfilesService.resolveEnabledToolIds(
-      orgAgent.toolProfileId ?? template.defaultToolProfileId,
-      call.organizationId,
-    );
-
-    const trunk = await this.sipTrunksService.resolveOutboundForCall(
-      call.organizationId,
-      call.sipTrunkId ?? undefined,
-    );
-    const fromNumber =
-      call.fromNumber ??
-      pickFromNumber(trunk.numbers, this.defaultCountryCode());
-    const toNumber = call.toNumber;
-    if (!fromNumber || !toNumber || !trunk.livekitTrunkId) {
-      call.errorMessage = 'Missing from/to number or LiveKit trunk id';
-      return this.callFailure.applyFailure({
-        call,
-        failureCode: CallFailureCode.SIP_ERROR,
-      });
-    }
-
-    const shouldWait =
-      this.config.get<string>('LIVEKIT_SIP_WAIT_UNTIL_ANSWERED') === 'true';
-    const roomName = call.roomName ?? `out-${randomUUID().slice(0, 8)}`;
-    call.roomName = roomName;
-    call.fromNumber = fromNumber;
-    call.participantIdentity = call.participantIdentity ?? toNumber;
-    call.livekitAgentName =
-      call.livekitAgentName ?? this.livekit.getAgentName();
-    call = await this.callsRepository.save(call);
-
+  async dialClaimedCall(admissionId: string): Promise<Call | null> {
+    let call = await this.queueAdmission.beginDial(admissionId);
+    if (!call) return null;
     try {
-      return await this.executeSipDial({
-        call,
-        orgAgent,
-        taskKey,
-        enabledTools,
-        trunkLivekitId: trunk.livekitTrunkId,
-        fromNumber,
-        toNumber,
-        participantIdentity: call.participantIdentity!,
-        context: call.context ?? undefined,
-        shouldWait,
-        roomName,
-      });
-    } catch (err) {
-      const message = this.formatSipError(err);
-      const sipCode = this.extractSipStatusCode(err);
-      const failureCode = this.queueRetryService.classifyFromSipError(
-        message,
-        sipCode,
+      if (!call.organizationId || !call.organizationAgentId) {
+        applyCallEvent(call, CallLifecycleEvent.DIAL_FAILED, CallStatus.FAILED);
+        call.errorMessage = 'Queued call missing organization or agent';
+        call.lastFailureCode = CallFailureCode.UNKNOWN;
+        call.lastFailureAt = new Date();
+        call.endedAt = new Date();
+        call.queueLockedAt = null;
+        return this.callsRepository.save(call);
+      }
+
+      const orgAgent =
+        await this.organizationAgentsService.getEntityWithTemplate(
+          call.organizationId,
+          call.organizationAgentId,
+        );
+      const template = orgAgent.agent;
+      if (!template) {
+        call.errorMessage = 'Organization agent missing template';
+        return this.callFailure.applyFailure({
+          call,
+          failureCode: CallFailureCode.UNKNOWN,
+        });
+      }
+
+      const taskKey =
+        call.taskKey ??
+        resolveOrgAgentTaskKey(this.logger, null, orgAgent, template);
+      const enabledTools = await this.toolProfilesService.resolveEnabledToolIds(
+        orgAgent.toolProfileId ?? template.defaultToolProfileId,
+        call.organizationId,
       );
-      call.errorMessage = message;
-      return this.callFailure.applyFailure({ call, failureCode });
+
+      const trunk = await this.sipTrunksService.resolveOutboundForCall(
+        call.organizationId,
+        call.sipTrunkId ?? undefined,
+      );
+      const fromNumber =
+        call.fromNumber ??
+        pickFromNumber(trunk.numbers, this.defaultCountryCode());
+      const toNumber = call.toNumber;
+      if (!fromNumber || !toNumber || !trunk.livekitTrunkId) {
+        call.errorMessage = 'Missing from/to number or LiveKit trunk id';
+        return this.callFailure.applyFailure({
+          call,
+          failureCode: CallFailureCode.SIP_ERROR,
+        });
+      }
+
+      const shouldWait =
+        this.config.get<string>('LIVEKIT_SIP_WAIT_UNTIL_ANSWERED') === 'true';
+      const roomName = call.roomName ?? `out-${randomUUID().slice(0, 8)}`;
+      call.roomName = roomName;
+      call.fromNumber = fromNumber;
+      call.participantIdentity = call.participantIdentity ?? toNumber;
+      call.livekitAgentName =
+        call.livekitAgentName ?? this.livekit.getAgentName();
+      call = await this.callsRepository.save(call);
+
+      try {
+        return await this.executeSipDial({
+          call,
+          orgAgent,
+          taskKey,
+          enabledTools,
+          trunkLivekitId: trunk.livekitTrunkId,
+          fromNumber,
+          toNumber,
+          participantIdentity: call.participantIdentity!,
+          context: call.context ?? undefined,
+          shouldWait,
+          roomName,
+        });
+      } catch (err) {
+        const message = this.formatSipError(err);
+        const sipCode = this.extractSipStatusCode(err);
+        const failureCode = this.queueRetryService.classifyFromSipError(
+          message,
+          sipCode,
+        );
+        call.errorMessage = message;
+        return this.callFailure.applyFailure({ call, failureCode });
+      }
+    } catch (err) {
+      call.errorMessage = this.formatSipError(err);
+      return this.callFailure.applyFailure({ call, failureCode: CallFailureCode.UNKNOWN });
     }
   }
 
@@ -419,7 +429,9 @@ export class CallDialService {
       metadata: JSON.stringify(metadata),
     });
     call.livekitDispatchId = dispatch.id;
-    applyCallEvent(call, CallLifecycleEvent.DISPATCH, CallStatus.DIALING);
+    if (call.status === CallStatus.CREATING) {
+      applyCallEvent(call, CallLifecycleEvent.DISPATCH, CallStatus.DIALING);
+    }
     call.startedAt = call.startedAt ?? new Date();
     call.queueLockedAt = null;
     call = await this.callsRepository.save(call);

@@ -1,20 +1,19 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { AgentDirection } from '../agents/agent.entity';
-import { Call, CallStatus } from '../calls/call.entity';
-import { CallBatchStatus } from './call-batch.entity';
+import { Call, CallMedium, CallStatus } from '../calls/call.entity';
+import { QueueAdmissionRepository } from './queue-admission.repository';
 import { QUEUE_DEFAULTS, queuePositiveInt } from './queue.defaults';
 
 @Injectable()
 export class QueueClaimService {
-  private readonly logger = new Logger(QueueClaimService.name);
-
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     @InjectRepository(Call) private readonly callRepo: Repository<Call>,
     private readonly config: ConfigService,
+    private readonly admission: QueueAdmissionRepository,
   ) {}
 
   async countInProgress(organizationId: string): Promise<number> {
@@ -23,209 +22,27 @@ export class QueueClaimService {
         {
           organizationId,
           direction: AgentDirection.OUTBOUND,
+          medium: CallMedium.SIP,
           status: CallStatus.CREATING,
         },
         {
           organizationId,
           direction: AgentDirection.OUTBOUND,
+          medium: CallMedium.SIP,
           status: CallStatus.DIALING,
         },
         {
           organizationId,
           direction: AgentDirection.OUTBOUND,
+          medium: CallMedium.SIP,
           status: CallStatus.READY,
         },
       ],
     });
   }
 
-  /**
-   * In-flight count excluding one call (used before dialing a claimed row so
-   * that row's own CREATING status does not block itself).
-   */
-  async countInProgressExcluding(
-    organizationId: string,
-    excludeCallId: string,
-  ): Promise<number> {
-    const row = await this.dataSource.query(
-      `SELECT COUNT(*)::int AS cnt
-       FROM calls
-       WHERE organization_id = $1
-         AND id <> $2
-         AND status = ANY($3::text[])
-         AND direction = $4`,
-      [
-        organizationId,
-        excludeCallId,
-        [CallStatus.CREATING, CallStatus.DIALING, CallStatus.READY],
-        AgentDirection.OUTBOUND,
-      ],
-    );
-    return Number(row[0]?.cnt ?? 0);
-  }
-
-  /**
-   * Event RELEASE_CLAIM: creating → pending without burning an attempt.
-   * Used when a SIP channel slot opened at claim time but is full before dial
-   * (e.g. previous dial in the same tick already answered and is still live).
-   */
-  async releaseClaimToPending(callId: string): Promise<boolean> {
-    const result = await this.dataSource.query(
-      `
-      UPDATE calls
-      SET
-        status = $1,
-        attempt_count = GREATEST(attempt_count - 1, 0),
-        next_attempt_at = NOW(),
-        queue_locked_at = NULL,
-        dial_started_at = NULL,
-        room_name = NULL,
-        livekit_dispatch_id = NULL,
-        livekit_sip_call_id = NULL,
-        error_message = NULL,
-        updated_at = NOW()
-      WHERE id = $2
-        AND status = $3
-      `,
-      [CallStatus.PENDING, callId, CallStatus.CREATING],
-    );
-    return this.affectedCount(result) > 0;
-  }
-
-  async countDialsLastMinute(organizationId: string): Promise<number> {
-    const row = await this.dataSource.query(
-      `SELECT COUNT(*)::int AS cnt
-       FROM calls
-       WHERE organization_id = $1
-         AND direction = $2
-         AND dial_started_at >= NOW() - INTERVAL '1 minute'`,
-      [organizationId, AgentDirection.OUTBOUND],
-    );
-    return Number(row[0]?.cnt ?? 0);
-  }
-
-  /**
-   * Atomically claim up to `limit` pending calls for dial.
-   * Returns full Call entities loaded after claim.
-   */
-  async claimPending(
-    organizationId: string,
-    limit: number,
-  ): Promise<Call[]> {
-    if (limit <= 0) {
-      return [];
-    }
-
-    const qr = this.dataSource.createQueryRunner();
-    await qr.connect();
-    await qr.startTransaction();
-    try {
-      // Select ids under lock first (more reliable than UPDATE RETURNING shape)
-      const locked: Array<{ id: string }> = await qr.query(
-        `
-        SELECT c.id
-        FROM calls c
-        LEFT JOIN call_batches b ON b.id = c.batch_id
-        WHERE c.organization_id = $1
-          AND c.status = $2
-          AND c.next_attempt_at IS NOT NULL
-          AND c.next_attempt_at <= NOW()
-          AND (b.id IS NULL OR b.status = $3)
-        ORDER BY c.priority DESC, c.next_attempt_at ASC, c.created_at ASC
-        FOR UPDATE OF c SKIP LOCKED
-        LIMIT $4
-        `,
-        [
-          organizationId,
-          CallStatus.PENDING,
-          CallBatchStatus.RUNNING,
-          limit,
-        ],
-      );
-
-      const ids = this.extractIds(locked);
-      if (ids.length === 0) {
-        await qr.commitTransaction();
-        return [];
-      }
-
-      // Event CLAIM: pending → creating (SQL, same pair as call-state-machine).
-      await qr.query(
-        `
-        UPDATE calls
-        SET
-          status = $1,
-          attempt_count = attempt_count + 1,
-          queue_locked_at = NOW(),
-          dial_started_at = NOW(),
-          started_at = COALESCE(started_at, NOW()),
-          error_message = NULL,
-          updated_at = NOW()
-        WHERE id = ANY($2::uuid[])
-        `,
-        [CallStatus.CREATING, ids],
-      );
-
-      await qr.commitTransaction();
-
-      const calls = await this.callRepo.find({ where: { id: In(ids) } });
-      const byId = new Map(calls.map((c) => [c.id, c]));
-      const ordered = ids.map((id) => byId.get(id)).filter((c): c is Call => !!c);
-
-      this.logger.log(
-        `Claimed ${ordered.length} call(s) org=${organizationId} ids=${ids.join(',')}`,
-      );
-      return ordered;
-    } catch (err) {
-      await qr.rollbackTransaction();
-      this.logger.error(
-        `Claim failed org=${organizationId}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      throw err;
-    } finally {
-      await qr.release();
-    }
-  }
-
-  async reclaimStale(organizationId: string): Promise<number> {
-    const lease = queuePositiveInt(
-      this.config.get('QUEUE_CLAIM_LEASE_SECONDS'),
-      QUEUE_DEFAULTS.claimLeaseSeconds,
-    );
-    const result = await this.dataSource.query(
-      `
-      UPDATE calls
-      SET
-        status = $1,
-        attempt_count = GREATEST(attempt_count - 1, 0),
-        next_attempt_at = NOW(),
-        queue_locked_at = NULL,
-        dial_started_at = NULL,
-        room_name = NULL,
-        livekit_dispatch_id = NULL,
-        livekit_sip_call_id = NULL,
-        last_failure_code = COALESCE(last_failure_code, $2),
-        last_failure_at = NOW(),
-        error_message = COALESCE(error_message, 'Stale claim reclaimed'),
-        updated_at = NOW()
-      WHERE organization_id = $3
-        AND status = $4
-        AND queue_locked_at IS NOT NULL
-        AND queue_locked_at < NOW() - make_interval(secs => $5)
-      `,
-      [
-        CallStatus.PENDING,
-        'unknown',
-        organizationId,
-        CallStatus.CREATING,
-        lease,
-      ],
-    );
-    const count = this.affectedCount(result);
-    if (count > 0) {
-      this.logger.warn(`Reclaimed ${count} stale creating call(s) org=${organizationId}`);
-    }
-    return count;
+  countDialsLastMinute(organizationId: string): Promise<number> {
+    return this.admission.countRateUsage(organizationId);
   }
 
   /**
@@ -320,10 +137,4 @@ export class QueueClaimService {
       .filter((id) => !!id && id !== 'undefined' && id !== 'null');
   }
 
-  private affectedCount(result: unknown): number {
-    if (Array.isArray(result) && typeof (result as unknown[])[1] === 'number') {
-      return (result as unknown[])[1] as number;
-    }
-    return 0;
-  }
 }

@@ -11,6 +11,9 @@ import { OrganizationQueueSettings } from './organization-queue-settings.entity'
 import { OrganizationQueueSettingsRepository } from './organization-queue-settings.repository';
 import { OrganizationQueueSettingsService } from './organization-queue-settings.service';
 import { QueueClaimService } from './queue-claim.service';
+import { QueueAdmission } from './queue-admission.entity';
+import { QueueAdmissionRepository } from './queue-admission.repository';
+import { QueueAdmissionService } from './queue-admission.service';
 import { QueueDialerService } from './queue-dialer.service';
 import { QueueRetryService } from './queue-retry.service';
 import { QueueStatsService } from './queue-stats.service';
@@ -18,7 +21,12 @@ import { UserQueueController } from './user-queue.controller';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([OrganizationQueueSettings, CallBatch, Call]),
+    TypeOrmModule.forFeature([
+      OrganizationQueueSettings,
+      CallBatch,
+      Call,
+      QueueAdmission,
+    ]),
     forwardRef(() => OrganizationsModule),
     forwardRef(() => CallsModule),
   ],
@@ -29,11 +37,14 @@ import { UserQueueController } from './user-queue.controller';
     CallBatchesRepository,
     CallBatchesService,
     QueueClaimService,
+    QueueAdmissionRepository,
+    QueueAdmissionService,
     QueueRetryService,
     QueueDialerService,
     QueueStatsService,
   ],
   exports: [
+    QueueAdmissionService,
     OrganizationQueueSettingsService,
     CallBatchesService,
     QueueClaimService,

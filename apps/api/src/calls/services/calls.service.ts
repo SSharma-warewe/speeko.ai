@@ -47,7 +47,11 @@ export class CallsService {
     call.lastFailureCode = CallFailureCode.CANCELLED;
     call.lastFailureAt = new Date();
     call.errorMessage = call.errorMessage ?? 'Cancelled by user';
-    const saved = await this.callsRepository.save(call);
+    const saved = await this.callsRepository.updateIfStatus(callId, organizationId, CallStatus.PENDING, {
+      status: call.status, endedAt: call.endedAt, nextAttemptAt: null, queueLockedAt: null,
+      lastFailureCode: call.lastFailureCode, lastFailureAt: call.lastFailureAt, errorMessage: call.errorMessage,
+    });
+    if (!saved) throw new BadRequestException('Only pending calls can be cancelled (status changed)');
     if (saved.batchId) {
       await this.callBatchesService.maybeMarkCompleted(saved.batchId);
     }
@@ -63,7 +67,10 @@ export class CallsService {
     if (call.status === CallStatus.PENDING) {
       call.nextAttemptAt = new Date();
       call.priority = Math.max(call.priority, 10);
-      const saved = await this.callsRepository.save(call);
+      const saved = await this.callsRepository.updateIfStatus(callId, organizationId, CallStatus.PENDING, {
+        nextAttemptAt: call.nextAttemptAt, priority: call.priority,
+      });
+      if (!saved) throw new BadRequestException('Only pending or failed calls can be retried (status changed)');
       return toCallResponse(saved);
     }
 
@@ -80,7 +87,12 @@ export class CallsService {
       call.livekitDispatchId = null;
       call.livekitSipCallId = null;
       call.priority = Math.max(call.priority, 10);
-      const saved = await this.callsRepository.save(call);
+      const saved = await this.callsRepository.updateIfStatus(callId, organizationId, CallStatus.FAILED, {
+        status: call.status, maxAttempts: call.maxAttempts, nextAttemptAt: call.nextAttemptAt,
+        endedAt: null, queueLockedAt: null, roomName: null, livekitDispatchId: null,
+        livekitSipCallId: null, priority: call.priority,
+      });
+      if (!saved) throw new BadRequestException('Only pending or failed calls can be retried (status changed)');
       return toCallResponse(saved);
     }
 
@@ -101,7 +113,8 @@ export class CallsService {
       );
     }
     call.priority = priority;
-    const saved = await this.callsRepository.save(call);
+    const saved = await this.callsRepository.updateIfStatus(callId, organizationId, CallStatus.PENDING, { priority });
+    if (!saved) throw new BadRequestException('Only pending calls can be prioritized (status changed)');
     return toCallResponse(saved);
   }
 
