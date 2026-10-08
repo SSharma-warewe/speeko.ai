@@ -73,6 +73,7 @@ export default function UserAgentDetailPage() {
   const [toolProfileId, setToolProfileId] = useState("");
   const [calendarIntegrationId, setCalendarIntegrationId] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [ttsCacheEnabled, setTtsCacheEnabled] = useState<boolean | null>(null);
   const [model, setModel] = useState<string | null>(null);
   const [ttsModel, setTtsModel] = useState<string | null>(null);
   const [sttModel, setSttModel] = useState<string | null>(null);
@@ -115,6 +116,7 @@ export default function UserAgentDetailPage() {
     setVoice(data.agent.voice ?? null);
     setSpeakingRate(data.agent.speakingRate ?? DEFAULT_SPEAKING_RATE);
     setDeliveryMode(parseDeliveryMode(data.agent.deliveryMode));
+    setTtsCacheEnabled(data.agent.ttsCacheEnabled ?? null);
     setTemperature(data.agent.temperature ?? DEFAULT_TEMPERATURE);
   }, [data]);
 
@@ -153,6 +155,7 @@ export default function UserAgentDetailPage() {
         voice,
         speakingRate,
         deliveryMode,
+        ttsCacheEnabled,
         temperature,
       });
       setSaved(true);
@@ -435,6 +438,8 @@ export default function UserAgentDetailPage() {
               aria-hidden={studioPane !== "voice"}
             >
               <AgentVoiceRack
+                ttsCacheEnabled={ttsCacheEnabled}
+                ttsCacheDefaultEnabled={data.agent.ttsCacheDefaultEnabled ?? false}
                 model={model}
                 ttsModel={ttsModel}
                 sttModel={sttModel}
@@ -455,6 +460,8 @@ export default function UserAgentDetailPage() {
                     setSpeakingRate(next.speakingRate);
                   if (next.deliveryMode !== undefined)
                     setDeliveryMode(next.deliveryMode);
+                  if (next.ttsCacheEnabled !== undefined)
+                    setTtsCacheEnabled(next.ttsCacheEnabled);
                   if (next.temperature !== undefined)
                     setTemperature(next.temperature);
                 }}

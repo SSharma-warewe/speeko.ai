@@ -5,13 +5,19 @@ import type {
   InboundScriptStep,
   InboundServiceTrack,
 } from '../tasks/inbound-service-tracks.js';
-import type { CachedSaySession, TtsSynthesizer } from '../speech/tts-cache.js';
+import type { CachedSaySession } from '../speech/tts-cache.js';
+import type { TtsCacheRuntime } from '../speech/tts-cache-runtime.js';
 
 export type { ToolEvent };
 
 export type SessionUserData = {
   voiceTaskSnapshot?: import('@call-agent/contracts').VoiceTaskSnapshot;
-  bookingReceipt?: { toolId: 'scheduleGhlMeeting' | 'createCalendarEvent'; eventId: string; scheduledStart?: string; scheduledEnd?: string };
+  bookingReceipt?: {
+    toolId: 'scheduleGhlMeeting' | 'createCalendarEvent';
+    eventId: string;
+    scheduledStart?: string;
+    scheduledEnd?: string;
+  };
   bookingWritePending?: boolean;
   bookingWriteUncertain?: boolean;
   callId?: string;
@@ -28,8 +34,8 @@ export type SessionUserData = {
   saySession?: CachedSaySession;
   /** In-flight GHL lookup/upsert for outbound demo (await before schedule). */
   crmPrefetch?: Promise<void>;
-  /** Pipeline TTS instance for cached session.say (same object as AgentSession). */
-  tts?: TtsSynthesizer;
+  /** Disposable job-local speech cache, shared by parent, tasks, and fillers. */
+  ttsCache?: TtsCacheRuntime;
   /** Structured result from the active LiveKit task. */
   taskResult?: Record<string, unknown> | null;
   /**
@@ -52,4 +58,7 @@ export type ToolFactoryContext = {
  */
 export type ToolFactory = (
   ctx: ToolFactoryContext,
-) => ToolContextEntry | ToolContextEntry[] | Promise<ToolContextEntry | ToolContextEntry[]>;
+) =>
+  | ToolContextEntry
+  | ToolContextEntry[]
+  | Promise<ToolContextEntry | ToolContextEntry[]>;

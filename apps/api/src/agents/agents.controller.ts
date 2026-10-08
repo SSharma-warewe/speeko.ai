@@ -43,7 +43,7 @@ export class AgentsController {
   @Patch(':id')
   @ApiOperation({
     summary:
-      'Update platform agent template defaults (persona prompt, tool profile, task, voice/model). Existing org assignments are not retro-updated.',
+      'Update platform agent template defaults (persona prompt, tool profile, task, voice/model, caching). Saved org overrides remain unchanged; inherited caching policy follows this default.',
   })
   @ApiOkResponse({ type: AgentResponseDto })
   @ApiNotFoundError('Agent not found')

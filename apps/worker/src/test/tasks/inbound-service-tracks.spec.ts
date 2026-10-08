@@ -1,5 +1,3 @@
-import { phrasesToWarm, warmTtsBeforeStart } from '../../builders/agent-builder';
-import { clearTtsCache } from '../../speech/tts-cache';
 import {
   classifyInboundBhkBudget,
   classifyInboundLocation,
@@ -25,7 +23,9 @@ describe('classifyInboundServiceTrack', () => {
     expect(classifyInboundServiceTrack('सेल करनी है')).toBe('sell');
     expect(classifyInboundServiceTrack('बेचना है')).toBe('sell');
     expect(classifyInboundServiceTrack('sell the flat')).toBe('sell');
-    expect(classifyInboundServiceTrack('प्रॉपर्टी लिस्ट करवानी है')).toBe('list');
+    expect(classifyInboundServiceTrack('प्रॉपर्टी लिस्ट करवानी है')).toBe(
+      'list',
+    );
     expect(classifyInboundServiceTrack('listing please')).toBe('list');
     expect(classifyInboundServiceTrack('रेंट देखनी है')).toBe('rent');
     expect(classifyInboundServiceTrack('किराया देखना है')).toBe('rent');
@@ -117,149 +117,6 @@ describe('inboundServiceTrackLine', () => {
         INBOUND_TIMING_CLARIFY_LINE,
         INBOUND_BHK_BUDGET_LINE,
         INBOUND_LOCATION_CLARIFY_LINE,
-      ]),
-    );
-  });
-});
-
-describe('phrasesToWarm', () => {
-  it('warms inbound tracks plus goodbye on pipeline', () => {
-    const phrases = phrasesToWarm({
-      agentKey: 'inbound',
-      direction: 'inbound',
-      task: 'general',
-      prompt: {
-        systemPrompt: 'हिंदी में बात करें।',
-        onEnterInstructions: null,
-        onExitInstructions: null,
-      },
-      enabledTools: ['endCall'],
-    } as AgentJobMetadata);
-    expect(phrases).toEqual(
-      expect.arrayContaining([
-        inboundServiceTrackLine('buy'),
-        inboundServiceTrackLine('sell'),
-        inboundServiceTrackLine('list'),
-        INBOUND_TIMING_LINE,
-        INBOUND_TIMING_CLARIFY_LINE,
-        INBOUND_BHK_BUDGET_LINE,
-        INBOUND_LOCATION_CLARIFY_LINE,
-        INBOUND_BUDGET_ONLY_LINE,
-        'धन्यवाद, कॉल करने के लिए शुक्रिया।',
-      ]),
-    );
-  });
-
-  it('warmTtsBeforeStart synthesizes the phrase list', async () => {
-    clearTtsCache();
-    const synthesize = jest.fn(async function* (text: string) {
-      yield { frame: { id: text } };
-    });
-    await warmTtsBeforeStart(
-      {
-        agentKey: 'inbound',
-        direction: 'inbound',
-        task: 'general',
-        prompt: {
-          systemPrompt: 'हिंदी में बात करें।',
-          onEnterInstructions: null,
-          onExitInstructions: null,
-        },
-        enabledTools: ['endCall'],
-      } as AgentJobMetadata,
-      { synthesize },
-    );
-    expect(synthesize).toHaveBeenCalled();
-    expect(
-      synthesize.mock.calls.some(
-        ([text]) => text === inboundServiceTrackLine('buy'),
-      ),
-    ).toBe(true);
-  });
-
-  it('warmTtsBeforeStart synthesizes Bulbul realtime via the given synth', async () => {
-    clearTtsCache();
-    const synthesize = jest.fn(async function* (text: string) {
-      yield { frame: { id: text } };
-    });
-    await warmTtsBeforeStart(
-      {
-        agentKey: 'inbound',
-        direction: 'inbound',
-        task: 'general',
-        ttsModel: 'sarvam/bulbul-v3-realtime',
-        prompt: {
-          systemPrompt: 'हिंदी में बात करें।',
-          onEnterInstructions: null,
-          onExitInstructions: null,
-        },
-        enabledTools: ['endCall'],
-      } as AgentJobMetadata,
-      { synthesize },
-    );
-    expect(synthesize).toHaveBeenCalled();
-    expect(
-      synthesize.mock.calls.some(
-        ([text]) => text === inboundServiceTrackLine('buy'),
-      ),
-    ).toBe(true);
-  });
-
-  it('warmTtsBeforeStart is a no-op on realtime', async () => {
-    const synthesize = jest.fn();
-    await warmTtsBeforeStart(
-      {
-        agentKey: 'inbound',
-        direction: 'inbound',
-        task: 'general',
-        model: 'xai/grok-voice-think-fast-2.0',
-        prompt: {
-          systemPrompt: 'You are a test agent.',
-          onEnterInstructions: null,
-          onExitInstructions: null,
-        },
-        enabledTools: ['endCall'],
-      } as AgentJobMetadata,
-      { synthesize },
-    );
-    expect(synthesize).not.toHaveBeenCalled();
-  });
-
-  it('skips realtime', () => {
-    expect(
-      phrasesToWarm({
-        agentKey: 'inbound',
-        direction: 'inbound',
-        task: 'general',
-        model: 'xai/grok-voice-think-fast-2.0',
-        prompt: {
-          systemPrompt: 'You are a test agent.',
-          onEnterInstructions: null,
-          onExitInstructions: null,
-        },
-        enabledTools: ['endCall'],
-      } as AgentJobMetadata),
-    ).toEqual([]);
-  });
-
-  it('warms inbound phrases for Sarvam Bulbul realtime TTS', () => {
-    const phrases = phrasesToWarm({
-      agentKey: 'inbound',
-      direction: 'inbound',
-      task: 'general',
-      ttsModel: 'sarvam/bulbul-v3-realtime',
-      prompt: {
-        systemPrompt: 'हिंदी में बात करें।',
-        onEnterInstructions: null,
-        onExitInstructions: null,
-      },
-      enabledTools: ['endCall'],
-    } as AgentJobMetadata);
-    expect(phrases).toEqual(
-      expect.arrayContaining([
-        inboundServiceTrackLine('buy'),
-        INBOUND_TIMING_LINE,
-        INBOUND_BHK_BUDGET_LINE,
       ]),
     );
   });

@@ -139,6 +139,26 @@ export class AgentResponseDto {
   })
   deliveryMode!: string | null;
 
+  @ApiProperty({
+    type: Boolean,
+    nullable: true,
+    description: 'Saved caching preference; null inherits default.',
+  })
+  ttsCacheEnabled!: boolean | null;
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'Template caching default for organization agents; false for templates.',
+  })
+  ttsCacheDefaultEnabled!: boolean;
+
+  @ApiProperty({
+    type: Boolean,
+    description: 'Resolved caching policy; always false on native realtime.',
+  })
+  effectiveTtsCacheEnabled!: boolean;
+
   @ApiPropertyOptional({
     format: 'uuid',
     description: 'Present on org-owned agents: parent organization id',

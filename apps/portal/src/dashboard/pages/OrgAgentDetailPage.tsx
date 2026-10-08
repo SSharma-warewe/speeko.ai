@@ -48,6 +48,7 @@ export default function OrgAgentDetailPage() {
   const [silentStart, setSilentStart] = useState(false);
   const [silentEnd, setSilentEnd] = useState(false);
   const [isActive, setIsActive] = useState(true);
+  const [ttsCacheEnabled, setTtsCacheEnabled] = useState<boolean | null>(null);
   const [defaultTaskKey, setDefaultTaskKey] = useState("general");
   const [model, setModel] = useState<string | null>(null);
   const [ttsModel, setTtsModel] = useState<string | null>(null);
@@ -85,6 +86,7 @@ export default function OrgAgentDetailPage() {
       setVoice(data.voice ?? null);
       setSpeakingRate(data.speakingRate ?? DEFAULT_SPEAKING_RATE);
       setDeliveryMode(parseDeliveryMode(data.deliveryMode));
+      setTtsCacheEnabled(data.ttsCacheEnabled ?? null);
       setTemperature(data.temperature ?? DEFAULT_TEMPERATURE);
     }
   }, [data]);
@@ -122,6 +124,7 @@ export default function OrgAgentDetailPage() {
         voice,
         speakingRate,
         deliveryMode,
+        ttsCacheEnabled,
         temperature,
       });
       setSaved(true);
@@ -322,6 +325,8 @@ export default function OrgAgentDetailPage() {
               Active
             </label>
             <AgentVoiceRack
+              ttsCacheEnabled={ttsCacheEnabled}
+              ttsCacheDefaultEnabled={data.ttsCacheDefaultEnabled ?? false}
               compact
               model={model}
               ttsModel={ttsModel}
@@ -341,6 +346,7 @@ export default function OrgAgentDetailPage() {
                 if (next.voice !== undefined) setVoice(next.voice);
                 if (next.speakingRate !== undefined) setSpeakingRate(next.speakingRate);
                 if (next.deliveryMode !== undefined) setDeliveryMode(next.deliveryMode);
+                if (next.ttsCacheEnabled !== undefined) setTtsCacheEnabled(next.ttsCacheEnabled);
                 if (next.temperature !== undefined) setTemperature(next.temperature);
               }}
             />

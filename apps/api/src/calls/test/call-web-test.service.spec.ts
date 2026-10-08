@@ -65,6 +65,12 @@ describe('CallWebTestService', () => {
   });
 
   describe('createTestCall', () => {
+    it.each([true, false, null])('platform web tests resolve cache policy %s', async (preference) => {
+      agentsService.findByKey.mockResolvedValue({ ...template, ttsCacheEnabled: preference });
+      await webTest.createTestCall({ agentKey: 'outbound' });
+      const meta = JSON.parse(livekit.createAgentDispatch.mock.calls[0][0].metadata);
+      expect(meta.ttsCacheEnabled).toBe(preference === true);
+    });
     it('1. creates web test with platform agent key, packs metadata, returns Meet token', async () => {
       agentsService.findByKey.mockResolvedValue(template);
 

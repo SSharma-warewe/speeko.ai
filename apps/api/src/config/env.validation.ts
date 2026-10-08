@@ -3,11 +3,19 @@ import * as Joi from 'joi';
 export const envValidationSchema = Joi.object({
   PORT: Joi.number().default(3000),
   HUMAN_CRM_CALLS_ENABLED: Joi.boolean().default(false),
+  TTS_SHARED_CACHE_ENABLED: Joi.boolean().default(false),
+  TTS_SHARED_CACHE_ORGANIZATION_IDS: Joi.string()
+    .pattern(
+      /^(?:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12})(?:\s*,\s*[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12})*$/,
+    )
+    .allow('')
+    .default(''),
   DATABASE_HOST: Joi.string().required(),
   DATABASE_PORT: Joi.number().default(5432),
   DATABASE_USER: Joi.string().required(),
   DATABASE_PASSWORD: Joi.string().required(),
   DATABASE_NAME: Joi.string().required(),
+  DATABASE_SYNCHRONIZE: Joi.boolean().default(true),
   JWT_SECRET: Joi.string().min(8).required(),
   JWT_EXPIRES_IN: Joi.string().default('8h'),
   // Login abuse controls (in-process; per API instance)

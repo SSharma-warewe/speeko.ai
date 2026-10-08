@@ -1,25 +1,22 @@
-import { isRealtimeLlmModel } from '@call-agent/contracts';
 import { voice } from '@livekit/agents';
 import { hangUpCall } from '../speech/hangup.js';
 import type { AgentJobMetadata } from '@call-agent/contracts';
 import { resolveSarvamRealtimePluginUrl } from '../sarvam/plugin-stt.js';
 import type { SessionUserData } from '../tools/types.js';
 import { startDemoCrmPrefetch } from '../tasks/demo-booking-crm.js';
+import { sayCached } from '../speech/tts-cache.js';
+import { TtsCacheRuntime } from '../speech/tts-cache-runtime.js';
+import { TtsSharedCacheClient } from '../speech/tts-shared-cache-client.js';
+import { createCachedTtsNode } from '../speech/cached-tts-node.js';
 import {
-  demoBookingCacheLines,
-  isOutboundDemoBooking,
-} from '../tasks/demo-booking-tracks.js';
-import {
-  inboundScriptCacheLines,
-  inboundServiceTrackLines,
-} from '../tasks/inbound-service-tracks.js';
-import { sayCached, warmTtsPhrases, type TtsSynthesizer } from '../speech/tts-cache.js';
-import { buildModels, createTts, resolveSttSpec } from './model-builder.js';
+  buildModels,
+  resolveSttSpec,
+  resolveTtsConfiguration,
+} from './model-builder.js';
 import {
   buildClosingSpeech,
   buildOpeningInstructions,
   buildPersonaPrompt,
-  cannedClosingLine,
   hookMode,
   shouldParentSpeakOpening,
   snapshotCallClock,
@@ -42,9 +39,12 @@ type AgentTools = Awaited<ReturnType<typeof buildTools>>;
  * parse metadata (caller) → build prompt → resolve tools → parent onEnter opens + runs task → onExit says goodbye.
  */
 export class AgentRuntimeBuilder {
-  private tts: TtsSynthesizer | undefined;
+  private ttsCache: TtsCacheRuntime | undefined;
 
-  constructor(private readonly meta: AgentJobMetadata) {}
+  constructor(
+    private readonly meta: AgentJobMetadata,
+    private readonly roomName?: string,
+  ) {}
 
   async build(): Promise<BuiltAgentRuntime> {
     const userData = this.createUserData();
@@ -52,18 +52,37 @@ export class AgentRuntimeBuilder {
 
     const models = buildModels(this.meta);
     this.logModelInfo(models);
-    if (models.kind === 'pipeline') {
-      this.tts = models.tts;
-      userData.tts = models.tts;
+    if (models.kind === 'pipeline' && this.meta.ttsCacheEnabled === true) {
+      this.ttsCache = new TtsCacheRuntime(
+        this.meta,
+        resolveTtsConfiguration(this.meta),
+        models.tts,
+        {},
+        Date.now,
+        TtsSharedCacheClient.create(
+          this.meta.callId,
+          this.meta.organizationId,
+          this.roomName,
+        ),
+      );
+      userData.ttsCache = this.ttsCache;
     }
 
-    const tools = await buildTools(this.meta, userData);
-    const session = buildAgentSession(models, userData, {
-      medium: this.meta.medium,
-    });
-    const agent = this.createAgent(userData, tools);
+    try {
+      const tools = await buildTools(this.meta, userData);
+      const session = buildAgentSession(models, userData, {
+        medium: this.meta.medium,
+      });
+      const agent = this.createAgent(userData, tools);
+      session.on(voice.AgentSessionEventTypes.Close, () =>
+        this.ttsCache?.dispose(),
+      );
 
-    return { session, agent, userData };
+      return { session, agent, userData };
+    } catch (error) {
+      this.ttsCache?.dispose();
+      throw error;
+    }
   }
 
   private createUserData(): SessionUserData {
@@ -90,7 +109,9 @@ export class AgentRuntimeBuilder {
 
   private logModelInfo(models: ReturnType<typeof buildModels>): void {
     const sttId =
-      models.kind === 'realtime' ? 'none' : (this.meta.sttModel ?? 'deepgram/nova-3');
+      models.kind === 'realtime'
+        ? 'none'
+        : (this.meta.sttModel ?? 'deepgram/nova-3');
     const sttPlugin =
       models.kind !== 'realtime' && resolveSttSpec(this.meta).realtime
         ? resolveSarvamRealtimePluginUrl()
@@ -135,21 +156,13 @@ export class AgentRuntimeBuilder {
         console.log(
           `[agent] onEnter opening playout done callId=${this.meta.callId ?? 'n/a'}`,
         );
-        this.warmTtsAfterOpening();
       } else {
         console.log('[agent] onEnter silent (no opening speech)');
-        this.warmTtsAfterOpening();
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.warn(`[agent] onEnter opening failed: ${message}`);
-      this.warmTtsAfterOpening();
     }
-  }
-
-  private warmTtsAfterOpening(): void {
-    // Pre-pickup warm already filled the cache; this is a miss-fill only.
-    void warmTtsPhrases(this.tts, this.meta, phrasesToWarm(this.meta));
   }
 
   private async handleEnter(
@@ -182,16 +195,20 @@ export class AgentRuntimeBuilder {
           ...(result as Record<string, unknown>),
         };
       }
-      console.log(this.meta.voiceTask
-        ? `[agent] task complete taskId=${this.meta.voiceTask.taskId} version=${this.meta.voiceTask.version} outcome=${userData.taskResult?.outcome ?? 'none'}`
-        : `[agent] task complete key=${this.meta.task} result=${JSON.stringify(userData.taskResult)}`);
+      console.log(
+        this.meta.voiceTask
+          ? `[agent] task complete taskId=${this.meta.voiceTask.taskId} version=${this.meta.voiceTask.version} outcome=${userData.taskResult?.outcome ?? 'none'}`
+          : `[agent] task complete key=${this.meta.task} result=${JSON.stringify(userData.taskResult)}`,
+      );
       // Realtime goodbye already played on the task before complete().
       // Pipeline: hang up immediately; onExit session.say plays the canned line.
       hangUpCall(ctx.session, { reason: 'task_complete', userData });
     } catch (err) {
       // Task may be interrupted by end_call / shutdown — keep partial result.
       const message = err instanceof Error ? err.message : String(err);
-      console.warn(`[agent] task ended with error key=${this.meta.task}: ${message}`);
+      console.warn(
+        `[agent] task ended with error key=${this.meta.task}: ${message}`,
+      );
     }
   }
 
@@ -207,13 +224,9 @@ export class AgentRuntimeBuilder {
       console.log(
         `[agent] onExit say mode=${hookMode(this.meta.prompt.onExitInstructions)} prefix="${prefix}"`,
       );
-      const handle = sayCached(
-        ctx.session,
-        this.tts,
-        closing,
-        { allowInterruptions: false },
-        this.meta,
-      ) as { waitForPlayout?: () => Promise<void> };
+      const handle = sayCached(ctx.session, this.ttsCache, closing, {
+        allowInterruptions: false,
+      }) as { waitForPlayout?: () => Promise<void> };
       await handle.waitForPlayout?.();
     } catch {
       // Session may already be closing (callee hangup).
@@ -229,6 +242,9 @@ export class AgentRuntimeBuilder {
       instructions,
       // Parent agent keeps shared capability tools; task adds workflow-complete tools.
       tools,
+      ...(this.ttsCache
+        ? { ttsNode: createCachedTtsNode<SessionUserData>(this.ttsCache) }
+        : {}),
       onEnter: async (ctx) => {
         await this.handleEnter(ctx, userData, tools);
       },
@@ -236,53 +252,6 @@ export class AgentRuntimeBuilder {
         await this.playClosing(ctx);
       },
     });
-  }
-}
-
-export function phrasesToWarm(meta: AgentJobMetadata): string[] {
-  // S2S realtime has no pipeline TTS. Bulbul realtime still warms via REST.
-  // Inbound script + outbound demo fillers / keyword lines + goodbye.
-  if (isRealtimeLlmModel(meta.model)) {
-    return [];
-  }
-  const phrases: string[] = [];
-  if (meta.direction === 'inbound' && !meta.voiceTask) {
-    phrases.push(...inboundServiceTrackLines(), ...inboundScriptCacheLines());
-  }
-  if (isOutboundDemoBooking(meta)) {
-    phrases.push(...demoBookingCacheLines(meta));
-  }
-  const closing = cannedClosingLine(meta);
-  if (closing) {
-    phrases.push(closing);
-  }
-  return [...new Set(phrases)];
-}
-
-/**
- * REST-synthesize inbound script / goodbye in parallel before session.start so
- * pickup is not waiting on sequential Bulbul REST. Uses a standalone REST TTS
- * instance —
- * do not construct the full runtime (STT / realtime) while outbound is still
- * ringing. Opening stays generateReply. Never throws.
- */
-export async function warmTtsBeforeStart(
-  meta: AgentJobMetadata,
-  tts?: TtsSynthesizer,
-): Promise<void> {
-  const phrases = phrasesToWarm(meta);
-  if (phrases.length === 0) {
-    return;
-  }
-  try {
-    // Force REST even when the session TTS is `sarvam/bulbul-v3-realtime`.
-    // Cached frames play via session.say({ audio }) and skip the WS path.
-    const synth = tts ?? createTts(meta, process.env, { streaming: false });
-    await warmTtsPhrases(synth, meta, phrases);
-    console.log(`[agent] tts warmed before start count=${phrases.length}`);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.warn(`[agent] tts warm before start failed: ${message}`);
   }
 }
 

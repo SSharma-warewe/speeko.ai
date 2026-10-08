@@ -62,6 +62,7 @@ describe('voice-settings', () => {
           },
         ),
       ).toEqual({
+        ttsCacheEnabled: false,
         voice: 'Olivia',
         model: 'google/gemma',
         ttsModel: 'inworld/inworld-tts-2',
@@ -75,6 +76,7 @@ describe('voice-settings', () => {
 
     it('all-null → nulls', () => {
       expect(resolveVoiceRuntime(null, null)).toEqual({
+        ttsCacheEnabled: false,
         voice: null,
         model: null,
         ttsModel: null,

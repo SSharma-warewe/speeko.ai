@@ -1,8 +1,6 @@
-import { isRealtimeLlmModel } from '@call-agent/contracts';
 import { type JobContext, defineAgent, voice } from '@livekit/agents';
 import {
   AgentRuntimeBuilder,
-  warmTtsBeforeStart,
   type BuiltAgentRuntime,
 } from './builders/agent-builder.js';
 import { CallbackFunctions } from './callbacks/call-callbacks.js';
@@ -30,7 +28,6 @@ export class AgentJob {
   private sipParticipant: SipAnswerParticipant | undefined;
   private session: BuiltAgentRuntime['session'] | undefined;
   private userData: BuiltAgentRuntime['userData'] | undefined;
-  private ttsWarm: Promise<void> | null = null;
 
   constructor(private readonly ctx: JobContext) {}
 
@@ -62,7 +59,10 @@ export class AgentJob {
         organizationAgentId: this.meta.organizationAgentId,
         organizationId: this.meta.organizationId,
       });
-      if (!live) throw new Error('Inbound live metadata refresh failed; refusing stale configuration');
+      if (!live)
+        throw new Error(
+          'Inbound live metadata refresh failed; refusing stale configuration',
+        );
       this.meta = this.jobMeta.mergeInboundJobMetadata(this.meta, live);
     }
     this.roomName = this.ctx.job.room?.name ?? 'unknown';
@@ -84,7 +84,12 @@ export class AgentJob {
   }
 
   private registerShutdownComplete(): void {
-    if (!this.callId || this.shutdownRegistered || !this.session || !this.userData) {
+    if (
+      !this.callId ||
+      this.shutdownRegistered ||
+      !this.session ||
+      !this.userData
+    ) {
       return;
     }
     this.shutdownRegistered = true;
@@ -96,7 +101,9 @@ export class AgentJob {
         return;
       }
       try {
-        const transcript = this.jobMeta.serializeTranscript(completeSession.history);
+        const transcript = this.jobMeta.serializeTranscript(
+          completeSession.history,
+        );
         const usage = this.jobMeta.serializeUsage(completeSession.usage);
         let sessionReport: Record<string, unknown> | null = null;
         try {
@@ -121,16 +128,19 @@ export class AgentJob {
           transcript,
           usage,
           sessionReport,
-          taskResult: shutdown.taskResult ?? completeUserData.taskResult ?? null,
+          taskResult:
+            shutdown.taskResult ?? completeUserData.taskResult ?? null,
           taskCompleted: shutdown.taskCompleted,
           toolEvents: completeUserData.toolEvents ?? [],
         });
         console.log(
           `[agent] tools used callId=${completeCallId} completeStatus=${shutdown.status} ` +
             `count=${completeUserData.toolEvents?.length ?? 0} ` +
-            `${(completeUserData.toolEvents ?? [])
-              .map((e) => `${e.toolId}:${e.ok === false ? 'fail' : 'ok'}`)
-              .join(',') || 'none'}`,
+            `${
+              (completeUserData.toolEvents ?? [])
+                .map((e) => `${e.toolId}:${e.ok === false ? 'fail' : 'ok'}`)
+                .join(',') || 'none'
+            }`,
         );
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -158,7 +168,14 @@ export class AgentJob {
       organizationAgentId: this.meta.organizationAgentId,
       agentKey: this.meta.agentKey,
       task: this.meta.task,
-      ...(this.meta.voiceTask ? { voiceTask: { taskId: this.meta.voiceTask.taskId, version: this.meta.voiceTask.version } } : {}),
+      ...(this.meta.voiceTask
+        ? {
+            voiceTask: {
+              taskId: this.meta.voiceTask.taskId,
+              version: this.meta.voiceTask.version,
+            },
+          }
+        : {}),
       context: this.meta.context,
       fromNumber: info?.fromNumber,
       toNumber: info?.toNumber,
@@ -167,7 +184,9 @@ export class AgentJob {
       livekitTrunkId: info?.livekitTrunkId,
     });
     if (!ensuredId) {
-      console.warn(`[agent] inbound ensure returned no callId room=${this.roomName}`);
+      console.warn(
+        `[agent] inbound ensure returned no callId room=${this.roomName}`,
+      );
       return;
     }
     this.callId = ensuredId;
@@ -202,11 +221,6 @@ export class AgentJob {
     if (status === 'hangup') {
       throw new Error('SIP callee hung up before answer (no answer)');
     }
-    // Pipeline + Bulbul realtime: REST-synthesize script / goodbye
-    // while still ringing (inbound) or waiting for the callee (outbound).
-    // Do not build the full runtime here — unanswered outbound must not
-    // open STT / realtime.
-    this.startTtsWarm();
     if (this.waitForCallee) {
       await this.sip.waitForSipAnswer({
         room: this.ctx.room as unknown as SipAnswerRoom,
@@ -221,24 +235,17 @@ export class AgentJob {
     }
   }
 
-  private startTtsWarm(): void {
-    if (this.ttsWarm || isRealtimeLlmModel(this.meta.model)) {
-      return;
-    }
-    this.ttsWarm = warmTtsBeforeStart(this.meta);
-  }
-
   private async startRuntime(): Promise<void> {
-    // Overlap REST phrase warm with STT/LLM/TTS construction. session.start
-    // still waits for both so inbound script lines are cached at pickup.
-    this.startTtsWarm();
-    const [runtime] = await Promise.all([
-      new AgentRuntimeBuilder({
+    const runtime = await new AgentRuntimeBuilder(
+      {
         ...this.meta,
         ...(this.callId ? { callId: this.callId } : {}),
-      }).build(),
-      this.ttsWarm ?? Promise.resolve(),
-    ]);
+      },
+      this.roomName,
+    ).build();
+    this.ctx.addShutdownCallback(async () => {
+      runtime.userData.ttsCache?.dispose();
+    });
     this.session = runtime.session;
     this.userData = runtime.userData;
     if (this.callId) {
@@ -260,6 +267,7 @@ export class AgentJob {
   }
 
   private async handleJobError(err: unknown): Promise<void> {
+    this.userData?.ttsCache?.dispose();
     this.failedEarly = true;
     const message = err instanceof Error ? err.message : String(err);
     const unanswered =

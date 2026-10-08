@@ -55,6 +55,8 @@ export type AgentJobMetadata = {
   temperature?: number | null;
   /** Speaking-rate multiplier when the selected TTS supports it (0.5–1.5). */
   speakingRate?: number | null;
+  /** API-resolved policy; only literal true enables worker caching. */
+  ttsCacheEnabled?: boolean;
   /** Inworld TTS-2 delivery_mode. Ignored by other speech models. */
   deliveryMode?: DeliveryMode | null;
 };

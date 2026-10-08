@@ -11,6 +11,8 @@ Scope: `packages/contracts`. Inherit the [root instructions](../../AGENTS.md). `
 - This is an ESM package emitting JS/declarations to `dist`; TypeScript relative imports use `.js`. Server/worker builds consume the emitted package; Vite aliases source; API webpack/Jest use configured source mappings. Do not change exports casually.
 - Nest class-validator/Swagger DTO classes remain in API and import these catalogs/types. CRM validation schemas remain in API; the shared fixed action catalog/wire types live here.
 - No provider credentials, network calls, Postgres access, UI layouts, or application-specific runtime state in contracts.
+- `tts-cache.ts` defines worker-only shared-cache requests/responses, safe PCM envelope/alignment types, canonical metadata validation, compatibility namespace and hard clip/wire limits. Hashing/base64 encoding and application I/O stay in API/worker. Namespace revisions must change together with incompatible SDK/transform changes. Do not put SDK objects, arbitrary userdata, provider usage or credentials in shared envelopes.
+- `resolveTtsCacheEnabled(preference, defaultEnabled, model)` is the shared pure policy resolver: null inherits, final default false, native realtime always false. HTTP agents expose raw `ttsCacheEnabled: boolean | null`, `ttsCacheDefaultEnabled` and `effectiveTtsCacheEnabled`; template/org PATCH requests accept optional boolean/null. Dispatch metadata carries optional resolved boolean `ttsCacheEnabled`; only literal true enables worker caching, so legacy metadata stays off. Do not flatten raw inheritance in HTTP responses or portal saves.
 
 ## Naming and changes
 
@@ -116,6 +118,8 @@ export type AgentJobMetadata = {
   temperature?: number | null;
   /** Speaking-rate multiplier when the selected TTS supports it (0.5–1.5). */
   speakingRate?: number | null;
+  /** API-resolved caching policy; missing means off. */
+  ttsCacheEnabled?: boolean;
   /** Inworld TTS-2 delivery_mode. Ignored by other speech models. */
   deliveryMode?: DeliveryMode | null;
 };

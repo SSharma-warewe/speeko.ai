@@ -1,4 +1,3 @@
-import { phrasesToWarm } from '../../builders/agent-builder';
 import type { AgentJobMetadata } from '../../session/job-metadata';
 import {
   classifyDemoGoodTime,
@@ -15,9 +14,7 @@ import {
   isOutboundDemoPipeline,
 } from '../../tasks/demo-booking-tracks';
 
-function meta(
-  overrides: Partial<AgentJobMetadata> = {},
-): AgentJobMetadata {
+function meta(overrides: Partial<AgentJobMetadata> = {}): AgentJobMetadata {
   return {
     agentKey: 'outbound',
     direction: 'outbound',
@@ -91,37 +88,9 @@ describe('demo booking cache lines', () => {
     expect(isOutboundDemoBooking(meta())).toBe(true);
     expect(isOutboundDemoPipeline(meta())).toBe(true);
     expect(
-      isOutboundDemoPipeline(
-        meta({ model: 'xai/grok-voice-think-fast-2.0' }),
-      ),
+      isOutboundDemoPipeline(meta({ model: 'xai/grok-voice-think-fast-2.0' })),
     ).toBe(false);
-    expect(
-      isOutboundDemoBooking(meta({ direction: 'inbound' })),
-    ).toBe(false);
+    expect(isOutboundDemoBooking(meta({ direction: 'inbound' }))).toBe(false);
     expect(isOutboundDemoBooking(meta({ task: 'general' }))).toBe(false);
-  });
-});
-
-describe('phrasesToWarm outbound demo', () => {
-  it('warms demo fillers plus goodbye on pipeline', () => {
-    const phrases = phrasesToWarm(meta());
-    expect(phrases).toEqual(
-      expect.arrayContaining([
-        DEMO_CHECK_LINE_EN,
-        DEMO_BOOK_LINE_EN,
-        DEMO_ASK_WHEN_LINE_EN,
-        DEMO_CALLBACK_LINE_EN,
-        'Thanks for your time. Goodbye.',
-      ]),
-    );
-    expect(phrases).not.toEqual(
-      expect.arrayContaining(['गुरुग्राम में कौन सा सेक्टर या लोकैलिटी देखना चाहते हो?']),
-    );
-  });
-
-  it('skips demo phrases on realtime', () => {
-    expect(
-      phrasesToWarm(meta({ model: 'xai/grok-voice-think-fast-2.0' })),
-    ).toEqual([]);
   });
 });

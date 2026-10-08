@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsIn,
+  IsBoolean,
   IsNumber,
   IsOptional,
   IsString,
@@ -13,6 +14,16 @@ import { DELIVERY_MODES } from '../voice-settings';
 
 /** Shared TTS/LLM override fields on platform templates and org agent configs. */
 export class VoiceSettingsDto {
+  @ApiPropertyOptional({
+    type: Boolean,
+    nullable: true,
+    description:
+      'Speech caching preference. null inherits template/platform policy (platform default off). Retained but unsupported on native realtime.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  ttsCacheEnabled?: boolean | null;
+
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsString()

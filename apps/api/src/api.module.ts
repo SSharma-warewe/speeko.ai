@@ -1,5 +1,6 @@
 import { WhatsAppTasksModule } from './whatsapp-tasks/whatsapp-tasks.module';
 import { VoiceTasksModule } from './voice-tasks/voice-tasks.module';
+import { TtsCacheModule } from './tts-cache/tts-cache.module';
 import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -47,7 +48,7 @@ import { WhatsappModule } from './whatsapp/whatsapp.module';
         database: config.getOrThrow<string>('DATABASE_NAME'),
         autoLoadEntities: true,
         // Dev convenience: entities define schema. Prefer migrations once schema stabilizes.
-        synchronize: true,
+        synchronize: config.get<boolean>('DATABASE_SYNCHRONIZE', true),
       }),
     }),
     EmailModule,
@@ -58,6 +59,7 @@ import { WhatsappModule } from './whatsapp/whatsapp.module';
     ToolsModule,
     AgentsModule,
     VoiceTasksModule,
+    TtsCacheModule,
     WhatsAppTasksModule,
     SipTrunksModule,
     SipDispatchRulesModule,

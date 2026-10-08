@@ -5,18 +5,18 @@ jest.mock('@livekit/agents', () => ({
 
 jest.mock('../builders/agent-builder', () => {
   const buildAgentRuntime = jest.fn();
-  const warmTtsBeforeStart = jest.fn().mockResolvedValue(undefined);
   return {
     AgentRuntimeBuilder: jest.fn().mockImplementation((meta: unknown) => ({
       build: () => buildAgentRuntime(meta),
     })),
     buildAgentRuntime,
-    warmTtsBeforeStart,
   };
 });
 
 jest.mock('../session/sip-answer', () => {
-  const actual = jest.requireActual('../session/sip-answer') as typeof import('../session/sip-answer');
+  const actual = jest.requireActual(
+    '../session/sip-answer',
+  ) as typeof import('../session/sip-answer');
   const waitForSipAnswer = jest.fn().mockResolvedValue(undefined);
   const realSip = new actual.Sipfunctions();
   return {
@@ -55,7 +55,7 @@ jest.mock('../callbacks/call-callbacks', () => {
 
 import type { JobContext } from '@livekit/agents';
 import { runAgentJob } from '../agent';
-import { buildAgentRuntime, warmTtsBeforeStart } from '../builders/agent-builder';
+import { buildAgentRuntime } from '../builders/agent-builder';
 import type { CompleteCallPayload } from '../callbacks/call-callbacks';
 import type { AgentJobMetadata } from '../session/job-metadata';
 import { waitForSipAnswer } from '../session/sip-answer';
@@ -72,9 +72,6 @@ describe('runAgentJob', () => {
 
   const buildAgentRuntimeMock = buildAgentRuntime as jest.MockedFunction<
     typeof buildAgentRuntime
-  >;
-  const warmTtsBeforeStartMock = warmTtsBeforeStart as jest.MockedFunction<
-    typeof warmTtsBeforeStart
   >;
   const waitForSipAnswerMock = waitForSipAnswer as jest.MockedFunction<
     typeof waitForSipAnswer
@@ -165,9 +162,7 @@ describe('runAgentJob', () => {
         on: jest.fn(),
         history: {
           toJSON: () => ({
-            items: [
-              { role: 'assistant', content: 'Hello', id: 't1' },
-            ],
+            items: [{ role: 'assistant', content: 'Hello', id: 't1' }],
           }),
         },
         usage: { modelUsage: [{ model: 'test', tokens: 1 }] },
@@ -189,7 +184,9 @@ describe('runAgentJob', () => {
       },
       room: { name: roomName },
       connect: jest.fn().mockResolvedValue(undefined),
-      waitForParticipant: jest.fn().mockResolvedValue(makeParticipant(meta.participantIdentity)),
+      waitForParticipant: jest
+        .fn()
+        .mockResolvedValue(makeParticipant(meta.participantIdentity)),
       addShutdownCallback: (cb) => {
         shutdownCbs.push(cb);
       },
@@ -235,10 +232,17 @@ describe('runAgentJob', () => {
       return runtime as never;
     });
     waitForSipAnswerMock.mockResolvedValue(undefined);
-    warmTtsBeforeStartMock.mockReset().mockResolvedValue(undefined);
     postCallCompleteMock.mockResolvedValue(undefined);
     postInboundEnsureMock.mockResolvedValue(undefined);
-    postInboundJobMetadataMock.mockImplementation(async (request) => metadata({ callId: undefined, organizationAgentId: request.organizationAgentId, organizationId: request.organizationId, direction: "inbound", agentKey: "inbound" }));
+    postInboundJobMetadataMock.mockImplementation(async (request) =>
+      metadata({
+        callId: undefined,
+        organizationAgentId: request.organizationAgentId,
+        organizationId: request.organizationId,
+        direction: 'inbound',
+        agentKey: 'inbound',
+      }),
+    );
   });
 
   afterEach(() => {
@@ -278,7 +282,6 @@ describe('runAgentJob', () => {
 
       expect(ctx.waitForParticipant).toHaveBeenCalledWith(PHONE);
       expect(waitForSipAnswerMock).toHaveBeenCalledTimes(1);
-      expect(warmTtsBeforeStartMock).toHaveBeenCalled();
       expect(runtime.session.start).toHaveBeenCalledTimes(1);
     });
 
@@ -303,11 +306,10 @@ describe('runAgentJob', () => {
       expect(ctx.waitForParticipant).toHaveBeenCalled();
       expect(waitForSipAnswerMock).not.toHaveBeenCalled();
       expect(postInboundEnsureMock).toHaveBeenCalled();
-      expect(warmTtsBeforeStartMock).toHaveBeenCalled();
       expect(runtime.session.start).toHaveBeenCalledTimes(1);
     });
 
-    it('inbound SIP with Bulbul realtime warms TTS before session.start', async () => {
+    it('inbound SIP with Bulbul realtime starts without phrase warmup', async () => {
       const ctx = makeCtx(
         metadata({
           callId: undefined,
@@ -327,53 +329,25 @@ describe('runAgentJob', () => {
       await runJob(ctx);
 
       expect(waitForSipAnswerMock).not.toHaveBeenCalled();
-      expect(warmTtsBeforeStartMock).toHaveBeenCalled();
       expect(runtime.session.start).toHaveBeenCalledTimes(1);
     });
 
-    it('overlaps TTS warm with runtime build and awaits both before session.start', async () => {
-      let finishWarm: (() => void) | undefined;
+    it('starts as soon as runtime construction completes without a phrase warmup gate', async () => {
       let finishBuild: ((runtime: unknown) => void) | undefined;
-      warmTtsBeforeStartMock.mockImplementation(
-        () =>
-          new Promise<void>((resolve) => {
-            finishWarm = resolve;
-          }),
-      );
       buildAgentRuntimeMock.mockImplementation(
         () =>
           new Promise((resolve) => {
             finishBuild = resolve;
           }),
       );
-      const ctx = makeCtx(
-        metadata({
-          callId: undefined,
-          agentKey: 'inbound',
-          direction: 'inbound',
-          medium: 'sip',
-          participantIdentity: undefined,
-        }),
-      );
-      ctx.waitForParticipant.mockResolvedValue({
-        identity: PHONE,
-        attributes: { 'sip.callStatus': 'ringing' },
-      });
-      postInboundEnsureMock.mockResolvedValue('inbound-call-1');
-
+      const ctx = makeCtx(metadata({ medium: undefined }));
       const job = runJob(ctx);
       await delay(20);
-      expect(runtime.session.start).not.toHaveBeenCalled();
-      expect(buildAgentRuntimeMock).toHaveBeenCalled();
-      expect(warmTtsBeforeStartMock).toHaveBeenCalled();
-      finishWarm?.();
-      await delay(10);
       expect(runtime.session.start).not.toHaveBeenCalled();
       finishBuild?.(runtime);
       await job;
       expect(runtime.session.start).toHaveBeenCalledTimes(1);
     });
-
     it('inbound SIP re-reads live org-agent metadata before building models', async () => {
       const ctx = makeCtx(
         metadata({
@@ -411,7 +385,6 @@ describe('runAgentJob', () => {
         organizationAgentId: 'oa-live',
         organizationId: 'org-1',
       });
-      expect(warmTtsBeforeStartMock).not.toHaveBeenCalled();
       expect(buildAgentRuntimeMock).toHaveBeenCalledWith(
         expect.objectContaining({
           model: 'openai/gpt-realtime-2.1-mini',
@@ -800,14 +773,18 @@ describe('runAgentJob', () => {
       const failed = posts.find((p) => p.callId === 'call-05');
       expect(failed?.payload.failureCode).toBe('agent_error');
       expect(
-        posts.filter((p) => p.callId !== 'call-05').every((p) => p.payload.status === 'completed'),
+        posts
+          .filter((p) => p.callId !== 'call-05')
+          .every((p) => p.payload.status === 'completed'),
       ).toBe(true);
     });
   });
 
   it('fails explicitly when inbound live metadata cannot be refreshed', async () => {
     postInboundJobMetadataMock.mockResolvedValue(undefined);
-    const ctx = makeCtx(metadata({ organizationAgentId: 'oa-1', direction: 'inbound' }));
+    const ctx = makeCtx(
+      metadata({ organizationAgentId: 'oa-1', direction: 'inbound' }),
+    );
     await expect(runJob(ctx)).rejects.toThrow(/refresh failed/);
     expect(buildAgentRuntimeMock).not.toHaveBeenCalled();
   });

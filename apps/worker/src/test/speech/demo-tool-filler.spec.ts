@@ -4,12 +4,10 @@ import {
   withDemoToolFiller,
 } from '../../speech/demo-tool-filler';
 import { DEMO_CHECK_LINE_EN } from '../../tasks/demo-booking-tracks';
-import { clearTtsCache, ensureCached, ttsCacheKey } from '../../speech/tts-cache';
+import type { TtsCacheRuntime } from '../../speech/tts-cache-runtime';
 import type { SessionUserData } from '../../tools/types';
 
-function meta(
-  overrides: Partial<AgentJobMetadata> = {},
-): AgentJobMetadata {
+function meta(overrides: Partial<AgentJobMetadata> = {}): AgentJobMetadata {
   return {
     agentKey: 'outbound',
     direction: 'outbound',
@@ -26,9 +24,7 @@ function meta(
   };
 }
 
-function userData(
-  extras: Partial<SessionUserData> = {},
-): SessionUserData {
+function userData(extras: Partial<SessionUserData> = {}): SessionUserData {
   return {
     context: {},
     taskResult: null,
@@ -39,34 +35,29 @@ function userData(
 }
 
 describe('withDemoToolFiller', () => {
-  beforeEach(() => {
-    clearTtsCache();
-  });
-
   it('plays the cached check line, overlaps HTTP, then waits for playout', async () => {
     const outbound = meta();
-    const tts = {
-      synthesize: jest.fn(async function* () {
-        yield { frame: { id: 'check-1' } };
-      }),
-    };
-    await ensureCached(
-      tts,
-      ttsCacheKey(outbound, DEMO_CHECK_LINE_EN),
-      DEMO_CHECK_LINE_EN,
-    );
+    const ttsCache = {
+      enabled: true,
+      finiteAudio: jest.fn(() => new ReadableStream()),
+    } as unknown as TtsCacheRuntime;
     const order: string[] = [];
     const say = jest.fn(() => ({
       waitForPlayout: async () => {
         order.push('playout');
       },
     }));
-    const data = userData({ tts, saySession: { say } });
+    const data = userData({ ttsCache, saySession: { say } });
 
-    const result = await withDemoToolFiller(outbound, data, 'check', async () => {
-      order.push('http');
-      return { ok: true };
-    });
+    const result = await withDemoToolFiller(
+      outbound,
+      data,
+      'check',
+      async () => {
+        order.push('http');
+        return { ok: true };
+      },
+    );
 
     expect(result).toEqual({ ok: true });
     expect(say).toHaveBeenCalledWith(

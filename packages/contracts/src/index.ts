@@ -1,5 +1,6 @@
 export { isKnownToolId, KNOWN_TOOL_IDS, TOOL_IDS } from './tools.js';
 export { CallExecutionType } from './call.js';
+export * from './tts-cache.js';
 export type { KnownToolId } from './tools.js';
 
 export {

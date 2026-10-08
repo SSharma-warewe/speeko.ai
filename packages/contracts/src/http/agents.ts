@@ -37,6 +37,10 @@ export type Agent = {
   temperature: number | null;
   speakingRate?: number | null;
   deliveryMode?: DeliveryMode | null;
+  /** Saved preference: null inherits template/platform policy. */
+  ttsCacheEnabled: boolean | null;
+  ttsCacheDefaultEnabled: boolean;
+  effectiveTtsCacheEnabled: boolean;
   organizationId?: string;
   agentId?: string;
   templateKey?: string;
@@ -45,6 +49,7 @@ export type Agent = {
 };
 
 export type UpdateAgentTemplateRequest = {
+  ttsCacheEnabled?: boolean | null;
   systemPrompt?: string;
   onEnterInstructions?: string | null;
   onExitInstructions?: string | null;
@@ -78,6 +83,7 @@ export type CloneOrganizationAgentRequest = {
 };
 
 export type UpdateOrganizationAgentRequest = {
+  ttsCacheEnabled?: boolean | null;
   name?: string;
   slug?: string;
   systemPrompt?: string;

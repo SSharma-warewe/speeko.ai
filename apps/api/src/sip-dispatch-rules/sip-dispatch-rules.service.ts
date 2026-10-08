@@ -340,6 +340,7 @@ export class SipDispatchRulesService {
         task: DEFAULT_TASK_KEY,
         prompt: { systemPrompt: '' },
         enabledTools: ['endCall'],
+        ttsCacheEnabled: false,
       };
       return JSON.stringify(fallback);
     }

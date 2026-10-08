@@ -78,6 +78,7 @@ private parseHookField(
       temperature: null,
       speakingRate: null,
       deliveryMode: null,
+      ttsCacheEnabled: false,
     };
   }
 
@@ -155,6 +156,7 @@ private parseHookField(
       deliveryMode: isDeliveryMode(parsed.deliveryMode)
         ? parsed.deliveryMode
         : null,
+      ttsCacheEnabled: parsed.ttsCacheEnabled === true,
     };
   } catch (err) {
     if (configured || raw.includes('\"voiceTask\"')) throw err;
@@ -182,6 +184,7 @@ private parseHookField(
       temperature: null,
       speakingRate: null,
       deliveryMode: null,
+      ttsCacheEnabled: false,
     };
   }
 }

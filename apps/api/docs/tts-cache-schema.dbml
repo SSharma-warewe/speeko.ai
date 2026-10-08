@@ -1,0 +1,23 @@
+// Additive schema delta. Existing organizations is a reference, not a replacement.
+// Read the canonical Erflow model before applying, then refetch to verify.
+// User explicitly deferred synchronization for this release on 2026-10-08.
+// Canonical synchronization remains outstanding; future changes are not exempt.
+Table tts_cache_entries {
+  id uuid [pk]
+  organization_id uuid [not null]
+  digest varchar(64) [not null, note: 'Lowercase SHA-256; complete synthesis identity includes shared-v1-livekit-1.7.1 namespace']
+  envelope_revision integer [not null, note: 'CHECK = 1']
+  pcm bytea [not null]
+  metadata jsonb [not null, note: 'Only canonical format, rate/channels, duration, ordered frame boundaries and safe alignments']
+  checksum varchar(64) [not null, note: 'Lowercase SHA-256 of canonical metadata followed by PCM bytes']
+  accounted_bytes integer [not null, note: 'CHECK >= octet_length(pcm) AND <= 1048576; PCM nonempty']
+  created_at timestamptz [not null, default: `now()`]
+  expires_at timestamptz [not null]
+  indexes {
+    (organization_id, digest) [unique, name: 'uq_tts_cache_org_digest']
+    expires_at [name: 'idx_tts_cache_expiry']
+    (created_at, id) [name: 'idx_tts_cache_created']
+    (organization_id, created_at, id) [name: 'idx_tts_cache_org_created']
+  }
+}
+Ref: tts_cache_entries.organization_id > organizations.id [delete: cascade]

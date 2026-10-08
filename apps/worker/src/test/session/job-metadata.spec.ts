@@ -2,6 +2,19 @@ import { JobMeta } from '../../session/job-metadata';
 
 describe('parseJobMetadata voice extras', () => {
   const jobMeta = new JobMeta();
+  it.each([true, false, null, undefined, 'true', 'false', 0, 1, {}, []])('only literal true opts in (%j)', (value) => {
+    expect(jobMeta.parseJobMetadata(JSON.stringify({ ttsCacheEnabled: value })).ttsCacheEnabled).toBe(value === true);
+  });
+  it.each(['', null, undefined, '{broken'])('fallback metadata stays off (%s)', (raw) => {
+    expect(jobMeta.parseJobMetadata(raw).ttsCacheEnabled).toBe(false);
+  });
+  it('inbound refresh replaces stale dispatch cache policy in both directions', () => {
+    for (const enabled of [true, false]) {
+      const dispatched = jobMeta.parseJobMetadata(JSON.stringify({ callId: 'call', ttsCacheEnabled: !enabled }));
+      const live = jobMeta.parseJobMetadata(JSON.stringify({ ttsCacheEnabled: enabled }));
+      expect(jobMeta.mergeInboundJobMetadata(dispatched, live)).toMatchObject({ callId: 'call', ttsCacheEnabled: enabled });
+    }
+  });
 
   it('empty raw → null speakingRate / deliveryMode', () => {
     const meta = jobMeta.parseJobMetadata('');

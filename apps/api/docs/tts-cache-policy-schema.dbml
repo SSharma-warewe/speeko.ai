@@ -1,0 +1,11 @@
+// Additive COLUMN delta only: merge into the existing canonical tables.
+// These partial declarations are NOT replacements for either existing table.
+// Read canonical Erflow DBML, add the two columns, then refetch to verify.
+// User explicitly deferred synchronization for this release on 2026-10-08.
+// Canonical synchronization remains outstanding; future changes are not exempt.
+Table agents {
+  tts_cache_enabled boolean [default: null, note: 'Nullable. null = platform default off. Saved preference retained for native realtime; effective policy off there.']
+}
+Table organization_agents {
+  tts_cache_enabled boolean [default: null, note: 'Nullable. null inherits template preference then false; explicit false overrides true. New assignment null; clone preserves raw value.']
+}

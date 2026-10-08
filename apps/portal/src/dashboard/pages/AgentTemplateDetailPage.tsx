@@ -43,6 +43,7 @@ export default function AgentTemplateDetailPage() {
   const [silentStart, setSilentStart] = useState(false);
   const [silentEnd, setSilentEnd] = useState(false);
   const [isActive, setIsActive] = useState(true);
+  const [ttsCacheEnabled, setTtsCacheEnabled] = useState<boolean | null>(null);
   const [model, setModel] = useState<string | null>(null);
   const [ttsModel, setTtsModel] = useState<string | null>(null);
   const [sttModel, setSttModel] = useState<string | null>(null);
@@ -75,6 +76,7 @@ export default function AgentTemplateDetailPage() {
       setVoice(data.voice ?? null);
       setSpeakingRate(data.speakingRate ?? DEFAULT_SPEAKING_RATE);
       setDeliveryMode(parseDeliveryMode(data.deliveryMode));
+      setTtsCacheEnabled(data.ttsCacheEnabled ?? null);
       setTemperature(data.temperature ?? DEFAULT_TEMPERATURE);
     }
   }, [data]);
@@ -106,6 +108,7 @@ export default function AgentTemplateDetailPage() {
         voice,
         speakingRate,
         deliveryMode,
+        ttsCacheEnabled,
         temperature,
       });
       setSaved(true);
@@ -145,7 +148,7 @@ export default function AgentTemplateDetailPage() {
       <PageHeader
         eyebrow={data.key}
         title={data.name}
-        description="Platform persona template. PATCH does not retro-update existing organization agents."
+        description="Platform persona template. Saved organization overrides stay unchanged; agents inheriting speech caching follow this default."
         actions={<StatusBadge status={data.direction} />}
       />
 
@@ -156,7 +159,7 @@ export default function AgentTemplateDetailPage() {
           </div>
           <form className="ops-panel-body ops-form" onSubmit={handleSave}>
             {formError ? <Alert tone="error">{formError}</Alert> : null}
-            {saved ? <Alert tone="success">Saved. Existing org agents are not updated.</Alert> : null}
+            {saved ? <Alert tone="success">Saved. Agents inheriting the caching default use it on new calls.</Alert> : null}
             <Field label="Default task"><VoiceTaskSelect admin legacy={false} direction={data.direction} value={defaultVoiceTaskId} onChange={e => setDefaultVoiceTaskId(e.target.value)} disabled={submitting} emptyLabel="General (legacy)" /></Field>
             <Field label="System prompt" htmlFor="tpl-prompt" required>
               <Textarea
@@ -223,6 +226,9 @@ export default function AgentTemplateDetailPage() {
               Active
             </label>
             <AgentVoiceRack
+              ttsCacheEnabled={ttsCacheEnabled}
+              ttsCacheDefaultEnabled={false}
+              cacheDefaultSource="platform"
               compact
               model={model}
               ttsModel={ttsModel}
@@ -242,6 +248,7 @@ export default function AgentTemplateDetailPage() {
                 if (next.voice !== undefined) setVoice(next.voice);
                 if (next.speakingRate !== undefined) setSpeakingRate(next.speakingRate);
                 if (next.deliveryMode !== undefined) setDeliveryMode(next.deliveryMode);
+                if (next.ttsCacheEnabled !== undefined) setTtsCacheEnabled(next.ttsCacheEnabled);
                 if (next.temperature !== undefined) setTemperature(next.temperature);
               }}
             />

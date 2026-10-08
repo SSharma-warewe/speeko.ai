@@ -138,6 +138,16 @@ Unknown Meta/tool writes are not automatically repeated. Org recovery is scoped 
 
 ## Schema / DB after deploys
 
+### Shared TTS cache rollout
+
+Release exception authorized on 2026-10-08: the user explicitly deferred canonical Erflow synchronization and requested worker → API/schema → portal deployment to practical-spontaneity / production with caching off, preserving saved preferences. Both shared flags remain false and the API tenant allowlist empty. The user will perform live voice/usage/latency acceptance; no customer or test agent is automatically opted in. Canonical synchronization remains outstanding for the cache table and nullable policy columns. This exception supersedes the pre-release synchronization gate in the earlier implementation record below, without waiving future schema changes.
+
+Set API-only `DATABASE_SYNCHRONIZE=false` for this release and subsequent production deployments. The TTS preflight exports eight reviewed additive statements; production receives only those changes before API startup. Startup synchronization would also reapply unrelated JSON defaults, so it is disabled. Future schema releases must prepare and verify their own reviewed additive changes rather than relying on startup synchronization. Local default remains true. Preserve unrelated retained tables and existing indexes during this rollout.
+
+API/voice worker code adds optional Postgres-backed shared speech storage; no Redis/service addition is required. `TTS_SHARED_CACHE_ENABLED=false` belongs to both API and voice worker; API-only `TTS_SHARED_CACHE_ORGANIZATION_IDS` defaults empty. These are server runtime values, never Vite inputs or job credentials. Deploy compatible policy-aware workers first, then additive API/schema, then portal, with both flags off. Older workers ignored the new preference; all worker replicas must be upgraded before relying on Off. New workers treat missing metadata as off. Canonical [Erflow synchronization](../apps/api/docs/schema.md#shared-tts-cache-additions) for shared storage and the two nullable policy columns is required before release and is not waived by earlier feature deferrals. No rollout is authorized by these instructions.
+
+After authorized staging calls establish tenant isolation, interruption, provider usage and first-audio latency, enable selected agent preferences and selected tenant UUIDs on API plus the flag on API/worker. Nullable `agents.tts_cache_enabled` and `organization_agents.tts_cache_enabled` default to null, with final policy off; assignments inherit, clones retain their raw preference. Org Off disables local/shared use on new runtimes; live API shared authorization rechecks the saved policy/model immediately. Native realtime always bypasses caching while retaining the preference. API owns two extra bounded cache DB connections per replica; monitor pool saturation, DB load/WAL/storage, aggregate cache counters, expired-row backlog and misses/timeouts. Logical budgets cap accounted PCM/metadata, not physical table/index/TOAST/WAL/backup sizes. Cleanup continues with flags off. Rollback turns shared flags off while retaining schema and eligible local caching; disable agent policy for new local runtimes as needed. Keep compatible workers rather than reverting to versions that ignore Off. Preserve expiry cleanup and stored clips. No production schema change or deployment has been performed for this step.
+
 API currently uses TypeORM synchronize at startup. The installed builder can remove columns from retained tables; synchronization is not a reviewed migration or data-removal plan. Removing an entity does not authorize dropping its old table. Review intended schema/data impact and use explicitly authorized migrations/removal steps; do not run blanket DROP CASCADE examples. Update [entities/Erflow/schema reference](../apps/api/docs/schema.md) in the same change set, except the specifically recorded historical deferrals. Local DB operations do not change Railway Postgres.
 
 Confirm with the user before destructive production actions: service removal/down, shared DROP/TRUNCATE, or intentional traffic/data loss. Never commit production secrets or query output containing credentials.
@@ -167,6 +177,8 @@ Voice health requires LiveKit registration and separate Sarvam loopback health; 
 | `LIVEKIT_API_KEY` | API + worker | Project API key |
 | `LIVEKIT_API_SECRET` | API + worker | Project API secret |
 | `LIVEKIT_AGENT_NAME` | API + worker | Explicit dispatch name (default `call-agent`) |
+| `TTS_SHARED_CACHE_ENABLED` | API + voice worker | Default false. Optional API-authorized cross-call reuse; requires staging acceptance and tenant allowlist. |
+| `TTS_SHARED_CACHE_ORGANIZATION_IDS` | API only | Comma-separated UUID allowlist, default empty. No worker database credentials. |
 | `LIVEKIT_PRICING_PLAN` | API | LiveKit list-price catalog: `build` \| `ship` (default) \| `scale`. Overage rates for personal call-cost analysis (no markup, ignores included monthly credits). |
 | `LIVEKIT_AGENT_DEPLOYED` | API | `true` only if the worker is a LiveKit Cloud hosted agent (charges $0.01/min agent-session). Default off — Railway self-hosted worker counts as WebRTC minutes instead. |
 | `LIVEKIT_SIP_VENDOR_USD_PER_MIN` | API | Optional SIP carrier estimate (Telnyx/Twilio) in USD/min. Default `0` = LiveKit charges only. |
@@ -228,6 +240,7 @@ Voice health requires LiveKit registration and separate Sarvam loopback health; 
 | `PORT` | each HTTP listener | Match public target port/private origin; defaults are in the service table above. |
 | `CORS_ORIGIN` | API | Comma-separated browser origins; shared normalization also governs demo/OTP abuse guards. |
 | `DATABASE_HOST` / `DATABASE_PORT` / `DATABASE_USER` / `DATABASE_PASSWORD` / `DATABASE_NAME` | API | Private DB connection; default local values live in .env.example, production secrets in Railway. |
+| `DATABASE_SYNCHRONIZE` | API | Default true for local compatibility; production explicitly false. Apply reviewed schema changes before deploying API versions that need them. |
 | `JWT_SECRET` | API | Access-token signing secret; server-only, never exposed to Vite/workers. |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME` | API | Seed absent admin; existing password is never overwritten at boot. |
 

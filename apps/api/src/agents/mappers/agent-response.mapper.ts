@@ -3,6 +3,7 @@ import { AgentResponseDto } from '../dto/agent-response.dto';
 import { orgAgentDefaultTaskKey } from '../org-agent-task';
 import { OrganizationAgent } from '../organization-agent.entity';
 import { resolveVoiceRuntime } from '../voice-settings';
+import { resolveTtsCacheEnabled } from '@call-agent/contracts';
 
 export function toAgentTemplateResponse(
   agent: Agent,
@@ -32,6 +33,13 @@ export function toAgentTemplateResponse(
     temperature: agent.temperature,
     speakingRate: agent.speakingRate,
     deliveryMode: agent.deliveryMode,
+    ttsCacheEnabled: agent.ttsCacheEnabled ?? null,
+    ttsCacheDefaultEnabled: false,
+    effectiveTtsCacheEnabled: resolveTtsCacheEnabled(
+      agent.ttsCacheEnabled,
+      false,
+      agent.model,
+    ),
     createdAt: agent.createdAt,
     updatedAt: agent.updatedAt,
   };
@@ -47,6 +55,7 @@ export function toOrganizationAgentResponse(
       `OrganizationAgent ${row.id} loaded without agent relation`,
     );
   }
+  const runtime = resolveVoiceRuntime(row, template);
   return {
     id: row.id,
     key: template.key,
@@ -65,7 +74,10 @@ export function toOrganizationAgentResponse(
     toolProfileId: row.toolProfileId,
     calendarIntegrationId: row.calendarIntegrationId ?? null,
     enabledTools,
-    ...resolveVoiceRuntime(row, template),
+    ...runtime,
+    ttsCacheEnabled: row.ttsCacheEnabled ?? null,
+    ttsCacheDefaultEnabled: template.ttsCacheEnabled === true,
+    effectiveTtsCacheEnabled: runtime.ttsCacheEnabled,
     organizationId: row.organizationId,
     agentId: row.agentId,
     templateKey: template.key,

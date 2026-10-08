@@ -30,6 +30,8 @@ import {
   SpeekoOpenaiRealtimeModel,
   SpeekoXaiRealtimeModel,
 } from './realtime-models.js';
+import type { ResolvedTtsConfiguration } from '../speech/tts-cache-identity.js';
+import { preserveTtsRequestUsage } from '../speech/tts-usage.js';
 
 export function resolveLlmSpec(meta: AgentJobMetadata): LlmModelSpec {
   return llmModelSpec(meta.model);
@@ -45,9 +47,9 @@ export function openaiPluginExtras(spec: LlmModelSpec): OpenaiLlmExtras {
   };
 }
 
-export function resolveLlmModelOptions(
-  meta: AgentJobMetadata,
-): { temperature?: number } {
+export function resolveLlmModelOptions(meta: AgentJobMetadata): {
+  temperature?: number;
+} {
   if (typeof meta.temperature === 'number' && !Number.isNaN(meta.temperature)) {
     return { temperature: meta.temperature };
   }
@@ -63,9 +65,7 @@ export function resolveSttSpec(meta: AgentJobMetadata): SttModelSpec {
 }
 
 /** Explicit metadata language, if it is a known catalog id. */
-export function resolveSpeechLanguage(
-  meta: AgentJobMetadata,
-): string | null {
+export function resolveSpeechLanguage(meta: AgentJobMetadata): string | null {
   return canonicalizeSpeechLanguageId(meta.speechLanguage) ?? null;
 }
 
@@ -162,14 +162,72 @@ export type CreateTtsOptions = {
   streaming?: boolean;
 };
 
+/** The same resolved, secret-free snapshot drives construction and cache identity. */
+export function resolveTtsConfiguration(
+  meta: AgentJobMetadata,
+  overrides?: CreateTtsOptions,
+): ResolvedTtsConfiguration {
+  const spec = resolveTtsSpec(meta);
+  const requested = resolveTtsModelOptions(meta, spec);
+  const options: ResolvedTtsConfiguration['options'] =
+    spec.backend === 'livekit-inference'
+      ? {
+          speakingRate: 'provider-default',
+          deliveryMode: 'provider-default',
+          ...requested,
+        }
+      : spec.backend === 'sarvam-plugin'
+        ? {
+            pace: 1,
+            temperature: 0.6,
+            outputAudioCodec: 'linear16',
+            dictId: null,
+            ...requested,
+          }
+        : spec.backend === 'openai-plugin'
+          ? { speed: 1, instructions: null, ...requested }
+          : {
+              speed: 'provider-default',
+              textNormalization: 'provider-default',
+              optimizeStreamingLatency: 'provider-default',
+              ...requested,
+            };
+  return {
+    backend: spec.backend,
+    runtimeModel: spec.runtimeModel,
+    voice: resolveTtsVoice(meta, spec),
+    language:
+      spec.backend === 'sarvam-plugin'
+        ? resolveTtsLanguage(meta)
+        : spec.backend === 'xai-plugin'
+          ? 'auto'
+          : null,
+    streaming:
+      spec.backend === 'livekit-inference' ||
+      spec.backend === 'xai-plugin' ||
+      (spec.backend === 'sarvam-plugin' &&
+        (overrides?.streaming ?? spec.streaming === true)),
+    options,
+  };
+}
+
 export function createTts(
   meta: AgentJobMetadata,
   env: NodeJS.ProcessEnv = process.env,
   options?: CreateTtsOptions,
 ): tts.TTS {
+  return preserveTtsRequestUsage(createTtsProvider(meta, env, options));
+}
+
+function createTtsProvider(
+  meta: AgentJobMetadata,
+  env: NodeJS.ProcessEnv = process.env,
+  options?: CreateTtsOptions,
+): tts.TTS {
   const spec = resolveTtsSpec(meta);
-  const voice = resolveTtsVoice(meta, spec);
-  const ttsOptions = resolveTtsModelOptions(meta, spec);
+  const config = resolveTtsConfiguration(meta, options);
+  const voice = config.voice;
+  const ttsOptions = config.options;
   const speed =
     typeof ttsOptions.speed === 'number' ? ttsOptions.speed : undefined;
   const pace =
@@ -178,7 +236,7 @@ export function createTts(
   if (spec.backend === 'openai-plugin') {
     return new openai.TTS({
       apiKey: requireEnv(env, 'OPENAI_API_KEY', spec.id),
-      model: spec.runtimeModel,
+      model: config.runtimeModel,
       voice: voice as 'ash',
       ...(speed !== undefined ? { speed } : {}),
     });
@@ -193,24 +251,32 @@ export function createTts(
   }
 
   if (spec.backend === 'sarvam-plugin') {
-    const streaming = options?.streaming ?? spec.streaming === true;
+    const streaming = config.streaming;
     return new sarvam.TTS({
       apiKey: requireEnv(env, 'SARVAM_API_KEY', spec.id),
-      model: spec.runtimeModel as 'bulbul:v3',
+      model: config.runtimeModel as 'bulbul:v3',
       speaker: voice,
-      targetLanguageCode: resolveTtsLanguage(meta) as 'en-IN',
+      targetLanguageCode: config.language as 'en-IN',
       outputAudioCodec: 'linear16',
       // REST is the SIP-safe default (`TTS stream stalled` on WS openings).
       // `sarvam/bulbul-v3-realtime` opts into native WS `stream()`.
       streaming,
+      temperature: config.options.temperature as number,
       ...(pace !== undefined ? { pace } : {}),
     });
   }
 
   return new inference.TTS({
-    model: spec.runtimeModel as typeof DEFAULT_TTS_MODEL_ID,
+    model: config.runtimeModel as typeof DEFAULT_TTS_MODEL_ID,
     voice,
-    ...(Object.keys(ttsOptions).length > 0 ? { modelOptions: ttsOptions } : {}),
+    ...(() => {
+      const modelOptions = Object.fromEntries(
+        Object.entries(ttsOptions).filter(
+          ([key]) => key !== 'speakingRate' && key !== 'deliveryMode',
+        ),
+      );
+      return Object.keys(modelOptions).length > 0 ? { modelOptions } : {};
+    })(),
   });
 }
 

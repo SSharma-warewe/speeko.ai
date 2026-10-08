@@ -20,7 +20,12 @@ export function assertSecurityDatabaseUrl(url: string) {
 }
 
 export async function securityDatabase(
-  schema: 'auth_security_test' | 'call_capability_test' | 'queue_admission_test' | 'human_call_test',
+  schema:
+    | 'auth_security_test'
+    | 'call_capability_test'
+    | 'queue_admission_test'
+    | 'human_call_test'
+    | 'tts_cache_test',
 ) {
   assertSecurityDatabaseUrl(securityDatabaseUrl!);
   const root = resolve(process.cwd(), 'apps/api/src');
@@ -73,13 +78,23 @@ export async function waitForPrincipalWaiters(db: DataSource, count: number) {
   );
 }
 
-export async function waitForSecurityRowWaiters(db: DataSource, count: number, table: string) {
+export async function waitForSecurityRowWaiters(
+  db: DataSource,
+  count: number,
+  table: string,
+) {
   const deadline = Date.now() + 10000;
-  const entityAlias = table.split('_').map(part => part[0].toUpperCase() + part.slice(1)).join('');
+  const entityAlias = table
+    .split('_')
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join('');
   do {
-    const [row] = await db.query(`SELECT COUNT(*)::int AS n FROM pg_stat_activity
+    const [row] = await db.query(
+      `SELECT COUNT(*)::int AS n FROM pg_stat_activity
       WHERE application_name = 'speeko_api_security_test' AND wait_event_type = 'Lock'
-        AND (query ILIKE $1 OR query ILIKE $2)`, [`%${table}%`, `%${entityAlias}%`]);
+        AND (query ILIKE $1 OR query ILIKE $2)`,
+      [`%${table}%`, `%${entityAlias}%`],
+    );
     if (row.n >= count) return;
   } while (Date.now() < deadline);
   throw new Error(`Concurrent operations did not reach the ${table} lock`);

@@ -19,6 +19,17 @@ const snapshot: VoiceTaskSnapshot = {
   definition: VOICE_TASK_STARTERS.general,
 };
 describe('configured call snapshots', () => {
+  it.each([true, false, null])('carries resolved cache policy through configured outbound and draft web dispatch (%s)', async (preference) => {
+    const h = createCallsHarness();
+    const row = { ...orgAgent, ttsCacheEnabled: preference, agent: { ...template, ttsCacheEnabled: true } };
+    h.organizationAgentsService.getEntityWithTemplate.mockResolvedValue(row);
+    const draft = { ...snapshot, version: 0, draftRevision: 3 };
+    await h.webTest.createOrgAgentTestCall(ORG_ID, { organizationAgentId: ORG_AGENT_ID }, draft);
+    expect(JSON.parse(h.livekit.createAgentDispatch.mock.calls[0][0].metadata).ttsCacheEnabled).toBe(preference ?? true);
+    h.livekit.createAgentDispatch.mockClear();
+    await h.dial.dialClaimedCall(h.admitCall(h.makeCall({ status: CallStatus.CREATING, taskKey: `custom_${snapshot.taskId}`, voiceTaskSnapshot: snapshot })));
+    expect(JSON.parse(h.livekit.createAgentDispatch.mock.calls[0][0].metadata).ttsCacheEnabled).toBe(preference ?? true);
+  });
   it('freezes one version across a batch and dispatches it after another version is published', async () => {
     const h = createCallsHarness();
     h.voiceTasks.resolve.mockResolvedValue(snapshot);

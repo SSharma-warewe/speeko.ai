@@ -105,6 +105,15 @@ export class Agent {
   @Column({ name: 'delivery_mode', type: 'varchar', length: 32, nullable: true })
   deliveryMode!: string | null;
 
+  /** null = platform default (off). Retained for native realtime. */
+  @Column({
+    name: 'tts_cache_enabled',
+    type: 'boolean',
+    nullable: true,
+    default: null,
+  })
+  ttsCacheEnabled!: boolean | null;
+
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive!: boolean;
 

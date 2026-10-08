@@ -24,13 +24,10 @@ export async function withDemoToolFiller<T>(
   const line = kind === 'check' ? demoCheckLine(meta) : demoBookLine(meta);
   let handle: unknown;
   try {
-    handle = sayCached(
-      userData.saySession,
-      userData.tts,
-      line,
-      { addToChatCtx: true, allowInterruptions: true },
-      meta,
-    );
+    handle = sayCached(userData.saySession, userData.ttsCache, line, {
+      addToChatCtx: true,
+      allowInterruptions: true,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.warn(`[agent] demo tool filler say failed: ${message}`);

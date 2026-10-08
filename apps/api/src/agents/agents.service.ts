@@ -25,6 +25,7 @@ export type CreateAgentSeedInput = {
   temperature: number | null;
   speakingRate?: number | null;
   deliveryMode?: string | null;
+  ttsCacheEnabled?: boolean | null;
 };
 
 /** null = default; "" = skip speech; non-empty = custom. Whitespace-only → null. */
@@ -95,6 +96,7 @@ export class AgentsService {
       temperature: input.temperature,
       speakingRate: input.speakingRate ?? null,
       deliveryMode: input.deliveryMode ?? null,
+      ttsCacheEnabled: input.ttsCacheEnabled ?? null,
       isActive: true,
     });
     return this.agentsRepository.save(agent);

@@ -10,6 +10,7 @@ import {
   isAgentVoiceAllowed,
   isDeliveryMode,
   isRealtimeLlmModel,
+  resolveTtsCacheEnabled,
   type DeliveryMode,
 } from '@call-agent/contracts';
 
@@ -17,6 +18,7 @@ export { DELIVERY_MODES, isDeliveryMode };
 export type { DeliveryMode };
 
 export type VoiceRuntime = {
+  ttsCacheEnabled: boolean;
   voice: string | null;
   model: string | null;
   ttsModel: string | null;
@@ -28,6 +30,7 @@ export type VoiceRuntime = {
 };
 
 export type VoicePatchInput = Partial<{
+  ttsCacheEnabled: boolean | null;
   voice: string | null;
   model: string | null;
   ttsModel: string | null;
@@ -141,6 +144,9 @@ export function applyVoicePatch(
   dto: VoicePatchInput,
   fallbackTtsModel?: string | null,
 ): void {
+  if (dto.ttsCacheEnabled !== undefined) {
+    row.ttsCacheEnabled = dto.ttsCacheEnabled;
+  }
   if (dto.ttsModel !== undefined) {
     row.ttsModel = parseStoredTtsModel(dto.ttsModel);
   }
@@ -194,6 +200,7 @@ export function resolveVoiceRuntime(
   const model = org?.model ?? template?.model ?? null;
   if (isRealtimeLlmModel(model)) {
     return {
+      ttsCacheEnabled: false,
       voice: org?.voice ?? template?.voice ?? null,
       model,
       ttsModel: null,
@@ -205,6 +212,11 @@ export function resolveVoiceRuntime(
     };
   }
   return {
+    ttsCacheEnabled: resolveTtsCacheEnabled(
+      org?.ttsCacheEnabled,
+      template?.ttsCacheEnabled === true,
+      model,
+    ),
     voice: org?.voice ?? template?.voice ?? null,
     model,
     ttsModel: org?.ttsModel ?? template?.ttsModel ?? null,

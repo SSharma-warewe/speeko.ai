@@ -531,6 +531,7 @@ describe('SipDispatchRulesService', () => {
         task: 'general',
         prompt: { systemPrompt: '' },
         enabledTools: ['endCall'],
+        ttsCacheEnabled: false,
       });
       expect(meta.callId).toBeUndefined();
     });

@@ -199,17 +199,19 @@ describe('AgentsService', () => {
           defaultTaskKey: 'general',
           defaultToolProfileId: PROFILE_ID,
           isActive: true,
+          ttsCacheEnabled: null,
         }),
       );
       expect(repository.save).toHaveBeenCalled();
     });
 
     it('10. existing complete returns without save', async () => {
-      repository.findByKey.mockResolvedValue({ ...template });
+      repository.findByKey.mockResolvedValue({ ...template, ttsCacheEnabled: true });
 
       const result = await service.createIfMissing(seedInput);
 
       expect(result.id).toBe(TEMPLATE_ID);
+      expect(result.ttsCacheEnabled).toBe(true);
       expect(repository.save).not.toHaveBeenCalled();
       expect(repository.create).not.toHaveBeenCalled();
     });

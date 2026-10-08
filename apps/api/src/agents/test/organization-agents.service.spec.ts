@@ -215,6 +215,12 @@ describe('OrganizationAgentsService', () => {
   });
 
   describe('assign', () => {
+    it('starts with inheritance even when the template explicitly enables caching', async () => {
+      agentsService.findById.mockResolvedValue({ ...template, ttsCacheEnabled: true });
+      repository.findByIdAndOrgWithAgent.mockResolvedValue(makeOrgAgent());
+      await service.assign(ORG_ID, { agentId: TEMPLATE_ID, name: 'Inherited' });
+      expect(repository.create).toHaveBeenCalledWith(expect.objectContaining({ ttsCacheEnabled: null }));
+    });
     it('4. inactive template → Conflict with template key; no save', async () => {
       agentsService.findById.mockResolvedValue({
         ...template,
@@ -528,6 +534,12 @@ describe('OrganizationAgentsService', () => {
   });
 
   describe('clone', () => {
+    it.each([true, false, null])('copies raw cache preference %s', async (preference) => {
+      const source = makeOrgAgent({ ttsCacheEnabled: preference });
+      repository.findByIdAndOrgWithAgent.mockResolvedValue(source);
+      await service.clone(ORG_ID, ORG_AGENT_ID, { name: 'Cache copy' });
+      expect(repository.create).toHaveBeenCalledWith(expect.objectContaining({ ttsCacheEnabled: preference }));
+    });
     it('16. copies source persona fields — not template defaults', async () => {
       const source = makeOrgAgent({
         systemPrompt: 'SOURCE ONLY PROMPT',

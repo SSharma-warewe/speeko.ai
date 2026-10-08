@@ -14,6 +14,7 @@ import {
 } from '../speech/realtime-speech.js';
 import { personaSpeaksHindi } from '../common/persona.js';
 import { sayCached } from '../speech/tts-cache.js';
+import { createCachedTtsNode } from '../speech/cached-tts-node.js';
 import { isUnusableUserTurn, userTurnText } from './user-turn.js';
 import {
   classifyDemoGoodTime,
@@ -59,6 +60,9 @@ export function createWorkflowTask<ResultT>(
     instructions: options.instructions,
     chatCtx: options.chatCtx,
     tools: options.tools,
+    ...(!realtime && options.userData?.ttsCache
+      ? { ttsNode: createCachedTtsNode(options.userData.ttsCache) }
+      : {}),
     async onEnter(ctx) {
       if (!realtime) {
         return;
@@ -291,9 +295,7 @@ export async function handleInboundServiceTrackTurn(options: {
       const next = inboundLocationNextStep(options.userData.serviceTrack);
       const line = inboundLocationFollowUpLine(options.userData.serviceTrack);
       options.userData.inboundScriptStep = next;
-      console.log(
-        `[agent] inbound script step=${next} location=${location}`,
-      );
+      console.log(`[agent] inbound script step=${next} location=${location}`);
       speakCachedScriptLine(options, line);
       return;
     }
@@ -353,13 +355,10 @@ function speakCachedScriptLine(
     console.warn(`[agent] script interrupt failed: ${message}`);
   }
   try {
-    sayCached(
-      options.session,
-      options.userData.tts,
-      line,
-      { addToChatCtx: true, allowInterruptions: true },
-      options.meta,
-    );
+    sayCached(options.session, options.userData.ttsCache, line, {
+      addToChatCtx: true,
+      allowInterruptions: true,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.warn(`[agent] script say failed: ${message}`);

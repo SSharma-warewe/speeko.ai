@@ -1,4 +1,8 @@
 import type { ReactNode } from "react";
+import {
+  speechCachePreference,
+  speechCacheSelection,
+} from "../../lib/speech-cache-settings";
 import { SegmentedControl, Select, Slider } from "@call-agent/ui";
 import {
   extraRealtimeVoiceCatalog,
@@ -31,9 +35,11 @@ import {
 import {
   DEFAULT_STT_MODEL_ID,
   DEFAULT_TTS_MODEL_ID,
+  resolveTtsCacheEnabled,
 } from "@call-agent/contracts";
 
 export type AgentVoiceValues = {
+  ttsCacheEnabled: boolean | null;
   model: string | null;
   ttsModel: string | null;
   sttModel: string | null;
@@ -45,6 +51,8 @@ export type AgentVoiceValues = {
 };
 
 type Props = AgentVoiceValues & {
+  ttsCacheDefaultEnabled: boolean;
+  cacheDefaultSource?: "template" | "platform";
   disabled?: boolean;
   compact?: boolean;
   onChange: (next: Partial<AgentVoiceValues>) => void;
@@ -192,6 +200,9 @@ export function AgentVoiceRack({
   speakingRate,
   deliveryMode,
   temperature,
+  ttsCacheEnabled,
+  ttsCacheDefaultEnabled,
+  cacheDefaultSource = "template",
   disabled = false,
   compact = false,
   onChange,
@@ -359,6 +370,37 @@ export function AgentVoiceRack({
 
   const mixSliders = (
     <>
+      <div className="ops-voice-delivery">
+        <label
+          className="ops-voice-delivery-label"
+          htmlFor="agent-speech-cache"
+        >
+          Speech caching
+        </label>
+        <Select
+          id="agent-speech-cache"
+          value={speechCacheSelection(ttsCacheEnabled)}
+          disabled={disabled || realtime}
+          aria-describedby="agent-speech-cache-hint"
+          onChange={(event) =>
+            onChange({
+              ttsCacheEnabled: speechCachePreference(event.target.value),
+            })
+          }
+        >
+          <option value="default">
+            Use {cacheDefaultSource} default (
+            {ttsCacheDefaultEnabled ? "On" : "Off"})
+          </option>
+          <option value="on">On</option>
+          <option value="off">Off</option>
+        </Select>
+        <p id="agent-speech-cache-hint" className="ops-voice-delivery-hint">
+          {realtime
+            ? "Unsupported for native realtime speech. Your preference is preserved."
+            : `Effective: ${resolveTtsCacheEnabled(ttsCacheEnabled, ttsCacheDefaultEnabled, model) ? "On" : "Off"}. Eligible repeated speech may reuse audio. Authorized cross-call reuse can last up to 24 hours.`}
+        </p>
+      </div>
       {!realtime && ttsSpec.controls.speakingRate ? (
         <Slider
           label="Speaking speed"

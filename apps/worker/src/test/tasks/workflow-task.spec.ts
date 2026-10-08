@@ -9,11 +9,7 @@ import {
   INBOUND_TIMING_CLARIFY_LINE,
   INBOUND_TIMING_LINE,
 } from '../../tasks/inbound-service-tracks';
-import {
-  clearTtsCache,
-  ensureCached,
-  ttsCacheKey,
-} from '../../speech/tts-cache';
+import type { TtsCacheRuntime } from '../../speech/tts-cache-runtime';
 import {
   DEMO_ASK_WHEN_LINE_EN,
   DEMO_CALLBACK_LINE_EN,
@@ -39,9 +35,7 @@ const speakGoodbye = speakRealtimeGoodbye as jest.MockedFunction<
   typeof speakRealtimeGoodbye
 >;
 
-function meta(
-  overrides: Partial<AgentJobMetadata> = {},
-): AgentJobMetadata {
+function meta(overrides: Partial<AgentJobMetadata> = {}): AgentJobMetadata {
   return {
     agentKey: 'outbound',
     direction: 'outbound',
@@ -112,13 +106,7 @@ describe('finishWorkflowTask', () => {
 });
 
 describe('handleInboundServiceTrackTurn', () => {
-  beforeEach(() => {
-    clearTtsCache();
-  });
-
-  function userData(
-    extras: Partial<SessionUserData> = {},
-  ): SessionUserData {
+  function userData(extras: Partial<SessionUserData> = {}): SessionUserData {
     return {
       context: {},
       taskResult: null,
@@ -136,14 +124,12 @@ describe('handleInboundServiceTrackTurn', () => {
       voice: 'ritu',
     });
     const line = inboundServiceTrackLine('buy');
-    const tts = {
-      synthesize: jest.fn(async function* () {
-        yield { frame: { id: 'buy-1' } };
-      }),
-    };
-    await ensureCached(tts, ttsCacheKey(inbound, line), line);
+    const ttsCache = {
+      enabled: true,
+      finiteAudio: jest.fn(() => new ReadableStream()),
+    } as unknown as TtsCacheRuntime;
     const session = { say: jest.fn(), interrupt: jest.fn() };
-    const data = userData({ tts });
+    const data = userData({ ttsCache });
 
     await expect(
       handleInboundServiceTrackTurn({
@@ -464,13 +450,7 @@ describe('handleInboundServiceTrackTurn', () => {
 });
 
 describe('handleDemoBookingTurn', () => {
-  beforeEach(() => {
-    clearTtsCache();
-  });
-
-  function userData(
-    extras: Partial<SessionUserData> = {},
-  ): SessionUserData {
+  function userData(extras: Partial<SessionUserData> = {}): SessionUserData {
     return {
       context: {},
       taskResult: null,
@@ -482,18 +462,12 @@ describe('handleDemoBookingTurn', () => {
 
   it('plays the cached ask-when line on yes and throws StopResponse', async () => {
     const outbound = meta({ task: 'demo_booking' });
-    const tts = {
-      synthesize: jest.fn(async function* () {
-        yield { frame: { id: 'yes-1' } };
-      }),
-    };
-    await ensureCached(
-      tts,
-      ttsCacheKey(outbound, DEMO_ASK_WHEN_LINE_EN),
-      DEMO_ASK_WHEN_LINE_EN,
-    );
+    const ttsCache = {
+      enabled: true,
+      finiteAudio: jest.fn(() => new ReadableStream()),
+    } as unknown as TtsCacheRuntime;
     const session = { say: jest.fn(), interrupt: jest.fn() };
-    const data = userData({ tts });
+    const data = userData({ ttsCache });
 
     await expect(
       handleDemoBookingTurn({
@@ -588,9 +562,7 @@ describe('handleDemoBookingTurn', () => {
 });
 
 describe('runDemoBookingScriptHook', () => {
-  function userData(
-    extras: Partial<SessionUserData> = {},
-  ): SessionUserData {
+  function userData(extras: Partial<SessionUserData> = {}): SessionUserData {
     return {
       context: {},
       taskResult: null,
@@ -637,11 +609,9 @@ describe('resolveInboundTurnHookArgs', () => {
 
   it('falls back to a say() object on ctx itself', () => {
     const session = { say: jest.fn() };
-    const resolved = resolveInboundTurnHookArgs(
-      session,
-      undefined,
-      { content: 'Sector 42' },
-    );
+    const resolved = resolveInboundTurnHookArgs(session, undefined, {
+      content: 'Sector 42',
+    });
     expect(resolved.session).toBe(session);
     expect(resolved.userText).toBe('Sector 42');
   });
@@ -658,9 +628,7 @@ describe('resolveInboundTurnHookArgs', () => {
 });
 
 describe('runInboundScriptHook', () => {
-  function userData(
-    extras: Partial<SessionUserData> = {},
-  ): SessionUserData {
+  function userData(extras: Partial<SessionUserData> = {}): SessionUserData {
     return {
       context: {},
       taskResult: null,

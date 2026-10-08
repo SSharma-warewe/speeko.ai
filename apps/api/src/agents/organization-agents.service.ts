@@ -240,6 +240,7 @@ export class OrganizationAgentsService {
       temperature: template.temperature,
       speakingRate: template.speakingRate,
       deliveryMode: template.deliveryMode,
+      ttsCacheEnabled: null,
       isActive: true,
     });
     await this.validateDefaultTask(row, template);
@@ -287,6 +288,7 @@ export class OrganizationAgentsService {
       temperature: source.temperature,
       speakingRate: source.speakingRate,
       deliveryMode: source.deliveryMode,
+      ttsCacheEnabled: source.ttsCacheEnabled ?? null,
       isActive: source.isActive,
     });
     const saved = await this.organizationAgentsRepository.save(row);
