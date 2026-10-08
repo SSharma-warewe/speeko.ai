@@ -29,6 +29,8 @@ Scope: `apps/portal`. Inherit the [root instructions](../../AGENTS.md). This app
 
 ## Domain behavior
 
+Speech-caching portal rollout verified 2026-10-08: source `857c86c`, deployment `41504f26-6aa4-4310-bb62-359fe5c302b7`, SUCCESS with one RUNNING instance. Public login/admin/org agent deep links and shipped `index-CaB-4azP.js` passed control/default-source/raw-preference/native-unsupported/API-origin checks. Earlier synthetic browser checks exercised all three editors; live authenticated interaction and speech acceptance remain with the user. All persisted preferences remain null/off and shared flags disabled. See [rollout record](../../railway/AGENTS.md#shared-tts-cache-rollout).
+
 - Org users run named org agent configurations; admins manage tenants, members, assigned tools, and platform templates. Human member role `agent` is not an AI template. Stored org roles are not currently a separate API permission system.
 - Agent persona is identity/tone/policies; workflows use saved voice tasks or legacy code-defined keys. Configured defaults support both directions; calls/batches/endpoints can override them. Preserve hook `null` (default) versus empty string (silent).
 - Voice choices come from the shared catalogs. Switching TTS/realtime model requires a compatible voice; show the effective template fallback returned by API. Do not expose platform runtime prompt layers as editable persona content.

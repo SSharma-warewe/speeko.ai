@@ -1,6 +1,6 @@
 # TTS cache integration plan
 
-Research date: 6 October 2026. Implementation update: 8 October 2026. Status: provider adapter repair, automatic local caching, API-authorized Postgres sharing, and persisted policy/portal controls implemented. Nullable agent/template policy resolves off by default. On 8 October the user explicitly deferred Erflow synchronization and authorized incremental production deployment with sharing off and an empty tenant allowlist; live acceptance will be performed by the user. Canonical synchronization remains outstanding. Deployment results are recorded below when verified.
+Research date: 6 October 2026. Implementation update: 8 October 2026. Status: provider adapter repair, automatic local caching, API-authorized Postgres sharing, and persisted policy/portal controls implemented. Nullable agent/template policy resolves off by default. On 8 October the user explicitly deferred Erflow synchronization and authorized incremental production deployment with sharing off and an empty tenant allowlist; live acceptance will be performed by the user. Canonical synchronization remains outstanding. Verified deployment results are recorded below.
 
 ## Accounting and rollout verification
 
@@ -11,6 +11,10 @@ Enabled jobs log bounded numeric cache-wait and segment-to-first-frame histogram
 API production uses `DATABASE_SYNCHRONIZE=false`; the guarded isolated preflight exports only eight additive TTS statements. Automatic startup synchronization is disabled to leave unrelated defaults, retained tables and indexes untouched. The Erflow deferral covers shared storage and both policy columns only. No agent is automatically enabled.
 
 Release verification on 2026-10-08: 725 tests in 59 suites passed, including the complete worker suite, API cache/policy/pricing/completion tests, portal state tests and 14 real isolated PostgreSQL tests. The first run alongside builds produced one fail-closed lookup deadline result instead of a policy 403; the isolated suite and the complete serial rerun passed. Contracts/portal typechecks and API/worker/portal builds passed before release; the schema switch received an additional API rebuild. The eight-statement delta was generated and validated against the disposable fixture, with unrelated default reapplications excluded and automatic production synchronization disabled.
+
+## Verified production rollout
+
+Production release verified on 2026-10-08 from source `857c86c`: worker `d45d9087-7df8-4164-a9ea-ef9d0b1d395f` → additive schema/API `968a71c2-c96b-460b-a650-18821fb92e60` → portal `41504f26-6aa4-4310-bb62-359fe5c302b7`, each SUCCESS with a RUNNING instance. Worker registration/health, authenticated worker-to-API reachability, API routes/guard/schema/defaults/cleanup and public portal assets/deep links passed. All preferences remain null/off, shared flags false and allowlist empty. Existing rows and unrelated schema/services were preserved. See [deployment record](../../../railway/AGENTS.md#shared-tts-cache-rollout). Real provider usage and caller latency remain unverified pending the user's [live tests](tts-cache-live-acceptance.md); Erflow is explicitly deferred and outstanding.
 
 ## Completed provider adapter repair
 
@@ -33,7 +37,7 @@ The 122-test result above records the earlier adapter-only repair. Current verif
 - Cancellation aborts input and active synthesis streams and releases pending fills/capture memory. Cache lookup/copy/publication failures fall back or bypass capture without restarting speech. Cleanup never closes the session-owned provider. SDK generation metrics remain on their ordinary provider path; replay generates no new provider event. Internal counters are diagnostic only, not a billing/savings claim or an exact upstream request/retry meter.
 - Verified locally: the full worker Jest suite passes (37 suites / 348 tests), and `npm run build:worker` passes. Tests cover SDK segmentation/final flush, early audio before generated input ends, parent/task attachment, ordered bounded lookahead, xAI/expressive/provider bypass, replay alignment and ownership, finite adapters, interruption, partial failures, tenant/default identities, limits/TTL/LRU, bounded concurrent fills, SIP answer gating, and no startup synthesis. Provider I/O is mocked; live latency, delivery/prosody, and usage reconciliation still require staging validation.
 
-The step 1 pass added no public contract, API, database, environment, or portal changes. Step 2 below adds private cache contracts/API/schema and server configuration; step 3 adds the nullable policy/portal control. Next: canonical synchronization → usage/provider/latency checks → staged rollout.
+The step 1 pass added no public contract, API, database, environment, or portal changes. Step 2 below adds private cache contracts/API/schema and server configuration; step 3 adds the nullable policy/portal control. Next: user live usage/provider/latency checks and outstanding canonical synchronization.
 
 ## Recommended approach
 
@@ -61,8 +65,8 @@ The worker implements the local runtime described above and optional API-owned s
 
 Remaining work:
 
-1. Complete canonical Erflow synchronization and staging acceptance for the implemented API-authorized shared storage. Keep sharing disabled until release prerequisites pass.
-2. Complete canonical Erflow synchronization for the implemented `ttsCacheEnabled` policy columns and verify the off-by-default deployment order. The persisted preference, dispatch gate and portal controls are implemented; isolated tests do not replace canonical synchronization.
+1. Complete the explicitly deferred canonical Erflow synchronization for the cache table and both `ttsCacheEnabled` policy columns. The production additive schema and off-by-default deployment order are verified; isolated tests do not replace canonical synchronization.
+2. Perform the user's live acceptance checklist before separately authorizing shared reuse. Keep shared flags off and the tenant allowlist empty until then. Live authenticated portal interaction remains part of this manual acceptance.
 3. Measure real provider behavior, first-audio/pickup latency, cancellation, usage accounting, and tenant isolation before enabling selected test agents. Validate segmentation prosody/context and SDK compatibility on upgrades; bypass any provider path that needs extra buffering or depends on surrounding text.
 
 ## Cache identity
@@ -141,7 +145,7 @@ Complete original captures enqueue asynchronous publication: two uploads, at mos
 
 Verified locally on 2026-10-07: 431 tests in 42 affected suites passed, including the full worker suite and 13 real isolated PostgreSQL tests. Contracts typecheck, API build and worker build passed. Physical cache indexes, check constraints and tenant FK were inspected. Tests cover API HTTP authorization/redaction, cross-call worker replay/deadlines/cancellation/outage/queue bounds, Postgres races, immutable winners, budgets, eviction, expiry, contention, rollback, cleanup, cascade, pool saturation and actual Nest module HTTP registration. Commands are recorded in [API guidance](../../api/AGENTS.md#shared-tts-cache). Live first-audio/provider/usage acceptance remains pending.
 
-The additive [schema delta](../../api/docs/tts-cache-schema.dbml) and entity/local isolated schema are prepared. Erflow tools are unavailable; canonical read/update/refetch remains mandatory before release, with no new deferral. No application/production database or Railway deployment was changed. See [API authority](../../api/AGENTS.md#shared-tts-cache) and [rollout guidance](../../../railway/AGENTS.md#shared-tts-cache-rollout).
+The additive [schema delta](../../api/docs/tts-cache-schema.dbml) and entity/local isolated schema are prepared. Erflow tools are unavailable; canonical read/update/refetch remains outstanding under the explicit 2026-10-08 release deferral. The earlier local verification preceded the production rollout recorded above. See [API authority](../../api/AGENTS.md#shared-tts-cache) and [rollout guidance](../../../railway/AGENTS.md#shared-tts-cache-rollout).
 
 ## Completed step 3: persisted policy and portal controls
 
@@ -155,7 +159,7 @@ Persisted `ttsCacheEnabled: boolean | null` maps to nullable `tts_cache_enabled`
 
 All API dispatch/live-refresh/web/draft-test paths pack a resolved boolean. Worker parsing accepts only literal true; missing/malformed/fallback metadata stays off. Only enabled pipeline jobs construct runtime/client/hooks. Existing provider bypasses, single-source capture, cancellation, deadlines and provider ownership remain. Local policy is fixed per runtime; API shared authorization can revoke further access immediately without purging stored clips. Sharing still requires flags and tenant allowlist. Keep cache lifetime/backend/budgets server-owned; no phrase lists or WhatsApp speech settings are introduced.
 
-Verified on 2026-10-08: 659 tests across 52 focused suites passed, including the full worker suite and 14 real isolated PostgreSQL tests. Tests cover inheritance/DTOs/assignment/clone/seeds/metadata, actual admin/user HTTP persistence and tenant/principal checks, live opt-out and native preference retention. Contracts/portal typechecks and API/worker/portal builds passed. Synthetic headless Edge exercised all three actual editors for save/reload, inheritance, switching, failed-save recovery, keyboard selection and inspected 390px screenshots. Live provider/latency/usage acceptance remains outstanding. The [policy schema delta](../../api/docs/tts-cache-policy-schema.dbml) requires canonical Erflow read/update/refetch; tools remain unavailable and no deferral applies.
+Verified on 2026-10-08: 659 tests across 52 focused suites passed, including the full worker suite and 14 real isolated PostgreSQL tests. Tests cover inheritance/DTOs/assignment/clone/seeds/metadata, actual admin/user HTTP persistence and tenant/principal checks, live opt-out and native preference retention. Contracts/portal typechecks and API/worker/portal builds passed. Synthetic headless Edge exercised all three actual editors for save/reload, inheritance, switching, failed-save recovery, keyboard selection and inspected 390px screenshots. Live provider/latency/usage acceptance remains outstanding. The [policy schema delta](../../api/docs/tts-cache-policy-schema.dbml) requires canonical Erflow read/update/refetch; tools remain unavailable and synchronization is explicitly deferred for this release.
 
 Do not claim Ready because caching was enabled. It is populated opportunistically. Hit-rate reporting can follow after real runtime counters exist; no clip preparation workflow or Generate button is needed for this design.
 
@@ -179,11 +183,11 @@ Test these business/runtime guarantees:
 Implementation order:
 
 1. Completed locally: common custom node, Inference streaming capture, generated/fixed replay, resolved identities, single-source capture, cancellation, bounded local storage, concurrent-fill handling, and removal of pre-start warmup. Live-provider checks remain part of rollout validation.
-2. Implemented locally: API-authorized Postgres sharing, safe serialization, tenant authority, bounded storage/requests and deadlines. Complete canonical Erflow synchronization and live staging acceptance before enabling selected tenants.
-3. Implemented locally: contracts/schema/DTO/packers, strict worker gating and the nullable UI setting. Complete canonical policy-column synchronization before release; deploy compatible workers → API/schema → portal, preserving default off.
+2. Implemented locally: API-authorized Postgres sharing, safe serialization, tenant authority, bounded storage/requests and deadlines. Canonical Erflow synchronization is explicitly deferred for this release; live acceptance and separate tenant authorization are required before enabling shared reuse.
+3. Implemented and deployed: contracts/schema/DTO/packers, strict worker gating and the nullable UI setting. Compatible workers → API/schema → portal rollout is verified with caching off; canonical policy-column synchronization remains explicitly deferred and outstanding.
 4. Validate usage, provider paths, tenant isolation, and latency; enable incrementally on authorized test agents.
 
-Run contracts typecheck/build, API/worker builds, portal typecheck/build, and focused tests; use isolated DB suites for persistence changes. Only documentation checks apply to this plan update.
+Run contracts typecheck/build, API/worker builds, portal typecheck/build, and focused tests; use isolated DB suites for persistence changes. The current implementation and rollout verification results are recorded above.
 
 Deploy compatible worker readers first, then API producers, then portal. Confirm selected Railway environment/services before an authorized rollout. Do not change published workflow semantics, dispatch task versions, or hook null/empty behavior as part of caching.
 
