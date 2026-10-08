@@ -184,7 +184,7 @@ export default function UserDashboardLayout() {
   };
 
   return (
-    <div className="ops">
+    <div className={'ops' + (location.pathname.startsWith('/dashboard/crm/call/') ? ' ops-human-focus' : '')}>
       <aside
         className={`ops-sidebar ops-org-sidebar${mobileMenuOpen ? " is-menu-open" : ""}`}
         aria-label="Organization navigation"

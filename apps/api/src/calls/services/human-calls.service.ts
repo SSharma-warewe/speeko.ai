@@ -332,11 +332,15 @@ export class HumanCallsService {
         );
         return;
       }
-      if (browser && !session.browserJoinedAt)
+      if (browser && !session.browserJoinedAt) {
         await this.sessions.mutate(session.id, token, (current, call) => {
           current.browserJoinedAt ??= now;
           call.startedAt ??= now;
         });
+        this.logger.log(
+          `Human browser observed call=${session.callId} microphoneReady=${humanMicrophoneReady(browser)}`,
+        );
+      }
       if (humanMicrophoneReady(browser)) await this.dial(session);
       return;
     }
@@ -377,6 +381,7 @@ export class HumanCallsService {
           current.phase = browser ? 'connected' : 'reconnecting';
         }
       });
+      this.logger.log(`Human call answered call=${session.callId}`);
     } else if (
       session.call.answeredAt &&
       (!sip || sip.attributes['sip.callStatus'] === 'hangup')
@@ -402,6 +407,10 @@ export class HumanCallsService {
   }
   private async dial(session: HumanCallSession) {
     const token = session.leaseToken!;
+    const validationStartedAt = Date.now();
+    this.logger.log(
+      `Human dial validation started call=${session.callId} browserWaitMs=${session.browserJoinedAt ? Math.max(0, validationStartedAt - session.browserJoinedAt.getTime()) : 0}`,
+    );
     try {
       const contact = await this.contact(
         session.organizationId,
@@ -429,8 +438,12 @@ export class HumanCallsService {
         !humanMicrophoneReady(
           participants?.find((p) => p.identity === session.browserIdentity),
         )
-      )
+      ) {
+        this.logger.log(
+          `Human dial validation deferred call=${session.callId} reason=microphone_not_ready validationMs=${Date.now() - validationStartedAt}`,
+        );
         return;
+      }
       await this.settings.getOrCreate(session.organizationId);
       await this.admission.admitImmediate(
         session.organizationId,
@@ -444,6 +457,9 @@ export class HumanCallsService {
         admitted.leaseToken !== token
       )
         return;
+      this.logger.log(
+        `Human dial admitted call=${session.callId} validationMs=${Date.now() - validationStartedAt}`,
+      );
       // A committed attempt is never resubmitted, even after timeout or restart.
       try {
         const result = await this.livekit.createSipParticipant({
