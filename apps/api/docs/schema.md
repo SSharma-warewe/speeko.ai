@@ -24,7 +24,7 @@ Detailed instructions and reference material now live directly in the [owning AG
 
 ### Human call workspace additions
 
-[Current behavior](../AGENTS.md#human-call-workspace); [additive SQL](human-call-workspace-schema.sql); [column-only DBML](human-call-workspace-schema.dbml). Adds `human_call_sessions.workspace` JSONB with an empty-object default. Apply before the API with synchronization disabled. Canonical Erflow read/update/refetch is outstanding because access was unavailable; this change has no release deferral.
+[Current behavior](../AGENTS.md#human-call-workspace); [additive SQL](human-call-workspace-schema.sql); [column-only DBML](human-call-workspace-schema.dbml). Adds `human_call_sessions.workspace` JSONB with an empty-object default. Apply before the API with synchronization disabled. Canonical Erflow read/update/refetch is outstanding because access was unavailable. On 2026-10-08 the user explicitly selected “Defer Erflow for this release and deploy”; this exception does not waive future schema changes.
 
 ### Shared TTS cache additions
 

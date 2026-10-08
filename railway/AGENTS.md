@@ -286,6 +286,10 @@ The API container reports HUMAN_CRM_CALLS_ENABLED=true. Read-only production ins
 
 The user explicitly requested enabling before live acceptance and will test Meet/SIP audio in deployment. No real call was placed during rollout; two-way audio and live lifecycle/recovery acceptance remain unverified. Erflow synchronization remains outstanding and explicitly deferred for this change. Rollback disables new sessions while retaining the supervisor and additive schema/history.
 
+## CRM human call workspace rollout
+
+On 2026-10-08 the user authorized GitHub publication and Railway deployment and explicitly selected “Defer Erflow for this release and deploy”. Canonical synchronization for `human_call_sessions.workspace` remains outstanding. Deploy API then portal from the pushed Git source; apply only the [reviewed additive workspace column](../apps/api/docs/human-call-workspace-schema.sql) before API startup, with bounded locks/timeouts and DATABASE_SYNCHRONIZE=false. Preserve existing HUMAN_CRM_CALLS_ENABLED and cache settings. No voice/WhatsApp worker, marketing or Postgres service redeployment is needed. Real SIP audio and CRM-provider acceptance remain unverified until tested.
+
 ## Prepared-sentence implementation rollout prerequisites
 
 This change has not been deployed. Both settings default off; existing server sharing flags/allowlists are unchanged. Before deploying the affected worker/API/portal, complete canonical Erflow synchronization for the new prepared-sentence columns, review/apply [additive SQL](../apps/api/docs/tts-prepared-speech-schema.sql) against the confirmed target with DATABASE_SYNCHRONIZE=false, and use compatible consumers. The earlier cache-release schema deferral does not cover this new delta. Preparation remains useful locally when sharing is disabled; cross-call reuse additionally requires both services' existing TTS_SHARED_CACHE_ENABLED and the API organization allowlist. Verify real inbound pickup/outbound answer ordering, cache reuse and post-call memory before enabling broadly.
