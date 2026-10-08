@@ -10,6 +10,7 @@ jest.mock('../../builders/voice-builder', () => ({
 }));
 import { EventEmitter } from 'node:events';
 import { voice, type tts } from '@livekit/agents';
+import { VOICE_TASK_STARTERS } from '@call-agent/contracts';
 import type { AgentJobMetadata } from '../../session/job-metadata';
 import { AgentRuntimeBuilder } from '../../builders/agent-builder';
 import { buildModels } from '../../builders/model-builder';
@@ -17,6 +18,7 @@ import { buildAgentSession } from '../../builders/voice-builder';
 import { buildTools } from '../../builders/tool-builder';
 import { createWorkflowTask } from '../../tasks/workflow-task';
 import { TtsSharedCacheClient } from '../../speech/tts-shared-cache-client';
+import { TtsCacheRuntime } from '../../speech/tts-cache-runtime';
 const metadata = (extra: Partial<AgentJobMetadata> = {}): AgentJobMetadata => ({
   agentKey: 'outbound',
   direction: 'outbound',
@@ -49,6 +51,31 @@ describe('agent-builder job cache integration', () => {
     jest.mocked(buildTools).mockResolvedValue({});
   });
   afterEach(() => jest.restoreAllMocks());
+
+  it('schedules exact opening first without waiting for preparation and registers eligible foreground text', async () => {
+    const provider = providerFixture();
+    jest.mocked(buildModels).mockReturnValue({ kind: 'pipeline', tts: provider } as never);
+    const definition = structuredClone(VOICE_TASK_STARTERS.real_estate_receptionist);
+    definition.savedSpeech!.opening = { mode: 'sentence', key: 'buy_location' };
+    definition.savedSpeech!.sentences[0].prepare = false;
+    definition.savedSpeech!.sentences.push({ ...definition.savedSpeech!.sentences[0], key: 'same_opening', prepare: true });
+    const meta = metadata({ ttsCacheEnabled: false, ttsPreparedSpeechEnabled: true, voiceTask: { schemaVersion: 1, taskId: '58e8e268-373a-4c21-9371-70ad71d0112f', version: 1, definition } });
+    const preparation = jest.spyOn(TtsCacheRuntime.prototype, 'prepare').mockImplementation(() => new Promise(() => {}));
+    let finish!: () => void;
+    const say = jest.fn(() => ({ waitForPlayout: () => new Promise<void>(resolve => { finish = resolve; }) }));
+    const runtime = await new AgentRuntimeBuilder(meta).build();
+    const ctx = { session: { say, generateReply: jest.fn() } };
+    const agentOptions = jest.mocked(voice.Agent.create).mock.calls[0][0] as any;
+    const entered = agentOptions.onEnter(ctx);
+    expect(say).toHaveBeenCalledWith(definition.savedSpeech!.sentences[0].text, expect.objectContaining({ allowInterruptions: false, addToChatCtx: true }));
+    expect(ctx.session.generateReply).not.toHaveBeenCalled();
+    expect(preparation).toHaveBeenCalledTimes(1);
+    expect(say.mock.invocationCallOrder[0]).toBeLessThan(preparation.mock.invocationCallOrder[0]);
+    expect(runtime.userData.ttsCache!.canCacheFinite(definition.savedSpeech!.sentences[0].text)).toBe(true);
+    expect(preparation.mock.calls[0][0]).not.toContain(definition.savedSpeech!.sentences[0].text);
+    finish(); await entered;
+    runtime.userData.savedSpeechState?.dispose(); runtime.userData.ttsCache?.dispose();
+  });
   it.each([
     null,
     'inworld/inworld-tts-2',
@@ -105,6 +132,41 @@ describe('agent-builder job cache integration', () => {
     expect(
       jest.mocked(voice.Agent.create).mock.calls[0][0].ttsNode,
     ).toBeUndefined();
+    createWorkflowTask(meta, {
+      instructions: 'Task',
+      tools: [],
+      userData: runtime.userData,
+    });
+    expect(
+      jest.mocked(voice.AgentTask.create).mock.calls[0][0].ttsNode,
+    ).toBeUndefined();
+  });
+  it('prepares alongside opening without installing automatic hooks or delaying entry', async () => {
+    const provider = providerFixture();
+    jest
+      .mocked(buildModels)
+      .mockReturnValue({ kind: 'pipeline', tts: provider } as ReturnType<
+        typeof buildModels
+      >);
+    const prepare = jest
+      .spyOn(TtsCacheRuntime.prototype, 'prepare')
+      .mockImplementation(() => new Promise(() => {}));
+    const meta = metadata({
+      ttsCacheEnabled: false,
+      ttsPreparedSpeechEnabled: true,
+    });
+    const runtime = await new AgentRuntimeBuilder(meta).build();
+    expect(runtime.userData.ttsCache?.automaticEnabled).toBe(false);
+    const hooks = jest.mocked(voice.Agent.create).mock.calls[0][0];
+    expect(hooks.ttsNode).toBeUndefined();
+    const generateReply = jest.fn(() => ({
+      waitForPlayout: () => new Promise(() => {}),
+    }));
+    // onEnter should reach generateReply immediately despite an unfinished preparation.
+    void hooks.onEnter!({ session: { generateReply }, agent: {} } as never);
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(generateReply).toHaveBeenCalledTimes(1);
+    runtime.userData.ttsCache?.dispose();
     createWorkflowTask(meta, {
       instructions: 'Task',
       tools: [],

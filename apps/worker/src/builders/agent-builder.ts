@@ -1,3 +1,5 @@
+import { savedSpeechHookText } from '@call-agent/contracts';
+import { createSavedSpeechState } from '../speech/saved-speech.js';
 import { voice } from '@livekit/agents';
 import { hangUpCall } from '../speech/hangup.js';
 import type { AgentJobMetadata } from '@call-agent/contracts';
@@ -5,6 +7,7 @@ import { resolveSarvamRealtimePluginUrl } from '../sarvam/plugin-stt.js';
 import type { SessionUserData } from '../tools/types.js';
 import { startDemoCrmPrefetch } from '../tasks/demo-booking-crm.js';
 import { sayCached } from '../speech/tts-cache.js';
+import { preparedSentences } from '../speech/prepared-sentences.js';
 import { TtsCacheRuntime } from '../speech/tts-cache-runtime.js';
 import { TtsSharedCacheClient } from '../speech/tts-shared-cache-client.js';
 import { createCachedTtsNode } from '../speech/cached-tts-node.js';
@@ -48,16 +51,21 @@ export class AgentRuntimeBuilder {
 
   async build(): Promise<BuiltAgentRuntime> {
     const userData = this.createUserData();
+    userData.savedSpeechState = createSavedSpeechState(userData);
     this.logCallInfo();
 
     const models = buildModels(this.meta);
     this.logModelInfo(models);
-    if (models.kind === 'pipeline' && this.meta.ttsCacheEnabled === true) {
+    if (
+      models.kind === 'pipeline' &&
+      (this.meta.ttsCacheEnabled === true ||
+        this.meta.ttsPreparedSpeechEnabled === true)
+    ) {
       this.ttsCache = new TtsCacheRuntime(
         this.meta,
         resolveTtsConfiguration(this.meta),
         models.tts,
-        {},
+        { automaticEnabled: this.meta.ttsCacheEnabled === true },
         Date.now,
         TtsSharedCacheClient.create(
           this.meta.callId,
@@ -66,6 +74,13 @@ export class AgentRuntimeBuilder {
         ),
       );
       userData.ttsCache = this.ttsCache;
+      if (this.meta.ttsPreparedSpeechEnabled === true) {
+        this.ttsCache.registerPreparedTexts(preparedSentences(this.meta));
+        const opening = savedSpeechHookText(this.meta.voiceTask?.definition.savedSpeech, 'opening');
+        const entry = this.meta.voiceTask?.definition.savedSpeech?.sentences.find(s => s.text === opening && s.prepare);
+        if (entry?.prepare && opening) this.ttsCache.registerPreparedTexts([opening]);
+      }
+
     }
 
     try {
@@ -74,12 +89,14 @@ export class AgentRuntimeBuilder {
         medium: this.meta.medium,
       });
       const agent = this.createAgent(userData, tools);
-      session.on(voice.AgentSessionEventTypes.Close, () =>
-        this.ttsCache?.dispose(),
-      );
+      session.on(voice.AgentSessionEventTypes.Close, () => {
+        userData.savedSpeechState?.dispose();
+        this.ttsCache?.dispose();
+      });
 
       return { session, agent, userData };
     } catch (error) {
+      userData.savedSpeechState?.dispose();
       this.ttsCache?.dispose();
       throw error;
     }
@@ -137,6 +154,12 @@ export class AgentRuntimeBuilder {
         );
         return;
       }
+      const exact = savedSpeechHookText(this.meta.voiceTask?.definition.savedSpeech, 'opening');
+      if (typeof exact === 'string') {
+        const handle = sayCached(ctx.session, this.ttsCache, exact, { allowInterruptions: false, addToChatCtx: true }) as { waitForPlayout?: () => Promise<void> };
+        await handle.waitForPlayout?.();
+        return;
+      }
       const opening = buildOpeningInstructions(this.meta);
       if (opening) {
         const prefix = opening.replace(/\s+/g, ' ').slice(0, 80);
@@ -171,8 +194,13 @@ export class AgentRuntimeBuilder {
     tools: AgentTools,
   ): Promise<void> {
     userData.saySession = ctx.session;
+    const openingPlayback = this.playOpening(ctx);
+    if (this.meta.ttsPreparedSpeechEnabled === true) {
+      // Never await preparation: inbound pickup and opening retain their existing timing.
+      void this.ttsCache?.prepare(preparedSentences(this.meta)).catch(() => {});
+    }
     startDemoCrmPrefetch(this.meta, userData);
-    await this.playOpening(ctx);
+    await openingPlayback;
 
     try {
       const task = buildTask(
@@ -242,7 +270,7 @@ export class AgentRuntimeBuilder {
       instructions,
       // Parent agent keeps shared capability tools; task adds workflow-complete tools.
       tools,
-      ...(this.ttsCache
+      ...(this.ttsCache?.automaticEnabled
         ? { ttsNode: createCachedTtsNode<SessionUserData>(this.ttsCache) }
         : {}),
       onEnter: async (ctx) => {

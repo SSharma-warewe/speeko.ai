@@ -25,6 +25,8 @@ type Scope = {
   org_agent_active: boolean;
   template_active: boolean;
   agent_org: string;
+  org_prepared_enabled: boolean | null;
+  template_prepared_enabled: boolean | null;
   org_cache_enabled: boolean | null;
   template_cache_enabled: boolean | null;
   org_model: string | null;
@@ -52,6 +54,7 @@ export class TtsCacheRepository {
     const [scope] = await runner.query(
       `SELECT c.organization_id, c.room_name, c.status, c.execution_type,
       o.is_active AS org_active, oa.is_active AS org_agent_active, a.is_active AS template_active, oa.organization_id AS agent_org,
+      oa.tts_prepared_speech_enabled AS org_prepared_enabled, a.tts_prepared_speech_enabled AS template_prepared_enabled,
       oa.tts_cache_enabled AS org_cache_enabled, a.tts_cache_enabled AS template_cache_enabled,
       oa.model AS org_model, a.model AS template_model
       FROM calls c LEFT JOIN organizations o ON o.id = c.organization_id

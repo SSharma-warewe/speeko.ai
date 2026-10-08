@@ -1,4 +1,4 @@
-import { isRealtimeLlmModel } from '@call-agent/contracts';
+import { savedSpeechHookText, isRealtimeLlmModel } from '@call-agent/contracts';
 import type { AgentJobMetadata } from '@call-agent/contracts';
 import {
   contextField,
@@ -330,6 +330,9 @@ export function hookMode(value: string | null | undefined): HookMode {
  * null = skip speech for this hook.
  */
 export function buildOpeningInstructions(meta: AgentJobMetadata): string | null {
+  const saved = savedSpeechHookText(meta.voiceTask?.definition.savedSpeech, 'opening');
+  if (saved === null) return null;
+  if (saved !== undefined) return `Say exactly this opening and nothing else: ${JSON.stringify(saved)}`;
   const custom = meta.prompt.onEnterInstructions;
   // Explicit empty string → silent start.
   if (custom === '') {
@@ -358,6 +361,8 @@ export function buildOpeningInstructions(meta: AgentJobMetadata): string | null 
  * `''` means silent. Shared by pipeline `session.say` and realtime generateReply.
  */
 export function cannedClosingLine(meta: AgentJobMetadata): string | null {
+  const saved = savedSpeechHookText(meta.voiceTask?.definition.savedSpeech, 'closing');
+  if (saved !== undefined) return saved;
   const custom = meta.prompt.onExitInstructions;
   if (custom === '') {
     return null;

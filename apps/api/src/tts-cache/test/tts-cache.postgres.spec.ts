@@ -422,7 +422,11 @@ import { WorkerSecretGuard } from '../../auth/guards/worker-secret.guard';
         await app.close();
       }
     });
-    it('persists nullable policy through real admin/user HTTP services and revokes shared access live', async () => {
+    it.each(['ttsCacheEnabled', 'ttsPreparedSpeechEnabled'] as const)('persists %s through real admin/user HTTP and revokes shared access live', async (policyField) => {
+      const defaultField = policyField === 'ttsCacheEnabled' ? 'ttsCacheDefaultEnabled' : 'ttsPreparedSpeechDefaultEnabled';
+      const effectiveField = policyField === 'ttsCacheEnabled' ? 'effectiveTtsCacheEnabled' : 'effectiveTtsPreparedSpeechEnabled';
+      const column = policyField === 'ttsCacheEnabled' ? 'tts_cache_enabled' : 'tts_prepared_speech_enabled';
+      const cacheBody = { ...body, purpose: policyField === 'ttsCacheEnabled' ? 'automatic' as const : 'prepared' as const };
       const tools = {
         resolveEnabledToolIds: jest.fn().mockResolvedValue(['endCall']),
       } as unknown as ToolProfilesService;
@@ -505,7 +509,8 @@ import { WorkerSecretGuard } from '../../auth/guards/worker-secret.guard';
       ];
       try {
         const columns = await db.query(
-          "SELECT table_name, is_nullable, column_default FROM information_schema.columns WHERE table_schema = 'tts_cache_test' AND column_name = 'tts_cache_enabled' ORDER BY table_name",
+          "SELECT table_name, is_nullable, column_default FROM information_schema.columns WHERE table_schema = 'tts_cache_test' AND column_name = $1 ORDER BY table_name",
+          [column],
         );
         expect(columns).toEqual([
           { table_name: 'agents', is_nullable: 'YES', column_default: null },
@@ -520,34 +525,34 @@ import { WorkerSecretGuard } from '../../auth/guards/worker-secret.guard';
             await db
               .getRepository(OrganizationAgent)
               .findOneByOrFail({ id: agentId })
-          ).ttsCacheEnabled,
+          )[policyField],
         ).toBeNull();
         for (const route of routes) {
           // Template default true for both org routes, despite the preceding template round trips.
           if (route.entity === OrganizationAgent)
             await db
               .getRepository(Agent)
-              .update(templateId, { ttsCacheEnabled: true });
+              .update(templateId, { [policyField]: true });
           for (const preference of [true, false, null]) {
             const updated = await request(server)
               .patch(route.path)
               .set('x-fixture-principal', route.principal)
-              .send({ ttsCacheEnabled: preference })
+              .send({ [policyField]: preference })
               .expect(200);
             expect(updated.body).toMatchObject({
-              ttsCacheEnabled: preference,
-              ttsCacheDefaultEnabled: route.defaultEnabled,
-              effectiveTtsCacheEnabled: preference ?? route.defaultEnabled,
+              [policyField]: preference,
+              [defaultField]: route.defaultEnabled,
+              [effectiveField]: preference ?? route.defaultEnabled,
             });
             const stored = await db
               .getRepository(route.entity)
               .findOneByOrFail({ id: route.id });
-            expect(stored.ttsCacheEnabled).toBe(preference);
+            expect(stored[policyField]).toBe(preference);
             const read = await request(server)
               .get(route.path)
               .set('x-fixture-principal', route.principal)
               .expect(200);
-            expect(read.body.ttsCacheEnabled).toBe(preference);
+            expect(read.body[policyField]).toBe(preference);
             await request(server)
               .patch(route.path)
               .set('x-fixture-principal', route.principal)
@@ -558,46 +563,46 @@ import { WorkerSecretGuard } from '../../auth/guards/worker-secret.guard';
                 await db
                   .getRepository(route.entity)
                   .findOneByOrFail({ id: route.id })
-              ).ttsCacheEnabled,
+              )[policyField],
             ).toBe(preference);
           }
           for (const invalid of ['true', 'false', 1, {}, []])
             await request(server)
               .patch(route.path)
               .set('x-fixture-principal', route.principal)
-              .send({ ttsCacheEnabled: invalid })
+              .send({ [policyField]: invalid })
               .expect(400);
         }
         await request(server)
           .patch(`/admin/agents/${templateId}`)
-          .send({ ttsCacheEnabled: true })
+          .send({ [policyField]: true })
           .expect(403);
         await request(server)
           .patch(`/users/agents/${agentId}`)
           .set('x-fixture-principal', 'admin')
-          .send({ ttsCacheEnabled: true })
+          .send({ [policyField]: true })
           .expect(403);
         await request(server)
           .patch(`/users/agents/${agentId}`)
           .set('x-fixture-org', foreignOrg)
-          .send({ ttsCacheEnabled: true })
+          .send({ [policyField]: true })
           .expect(404);
         const userPath = `/users/agents/${agentId}`;
         await request(server)
           .patch(userPath)
           .send({
-            ttsCacheEnabled: true,
+            [policyField]: true,
             model: 'openai/gpt-realtime-2.1',
             voice: 'marin',
           })
           .expect(200)
           .expect(({ body }) =>
             expect(body).toMatchObject({
-              ttsCacheEnabled: true,
-              effectiveTtsCacheEnabled: false,
+              [policyField]: true,
+              [effectiveField]: false,
             }),
           );
-        await expect(service.lookup(callId, body)).rejects.toMatchObject({
+        await expect(service.lookup(callId, cacheBody)).rejects.toMatchObject({
           status: 403,
         });
         await request(server)
@@ -605,28 +610,28 @@ import { WorkerSecretGuard } from '../../auth/guards/worker-secret.guard';
           .send({ model: null, voice: null })
           .expect(200);
         expect(
-          await service.publish(callId, { ...body, envelope: clip }),
+          await service.publish(callId, { ...cacheBody, envelope: clip }),
         ).toEqual({ result: 'stored' });
         await request(server)
           .patch(userPath)
-          .send({ ttsCacheEnabled: false })
+          .send({ [policyField]: false })
           .expect(200);
-        await expect(service.lookup(callId, body)).rejects.toMatchObject({
+        await expect(service.lookup(callId, cacheBody)).rejects.toMatchObject({
           status: 403,
         });
         await expect(
-          service.publish(callId, { ...body, envelope: clip }),
+          service.publish(callId, { ...cacheBody, envelope: clip }),
         ).rejects.toMatchObject({ status: 403 });
         expect(await db.getRepository(TtsCacheEntry).count()).toBe(1);
         await request(server)
           .patch(userPath)
-          .send({ ttsCacheEnabled: null })
+          .send({ [policyField]: null })
           .expect(200);
-        expect((await service.lookup(callId, body)).hit).toBe(true);
+        expect((await service.lookup(callId, cacheBody)).hit).toBe(true);
         await db
           .getRepository(Agent)
-          .update(templateId, { ttsCacheEnabled: null });
-        await expect(service.lookup(callId, body)).rejects.toMatchObject({
+          .update(templateId, { [policyField]: null });
+        await expect(service.lookup(callId, cacheBody)).rejects.toMatchObject({
           status: 403,
         });
       } finally {

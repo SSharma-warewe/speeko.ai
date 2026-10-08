@@ -404,6 +404,34 @@ describe('worker cross-call TTS cache', () => {
     expect(client.pendingBytes).toBe(0);
     expect(fetcher).toHaveBeenCalledTimes(4);
   });
+  it('automatic opt-out does not disable prepared requests in the same bounded client', async () => {
+    const fetcher = jest.fn(async (_url, options) => {
+      const body = JSON.parse(String(options?.body));
+      return response(
+        body.purpose === 'prepared' ? { hit: false } : {},
+        body.purpose === 'prepared' ? 200 : 403,
+      );
+    }) as jest.MockedFunction<typeof fetch>;
+    const client = new TtsSharedCacheClient(
+      'http://fixture',
+      'fixture',
+      call,
+      'room',
+      { fetch: fetcher },
+    );
+    const lookup = (purpose: 'automatic' | 'prepared') =>
+      client.lookup(
+        'a'.repeat(64),
+        performance.now() + 25,
+        new AbortController().signal,
+        purpose,
+      );
+    await lookup('automatic');
+    await lookup('automatic');
+    await lookup('prepared');
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    client.dispose();
+  });
   it('dispose aborts lookup immediately and never closes the provider', async () => {
     const fetcher = jest.fn(
       () => new Promise<Response>(() => {}),

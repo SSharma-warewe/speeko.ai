@@ -3,7 +3,10 @@ import { AgentResponseDto } from '../dto/agent-response.dto';
 import { orgAgentDefaultTaskKey } from '../org-agent-task';
 import { OrganizationAgent } from '../organization-agent.entity';
 import { resolveVoiceRuntime } from '../voice-settings';
-import { resolveTtsCacheEnabled } from '@call-agent/contracts';
+import {
+  resolveTtsCacheEnabled,
+  resolveTtsPreparedSpeechEnabled,
+} from '@call-agent/contracts';
 
 export function toAgentTemplateResponse(
   agent: Agent,
@@ -33,6 +36,13 @@ export function toAgentTemplateResponse(
     temperature: agent.temperature,
     speakingRate: agent.speakingRate,
     deliveryMode: agent.deliveryMode,
+    ttsPreparedSpeechEnabled: agent.ttsPreparedSpeechEnabled ?? null,
+    ttsPreparedSpeechDefaultEnabled: false,
+    effectiveTtsPreparedSpeechEnabled: resolveTtsPreparedSpeechEnabled(
+      agent.ttsPreparedSpeechEnabled,
+      false,
+      agent.model,
+    ),
     ttsCacheEnabled: agent.ttsCacheEnabled ?? null,
     ttsCacheDefaultEnabled: false,
     effectiveTtsCacheEnabled: resolveTtsCacheEnabled(
@@ -75,6 +85,9 @@ export function toOrganizationAgentResponse(
     calendarIntegrationId: row.calendarIntegrationId ?? null,
     enabledTools,
     ...runtime,
+    ttsPreparedSpeechEnabled: row.ttsPreparedSpeechEnabled ?? null,
+    ttsPreparedSpeechDefaultEnabled: template.ttsPreparedSpeechEnabled === true,
+    effectiveTtsPreparedSpeechEnabled: runtime.ttsPreparedSpeechEnabled,
     ttsCacheEnabled: row.ttsCacheEnabled ?? null,
     ttsCacheDefaultEnabled: template.ttsCacheEnabled === true,
     effectiveTtsCacheEnabled: runtime.ttsCacheEnabled,

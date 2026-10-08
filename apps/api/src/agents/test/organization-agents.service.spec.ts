@@ -535,10 +535,11 @@ describe('OrganizationAgentsService', () => {
 
   describe('clone', () => {
     it.each([true, false, null])('copies raw cache preference %s', async (preference) => {
-      const source = makeOrgAgent({ ttsCacheEnabled: preference });
+      const preparedPreference = preference === null ? null : !preference;
+      const source = makeOrgAgent({ ttsCacheEnabled: preference, ttsPreparedSpeechEnabled: preparedPreference });
       repository.findByIdAndOrgWithAgent.mockResolvedValue(source);
       await service.clone(ORG_ID, ORG_AGENT_ID, { name: 'Cache copy' });
-      expect(repository.create).toHaveBeenCalledWith(expect.objectContaining({ ttsCacheEnabled: preference }));
+      expect(repository.create).toHaveBeenCalledWith(expect.objectContaining({ ttsCacheEnabled: preference, ttsPreparedSpeechEnabled: preparedPreference }));
     });
     it('16. copies source persona fields — not template defaults', async () => {
       const source = makeOrgAgent({

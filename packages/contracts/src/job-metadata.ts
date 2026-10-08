@@ -57,6 +57,8 @@ export type AgentJobMetadata = {
   speakingRate?: number | null;
   /** API-resolved policy; only literal true enables worker caching. */
   ttsCacheEnabled?: boolean;
+  /** API-resolved fixed-sentence preparation policy; missing means off. */
+  ttsPreparedSpeechEnabled?: boolean;
   /** Inworld TTS-2 delivery_mode. Ignored by other speech models. */
   deliveryMode?: DeliveryMode | null;
 };

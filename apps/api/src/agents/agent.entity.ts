@@ -114,6 +114,15 @@ export class Agent {
   })
   ttsCacheEnabled!: boolean | null;
 
+  /** Independent prepared-sentence preference; null inherits, platform default off. */
+  @Column({
+    name: 'tts_prepared_speech_enabled',
+    type: 'boolean',
+    nullable: true,
+    default: null,
+  })
+  ttsPreparedSpeechEnabled!: boolean | null;
+
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive!: boolean;
 

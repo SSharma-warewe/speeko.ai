@@ -56,6 +56,7 @@ function latencyHistogram() {
 
 export const DEFAULT_TTS_CACHE_POLICY = {
   enabled: true,
+  automaticEnabled: true,
   maxBytes: 16 * 1024 * 1024,
   ttlMs: 10 * 60 * 1000,
   maxEntryBytes: 1024 * 1024,
@@ -64,7 +65,8 @@ export const DEFAULT_TTS_CACHE_POLICY = {
   dedupWaitMs: 25,
 } as const;
 export type TtsCachePolicy = {
-  [K in keyof typeof DEFAULT_TTS_CACHE_POLICY]: K extends 'enabled'
+  [K in keyof typeof DEFAULT_TTS_CACHE_POLICY]: K extends
+    'enabled' | 'automaticEnabled'
     ? boolean
     : number;
 };
@@ -127,6 +129,12 @@ export class TtsCacheRuntime {
   private captureBytes = 0;
   private errorEpoch = 0;
   private disposed = false;
+  private readonly preparedTexts = new Set<string>();
+  private readonly preparations = new Map<string, AbortController>();
+  private preparationStarted = false;
+  private shuttingDown = false;
+  private preparationStop?: () => void;
+  private readonly expiryTimer: ReturnType<typeof setInterval>;
   private readonly counts = {
     hits: 0,
     misses: 0,
@@ -162,9 +170,107 @@ export class TtsCacheRuntime {
       config.backend === 'livekit-inference' ? 'stream' : 'chunked',
     );
     provider.on('error', this.onError);
+    this.expiryTimer = setInterval(() => this.sweepExpired(), 30_000);
+    this.expiryTimer.unref?.();
   }
   get enabled(): boolean {
     return this.policy.enabled && !this.disposed;
+  }
+  get automaticEnabled(): boolean {
+    return this.enabled && this.policy.automaticEnabled;
+  }
+  canCacheFinite(text: string): boolean {
+    return (
+      this.enabled && (this.automaticEnabled || this.preparedTexts.has(text))
+    );
+  }
+  registerPreparedTexts(lines: readonly string[]): void {
+    if (!this.enabled || this.shuttingDown) return;
+    for (const text of lines) if (text.trim()) this.preparedTexts.add(text);
+  }
+  /** Stop speculative work while retaining audio needed for the draining goodbye. */
+  beginShutdown(): void {
+    this.shuttingDown = true;
+    this.preparationStop?.();
+    this.shared?.dispose();
+  }
+  private remove(key: string): void {
+    const entry = this.entries.get(key);
+    if (!entry) return;
+    this.entries.delete(key);
+    this.residentBytes -= entry.bytes;
+  }
+  private sweepExpired(): void {
+    for (const [key, entry] of this.entries) {
+      if (entry.expires <= this.now()) {
+        this.remove(key);
+        this.counts.evictions++;
+      }
+    }
+  }
+  private finiteTransport(): string {
+    return this.config.backend === 'livekit-inference' ||
+      this.config.backend === 'xai-plugin'
+      ? 'websocket'
+      : 'rest';
+  }
+  /** Two bounded background consumers; no session startup waits on this promise. */
+  async prepare(lines: readonly string[]): Promise<void> {
+    if (!this.enabled || this.shuttingDown || this.preparationStarted) return;
+    this.preparationStarted = true;
+    const queue = [...new Set(lines.filter((line) => line.trim()))];
+    for (const text of queue) this.preparedTexts.add(text);
+    const controller = new AbortController();
+    const stop = () => {
+      controller.abort();
+      queue.length = 0;
+      for (const phrase of this.preparations.values()) phrase.abort();
+      this.preparations.clear();
+    };
+    this.preparationStop = stop;
+    const untrack = this.track(stop);
+    const totalTimer = setTimeout(stop, 30_000);
+    totalTimer.unref?.();
+    const consume = async () => {
+      while (!controller.signal.aborted && queue.length) {
+        const text = queue.shift()!;
+        const key = this.identity(
+          text,
+          this.finiteTransport(),
+          'finite-plain-v1',
+        );
+        const phrase = new AbortController();
+        this.preparations.set(key, phrase);
+        const timer = setTimeout(() => phrase.abort(), 10_000);
+        timer.unref?.();
+        let reader: ReadableStreamDefaultReader<AudioFrame> | undefined;
+        try {
+          reader = this.finiteAudio(text, {
+            signal: phrase.signal,
+            preparation: true,
+          }).getReader();
+          while (!phrase.signal.aborted && !(await reader.read()).done) {
+            /* discard playback frames */
+          }
+        } catch {
+          /* Preparation never fails the call. */
+        } finally {
+          clearTimeout(timer);
+          if (this.preparations.get(key) === phrase)
+            this.preparations.delete(key);
+          void reader?.cancel().catch(() => {});
+          reader?.releaseLock();
+        }
+      }
+    };
+    try {
+      await Promise.all([consume(), consume()]);
+    } finally {
+      clearTimeout(totalTimer);
+      stop();
+      this.preparationStop = undefined;
+      untrack();
+    }
   }
   get stats() {
     return {
@@ -174,6 +280,7 @@ export class TtsCacheRuntime {
       entries: this.entries.size,
       pending: this.pending.size,
       active: this.operations.size,
+      preparing: this.preparations.size,
       bypassReasons: { ...this.bypassReasons },
       cacheWaitMs: this.cacheWait.snapshot(),
       segmentToFirstFrameMs: this.segmentToFirstFrame.snapshot(),
@@ -272,6 +379,9 @@ export class TtsCacheRuntime {
       offset?: number;
       signal?: AbortSignal;
       cacheable?: boolean;
+      preparation?: boolean;
+      prepared?: boolean;
+      releaseAfterPlayback?: boolean;
     } = {},
   ): ReadableStream<AudioFrame> {
     let key: string | undefined;
@@ -327,6 +437,8 @@ export class TtsCacheRuntime {
         controller.abort();
         this.counts.abortedCaptures++;
         releaseCapture();
+        iterator = undefined;
+        if (key && options.releaseAfterPlayback) this.remove(key);
         finishPending();
         this.operations.delete(operation);
         options.signal?.removeEventListener('abort', onAbort);
@@ -343,6 +455,9 @@ export class TtsCacheRuntime {
       this.operations.delete(operation);
       options.signal?.removeEventListener('abort', onAbort);
       reader?.releaseLock();
+      iterator = undefined;
+      reader = undefined;
+      if (key && options.releaseAfterPlayback) this.remove(key);
       complete = true;
     };
     const initialize = async () => {
@@ -366,6 +481,9 @@ export class TtsCacheRuntime {
               result && result.expires > this.now() ? result : this.lookup(key);
           }
           if (controller.signal.aborted) return;
+          // A foreground source takes priority; a background consumer never duplicates it.
+          if (!hit && filling && options.preparation) return;
+          if (!hit && !options.preparation) this.preparations.get(key)?.abort();
           if (!hit && !this.pending.has(key)) {
             let resolve!: Pending['resolve'];
             const promise = new Promise<Entry | undefined>((done) => {
@@ -379,6 +497,7 @@ export class TtsCacheRuntime {
               key,
               deadline,
               controller.signal,
+              options.prepared ? 'prepared' : 'automatic',
             );
             if (controller.signal.aborted) return;
             if (
@@ -473,7 +592,12 @@ export class TtsCacheRuntime {
                   };
                   const published = this.publish(key, entry);
                   finishPending(published);
-                  if (published === entry) this.shared?.publish(key, entry);
+                  if (published === entry)
+                    this.shared?.publish(
+                      key,
+                      entry,
+                      options.prepared ? 'prepared' : 'automatic',
+                    );
                 } catch {
                   this.counts.writeFailures++;
                 }
@@ -520,6 +644,9 @@ export class TtsCacheRuntime {
                 stopCapture('capture-error');
               }
             }
+            if (options.preparation && !capturing) {
+              throw new Error('Preparation capture unavailable');
+            }
             if (offset) {
               const timings = frame.userdata[TIMED] as Timing[] | undefined;
               output.enqueue(
@@ -554,43 +681,54 @@ export class TtsCacheRuntime {
     );
   }
 
-  finiteAudio(text: string): ReadableStream<AudioFrame> {
-    const transport =
-      this.config.backend === 'livekit-inference' ||
-      this.config.backend === 'xai-plugin'
-        ? 'websocket'
-        : 'rest';
-    return this.open(text, transport, 'finite-plain-v1', (signal) => {
-      const iterator = this.finiteSynthesizer
-        .synthesize(text, signal)
-        [Symbol.asyncIterator]();
-      return new ReadableStream<AudioFrame>(
-        {
-          async pull(output) {
-            try {
-              const next = await iterator.next();
-              if (next.done) output.close();
-              else if (next.value.frame) output.enqueue(next.value.frame);
-            } catch (error) {
-              output.error(error);
-            }
+  finiteAudio(
+    text: string,
+    options: { signal?: AbortSignal; preparation?: boolean } = {},
+  ): ReadableStream<AudioFrame> {
+    return this.open(
+      text,
+      this.finiteTransport(),
+      'finite-plain-v1',
+      (signal) => {
+        const iterator = this.finiteSynthesizer
+          .synthesize(text, signal)
+          [Symbol.asyncIterator]();
+        return new ReadableStream<AudioFrame>(
+          {
+            async pull(output) {
+              try {
+                const next = await iterator.next();
+                if (next.done) output.close();
+                else if (next.value.frame) output.enqueue(next.value.frame);
+              } catch (error) {
+                output.error(error);
+              }
+            },
+            async cancel() {
+              await iterator.return?.();
+            },
           },
-          async cancel() {
-            await iterator.return?.();
-          },
-        },
-        { highWaterMark: 0 },
-      );
-    });
+          { highWaterMark: 0 },
+        );
+      },
+      {
+        ...options,
+        prepared: this.preparedTexts.has(text),
+        releaseAfterPlayback: !options.preparation && !this.automaticEnabled,
+      },
+    );
   }
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    clearInterval(this.expiryTimer);
     this.shared?.dispose();
     for (const operation of this.operations) operation.cancel();
     this.operations.clear();
     for (const pending of this.pending.values()) pending.resolve();
     this.pending.clear();
+    this.preparations.clear();
+    this.preparedTexts.clear();
     console.log('[agent] tts-cache ' + JSON.stringify(this.stats));
     this.entries.clear();
     this.residentBytes = 0;

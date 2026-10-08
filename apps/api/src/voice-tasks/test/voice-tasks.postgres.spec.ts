@@ -90,11 +90,11 @@ const url = process.env.VOICE_TASK_TEST_DATABASE_URL;
   afterAll(async () => {
     if (app) await app.close();
   });
-  it('seeds and clones all seven starters preserving fields/checks', async () => {
+  it('seeds and clones all starters preserving fields/checks', async () => {
     const platform = await tasks.list(null);
-    expect(platform).toHaveLength(7);
+    expect(platform).toHaveLength(Object.keys(VOICE_TASK_STARTERS).length);
     await tasks.onModuleInit();
-    expect(await tasks.list(null)).toHaveLength(7);
+    expect(await tasks.list(null)).toHaveLength(Object.keys(VOICE_TASK_STARTERS).length);
     for (const row of platform) {
       const clone = await tasks.clone(orgA, row.id);
       expect(clone.draft.resultFields).toEqual(
@@ -283,4 +283,33 @@ const url = process.env.VOICE_TASK_TEST_DATABASE_URL;
     expect(() => tasks.prepare(snapshot, 'outbound', snapshot.definition.toolIds)).toThrow(/Missing context field: caseId/);
     expect(tasks.prepare(snapshot, 'outbound', snapshot.definition.toolIds, { caseId: 'CASE-1' }).context.caseId).toBe('CASE-1');
   });
+  it('pins saved speech through draft tests, publication, history, cloning and tenant guards', async () => {
+    const original = structuredClone(VOICE_TASK_STARTERS.real_estate_receptionist);
+    const row = await tasks.create(orgA, original);
+    await tasks.publish(orgA, row.id, 1);
+    const pinned = await tasks.snapshot(orgA, row.id);
+    const edited = structuredClone(original);
+    edited.savedSpeech!.sentences[0].text = 'Which area would you prefer?';
+    await tasks.update(orgA, row.id, 1, edited);
+    expect((await tasks.draftSnapshot(orgA, row.id, 2)).definition.savedSpeech).toEqual(edited.savedSpeech);
+    expect((await tasks.snapshot(orgA, row.id)).definition.savedSpeech).toEqual(original.savedSpeech);
+    await tasks.publish(orgA, row.id, 2);
+    expect((await tasks.snapshot(orgA, row.id)).definition.savedSpeech).toEqual(edited.savedSpeech);
+    expect((await tasks.snapshot(orgA, row.id, 1)).definition.savedSpeech).toEqual(pinned.definition.savedSpeech);
+    expect((await tasks.clone(orgA, row.id)).draft.savedSpeech).toEqual(edited.savedSpeech);
+    await expect(tasks.clone(orgB, row.id)).rejects.toThrow(/not found/i);
+    await request(app.getHttpServer()).get(`/users/voice-tasks/${row.id}`).set('x-test-org', orgB).expect(404);
+    const response = await request(app.getHttpServer()).post(`/users/voice-tasks/${row.id}/preview`).send({ revision: 2 }).expect(200);
+    expect(response.body.instructions).toContain('speak_saved_sentence');
+  });
+  it('rejects invalid saved speech and broken references through real HTTP validation', async () => {
+    const invalid = structuredClone(VOICE_TASK_STARTERS.real_estate_receptionist);
+    invalid.savedSpeech!.sentences = Array.from({ length: 21 }, (_, i) => ({ key: `key_${i}`, text: 'Hello', whenToUse: '', prepare: true }));
+    await request(app.getHttpServer()).post('/users/voice-tasks').send({ definition: invalid }).expect(400);
+    const row = await tasks.create(orgA, VOICE_TASK_STARTERS.real_estate_receptionist);
+    const broken = structuredClone(row.draft); broken.savedSpeech!.sentences.shift();
+    await request(app.getHttpServer()).patch(`/users/voice-tasks/${row.id}/draft`).send({ revision: 1, definition: broken }).expect(400);
+    expect((await tasks.get(orgA, row.id)).draftRevision).toBe(1);
+  });
+
 });

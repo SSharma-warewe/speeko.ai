@@ -25,7 +25,17 @@ export function createTtsCacheSynthesizer(
       if (captures.size === 0) provider.on('error', onError);
       captures.add(capture);
       let stream: tts.SynthesizeStream | tts.ChunkedStream | undefined;
-      const onAbort = () => stream?.close();
+      let iterator: AsyncIterator<unknown> | undefined;
+      let rejectAbort: (error: Error) => void = () => {};
+      const stopped = new Promise<never>((_, reject) => {
+        rejectAbort = reject;
+      });
+      // Always attach a rejection handler, including abort before stream construction.
+      void stopped.catch(() => {});
+      const onAbort = () => {
+        rejectAbort(new DOMException('TTS synthesis aborted', 'AbortError'));
+        stream?.close();
+      };
       signal?.addEventListener('abort', onAbort, { once: true });
       try {
         if (signal?.aborted)
@@ -45,7 +55,13 @@ export function createTtsCacheSynthesizer(
           stream = provider.synthesize(text, undefined, signal);
         }
 
-        for await (const event of stream) {
+        const sourceIterator = stream[Symbol.asyncIterator]();
+        iterator = sourceIterator;
+        while (true) {
+          // A provider iterator that stalls after close must not retain our capture/listener.
+          const next = await Promise.race([sourceIterator.next(), stopped]);
+          if (next.done) break;
+          const event = next.value;
           if (capture.error) throw capture.error;
           // Streaming includes END_OF_STREAM symbols between audio segments.
           if (typeof event === 'object' && event.frame !== undefined) {
@@ -59,6 +75,7 @@ export function createTtsCacheSynthesizer(
       } finally {
         try {
           stream?.close();
+          void iterator?.return?.().catch(() => {});
         } finally {
           captures.delete(capture);
           signal?.removeEventListener('abort', onAbort);

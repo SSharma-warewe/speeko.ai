@@ -1,0 +1,8 @@
+// Additive COLUMN delta only; merge into existing canonical tables.
+// Canonical Erflow synchronization is required before rollout and is currently pending.
+Table agents {
+  tts_prepared_speech_enabled boolean [default: null, note: 'Independent prepared-sentence preference. null = platform default off; native realtime retains preference but effective false.']
+}
+Table organization_agents {
+  tts_prepared_speech_enabled boolean [default: null, note: 'null inherits template then false. New assignments inherit; clones preserve raw preference.']
+}

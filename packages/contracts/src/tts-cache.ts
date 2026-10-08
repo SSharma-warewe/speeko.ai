@@ -36,6 +36,8 @@ export type TtsCacheEnvelope = TtsCacheMetadata & {
   checksum: string;
 };
 export type TtsCacheLookupRequest = {
+  /** Missing means automatic caching for legacy clients. */
+  purpose?: 'automatic' | 'prepared';
   roomName: string;
   digest: string;
   namespace: typeof TTS_CACHE_NAMESPACE;
@@ -187,3 +189,6 @@ export function resolveTtsCacheEnabled(
 ): boolean {
   return !isRealtimeLlmModel(model) && (preference ?? defaultEnabled) === true;
 }
+
+/** Independent policy with the same inheritance and realtime exclusions. */
+export const resolveTtsPreparedSpeechEnabled = resolveTtsCacheEnabled;

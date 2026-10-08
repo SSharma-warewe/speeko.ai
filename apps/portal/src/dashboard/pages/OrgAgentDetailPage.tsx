@@ -49,6 +49,7 @@ export default function OrgAgentDetailPage() {
   const [silentEnd, setSilentEnd] = useState(false);
   const [isActive, setIsActive] = useState(true);
   const [ttsCacheEnabled, setTtsCacheEnabled] = useState<boolean | null>(null);
+  const [ttsPreparedSpeechEnabled, setTtsPreparedSpeechEnabled] = useState<boolean | null>(null);
   const [defaultTaskKey, setDefaultTaskKey] = useState("general");
   const [model, setModel] = useState<string | null>(null);
   const [ttsModel, setTtsModel] = useState<string | null>(null);
@@ -87,6 +88,7 @@ export default function OrgAgentDetailPage() {
       setSpeakingRate(data.speakingRate ?? DEFAULT_SPEAKING_RATE);
       setDeliveryMode(parseDeliveryMode(data.deliveryMode));
       setTtsCacheEnabled(data.ttsCacheEnabled ?? null);
+      setTtsPreparedSpeechEnabled(data.ttsPreparedSpeechEnabled ?? null);
       setTemperature(data.temperature ?? DEFAULT_TEMPERATURE);
     }
   }, [data]);
@@ -125,6 +127,7 @@ export default function OrgAgentDetailPage() {
         speakingRate,
         deliveryMode,
         ttsCacheEnabled,
+        ttsPreparedSpeechEnabled,
         temperature,
       });
       setSaved(true);
@@ -312,7 +315,7 @@ export default function OrgAgentDetailPage() {
                 required
                 hint="Used unless a call or endpoint selects another task."
               >
-                <VoiceTaskSelect value={defaultTaskKey} onChange={(e) => setDefaultTaskKey(e.target.value)} disabled={submitting} admin orgId={orgId} direction={data?.direction} legacy={data?.direction === "inbound"} emptyLabel="Platform default" />
+                <VoiceTaskSelect speechSummary model={model} preparedEnabled={ttsPreparedSpeechEnabled ?? data.ttsPreparedSpeechDefaultEnabled ?? false} value={defaultTaskKey} onChange={(e) => setDefaultTaskKey(e.target.value)} disabled={submitting} admin orgId={orgId} direction={data?.direction} legacy={data?.direction === "inbound"} emptyLabel="Platform default" />
               </Field>
             ) : null}
             <label style={{ display: "flex", gap: "0.5rem", alignItems: "center", fontSize: "0.88rem" }}>
@@ -326,7 +329,9 @@ export default function OrgAgentDetailPage() {
             </label>
             <AgentVoiceRack
               ttsCacheEnabled={ttsCacheEnabled}
+              ttsPreparedSpeechEnabled={ttsPreparedSpeechEnabled}
               ttsCacheDefaultEnabled={data.ttsCacheDefaultEnabled ?? false}
+              ttsPreparedSpeechDefaultEnabled={data.ttsPreparedSpeechDefaultEnabled ?? false}
               compact
               model={model}
               ttsModel={ttsModel}
@@ -347,6 +352,7 @@ export default function OrgAgentDetailPage() {
                 if (next.speakingRate !== undefined) setSpeakingRate(next.speakingRate);
                 if (next.deliveryMode !== undefined) setDeliveryMode(next.deliveryMode);
                 if (next.ttsCacheEnabled !== undefined) setTtsCacheEnabled(next.ttsCacheEnabled);
+                if (next.ttsPreparedSpeechEnabled !== undefined) setTtsPreparedSpeechEnabled(next.ttsPreparedSpeechEnabled);
                 if (next.temperature !== undefined) setTemperature(next.temperature);
               }}
             />

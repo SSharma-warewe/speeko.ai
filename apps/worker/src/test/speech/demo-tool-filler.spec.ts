@@ -39,6 +39,7 @@ describe('withDemoToolFiller', () => {
     const outbound = meta();
     const ttsCache = {
       enabled: true,
+      canCacheFinite: () => true,
       finiteAudio: jest.fn(() => new ReadableStream()),
     } as unknown as TtsCacheRuntime;
     const order: string[] = [];

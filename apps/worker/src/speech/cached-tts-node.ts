@@ -53,7 +53,7 @@ export function createCachedTtsNode<UserData = unknown>(
       let pumpError: unknown;
       try {
         const expressive = ctx.agent.expressive ?? ctx.session._expressive;
-        const reason = !cache.enabled
+        const reason = !cache.automaticEnabled
           ? 'disabled'
           : ctx.tts !== cache.provider
             ? 'provider-mismatch'

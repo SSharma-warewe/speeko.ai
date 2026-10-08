@@ -1,4 +1,7 @@
-import { resolveTtsCacheEnabled } from '@call-agent/contracts';
+import {
+  resolveTtsCacheEnabled,
+  resolveTtsPreparedSpeechEnabled,
+} from '@call-agent/contracts';
 import {
   speechCachePreference,
   speechCacheSelection,
@@ -37,4 +40,26 @@ describe('speech-cache editor state and save payload', () => {
     expect(speechCacheSelection(preference)).toBe('on');
     expect(resolveTtsCacheEnabled(preference, false, null)).toBe(true);
   });
+});
+
+describe('prepared-sentence editor preference', () => {
+  it.each([true, false, null])(
+    'round trips %s independently of speech caching',
+    (saved) => {
+      const payload = {
+        ttsCacheEnabled: false,
+        ttsPreparedSpeechEnabled: speechCachePreference(
+          speechCacheSelection(saved),
+        ),
+      };
+      expect(payload).toEqual({
+        ttsCacheEnabled: false,
+        ttsPreparedSpeechEnabled: saved,
+      });
+      expect(resolveTtsPreparedSpeechEnabled(saved, true)).toBe(saved ?? true);
+      expect(
+        resolveTtsPreparedSpeechEnabled(saved, true, 'openai/gpt-realtime-2.1'),
+      ).toBe(false);
+    },
+  );
 });

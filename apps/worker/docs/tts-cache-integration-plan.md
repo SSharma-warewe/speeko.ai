@@ -192,3 +192,7 @@ Run contracts typecheck/build, API/worker builds, portal typecheck/build, and fo
 Deploy compatible worker readers first, then API producers, then portal. Confirm selected Railway environment/services before an authorized rollout. Do not change published workflow semantics, dispatch task versions, or hook null/empty behavior as part of caching.
 
 The selected product direction is automatic speech caching. Explicit saved-clip keys would be a separate audio asset feature.
+
+## Independent prepared-sentence extension
+
+The previous automatic-cache rollout removed broad pre-start warmup. Optional ttsPreparedSpeechEnabled now restores explicit fixed-line preparation alongside opening, with two consumers, a 10-second phrase deadline and 30-second queue deadline. It shares local/storage/upload budgets with automatic caching and never gates pickup. Prepared and automatic requests have independent live authorization; recordings retain the existing 24-hour expiry and tenant/global limits. See [current worker behavior](../AGENTS.md#prepared-sentences) and [API authority/schema status](../../api/AGENTS.md#prepared-sentences). No production enablement or live acceptance is implied by implementation tests.

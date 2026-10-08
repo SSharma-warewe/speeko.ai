@@ -34,6 +34,8 @@ export function hangUpCall(
     return;
   }
   hangupStarted.add(session);
+  options.userData?.savedSpeechState?.dispose();
+  options.userData?.ttsCache?.beginShutdown();
 
   console.log(`[hangup] starting reason=${reason} deleteRoom=${deleteRoom}`);
 

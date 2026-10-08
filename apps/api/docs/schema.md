@@ -28,6 +28,10 @@ Detailed instructions and reference material now live directly in the [owning AG
 
 Persisted speech-caching policy adds two nullable boolean columns to existing agent tables: [column-only canonical delta](tts-cache-policy-schema.dbml). Merge these into the existing canonical tables; the partial DBML declarations do not replace their other columns. The explicit 2026-10-08 release deferral covers both policy columns and shared storage.
 
+### Prepared-sentence policy additions
+
+[Current behavior](../AGENTS.md#prepared-sentences); [column-only DBML delta](tts-prepared-speech-schema.dbml); [additive SQL](tts-prepared-speech-schema.sql). Add nullable `tts_prepared_speech_enabled` to `agents` and `organization_agents`, default null. Canonical Erflow synchronization remains required before rollout; the earlier TTS release deferral does not cover this change.
+
 ### WhatsApp harness schema
 
 [Read this section in AGENTS.md](../AGENTS.md#whatsapp-harness-schema).

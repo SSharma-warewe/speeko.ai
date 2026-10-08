@@ -227,3 +227,5 @@ export { CRM_ACTIONS, CRM_SCOPES } from './crm.js';
 export type { CrmAction, CrmCommand, CrmResult } from './crm.js';
 
 export * from './configurable-whatsapp-tasks.js';
+
+export * from './saved-speech.js';

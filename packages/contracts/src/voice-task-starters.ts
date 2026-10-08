@@ -1,3 +1,4 @@
+import { REAL_ESTATE_SPEECH_STARTER } from './real-estate-speech-starter.js';
 import type { KnownToolId } from './tools.js';
 import type {
   VoiceTaskCheck,
@@ -53,6 +54,7 @@ function task(
   };
 }
 export const VOICE_TASK_STARTERS: Record<string, VoiceTaskDefinition> = {
+  real_estate_receptionist: REAL_ESTATE_SPEECH_STARTER,
   general: {
     ...task(
       'General conversation',

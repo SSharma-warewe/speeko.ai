@@ -46,7 +46,7 @@ export function demoCallbackLine(meta: AgentJobMetadata): string {
   return personaSpeaksHindi(meta) ? DEMO_CALLBACK_LINE_HI : DEMO_CALLBACK_LINE_EN;
 }
 
-/** Phrases to REST-warm before pickup (exact strings sayCached will play). */
+/** Exact fixed phrases eligible for optional parallel preparation after answer. */
 export function demoBookingCacheLines(meta: AgentJobMetadata): string[] {
   return [
     demoCheckLine(meta),

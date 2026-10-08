@@ -36,10 +36,12 @@ import {
   DEFAULT_STT_MODEL_ID,
   DEFAULT_TTS_MODEL_ID,
   resolveTtsCacheEnabled,
+  resolveTtsPreparedSpeechEnabled,
 } from "@call-agent/contracts";
 
 export type AgentVoiceValues = {
   ttsCacheEnabled: boolean | null;
+  ttsPreparedSpeechEnabled: boolean | null;
   model: string | null;
   ttsModel: string | null;
   sttModel: string | null;
@@ -52,6 +54,7 @@ export type AgentVoiceValues = {
 
 type Props = AgentVoiceValues & {
   ttsCacheDefaultEnabled: boolean;
+  ttsPreparedSpeechDefaultEnabled: boolean;
   cacheDefaultSource?: "template" | "platform";
   disabled?: boolean;
   compact?: boolean;
@@ -201,7 +204,9 @@ export function AgentVoiceRack({
   deliveryMode,
   temperature,
   ttsCacheEnabled,
+  ttsPreparedSpeechEnabled,
   ttsCacheDefaultEnabled,
+  ttsPreparedSpeechDefaultEnabled,
   cacheDefaultSource = "template",
   disabled = false,
   compact = false,
@@ -399,6 +404,39 @@ export function AgentVoiceRack({
           {realtime
             ? "Unsupported for native realtime speech. Your preference is preserved."
             : `Effective: ${resolveTtsCacheEnabled(ttsCacheEnabled, ttsCacheDefaultEnabled, model) ? "On" : "Off"}. Eligible repeated speech may reuse audio. Authorized cross-call reuse can last up to 24 hours.`}
+        </p>
+      </div>
+      <div className="ops-voice-delivery">
+        <label
+          className="ops-voice-delivery-label"
+          htmlFor="agent-prepared-speech"
+        >
+          Prepared sentences
+        </label>
+        <Select
+          id="agent-prepared-speech"
+          value={speechCacheSelection(ttsPreparedSpeechEnabled)}
+          disabled={disabled || realtime}
+          aria-describedby="agent-prepared-speech-hint"
+          onChange={(event) =>
+            onChange({
+              ttsPreparedSpeechEnabled: speechCachePreference(
+                event.target.value,
+              ),
+            })
+          }
+        >
+          <option value="default">
+            Use {cacheDefaultSource} default (
+            {ttsPreparedSpeechDefaultEnabled ? 'On' : 'Off'})
+          </option>
+          <option value="on">On</option>
+          <option value="off">Off</option>
+        </Select>
+        <p id="agent-prepared-speech-hint" className="ops-voice-delivery-hint">
+          {realtime
+            ? 'Unsupported for native realtime speech. Your preference is preserved.'
+            : `Effective: ${resolveTtsPreparedSpeechEnabled(ttsPreparedSpeechEnabled, ttsPreparedSpeechDefaultEnabled, model) ? 'On' : 'Off'}. Prepares fixed sentences while the call opens, independently of Speech caching. Authorized recordings may be reused across calls for up to 24 hours.`}
         </p>
       </div>
       {!realtime && ttsSpec.controls.speakingRate ? (

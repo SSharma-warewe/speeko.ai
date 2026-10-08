@@ -15,6 +15,7 @@ import {
 import { personaSpeaksHindi } from '../common/persona.js';
 import { sayCached } from '../speech/tts-cache.js';
 import { createCachedTtsNode } from '../speech/cached-tts-node.js';
+import { savedSpeechLlmNode } from '../speech/saved-speech.js';
 import { isUnusableUserTurn, userTurnText } from './user-turn.js';
 import {
   classifyDemoGoodTime,
@@ -60,7 +61,10 @@ export function createWorkflowTask<ResultT>(
     instructions: options.instructions,
     chatCtx: options.chatCtx,
     tools: options.tools,
-    ...(!realtime && options.userData?.ttsCache
+    ...(!realtime && meta.voiceTask?.definition.savedSpeech?.sentences.length
+      ? { llmNode: savedSpeechLlmNode }
+      : {}),
+    ...(!realtime && options.userData?.ttsCache?.automaticEnabled
       ? { ttsNode: createCachedTtsNode(options.userData.ttsCache) }
       : {}),
     async onEnter(ctx) {
@@ -73,6 +77,8 @@ export function createWorkflowTask<ResultT>(
       });
     },
     async onUserTurnCompleted(ctx, chatCtx, newMessage) {
+      if (!isUnusableUserTurn(userTurnText(newMessage)))
+        options.userData?.savedSpeechState?.userTurn();
       if (realtime || meta.voiceTask) {
         return;
       }

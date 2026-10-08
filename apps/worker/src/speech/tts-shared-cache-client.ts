@@ -15,8 +15,13 @@ export interface TtsSharedCache {
     digest: string,
     deadline: number,
     signal: AbortSignal,
+    purpose?: 'automatic' | 'prepared',
   ): Promise<TtsCacheEntry | undefined>;
-  publish(digest: string, entry: TtsCacheEntry): void;
+  publish(
+    digest: string,
+    entry: TtsCacheEntry,
+    purpose?: 'automatic' | 'prepared',
+  ): void;
   dispose(): void;
 }
 type Deps = { fetch?: typeof fetch; now?: () => number };
@@ -26,6 +31,7 @@ const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 export class TtsSharedCacheClient implements TtsSharedCache {
   private disposed = false;
   private denied = false;
+  private readonly deniedPurposes = new Set<'automatic' | 'prepared'>();
   private failures = 0;
   private blockedUntil = 0;
   private readonly controllers = new Set<AbortController>();
@@ -33,6 +39,7 @@ export class TtsSharedCacheClient implements TtsSharedCache {
     digest: string;
     entry: TtsCacheEntry;
     reserved: number;
+    purpose: 'automatic' | 'prepared';
   }> = [];
   private activeUploads = 0;
   private queuedBytes = 0;
@@ -74,10 +81,11 @@ export class TtsSharedCacheClient implements TtsSharedCache {
       return;
     return new TtsSharedCacheClient(api.baseUrl, api.secret, callId, roomName);
   }
-  private available() {
+  private available(purpose?: 'automatic' | 'prepared') {
     return (
       !this.disposed &&
       !this.denied &&
+      (!purpose || !this.deniedPurposes.has(purpose)) &&
       this.blockedUntil <= (this.deps.now ?? Date.now)()
     );
   }
@@ -95,7 +103,9 @@ export class TtsSharedCacheClient implements TtsSharedCache {
     timeout: number,
     signal?: AbortSignal,
   ): Promise<unknown> {
-    if (!this.available() || timeout <= 0 || signal?.aborted) return;
+    const purpose =
+      (extra as { purpose?: 'automatic' | 'prepared' }).purpose ?? 'automatic';
+    if (!this.available(purpose) || timeout <= 0 || signal?.aborted) return;
     const controller = new AbortController();
     this.controllers.add(controller);
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -131,7 +141,8 @@ export class TtsSharedCacheClient implements TtsSharedCache {
         }
         if (!response.ok) {
           void response.body?.cancel().catch(() => {});
-          if ([401, 403, 404].includes(response.status)) this.denied = true;
+          if ([401, 404].includes(response.status)) this.denied = true;
+          else if (response.status === 403) this.deniedPurposes.add(purpose);
           else if (
             response.status >= 500 ||
             response.status === 408 ||
@@ -203,13 +214,18 @@ export class TtsSharedCacheClient implements TtsSharedCache {
       this.controllers.delete(controller);
     }
   }
-  async lookup(digest: string, deadline: number, signal: AbortSignal) {
+  async lookup(
+    digest: string,
+    deadline: number,
+    signal: AbortSignal,
+    purpose: 'automatic' | 'prepared' = 'automatic',
+  ) {
     const start = performance.now();
-    if (!this.available()) return;
+    if (!this.available(purpose)) return;
     const result = (await this.request(
       'lookup',
       digest,
-      {},
+      { purpose },
       deadline - start,
       signal,
     )) as TtsCacheLookupResponse | undefined;
@@ -246,8 +262,12 @@ export class TtsSharedCacheClient implements TtsSharedCache {
       this.stats.lookupMs += performance.now() - start;
     }
   }
-  publish(digest: string, entry: TtsCacheEntry) {
-    if (!this.available()) return;
+  publish(
+    digest: string,
+    entry: TtsCacheEntry,
+    purpose: 'automatic' | 'prepared' = 'automatic',
+  ) {
+    if (!this.available(purpose)) return;
     const reserved = Math.ceil((entry.bytes * 4) / 3) + 1024;
     if (
       reserved > TTS_CACHE_LIMITS.maxWireBytes ||
@@ -257,7 +277,7 @@ export class TtsSharedCacheClient implements TtsSharedCache {
       return;
     }
     this.queuedBytes += reserved;
-    this.queue.push({ digest, entry, reserved });
+    this.queue.push({ digest, entry, reserved, purpose });
     setImmediate(() => this.pump());
   }
   private pump() {
@@ -267,6 +287,10 @@ export class TtsSharedCacheClient implements TtsSharedCache {
     }
     while (this.activeUploads < 2 && this.queue.length) {
       const job = this.queue.shift()!;
+      if (!this.available(job.purpose)) {
+        this.queuedBytes -= job.reserved;
+        continue;
+      }
       this.activeUploads++;
       void (async () => {
         try {
@@ -274,7 +298,7 @@ export class TtsSharedCacheClient implements TtsSharedCache {
           const result = (await this.request(
             'publish',
             job.digest,
-            { envelope },
+            { envelope, purpose: job.purpose },
             1000,
           )) as { result?: string } | undefined;
           if (

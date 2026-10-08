@@ -159,6 +159,25 @@ export class AgentResponseDto {
   })
   effectiveTtsCacheEnabled!: boolean;
 
+  @ApiProperty({
+    type: Boolean,
+    nullable: true,
+    description: 'Saved prepared-sentence preference; null inherits default.',
+  })
+  ttsPreparedSpeechEnabled!: boolean | null;
+
+  @ApiProperty({
+    type: Boolean,
+    description: 'Template prepared-sentence default; false for templates.',
+  })
+  ttsPreparedSpeechDefaultEnabled!: boolean;
+
+  @ApiProperty({
+    type: Boolean,
+    description: 'Resolved prepared-sentence policy; false on native realtime.',
+  })
+  effectiveTtsPreparedSpeechEnabled!: boolean;
+
   @ApiPropertyOptional({
     format: 'uuid',
     description: 'Present on org-owned agents: parent organization id',

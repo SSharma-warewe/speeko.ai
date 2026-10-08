@@ -241,6 +241,7 @@ export class OrganizationAgentsService {
       speakingRate: template.speakingRate,
       deliveryMode: template.deliveryMode,
       ttsCacheEnabled: null,
+      ttsPreparedSpeechEnabled: null,
       isActive: true,
     });
     await this.validateDefaultTask(row, template);
@@ -289,6 +290,7 @@ export class OrganizationAgentsService {
       speakingRate: source.speakingRate,
       deliveryMode: source.deliveryMode,
       ttsCacheEnabled: source.ttsCacheEnabled ?? null,
+      ttsPreparedSpeechEnabled: source.ttsPreparedSpeechEnabled ?? null,
       isActive: source.isActive,
     });
     const saved = await this.organizationAgentsRepository.save(row);

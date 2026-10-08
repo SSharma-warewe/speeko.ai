@@ -126,6 +126,7 @@ describe('handleInboundServiceTrackTurn', () => {
     const line = inboundServiceTrackLine('buy');
     const ttsCache = {
       enabled: true,
+      canCacheFinite: () => true,
       finiteAudio: jest.fn(() => new ReadableStream()),
     } as unknown as TtsCacheRuntime;
     const session = { say: jest.fn(), interrupt: jest.fn() };
@@ -464,6 +465,7 @@ describe('handleDemoBookingTurn', () => {
     const outbound = meta({ task: 'demo_booking' });
     const ttsCache = {
       enabled: true,
+      canCacheFinite: () => true,
       finiteAudio: jest.fn(() => new ReadableStream()),
     } as unknown as TtsCacheRuntime;
     const session = { say: jest.fn(), interrupt: jest.fn() };

@@ -1,3 +1,4 @@
+import { SavedSpeechEditor } from './SavedSpeechEditor';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -91,6 +92,7 @@ const toggled = <T,>(values: T[], item: T) =>
 const editorSections = [
   { id: 'overview', title: 'Overview', detail: 'Purpose & direction' },
   { id: 'phases', title: 'Conversation', detail: 'Guide each phase' },
+  { id: 'speech', title: 'Saved speech', detail: 'Exact keyed sentences' },
   { id: 'fields', title: 'Data collection', detail: 'Context & results' },
   { id: 'outcomes', title: 'Completion', detail: 'Outcomes & requirements' },
   { id: 'tools', title: 'Capabilities', detail: 'Available actions' },
@@ -576,6 +578,7 @@ export default function TaskStudio({
   });
   const sectionCounts: Partial<Record<EditorSection, number>> = {
     phases: draft.phases.length,
+    speech: draft.savedSpeech?.sentences.length ?? 0,
     fields: draft.contextFields.length + draft.resultFields.length,
     outcomes: draft.outcomes.length,
     tools: draft.toolIds.length,
@@ -948,7 +951,11 @@ export default function TaskStudio({
               <p className="voice-task-kicker">Task studio</p>
               <nav aria-label="Task editor sections">
                 {editorSections
-                  .filter((s) => s.id !== 'test' || (owned && !record.archived))
+                  .filter(
+                    (s) =>
+                      (!whatsapp || s.id !== 'speech') &&
+                      (s.id !== 'test' || (owned && !record.archived)),
+                  )
                   .map((s, i) => (
                     <button
                       key={s.id}
@@ -1212,6 +1219,44 @@ export default function TaskStudio({
                               </label>
                             ))}
                           </div>
+                          {!whatsapp && (
+                            <div>
+                              Saved sentences:{' '}
+                              {(draft.savedSpeech?.sentences ?? []).map(
+                                (sentence, index) => (
+                                  <label
+                                    key={index}
+                                    className="voice-task-option"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={
+                                        phase.sentenceKeys?.includes(
+                                          sentence.key,
+                                        ) ?? false
+                                      }
+                                      onChange={() =>
+                                        patch({
+                                          phases: draft.phases.map((p, n) =>
+                                            n === i
+                                              ? {
+                                                  ...p,
+                                                  sentenceKeys: toggled(
+                                                    p.sentenceKeys ?? [],
+                                                    sentence.key,
+                                                  ),
+                                                }
+                                              : p,
+                                          ),
+                                        })
+                                      }
+                                    />{' '}
+                                    {sentence.key}
+                                  </label>
+                                ),
+                              )}
+                            </div>
+                          )}
                           <div>
                             Tools:{' '}
                             {draft.toolIds.map((id) => (
@@ -1241,6 +1286,22 @@ export default function TaskStudio({
                     ))}
                   </div>
                 </section>
+                {!whatsapp && (
+                  <div
+                    hidden={activeSection !== 'speech'}
+                    id="voice-task-speech"
+                  >
+                    <SavedSpeechEditor
+                      definition={voiceDefinition(draft)}
+                      onChange={(next) =>
+                        patch({
+                          savedSpeech: next.savedSpeech,
+                          phases: next.phases,
+                        })
+                      }
+                    />
+                  </div>
+                )}
                 <div
                   id="voice-task-fields"
                   hidden={activeSection !== 'fields'}

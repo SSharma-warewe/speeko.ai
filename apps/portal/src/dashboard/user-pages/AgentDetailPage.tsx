@@ -74,6 +74,7 @@ export default function UserAgentDetailPage() {
   const [calendarIntegrationId, setCalendarIntegrationId] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [ttsCacheEnabled, setTtsCacheEnabled] = useState<boolean | null>(null);
+  const [ttsPreparedSpeechEnabled, setTtsPreparedSpeechEnabled] = useState<boolean | null>(null);
   const [model, setModel] = useState<string | null>(null);
   const [ttsModel, setTtsModel] = useState<string | null>(null);
   const [sttModel, setSttModel] = useState<string | null>(null);
@@ -117,6 +118,7 @@ export default function UserAgentDetailPage() {
     setSpeakingRate(data.agent.speakingRate ?? DEFAULT_SPEAKING_RATE);
     setDeliveryMode(parseDeliveryMode(data.agent.deliveryMode));
     setTtsCacheEnabled(data.agent.ttsCacheEnabled ?? null);
+    setTtsPreparedSpeechEnabled(data.agent.ttsPreparedSpeechEnabled ?? null);
     setTemperature(data.agent.temperature ?? DEFAULT_TEMPERATURE);
   }, [data]);
 
@@ -156,6 +158,7 @@ export default function UserAgentDetailPage() {
         speakingRate,
         deliveryMode,
         ttsCacheEnabled,
+        ttsPreparedSpeechEnabled,
         temperature,
       });
       setSaved(true);
@@ -439,7 +442,9 @@ export default function UserAgentDetailPage() {
             >
               <AgentVoiceRack
                 ttsCacheEnabled={ttsCacheEnabled}
+                ttsPreparedSpeechEnabled={ttsPreparedSpeechEnabled}
                 ttsCacheDefaultEnabled={data.agent.ttsCacheDefaultEnabled ?? false}
+                ttsPreparedSpeechDefaultEnabled={data.agent.ttsPreparedSpeechDefaultEnabled ?? false}
                 model={model}
                 ttsModel={ttsModel}
                 sttModel={sttModel}
@@ -462,6 +467,8 @@ export default function UserAgentDetailPage() {
                     setDeliveryMode(next.deliveryMode);
                   if (next.ttsCacheEnabled !== undefined)
                     setTtsCacheEnabled(next.ttsCacheEnabled);
+                  if (next.ttsPreparedSpeechEnabled !== undefined)
+                    setTtsPreparedSpeechEnabled(next.ttsPreparedSpeechEnabled);
                   if (next.temperature !== undefined)
                     setTemperature(next.temperature);
                 }}
@@ -499,7 +506,7 @@ export default function UserAgentDetailPage() {
                 required
                 hint="Used unless a call or endpoint selects another task."
               >
-                <VoiceTaskSelect value={defaultTaskKey} onChange={(e) => setDefaultTaskKey(e.target.value)} disabled={submitting} direction={agent?.direction} legacy={agent?.direction === "inbound"} emptyLabel="Platform default" />
+                <VoiceTaskSelect speechSummary model={model} preparedEnabled={ttsPreparedSpeechEnabled ?? data.agent.ttsPreparedSpeechDefaultEnabled ?? false} value={defaultTaskKey} onChange={(e) => setDefaultTaskKey(e.target.value)} disabled={submitting} direction={agent?.direction} legacy={agent?.direction === "inbound"} emptyLabel="Platform default" />
               </Field>
             ) : null}
             <Field label="Tool profile" htmlFor="ua-tp">

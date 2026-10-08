@@ -1,3 +1,8 @@
+import {
+  savedSpeechErrors,
+  compileSavedSpeech,
+  type SavedSpeech,
+} from './saved-speech.js';
 import { isKnownToolId, type KnownToolId } from './tools.js';
 
 export const VOICE_TASK_CHECKS = [
@@ -18,6 +23,7 @@ export type VoiceTaskField = {
   required?: boolean;
 };
 export type VoiceTaskDefinition = {
+  savedSpeech?: SavedSpeech;
   name: string;
   description: string;
   directions: Array<'inbound' | 'outbound'>;
@@ -25,6 +31,7 @@ export type VoiceTaskDefinition = {
   phases: Array<{
     title: string;
     instructions: string;
+    sentenceKeys?: string[];
     fieldKeys: string[];
     toolIds: KnownToolId[];
   }>;
@@ -95,6 +102,7 @@ export function voiceTaskDefinitionErrors(value: unknown): string[] {
     'resultFields',
     'outcomes',
     'toolIds',
+    'savedSpeech',
   ];
   for (const key of Object.keys(value))
     if (!allowed.includes(key)) errors.push(`Unknown task property: ${key}`);
@@ -193,7 +201,15 @@ export function voiceTaskDefinitionErrors(value: unknown): string[] {
       continue;
     }
     for (const key of Object.keys(phase))
-      if (!['title', 'instructions', 'fieldKeys', 'toolIds'].includes(key))
+      if (
+        ![
+          'title',
+          'instructions',
+          'fieldKeys',
+          'toolIds',
+          'sentenceKeys',
+        ].includes(key)
+      )
         errors.push(`Unknown phase property: ${key}`);
     if (
       typeof phase.title !== 'string' ||
@@ -285,6 +301,7 @@ export function voiceTaskDefinitionErrors(value: unknown): string[] {
     )
       errors.push(`Outcome ${key} needs a real calendar booking tool`);
   }
+  errors.push(...savedSpeechErrors(value.savedSpeech, lists.phases));
   if (JSON.stringify(value).length > 48000)
     errors.push('Task definition exceeds 48 KB');
   return errors;
@@ -330,6 +347,7 @@ export function isVoiceTaskSnapshot(
 }
 export function compileVoiceTaskInstructions(
   definition: VoiceTaskDefinition,
+  options: { nativeSpeech?: boolean } = {},
 ): string {
   return [
     `Objective: ${definition.objective}`,
@@ -337,9 +355,18 @@ export function compileVoiceTaskInstructions(
       (phase, i) =>
         `PHASE ${i + 1}: ${phase.title}\n${phase.instructions}\nAssociated fields: ${phase.fieldKeys.join(', ') || 'none'}. Capabilities: ${phase.toolIds.join(', ') || 'none'}.`,
     ),
+    ...definition.phases.flatMap((phase, i) =>
+      phase.sentenceKeys?.length
+        ? [
+            `Phase ${i + 1} saved sentence keys: ${phase.sentenceKeys.join(', ')}`,
+          ]
+        : [],
+    ),
+    compileSavedSpeech(definition.savedSpeech, options.nativeSpeech),
     'INPUT CONTEXT:',
     ...definition.contextFields.map(
-      (f) => `${f.key} (${f.type}): ${f.description}. ${f.required ? 'Required input.' : 'Optional input.'}`,
+      (f) =>
+        `${f.key} (${f.type}): ${f.description}. ${f.required ? 'Required input.' : 'Optional input.'}`,
     ),
     'Ask one short question at a time. Skip information already answered. Never invent missing facts or claim an external action succeeded without a successful tool result.',
     'RESULT FIELDS:',

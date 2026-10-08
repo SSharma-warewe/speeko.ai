@@ -4,19 +4,21 @@ describe('parseJobMetadata voice extras', () => {
   const jobMeta = new JobMeta();
   it.each([true, false, null, undefined, 'true', 'false', 0, 1, {}, []])('only literal true opts in (%j)', (value) => {
     expect(jobMeta.parseJobMetadata(JSON.stringify({ ttsCacheEnabled: value })).ttsCacheEnabled).toBe(value === true);
+    expect(jobMeta.parseJobMetadata(JSON.stringify({ ttsPreparedSpeechEnabled: value })).ttsPreparedSpeechEnabled).toBe(value === true);
   });
   it.each(['', null, undefined, '{broken'])('fallback metadata stays off (%s)', (raw) => {
     expect(jobMeta.parseJobMetadata(raw).ttsCacheEnabled).toBe(false);
+    expect(jobMeta.parseJobMetadata(raw).ttsPreparedSpeechEnabled).toBe(false);
   });
   it('inbound refresh replaces stale dispatch cache policy in both directions', () => {
     for (const enabled of [true, false]) {
-      const dispatched = jobMeta.parseJobMetadata(JSON.stringify({ callId: 'call', ttsCacheEnabled: !enabled }));
-      const live = jobMeta.parseJobMetadata(JSON.stringify({ ttsCacheEnabled: enabled }));
-      expect(jobMeta.mergeInboundJobMetadata(dispatched, live)).toMatchObject({ callId: 'call', ttsCacheEnabled: enabled });
+      const dispatched = jobMeta.parseJobMetadata(JSON.stringify({ callId: 'call', ttsCacheEnabled: !enabled, ttsPreparedSpeechEnabled: !enabled }));
+      const live = jobMeta.parseJobMetadata(JSON.stringify({ ttsCacheEnabled: enabled, ttsPreparedSpeechEnabled: enabled }));
+      expect(jobMeta.mergeInboundJobMetadata(dispatched, live)).toMatchObject({ callId: 'call', ttsCacheEnabled: enabled, ttsPreparedSpeechEnabled: enabled });
     }
   });
 
-  it('empty raw → null speakingRate / deliveryMode', () => {
+  it('empty raw â†’ null speakingRate / deliveryMode', () => {
     const meta = jobMeta.parseJobMetadata('');
     expect(meta.speakingRate).toBeNull();
     expect(meta.deliveryMode).toBeNull();
@@ -77,7 +79,7 @@ describe('parseJobMetadata voice extras', () => {
     expect(meta.voice).toBe('933563129e564b19a115bedd57b7406a');
   });
 
-  it('empty raw → null ttsModel', () => {
+  it('empty raw â†’ null ttsModel', () => {
     expect(jobMeta.parseJobMetadata('').ttsModel).toBeNull();
     expect(jobMeta.parseJobMetadata('').sttModel).toBeNull();
     expect(jobMeta.parseJobMetadata('').speechLanguage).toBeNull();
@@ -186,7 +188,7 @@ describe('parseJobMetadata voice extras', () => {
     expect(jobMeta.serializeUsage(null as unknown as { modelUsage?: unknown[] })).toBeNull();
   });
 
-  it('unknown deliveryMode and non-number speakingRate → null', () => {
+  it('unknown deliveryMode and non-number speakingRate â†’ null', () => {
     const meta = jobMeta.parseJobMetadata(
       JSON.stringify({
         agentKey: 'inbound',

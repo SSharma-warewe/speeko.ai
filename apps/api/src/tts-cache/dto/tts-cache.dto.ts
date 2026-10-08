@@ -1,5 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Equals, IsObject, IsString, Length, Matches } from 'class-validator';
+import {
+  Equals,
+  IsIn,
+  IsOptional,
+  IsObject,
+  IsString,
+  Length,
+  Matches,
+} from 'class-validator';
 import {
   TTS_CACHE_NAMESPACE,
   type TtsCacheEnvelope,
@@ -8,6 +16,15 @@ import {
 } from '@call-agent/contracts';
 
 export class TtsCacheLookupDto implements TtsCacheLookupRequest {
+  @ApiProperty({
+    required: false,
+    enum: ['automatic', 'prepared'],
+    default: 'automatic',
+  })
+  @IsOptional()
+  @IsIn(['automatic', 'prepared'])
+  purpose?: 'automatic' | 'prepared';
+
   @ApiProperty({ maxLength: 255 })
   @IsString()
   @Length(1, 255)

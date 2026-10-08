@@ -157,6 +157,72 @@ describe('API shared TTS authorization and safe envelopes', () => {
     });
     await post().send(body).expect(200);
   });
+  it('authorizes prepared access independently and rechecks live opt-out', async () => {
+    repository.scope.mockResolvedValue({
+      ...baseScope,
+      org_cache_enabled: false,
+      org_prepared_enabled: true,
+    });
+    await post()
+      .send({ ...body, purpose: 'prepared' })
+      .expect(200);
+    await post('publish')
+      .send({ ...body, purpose: 'prepared', envelope: envelope() })
+      .expect(200);
+    await post().send(body).expect(403);
+    repository.scope.mockResolvedValue({
+      ...baseScope,
+      org_prepared_enabled: false,
+      template_prepared_enabled: true,
+    });
+    await post()
+      .send({ ...body, purpose: 'prepared' })
+      .expect(403);
+    await post()
+      .send({ ...body, purpose: 'automatic' })
+      .expect(200);
+  });
+  it.each([
+    { org_prepared_enabled: null, template_prepared_enabled: true },
+    { org_prepared_enabled: true, template_prepared_enabled: false },
+  ])('allows prepared inheritance %j', async (patch) => {
+    repository.scope.mockResolvedValue({
+      ...baseScope,
+      org_cache_enabled: false,
+      ...patch,
+    });
+    await post()
+      .send({ ...body, purpose: 'prepared' })
+      .expect(200);
+  });
+  it.each([
+    { room_name: 'foreign' },
+    { agent_org: randomUUID() },
+    { org_active: false },
+    { org_agent_active: false },
+    { template_active: false },
+    { status: 'completed' },
+    { execution_type: 'human' },
+    { org_model: 'openai/gpt-realtime-2.1' },
+  ])('preserves prepared scope restrictions %j', async (patch) => {
+    repository.scope.mockResolvedValue({
+      ...baseScope,
+      org_prepared_enabled: true,
+      ...patch,
+    });
+    await post()
+      .send({ ...body, purpose: 'prepared' })
+      .expect(403);
+  });
+  it.each(['other', true, {}, 1])(
+    'rejects invalid cache purpose %j',
+    async (purpose) => {
+      await post()
+        .send({ ...body, purpose })
+        .expect(400);
+      expect(repository.lookup).not.toHaveBeenCalled();
+    },
+  );
   it('denies unknown or deleted calls', async () => {
     repository.scope.mockResolvedValue(undefined);
     await post().send(body).expect(404);

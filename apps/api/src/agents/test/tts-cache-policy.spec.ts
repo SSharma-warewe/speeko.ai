@@ -1,5 +1,9 @@
 import { ValidationPipe } from '@nestjs/common';
-import { CallMedium, resolveTtsCacheEnabled } from '@call-agent/contracts';
+import {
+  CallMedium,
+  resolveTtsCacheEnabled,
+  resolveTtsPreparedSpeechEnabled,
+} from '@call-agent/contracts';
 import { Agent } from '../agent.entity';
 import { OrganizationAgent } from '../organization-agent.entity';
 import { UpdateAgentDto } from '../dto/update-agent.dto';
@@ -91,7 +95,7 @@ describe('persisted speech-cache policy', () => {
     (metatype) => {
       const pipe = new ValidationPipe({
         transform: true,
-      transformOptions: { enableImplicitConversion: true },
+        transformOptions: { enableImplicitConversion: true },
         whitelist: true,
         forbidNonWhitelisted: true,
       });
@@ -109,6 +113,115 @@ describe('persisted speech-cache policy', () => {
           await expect(
             pipe.transform(
               { ttsCacheEnabled: value },
+              { type: 'body', metatype },
+            ),
+          ).rejects.toMatchObject({ status: 400 });
+        },
+      );
+    },
+  );
+});
+
+describe('persisted prepared-sentence policy', () => {
+  it.each([true, false, null])(
+    'template %s resolves with platform default off',
+    (preference) => {
+      const template = { ttsPreparedSpeechEnabled: preference } as Agent;
+      expect(toAgentTemplateResponse(template)).toMatchObject({
+        ttsPreparedSpeechEnabled: preference,
+        ttsPreparedSpeechDefaultEnabled: false,
+        effectiveTtsPreparedSpeechEnabled: preference === true,
+      });
+    },
+  );
+  describe.each([true, false, null])('template=%s', (defaultValue) => {
+    it.each([true, false, null])(
+      'org=%s preserves raw preference in responses and resolves dispatch',
+      (preference) => {
+        const template = {
+          ttsPreparedSpeechEnabled: defaultValue,
+          key: 'fixture',
+        } as Agent;
+        const row = {
+          ttsPreparedSpeechEnabled: preference,
+          agent: template,
+        } as OrganizationAgent;
+        const expected = (preference ?? defaultValue) === true;
+        expect(toOrganizationAgentResponse(row)).toMatchObject({
+          ttsPreparedSpeechEnabled: preference,
+          ttsPreparedSpeechDefaultEnabled: defaultValue === true,
+          effectiveTtsPreparedSpeechEnabled: expected,
+        });
+        for (const direction of ['inbound', 'outbound'] as const) {
+          for (const medium of [CallMedium.SIP, CallMedium.WEB]) {
+            expect(
+              packOrgAgentJobMetadata(row, {
+                direction,
+                medium,
+                task: 'general',
+                enabledTools: ['endCall'],
+              }).ttsPreparedSpeechEnabled,
+            ).toBe(expected);
+          }
+        }
+      },
+    );
+  });
+  it('native realtime ignores a retained true preference, while Bulbul pipeline realtime is eligible', () => {
+    const row = {
+      ttsPreparedSpeechEnabled: true,
+      model: 'openai/gpt-realtime-2.1',
+      voice: 'marin',
+    };
+    applyVoicePatch(row, {});
+    expect(row.ttsPreparedSpeechEnabled).toBe(true);
+    expect(resolveVoiceRuntime(row).ttsPreparedSpeechEnabled).toBe(false);
+    expect(toAgentTemplateResponse(row as Agent)).toMatchObject({
+      ttsPreparedSpeechEnabled: true,
+      effectiveTtsPreparedSpeechEnabled: false,
+    });
+    applyVoicePatch(row, { model: null, voice: null });
+    expect(
+      resolveVoiceRuntime({ ...row, ttsModel: 'sarvam/bulbul-v3-realtime' })
+        .ttsPreparedSpeechEnabled,
+    ).toBe(true);
+  });
+  it('omission preserves a preference and null restores inheritance', () => {
+    const row = { ttsPreparedSpeechEnabled: false };
+    applyVoicePatch(row, { temperature: 0.3 });
+    expect(row.ttsPreparedSpeechEnabled).toBe(false);
+    applyVoicePatch(row, { ttsPreparedSpeechEnabled: null });
+    expect(row.ttsPreparedSpeechEnabled).toBeNull();
+    expect(
+      resolveVoiceRuntime(row, { ttsPreparedSpeechEnabled: true })
+        .ttsPreparedSpeechEnabled,
+    ).toBe(true);
+    expect(resolveTtsPreparedSpeechEnabled(undefined)).toBe(false);
+  });
+  describe.each([UpdateAgentDto, UpdateOrganizationAgentDto])(
+    '%p strict HTTP validation',
+    (metatype) => {
+      const pipe = new ValidationPipe({
+        transform: true,
+        transformOptions: { enableImplicitConversion: true },
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      });
+      it.each([true, false, null, undefined])(
+        'accepts %s without coercion',
+        async (value) => {
+          const body =
+            value === undefined ? {} : { ttsPreparedSpeechEnabled: value };
+          const result = await pipe.transform(body, { type: 'body', metatype });
+          expect(result.ttsPreparedSpeechEnabled).toBe(value);
+        },
+      );
+      it.each(['true', 'false', 'null', 0, 1, [], {}])(
+        'rejects %j',
+        async (value) => {
+          await expect(
+            pipe.transform(
+              { ttsPreparedSpeechEnabled: value },
               { type: 'body', metatype },
             ),
           ).rejects.toMatchObject({ status: 400 });

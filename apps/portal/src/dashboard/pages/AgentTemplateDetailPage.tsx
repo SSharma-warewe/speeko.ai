@@ -44,6 +44,7 @@ export default function AgentTemplateDetailPage() {
   const [silentEnd, setSilentEnd] = useState(false);
   const [isActive, setIsActive] = useState(true);
   const [ttsCacheEnabled, setTtsCacheEnabled] = useState<boolean | null>(null);
+  const [ttsPreparedSpeechEnabled, setTtsPreparedSpeechEnabled] = useState<boolean | null>(null);
   const [model, setModel] = useState<string | null>(null);
   const [ttsModel, setTtsModel] = useState<string | null>(null);
   const [sttModel, setSttModel] = useState<string | null>(null);
@@ -77,6 +78,7 @@ export default function AgentTemplateDetailPage() {
       setSpeakingRate(data.speakingRate ?? DEFAULT_SPEAKING_RATE);
       setDeliveryMode(parseDeliveryMode(data.deliveryMode));
       setTtsCacheEnabled(data.ttsCacheEnabled ?? null);
+      setTtsPreparedSpeechEnabled(data.ttsPreparedSpeechEnabled ?? null);
       setTemperature(data.temperature ?? DEFAULT_TEMPERATURE);
     }
   }, [data]);
@@ -109,6 +111,7 @@ export default function AgentTemplateDetailPage() {
         speakingRate,
         deliveryMode,
         ttsCacheEnabled,
+        ttsPreparedSpeechEnabled,
         temperature,
       });
       setSaved(true);
@@ -160,7 +163,7 @@ export default function AgentTemplateDetailPage() {
           <form className="ops-panel-body ops-form" onSubmit={handleSave}>
             {formError ? <Alert tone="error">{formError}</Alert> : null}
             {saved ? <Alert tone="success">Saved. Agents inheriting the caching default use it on new calls.</Alert> : null}
-            <Field label="Default task"><VoiceTaskSelect admin legacy={false} direction={data.direction} value={defaultVoiceTaskId} onChange={e => setDefaultVoiceTaskId(e.target.value)} disabled={submitting} emptyLabel="General (legacy)" /></Field>
+            <Field label="Default task"><VoiceTaskSelect speechSummary model={model} preparedEnabled={ttsPreparedSpeechEnabled ?? false} admin legacy={false} direction={data.direction} value={defaultVoiceTaskId} onChange={e => setDefaultVoiceTaskId(e.target.value)} disabled={submitting} emptyLabel="General (legacy)" /></Field>
             <Field label="System prompt" htmlFor="tpl-prompt" required>
               <Textarea
                 id="tpl-prompt"
@@ -227,7 +230,9 @@ export default function AgentTemplateDetailPage() {
             </label>
             <AgentVoiceRack
               ttsCacheEnabled={ttsCacheEnabled}
+              ttsPreparedSpeechEnabled={ttsPreparedSpeechEnabled}
               ttsCacheDefaultEnabled={false}
+              ttsPreparedSpeechDefaultEnabled={false}
               cacheDefaultSource="platform"
               compact
               model={model}
@@ -249,6 +254,7 @@ export default function AgentTemplateDetailPage() {
                 if (next.speakingRate !== undefined) setSpeakingRate(next.speakingRate);
                 if (next.deliveryMode !== undefined) setDeliveryMode(next.deliveryMode);
                 if (next.ttsCacheEnabled !== undefined) setTtsCacheEnabled(next.ttsCacheEnabled);
+                if (next.ttsPreparedSpeechEnabled !== undefined) setTtsPreparedSpeechEnabled(next.ttsPreparedSpeechEnabled);
                 if (next.temperature !== undefined) setTemperature(next.temperature);
               }}
             />

@@ -244,6 +244,7 @@ export class AgentJob {
       this.roomName,
     ).build();
     this.ctx.addShutdownCallback(async () => {
+      runtime.userData.savedSpeechState?.dispose();
       runtime.userData.ttsCache?.dispose();
     });
     this.session = runtime.session;
@@ -267,6 +268,7 @@ export class AgentJob {
   }
 
   private async handleJobError(err: unknown): Promise<void> {
+    this.userData?.savedSpeechState?.dispose();
     this.userData?.ttsCache?.dispose();
     this.failedEarly = true;
     const message = err instanceof Error ? err.message : String(err);

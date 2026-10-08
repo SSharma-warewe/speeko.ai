@@ -1,6 +1,11 @@
+import { Link } from 'react-router-dom';
 import { useEffect, useState, type ChangeEventHandler } from 'react';
 import { Select } from '@call-agent/ui';
-import { KNOWN_TASK_KEYS, type VoiceTaskRecord } from '@call-agent/contracts';
+import {
+  KNOWN_TASK_KEYS,
+  isRealtimeLlmModel,
+  type VoiceTaskRecord,
+} from '@call-agent/contracts';
 import { voiceTasksClient } from '../../lib/voice-tasks';
 
 export function VoiceTaskSelect({
@@ -15,6 +20,9 @@ export function VoiceTaskSelect({
   label = 'Task',
   emptyLabel = 'Agent default',
   tasks: providedTasks,
+  speechSummary = false,
+  preparedEnabled = false,
+  model,
 }: {
   value: string;
   onChange: ChangeEventHandler<HTMLSelectElement>;
@@ -27,6 +35,9 @@ export function VoiceTaskSelect({
   label?: string;
   emptyLabel?: string;
   tasks?: VoiceTaskRecord[];
+  speechSummary?: boolean;
+  preparedEnabled?: boolean;
+  model?: string | null;
 }) {
   const [tasks, setTasks] = useState<VoiceTaskRecord[]>([]);
   const [error, setError] = useState('');
@@ -54,6 +65,12 @@ export function VoiceTaskSelect({
       t.published &&
       (!direction || t.published.definition.directions.includes(direction)),
   );
+  const selected = available.find((t) => `voice:${t.id}` === value);
+  const taskBase = admin
+    ? orgId
+      ? `/admin-dashboard/organizations/${orgId}/tasks`
+      : '/admin-dashboard/tasks'
+    : '/dashboard/tasks';
   const known =
     !value ||
     available.some((t) => `voice:${t.id}` === value) ||
@@ -88,6 +105,18 @@ export function VoiceTaskSelect({
           <option value={value}>Current selection (unavailable)</option>
         )}
       </Select>
+      {speechSummary && selected && (
+        <p className="ops-muted">
+          {selected.published!.definition.savedSpeech?.sentences.length ?? 0}{' '}
+          saved sentences ·{' '}
+          {isRealtimeLlmModel(model)
+            ? 'Prepared audio unavailable for native speech-to-speech.'
+            : `Preparation ${preparedEnabled ? 'On for eligible sentences' : 'Off'}.`}{' '}
+          <Link to={`${taskBase}/${selected.id}`}>Edit task speech</Link>. Clone
+          the task for different wording on another agent. Shared reuse requires
+          organization authorization.
+        </p>
+      )}
       {error && (
         <p role="alert" className="ops-muted">
           {error}

@@ -79,6 +79,7 @@ private parseHookField(
       speakingRate: null,
       deliveryMode: null,
       ttsCacheEnabled: false,
+      ttsPreparedSpeechEnabled: false,
     };
   }
 
@@ -157,6 +158,7 @@ private parseHookField(
         ? parsed.deliveryMode
         : null,
       ttsCacheEnabled: parsed.ttsCacheEnabled === true,
+      ttsPreparedSpeechEnabled: parsed.ttsPreparedSpeechEnabled === true,
     };
   } catch (err) {
     if (configured || raw.includes('\"voiceTask\"')) throw err;
@@ -185,6 +187,7 @@ private parseHookField(
       speakingRate: null,
       deliveryMode: null,
       ttsCacheEnabled: false,
+      ttsPreparedSpeechEnabled: false,
     };
   }
 }

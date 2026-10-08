@@ -39,8 +39,11 @@ export type Agent = {
   deliveryMode?: DeliveryMode | null;
   /** Saved preference: null inherits template/platform policy. */
   ttsCacheEnabled: boolean | null;
+  ttsPreparedSpeechEnabled: boolean | null;
   ttsCacheDefaultEnabled: boolean;
+  ttsPreparedSpeechDefaultEnabled: boolean;
   effectiveTtsCacheEnabled: boolean;
+  effectiveTtsPreparedSpeechEnabled: boolean;
   organizationId?: string;
   agentId?: string;
   templateKey?: string;
@@ -50,6 +53,7 @@ export type Agent = {
 
 export type UpdateAgentTemplateRequest = {
   ttsCacheEnabled?: boolean | null;
+  ttsPreparedSpeechEnabled?: boolean | null;
   systemPrompt?: string;
   onEnterInstructions?: string | null;
   onExitInstructions?: string | null;
@@ -84,6 +88,7 @@ export type CloneOrganizationAgentRequest = {
 
 export type UpdateOrganizationAgentRequest = {
   ttsCacheEnabled?: boolean | null;
+  ttsPreparedSpeechEnabled?: boolean | null;
   name?: string;
   slug?: string;
   systemPrompt?: string;

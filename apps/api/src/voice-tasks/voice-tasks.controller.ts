@@ -29,7 +29,7 @@ export class VoiceTaskDefinitionDto {
   @ApiProperty({
     type: Object,
     description:
-      'Validated VoiceTaskDefinition; no executable code or schemas.',
+      'Validated VoiceTaskDefinition, including optional savedSpeech (up to 20 fixed sentences, hook selections) and phase sentenceKeys; no executable code or schemas.',
   })
   @IsObject()
   definition!: Record<string, unknown>;
@@ -41,7 +41,7 @@ export class VoiceTaskDraftDto extends VoiceTaskRevisionDto {
   @ApiProperty({
     type: Object,
     description:
-      'Validated VoiceTaskDefinition; no executable code or schemas.',
+      'Validated VoiceTaskDefinition, including optional savedSpeech (up to 20 fixed sentences, hook selections) and phase sentenceKeys; no executable code or schemas.',
   })
   @IsObject()
   definition!: Record<string, unknown>;

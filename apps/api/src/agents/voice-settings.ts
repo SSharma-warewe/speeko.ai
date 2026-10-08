@@ -11,6 +11,7 @@ import {
   isDeliveryMode,
   isRealtimeLlmModel,
   resolveTtsCacheEnabled,
+  resolveTtsPreparedSpeechEnabled,
   type DeliveryMode,
 } from '@call-agent/contracts';
 
@@ -19,6 +20,7 @@ export type { DeliveryMode };
 
 export type VoiceRuntime = {
   ttsCacheEnabled: boolean;
+  ttsPreparedSpeechEnabled: boolean;
   voice: string | null;
   model: string | null;
   ttsModel: string | null;
@@ -31,6 +33,7 @@ export type VoiceRuntime = {
 
 export type VoicePatchInput = Partial<{
   ttsCacheEnabled: boolean | null;
+  ttsPreparedSpeechEnabled: boolean | null;
   voice: string | null;
   model: string | null;
   ttsModel: string | null;
@@ -42,7 +45,9 @@ export type VoicePatchInput = Partial<{
 }>;
 
 /** Empty / whitespace voice → null so the worker pin applies. */
-export function normalizeVoice(value: string | null | undefined): string | null {
+export function normalizeVoice(
+  value: string | null | undefined,
+): string | null {
   if (value == null) return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
@@ -134,9 +139,7 @@ export function assertVoiceMatchesRuntime(
     );
   }
   const label = ttsModel?.trim() || 'inworld/inworld-tts-2';
-  throw new BadRequestException(
-    `Voice is not available on TTS model ${label}`,
-  );
+  throw new BadRequestException(`Voice is not available on TTS model ${label}`);
 }
 
 export function applyVoicePatch(
@@ -144,6 +147,9 @@ export function applyVoicePatch(
   dto: VoicePatchInput,
   fallbackTtsModel?: string | null,
 ): void {
+  if (dto.ttsPreparedSpeechEnabled !== undefined) {
+    row.ttsPreparedSpeechEnabled = dto.ttsPreparedSpeechEnabled;
+  }
   if (dto.ttsCacheEnabled !== undefined) {
     row.ttsCacheEnabled = dto.ttsCacheEnabled;
   }
@@ -201,6 +207,7 @@ export function resolveVoiceRuntime(
   if (isRealtimeLlmModel(model)) {
     return {
       ttsCacheEnabled: false,
+      ttsPreparedSpeechEnabled: false,
       voice: org?.voice ?? template?.voice ?? null,
       model,
       ttsModel: null,
@@ -212,6 +219,11 @@ export function resolveVoiceRuntime(
     };
   }
   return {
+    ttsPreparedSpeechEnabled: resolveTtsPreparedSpeechEnabled(
+      org?.ttsPreparedSpeechEnabled,
+      template?.ttsPreparedSpeechEnabled === true,
+      model,
+    ),
     ttsCacheEnabled: resolveTtsCacheEnabled(
       org?.ttsCacheEnabled,
       template?.ttsCacheEnabled === true,

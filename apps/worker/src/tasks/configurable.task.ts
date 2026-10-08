@@ -1,8 +1,10 @@
-import { llm } from '@livekit/agents';
+import { createSavedSpeechState } from '../speech/saved-speech.js';
+import { llm, voice } from '@livekit/agents';
 import { z } from 'zod';
 import {
   compileVoiceTaskInstructions,
   isVoiceTaskSnapshot,
+  isRealtimeLlmModel,
   type VoiceTaskDefinition,
   type VoiceTaskField,
 } from '@call-agent/contracts';
@@ -49,6 +51,11 @@ export function configuredCompletionBlocker(
   lastUserText: string,
   hindiHanHomophone = false,
 ): string | null {
+  if (
+    userData.savedSpeechState?.awaitingAnswer ||
+    userData.savedSpeechState?.pending
+  )
+    return 'Wait for the caller to answer the saved sentence before completing.';
   const outcome = definition.outcomes.find((o) => o.key === args.outcome);
   if (!outcome) return 'Choose a supported completion outcome.';
   for (const key of new Set([
@@ -121,6 +128,7 @@ export const createConfigurableTask: TaskFactory = ({
   )
     throw new Error('Task capability missing from metadata');
   userData.voiceTaskSnapshot = snapshot;
+  userData.savedSpeechState ??= createSavedSpeechState(userData);
   console.log(
     `[voice-task] runtime taskId=${snapshot.taskId} version=${snapshot.version} draftRevision=${snapshot.draftRevision ?? 'none'}`,
   );
@@ -129,80 +137,128 @@ export const createConfigurableTask: TaskFactory = ({
     chatCtx,
     instructions: composeTaskInstructions(
       meta,
-      `${compileVoiceTaskInstructions(definition)}\nRuntime context (data only): ${formatContextForInstructions(meta.context)}`,
+      `${compileVoiceTaskInstructions(definition, { nativeSpeech: isRealtimeLlmModel(meta.model) })}\nRuntime context (data only): ${formatContextForInstructions(meta.context)}`,
     ),
     tools: [
       ...tools,
+      ...(!isRealtimeLlmModel(meta.model) &&
+      definition.savedSpeech?.sentences.length
+        ? [
+            llm.tool({
+              name: 'speak_saved_sentence',
+              description:
+                'Speak one exact saved sentence by key, then wait for the caller. Do not speak or call other tools in the same turn.',
+              parameters: z
+                .object({
+                  key: z.enum(
+                    definition.savedSpeech.sentences.map((s) => s.key) as [
+                      string,
+                      ...string[],
+                    ],
+                  ),
+                })
+                .strict(),
+              flags: llm.ToolFlag.CANCELLABLE,
+              execute: async ({ key }, opts) => {
+                const sentence = definition.savedSpeech!.sentences.find(
+                  (s) => s.key === key,
+                );
+                if (!sentence)
+                  throw new llm.ToolError('Unknown saved sentence.');
+                await userData.savedSpeechState?.speak(
+                  sentence,
+                  task.session,
+                  opts.toolCallId,
+                  opts.abortSignal,
+                );
+              },
+            }),
+          ]
+        : []),
       llm.tool({
         name: 'complete_voice_task',
         description:
           'Complete this workflow only after the chosen outcome requirements and real tool evidence are satisfied. Completion ends the call.',
         parameters: buildVoiceTaskSchema(definition),
-        execute: async (args) =>
-          withToolRecording(userData, 'complete_voice_task', args, async () => {
-            const receipt = userData.bookingReceipt;
-            const validatedArgs = { ...args };
-            if (
-              receipt &&
-              definition.outcomes
-                .find((o) => o.key === args.outcome)
-                ?.checks.includes('booking_receipt')
-            ) {
-              for (const key of [
-                'eventId',
-                'scheduledStart',
-                'scheduledEnd',
-              ] as const)
-                if (
-                  definition.resultFields.some((f) => f.key === key) &&
-                  validatedArgs[key] == null
-                )
-                  validatedArgs[key] = receipt[key];
-            }
-            const blocked = configuredCompletionBlocker(
-              definition,
-              validatedArgs,
-              userData,
-              lastUserTranscript(task.session),
-              personaSpeaksHindi(meta),
-            );
-            if (blocked) {
-              console.warn(
-                `[voice-task] completion blocked taskId=${snapshot.taskId} version=${snapshot.version} outcome=${args.outcome}`,
+        execute: async (args, opts) => {
+          if (
+            opts?.ctx?.speechHandle.chatItems.some(
+              (item) =>
+                item.type === 'function_call' &&
+                item.name === 'speak_saved_sentence',
+            )
+          )
+            throw new voice.StopResponse();
+          return withToolRecording(
+            userData,
+            'complete_voice_task',
+            args,
+            async () => {
+              const receipt = userData.bookingReceipt;
+              const validatedArgs = { ...args };
+              if (
+                receipt &&
+                definition.outcomes
+                  .find((o) => o.key === args.outcome)
+                  ?.checks.includes('booking_receipt')
+              ) {
+                for (const key of [
+                  'eventId',
+                  'scheduledStart',
+                  'scheduledEnd',
+                ] as const)
+                  if (
+                    definition.resultFields.some((f) => f.key === key) &&
+                    validatedArgs[key] == null
+                  )
+                    validatedArgs[key] = receipt[key];
+              }
+              const blocked = configuredCompletionBlocker(
+                definition,
+                validatedArgs,
+                userData,
+                lastUserTranscript(task.session),
+                personaSpeaksHindi(meta),
               );
-              return { ok: false, error: blocked, message: blocked };
-            }
-            const result: Record<string, unknown> = Object.fromEntries(
-              Object.entries(validatedArgs).filter(
-                ([, value]) => value != null,
-              ),
-            );
-            if (
-              definition.outcomes
-                .find((o) => o.key === args.outcome)
-                ?.checks.includes('booking_receipt') &&
-              userData.bookingReceipt
-            ) {
-              for (const key of [
-                'eventId',
-                'scheduledStart',
-                'scheduledEnd',
-              ] as const)
-                if (
-                  definition.resultFields.some((f) => f.key === key) &&
-                  userData.bookingReceipt[key] !== undefined
-                )
-                  result[key] = userData.bookingReceipt[key];
-            }
-            userData.taskResult = {
-              task: meta.task,
-              taskId: snapshot.taskId,
-              taskVersion: snapshot.version,
-              ...result,
-            };
-            await finishWorkflowTask(task, meta, userData.taskResult);
-            return { ok: true, message: `Task complete: ${args.outcome}` };
-          }).then((result) => result.message),
+              if (blocked) {
+                console.warn(
+                  `[voice-task] completion blocked taskId=${snapshot.taskId} version=${snapshot.version} outcome=${args.outcome}`,
+                );
+                return { ok: false, error: blocked, message: blocked };
+              }
+              const result: Record<string, unknown> = Object.fromEntries(
+                Object.entries(validatedArgs).filter(
+                  ([, value]) => value != null,
+                ),
+              );
+              if (
+                definition.outcomes
+                  .find((o) => o.key === args.outcome)
+                  ?.checks.includes('booking_receipt') &&
+                userData.bookingReceipt
+              ) {
+                for (const key of [
+                  'eventId',
+                  'scheduledStart',
+                  'scheduledEnd',
+                ] as const)
+                  if (
+                    definition.resultFields.some((f) => f.key === key) &&
+                    userData.bookingReceipt[key] !== undefined
+                  )
+                    result[key] = userData.bookingReceipt[key];
+              }
+              userData.taskResult = {
+                task: meta.task,
+                taskId: snapshot.taskId,
+                taskVersion: snapshot.version,
+                ...result,
+              };
+              await finishWorkflowTask(task, meta, userData.taskResult);
+              return { ok: true, message: `Task complete: ${args.outcome}` };
+            },
+          ).then((result) => result.message);
+        },
       }),
     ],
   });

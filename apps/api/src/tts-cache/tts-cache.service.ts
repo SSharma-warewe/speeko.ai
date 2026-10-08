@@ -39,7 +39,9 @@ export class TtsCacheService {
   ): Promise<T | undefined> {
     if (
       dto.namespace !== TTS_CACHE_NAMESPACE ||
-      !/^[a-f0-9]{64}$/.test(dto.digest)
+      !/^[a-f0-9]{64}$/.test(dto.digest) ||
+      (dto.purpose !== undefined &&
+        !['automatic', 'prepared'].includes(dto.purpose))
     )
       throw new BadRequestException('Invalid TTS cache request');
     // Authorization errors are returned outside the fail-open database wrapper.
@@ -65,8 +67,12 @@ export class TtsCacheService {
         !scope.org_agent_active ||
         !scope.template_active ||
         !resolveTtsCacheEnabled(
-          scope.org_cache_enabled,
-          scope.template_cache_enabled === true,
+          dto.purpose === 'prepared'
+            ? scope.org_prepared_enabled
+            : scope.org_cache_enabled,
+          (dto.purpose === 'prepared'
+            ? scope.template_prepared_enabled
+            : scope.template_cache_enabled) === true,
           scope.org_model ?? scope.template_model,
         ) ||
         scope.agent_org !== scope.organization_id

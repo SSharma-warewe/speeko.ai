@@ -12,6 +12,8 @@ export type TtsSynthesizer = {
 export type CachedSayOptions = {
   addToChatCtx?: boolean;
   allowInterruptions?: boolean;
+  /** Runtime capture cancellation; not forwarded as an SDK say option. */
+  signal?: AbortSignal;
 };
 export type CachedSaySession = {
   say: (
@@ -25,10 +27,13 @@ export function sayCached(
   session: CachedSaySession,
   cache: TtsCacheRuntime | undefined,
   text: string,
-  options: CachedSayOptions,
+  options: CachedSayOptions = {},
 ): unknown {
+  const { signal, ...sayOptions } = options;
   return session.say(
     text,
-    cache?.enabled ? { ...options, audio: cache.finiteAudio(text) } : options,
+    cache?.canCacheFinite(text)
+      ? { ...sayOptions, audio: cache.finiteAudio(text, { signal }) }
+      : sayOptions,
   );
 }

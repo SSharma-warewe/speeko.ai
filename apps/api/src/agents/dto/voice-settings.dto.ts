@@ -24,6 +24,16 @@ export class VoiceSettingsDto {
   @IsBoolean()
   ttsCacheEnabled?: boolean | null;
 
+  @ApiPropertyOptional({
+    type: Boolean,
+    nullable: true,
+    description:
+      'Prepare fixed sentences in parallel. null inherits template/platform default off; independent of speech caching. Unsupported on native realtime.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  ttsPreparedSpeechEnabled?: boolean | null;
+
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsString()
