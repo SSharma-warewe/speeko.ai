@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LiveKitRoom, RoomAudioRenderer, useAudioPlayback, useConnectionQualityIndicator, useConnectionState, useIsSpeaking, useLocalParticipant, useMediaDeviceSelect } from '@livekit/components-react';
-import { ConnectionState, createLocalAudioTrack, MediaDeviceFailure, Room, type LocalAudioTrack } from 'livekit-client';
+import { RoomContext, RoomAudioRenderer, useAudioPlayback, useConnectionQualityIndicator, useConnectionState, useIsSpeaking, useLocalParticipant, useMediaDeviceSelect } from '@livekit/components-react';
+import { ConnectionState, createLocalAudioTrack, MediaDeviceFailure, Room, RoomEvent, type LocalAudioTrack } from 'livekit-client';
 import { Alert, Button, Field, Select } from '@call-agent/ui';
 import { HUMAN_CALL_TOOL_IDS, type CreateHumanCallRequest, type HumanCallResponse, type HumanCallToolId, type SipTrunk } from '@call-agent/contracts';
 import { createHumanCall, endHumanCall, getActiveHumanCall, getUserCall, joinHumanCall, listUserOutboundTrunks, UnauthorizedError } from '../../lib/api';
@@ -139,6 +139,17 @@ export function HumanCallsProvider({ children }: { children: ReactNode }) {
     // A manual reconnect must toggle connect even if the API returns the same token.
     setConnection(null);
   }, [record]);
+  useEffect(() => {
+    const mediaFailure = (failure: Error) => onMediaFailure(MediaDeviceFailure.getFailure(failure));
+    room.on(RoomEvent.Connected, onConnected).on(RoomEvent.Disconnected, onDisconnected).on(RoomEvent.MediaDevicesError, mediaFailure);
+    return () => { room.off(RoomEvent.Connected, onConnected).off(RoomEvent.Disconnected, onDisconnected).off(RoomEvent.MediaDevicesError, mediaFailure); };
+  }, [room, onConnected, onDisconnected, onMediaFailure]);
+  useEffect(() => {
+    if (!connection) return;
+    let cancelled = false;
+    void room.connect(connection.serverUrl, connection.participantToken).catch(() => { if (!cancelled) onAudioError(); });
+    return () => { cancelled = true; };
+  }, [room, connection, onAudioError]);
   const prepareMicrophone = async () => {
     await disconnecting.current;
     if (!navigator.locks) throw new Error('Use a current browser with Web Locks support to connect call audio.');
@@ -211,9 +222,9 @@ export function HumanCallsProvider({ children }: { children: ReactNode }) {
     catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not request hang-up'); }
     finally { mutationsPending.current--; mutationVersion.current++; setBusy(false); }
   };
-  return <LiveKitRoom room={room} className="human-room" serverUrl={connection?.serverUrl} token={connection?.participantToken}
-    connect={Boolean(connection)} audio={false} video={false} onConnected={onConnected} onDisconnected={onDisconnected}
-    onError={onAudioError} onMediaDeviceFailure={onMediaFailure}>
+  // Own connection/publication explicitly. LiveKitRoom's automatic SignalConnected
+  // audio toggle would otherwise mute our pre-captured track on a full reconnect.
+  return <RoomContext.Provider value={room}><div className="human-room">
     <Context.Provider value={{ enabled, active, error, audioError, busy, audioCallId: connection?.callId ?? null, diagnostics, start, join, end, drafts, setDraft }}>
       {!inWorkspace && active && <section className="human-call-strip" aria-label="Active human call">
         <CallIcon name="phone" /><div><strong>{active.session.contactName}</strong><span>{HUMAN_CALL_PHASES[active.session.phase]}</span></div>
@@ -226,7 +237,7 @@ export function HumanCallsProvider({ children }: { children: ReactNode }) {
       {!inWorkspace && audioError && <Alert tone="error">{audioError}</Alert>}
       <RoomAudioRenderer />{children}
     </Context.Provider>
-  </LiveKitRoom>;
+  </div></RoomContext.Provider>;
 }
 
 function AudioDevice({ kind, label }: { kind: 'audioinput' | 'audiooutput'; label: string }) {

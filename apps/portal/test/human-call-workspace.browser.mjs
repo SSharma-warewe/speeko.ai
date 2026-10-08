@@ -34,10 +34,12 @@ async function installAudioFixture(target) {
     const sdk = await import('/node_modules/.vite/deps/livekit-client.js');
     window.audioConnections = 0;
     window.audioDisconnects = 0;
+    window.microphoneMuteRequests = 0;
     sdk.Room.prototype.connect = async function () {
       window.audioConnections++;
       this.state = sdk.ConnectionState.Connected;
       this.emit(sdk.RoomEvent.ConnectionStateChanged, this.state);
+      this.emit(sdk.RoomEvent.SignalConnected);
       this.emit(sdk.RoomEvent.Connected);
     };
     sdk.Room.prototype.disconnect = async function () {
@@ -63,6 +65,21 @@ async function installAudioFixture(target) {
       this.trackPublications.set(publication.trackSid, publication); this.audioTrackPublications.set(publication.trackSid, publication);
       this.emit(sdk.ParticipantEvent.LocalTrackPublished, publication);
       return publication;
+    };
+    sdk.LocalParticipant.prototype.setMicrophoneEnabled = async function (enabled) {
+      if (!enabled) window.microphoneMuteRequests++;
+      const publication = this.getTrackPublication(sdk.Track.Source.Microphone);
+      if (!publication) return;
+      if (enabled) await publication.unmute(); else await publication.mute();
+      this.emit(enabled ? sdk.ParticipantEvent.TrackUnmuted : sdk.ParticipantEvent.TrackMuted, publication);
+      return publication;
+    };
+    window.simulateFullReconnect = () => {
+      const room = window.syntheticRoom;
+      room.state = sdk.ConnectionState.Reconnecting; room.emit(sdk.RoomEvent.ConnectionStateChanged, room.state);
+      room.emit(sdk.RoomEvent.SignalConnected);
+      room.state = sdk.ConnectionState.Connected; room.emit(sdk.RoomEvent.ConnectionStateChanged, room.state);
+      room.emit(sdk.RoomEvent.Reconnected);
     };
   });
 }
@@ -134,6 +151,14 @@ try {
   assert.equal(await page.locator('a[href="/dashboard/crm"]').first().getAttribute('aria-current'), 'page');
   assert.equal(await page.locator('a[href="/dashboard/calls"]').first().getAttribute('aria-current'), null);
   await page.getByRole('heading', { name: 'Interest', exact: true }).waitFor();
+  await page.getByText('Microphone on', { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => window.microphoneMuteRequests), 0, 'Connecting must not reset microphone publication');
+  await page.evaluate(() => window.simulateFullReconnect());
+  await page.getByText('Microphone on', { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => window.microphoneMuteRequests), 0, 'Full signaling reconnect must preserve the microphone');
+  await page.getByRole('button', { name: 'Mute microphone', exact: true }).click();
+  await page.getByText('Microphone muted', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Enable microphone', exact: true }).click();
   await page.getByText('Microphone on', { exact: true }).waitFor();
   assert.equal(await page.getByRole('button', { name: 'End call', exact: true }).count(), 1, 'Workspace must have one set of controls');
   assert.equal(await page.locator('.ops-content').evaluate((el) => el.scrollHeight <= el.clientHeight), true, 'Desktop workspace must fit one screen');
@@ -251,7 +276,7 @@ try {
   await popup.getByText('Call ended. Your selected tools remain available for wrap-up.', { exact: true }).waitFor();
   await popup.close();
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ passed: ['tool defaults and selection', 'microphone preflight denial', 'workspace navigation', 'single control area', 'desktop and laptop single-screen layout', 'interest persistence', 'draft navigation retention', 'failed-save draft retention', 'typing during save', 'stable audio through edits and polling', 'same-token manual reconnect', 'cross-window audio ownership', 'local hangup disconnect', 'explicit CRM summary', 'post-call wrap-up', 'failed booking review retention', 'calendar slots and booking', '390px layout', 'calendar permission isolation', 'popup blocker safety', 'dedicated-window audio lifecycle'], screenshots: output }));
+  console.log(JSON.stringify({ passed: ['tool defaults and selection', 'microphone preflight denial', 'workspace navigation', 'single control area', 'desktop and laptop single-screen layout', 'full signaling reconnect preserves microphone', 'mute/unmute controls', 'interest persistence', 'draft navigation retention', 'failed-save draft retention', 'typing during save', 'stable audio through edits and polling', 'same-token manual reconnect', 'cross-window audio ownership', 'local hangup disconnect', 'explicit CRM summary', 'post-call wrap-up', 'failed booking review retention', 'calendar slots and booking', '390px layout', 'calendar permission isolation', 'popup blocker safety', 'dedicated-window audio lifecycle'], screenshots: output }));
 } catch (error) {
   await page.screenshot({ path: join(output, 'workspace-failure.png'), fullPage: true });
   console.error(JSON.stringify({ browserErrors: errors, audio: await page.evaluate(() => ({ connections: window.audioConnections, disconnects: window.audioDisconnects })) }));
