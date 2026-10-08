@@ -110,6 +110,7 @@ export class HumanCallsService {
     return {
       ...this.response(session),
       meetUrl: this.livekit.buildMeetUrl(token),
+      connection: { serverUrl: this.livekit.getUrl(), participantToken: token },
     };
   }
   private assertReplay(
@@ -122,7 +123,9 @@ export class HumanCallsService {
       session.userId !== actor.id ||
       selection.crmIntegrationId !== request.crmIntegrationId ||
       selection.crmContactId !== request.crmContactId ||
-      selection.sipTrunkId !== request.sipTrunkId
+      selection.sipTrunkId !== request.sipTrunkId ||
+      JSON.stringify([...(selection.selectedTools ?? [])].sort()) !==
+        JSON.stringify([...(request.selectedTools ?? [])].sort())
     )
       throw new ConflictException(
         'Request ID is already used for another call',

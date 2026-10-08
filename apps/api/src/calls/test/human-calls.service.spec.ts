@@ -123,6 +123,7 @@ function harness() {
     deleteHumanRoom: jest.fn(),
     createHumanParticipantToken: jest.fn().mockResolvedValue('token'),
     buildMeetUrl: jest.fn().mockReturnValue('meet-url'),
+    getUrl: jest.fn().mockReturnValue('wss://livekit.example.test'),
     createSipParticipant: jest.fn().mockResolvedValue({ sipCallId: 'sip-id' }),
   };
   const trunks = {

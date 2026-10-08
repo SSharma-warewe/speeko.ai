@@ -5,6 +5,7 @@ import {
   Header,
   HttpCode,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -28,6 +29,8 @@ import {
   HumanCallResponseDto,
 } from './dto/human-call.dto';
 import { HumanCallsService } from './services/human-calls.service';
+import { HumanCallWorkspaceService } from './services/human-call-workspace.service';
+import { UpdateHumanCallWorkspaceDto, HumanCallWorkspaceActionDto, ResolveHumanCallActionDto } from './dto/human-call-workspace.dto';
 
 @Controller('users/calls')
 @ApiTags('user-calls')
@@ -35,7 +38,43 @@ import { HumanCallsService } from './services/human-calls.service';
 @ApiJwtErrors()
 @UseGuards(JwtAuthGuard, UserGuard)
 export class UserHumanCallsController {
-  constructor(private readonly human: HumanCallsService) {}
+  constructor(private readonly human: HumanCallsService, private readonly workspace: HumanCallWorkspaceService) {}
+  @Get(':id/human/workspace')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Read your call tools and saved wrap-up results' })
+  @ApiOkResponse({ description: 'Human call workspace, without join credentials' })
+  @ApiNotFoundError('Human call not found')
+  getWorkspace(@CurrentUser() actor: AuthOrgUser, @Param('id', ParseResourceIdPipe('Call')) id: string) {
+    return this.workspace.get(actor, id);
+  }
+  @Patch(':id/human/workspace')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Save interest or notes with an optimistic revision' })
+  @ApiOkResponse({ description: 'Updated workspace' })
+  @ApiConflictResponse({ description: 'Workspace revision changed' })
+  updateWorkspace(@CurrentUser() actor: AuthOrgUser, @Param('id', ParseResourceIdPipe('Call')) id: string,
+    @Body() body: UpdateHumanCallWorkspaceDto) {
+    return this.workspace.update(actor, id, body);
+  }
+  @Post(':id/human/workspace/actions')
+  @HttpCode(200)
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Book a meeting or copy saved call results to CRM, without automatic retries' })
+  @ApiOkResponse({ description: 'Workspace with durable external action receipt' })
+  @ApiConflictResponse({ description: 'Revision conflict or unresolved external action' })
+  workspaceAction(@CurrentUser() actor: AuthOrgUser, @Param('id', ParseResourceIdPipe('Call')) id: string,
+    @Body() body: HumanCallWorkspaceActionDto) {
+    return this.workspace.execute(actor, id, body);
+  }
+  @Post(':id/human/workspace/actions/:requestId/resolve')
+  @HttpCode(200)
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Reconcile an uncertain CRM action after manual inspection, without resending it' })
+  @ApiOkResponse({ description: 'Updated action journal' })
+  resolveAction(@CurrentUser() actor: AuthOrgUser, @Param('id', ParseResourceIdPipe('Call')) id: string,
+    @Param('requestId', ParseResourceIdPipe('Action')) requestId: string, @Body() body: ResolveHumanCallActionDto) {
+    return this.workspace.resolve(actor, id, requestId, body.resolution, body.providerId);
+  }
   @Get('human/active')
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
@@ -61,7 +100,7 @@ export class UserHumanCallsController {
   @HttpCode(200)
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'Issue microphone-only Meet credentials to the initiating user',
+    summary: 'Issue ephemeral microphone-only browser credentials to the initiating user',
   })
   @ApiOkResponse({ type: HumanCallResponseDto })
   @ApiNotFoundError('Human call not found')

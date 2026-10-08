@@ -16,6 +16,8 @@ Scope: `packages/contracts`. Inherit the [root instructions](../../AGENTS.md). `
 
 ## Naming and changes
 
+Human-operated tools use separate `HUMAN_CALL_TOOL_IDS` (`interest`, `bookMeeting`, `notes`), not KNOWN_TOOL_IDS. `http/human-call-workspace.ts` defines optimistic updates, interest/notes and external-action receipts. CreateHumanCallRequest optionally carries selectedTools (omission means none); HumanCallSummary optionally carries workspace; create/join optionally carry ephemeral `connection { serverUrl, participantToken }` while retaining meetUrl compatibility. History excludes credentials and journal fingerprints. No voice/WhatsApp execution protocol changes are involved.
+
 - File names lowercase kebab-case, exported types PascalCase, helpers camelCase, constants UPPER_SNAKE_CASE. Tool ids camelCase; task keys/provider values snake_case as established; URL/model ids preserve their catalog spelling.
 - For a wire change, update all affected producer packers/DTOs, worker parsers/schemas/builders/callbacks, frontend clients/options, and tests in one change. Stable ids are persisted and dispatched; renaming them is a compatibility change, not a cosmetic cleanup.
 - Versioned WhatsApp changes require compatible worker health/protocol and API rollout order; follow [TASK-SESSIONS](../../apps/whatsapp-worker/TASK-SESSIONS.md). Do not silently reinterpret saved jobs or task snapshots.

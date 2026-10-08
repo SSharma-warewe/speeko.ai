@@ -1,0 +1,7 @@
+// Column-only delta. Merge into the EXISTING human_call_sessions table.
+// Do not replace other columns, indexes, or foreign keys.
+// Canonical Erflow read/update/refetch is required before release.
+Table human_call_sessions {
+  workspace jsonb [not null, default: '{}', note: 'Human interest, notes, optimistic revision, and external-action journal. No credentials.']
+}
+// Existing selection JSON also stores optional selectedTools; no additional column.

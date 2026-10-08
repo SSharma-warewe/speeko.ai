@@ -117,6 +117,7 @@ export type {
 
 export * from './whatsapp-conversations.js';
 export * from './human-calls.js';
+export * from './human-call-workspace.js';
 export type {
   TtsCacheLookupRequest,
   TtsCacheLookupResponse,

@@ -1,5 +1,6 @@
 import { Call, CallStatus, CallTaskStatus } from '../call.entity';
 import { CallResponseDto, TestCallResponseDto } from '../dto/call-response.dto';
+import { humanCallWorkspace } from '../lib/human-call-workspace';
 
 export function toCallResponse(
   call: Call,
@@ -15,6 +16,7 @@ export function toCallResponse(
       phase: call.humanSession.phase,
       joinDeadline: call.humanSession.joinDeadline.toISOString(),
       endReason: call.humanSession.endReason,
+      workspace: humanCallWorkspace(call.humanSession),
     } : null,
     id: call.id,
     organizationId: call.organizationId,

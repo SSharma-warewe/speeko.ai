@@ -14,6 +14,7 @@ import { QueueAdmissionRepository } from '../../queue/queue-admission.repository
 import { OrganizationQueueSettings } from '../../queue/organization-queue-settings.entity';
 import { QueueAdmission } from '../../queue/queue-admission.entity';
 import { newCallRow } from '../lib/call-row';
+import { HumanCallWorkspaceService } from '../services/human-call-workspace.service';
 
 jest.setTimeout(30000);
 (securityDatabaseUrl ? describe : describe.skip)(
@@ -252,6 +253,49 @@ jest.setTimeout(30000);
       );
       expect(await db.getRepository(QueueAdmission).count()).toBe(1);
       expect(await admission.countRateUsage(orgId)).toBe(1);
+    });
+    it('persists selected tools and serializes concurrent workspace edits across replicas after hang-up', async () => {
+      const input = { ...request(), selectedTools: ['notes', 'interest', 'bookMeeting'] as const };
+      await seedConnection(input.crmIntegrationId);
+      const { session } = await create(sessions, { ...input, selectedTools: [...input.selectedTools] });
+      await db.getRepository(HumanCallSession).update(session.id, { phase: 'ended', finishedAt: new Date() });
+      const a = new HumanCallWorkspaceService(sessions, {} as never), b = new HumanCallWorkspaceService(other, {} as never);
+      const results = await Promise.allSettled([
+        a.update(actor, session.callId, { revision: 0, notes: 'first' }),
+        b.update(actor, session.callId, { revision: 0, notes: 'second' }),
+      ]);
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      const result = await a.get(actor, session.callId);
+      expect(result.revision).toBe(1); expect(['first', 'second']).toContain(result.notes);
+      expect(result.selectedTools).toEqual(['bookMeeting', 'interest', 'notes']);
+      expect((await sessions.find(session.id))?.phase).toBe('ended');
+    });
+    it('prevents cross-user and cross-tenant workspace reads and writes in PostgreSQL', async () => {
+      const input = request(); await seedConnection(input.crmIntegrationId);
+      const { session } = await create(sessions, input);
+      const service = new HumanCallWorkspaceService(sessions, {} as never);
+      for (const stranger of [{ ...actor, id: randomUUID() }, { ...actor, orgId: randomUUID() }]) {
+        await expect(service.get(stranger, session.callId)).rejects.toThrow(NotFoundException);
+        await expect(service.update(stranger, session.callId, { revision: 0, notes: 'attack' })).rejects.toThrow(NotFoundException);
+      }
+    });
+    it('journals external claims across replicas before provider I/O and fences duplicate writes', async () => {
+      const input = { ...request(), selectedTools: ['bookMeeting'] as ('bookMeeting')[] };
+      await seedConnection(input.crmIntegrationId); const { session } = await create(sessions, input);
+      let finish!: (value: unknown) => void;
+      const crm = { execute: jest.fn(() => new Promise((resolve) => { finish = resolve; })) };
+      const a = new HumanCallWorkspaceService(sessions, crm as never), b = new HumanCallWorkspaceService(other, crm as never);
+      const action = { requestId: randomUUID(), revision: 0, kind: 'bookMeeting' as const, meeting: {
+        calendarId: 'calendar', title: 'Demo', startTime: new Date(Date.now() + 86400000).toISOString(),
+        endTime: new Date(Date.now() + 88200000).toISOString(), timezone: 'Asia/Calcutta',
+      } };
+      const first = a.execute(actor, session.callId, action);
+      while (!finish) await new Promise((resolve) => setTimeout(resolve, 10));
+      expect((await b.execute(actor, session.callId, action)).actions[0].status).toBe('pending');
+      expect(crm.execute).toHaveBeenCalledTimes(1);
+      finish({ event: { id: 'receipt' } }); await first;
+      expect((await b.get(actor, session.callId)).actions[0]).toMatchObject({ status: 'succeeded', providerId: 'receipt' });
+      await b.execute(actor, session.callId, action); expect(crm.execute).toHaveBeenCalledTimes(1);
     });
     it('pause and rolling rate limits block manual admission without an external-write marker', async () => {
       const input = request();

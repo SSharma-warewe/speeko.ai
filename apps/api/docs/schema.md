@@ -22,6 +22,10 @@ Detailed instructions and reference material now live directly in the [owning AG
 
 [Current behavior and schema workflow](../AGENTS.md#human-crm-calling); [additive Erflow schema delta](human-call-schema.dbml). Canonical synchronization is outstanding and was explicitly deferred for this change by the user on 2026-10-07.
 
+### Human call workspace additions
+
+[Current behavior](../AGENTS.md#human-call-workspace); [additive SQL](human-call-workspace-schema.sql); [column-only DBML](human-call-workspace-schema.dbml). Adds `human_call_sessions.workspace` JSONB with an empty-object default. Apply before the API with synchronization disabled. Canonical Erflow read/update/refetch is outstanding because access was unavailable; this change has no release deferral.
+
 ### Shared TTS cache additions
 
 [Current behavior and limits](../AGENTS.md#shared-tts-cache); [additive canonical schema delta](tts-cache-schema.dbml). Local isolated schema verification does not replace the required Erflow read/update/refetch workflow. On 2026-10-08 the user explicitly deferred Erflow for this TTS cache release and authorized deployment with caching off. Canonical synchronization remains outstanding; this exception does not waive future schema work.

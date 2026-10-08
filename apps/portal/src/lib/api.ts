@@ -951,6 +951,13 @@ export const createHumanCall = (data: import('@call-agent/contracts').CreateHuma
   userFetch<import('@call-agent/contracts').HumanCallResponse>('/users/calls/human', { method: 'POST', body: JSON.stringify(data) });
 export const joinHumanCall = (id: string) => userFetch<import('@call-agent/contracts').HumanCallResponse>(`/users/calls/${id}/human/join`, { method: 'POST' });
 export const endHumanCall = (id: string) => userFetch<import('@call-agent/contracts').HumanCallResponse>(`/users/calls/${id}/human/end`, { method: 'POST' });
+export const getHumanCallWorkspace = (id: string) => userFetch<import('@call-agent/contracts').HumanCallWorkspace>(`/users/calls/${id}/human/workspace`);
+export const updateHumanCallWorkspace = (id: string, body: import('@call-agent/contracts').UpdateHumanCallWorkspace) =>
+  userFetch<import('@call-agent/contracts').HumanCallWorkspace>(`/users/calls/${id}/human/workspace`, { method: 'PATCH', body });
+export const executeHumanCallWorkspace = (id: string, body: import('@call-agent/contracts').HumanCallWorkspaceActionRequest) =>
+  userFetch<import('@call-agent/contracts').HumanCallWorkspace>(`/users/calls/${id}/human/workspace/actions`, { method: 'POST', body });
+export const resolveHumanCallAction = (id: string, requestId: string, body: import('@call-agent/contracts').ResolveHumanCallActionRequest) =>
+  userFetch<import('@call-agent/contracts').HumanCallWorkspace>(`/users/calls/${id}/human/workspace/actions/${requestId}/resolve`, { method: 'POST', body });
 
 export const getUserCostSummary = (opts?: { from?: string; to?: string }) => {
   const q = new URLSearchParams();

@@ -7,7 +7,7 @@ import {
   OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import type { HumanCallPhase } from '@call-agent/contracts';
+import type { HumanCallPhase, HumanCallWorkspace } from '@call-agent/contracts';
 import { Call } from './call.entity';
 import { Organization } from '../organizations/organization.entity';
 import { User } from '../users/user.entity';
@@ -58,6 +58,11 @@ export class HumanCallSession {
     crmIntegrationId: string;
     crmContactId: string;
     sipTrunkId: string;
+    selectedTools?: import('@call-agent/contracts').HumanCallToolId[];
+  };
+  @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
+  workspace!: Omit<Partial<HumanCallWorkspace>, 'actions'> & {
+    actions?: (HumanCallWorkspace['actions'][number] & { fingerprint?: string })[];
   };
   @Column({ name: 'browser_identity', type: 'varchar', length: 100 })
   browserIdentity!: string;

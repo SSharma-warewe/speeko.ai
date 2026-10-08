@@ -23,6 +23,7 @@ import { HumanCallSessionsRepository } from './human-call-sessions.repository';
 import { HumanCallsService } from './services/human-calls.service';
 import { UserHumanCallsController } from './user-human-calls.controller';
 import { CrmModule } from '../crm/crm.module';
+import { HumanCallWorkspaceService } from './services/human-call-workspace.service';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { CrmModule } from '../crm/crm.module';
   ],
   controllers: [UserHumanCallsController, CallsController, UserCallsController, InternalCallsController, UserVoiceTaskTestsController, AdminVoiceTaskTestsController, OrganizationVoiceTaskTestsController],
   providers: [
+    HumanCallWorkspaceService,
     HumanCallSessionsRepository,
     HumanCallsService,
     CallsRepository,

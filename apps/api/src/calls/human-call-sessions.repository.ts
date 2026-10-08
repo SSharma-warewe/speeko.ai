@@ -94,6 +94,7 @@ export class HumanCallSessionsRepository {
             crmIntegrationId: request.crmIntegrationId,
             crmContactId: request.crmContactId,
             sipTrunkId: request.sipTrunkId,
+            selectedTools: [...(request.selectedTools ?? [])].sort(),
           },
           browserIdentity: `human-${call.id}`,
           sipIdentity: `contact-${call.id}`,
@@ -175,5 +176,21 @@ export class HumanCallSessionsRepository {
         nextCheckAt: new Date(Date.now() + 2000),
       },
     );
+  }
+
+  /** Workspace writes also work after hang-up; update only their column. */
+  async mutateWorkspace<T>(callId: string, actor: AuthOrgUser,
+    action: (session: HumanCallSession) => T) {
+    return this.db.transaction(async (manager) => {
+      const session = await manager.findOne(HumanCallSession, {
+        where: { callId, userId: actor.id, organizationId: actor.orgId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!session) throw new NotFoundException('Human call not found');
+      session.workspace ??= {};
+      const result = action(session);
+      await manager.update(HumanCallSession, session.id, { workspace: session.workspace });
+      return result;
+    });
   }
 }

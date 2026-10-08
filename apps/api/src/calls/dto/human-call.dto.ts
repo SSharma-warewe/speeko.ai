@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsUUID, Matches, MaxLength } from 'class-validator';
+import { ArrayMaxSize, ArrayUnique, IsArray, IsIn, IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
+import { HUMAN_CALL_TOOL_IDS, type HumanCallToolId } from '@call-agent/contracts';
 import type {
   CreateHumanCallRequest,
   HumanCallSummary,
@@ -15,11 +16,15 @@ export class CreateHumanCallDto implements CreateHumanCallRequest {
   crmContactId!: string;
   @ApiProperty({ format: 'uuid' }) @IsUUID() sipTrunkId!: string;
   @ApiProperty({ format: 'uuid' }) @IsUUID() requestId!: string;
+  @ApiPropertyOptional({ enum: HUMAN_CALL_TOOL_IDS, isArray: true })
+  @IsOptional() @IsArray() @ArrayMaxSize(3) @ArrayUnique()
+  @IsIn(HUMAN_CALL_TOOL_IDS, { each: true }) selectedTools?: HumanCallToolId[];
 }
 export class HumanCallResponseDto {
   @ApiProperty({ type: CallResponseDto }) call!: CallResponseDto;
   @ApiProperty({ type: Object }) session!: HumanCallSummary;
   @ApiPropertyOptional() meetUrl?: string;
+  @ApiPropertyOptional() connection?: { serverUrl: string; participantToken: string };
 }
 export class ActiveHumanCallResponseDto {
   @ApiProperty() enabled!: boolean;

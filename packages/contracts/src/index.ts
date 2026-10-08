@@ -229,3 +229,4 @@ export type { CrmAction, CrmCommand, CrmResult } from './crm.js';
 export * from './configurable-whatsapp-tasks.js';
 
 export * from './saved-speech.js';
+export { HUMAN_CALL_TOOL_IDS } from './http/human-call-workspace.js';

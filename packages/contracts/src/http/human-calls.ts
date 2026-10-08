@@ -1,4 +1,5 @@
 import type { CallRecord } from './calls.js';
+import type { HumanCallToolId, HumanCallWorkspace } from './human-call-workspace.js';
 
 export type HumanCallPhase =
   | 'preparing'
@@ -13,6 +14,7 @@ export type CreateHumanCallRequest = {
   crmContactId: string;
   sipTrunkId: string;
   requestId: string;
+  selectedTools?: HumanCallToolId[];
 };
 export type HumanCallSummary = {
   callerName: string;
@@ -22,11 +24,13 @@ export type HumanCallSummary = {
   phase: HumanCallPhase;
   joinDeadline: string;
   endReason: string | null;
+  workspace?: HumanCallWorkspace;
 };
 export type HumanCallResponse = {
   call: CallRecord;
   session: HumanCallSummary;
   meetUrl?: string;
+  connection?: { serverUrl: string; participantToken: string };
 };
 export type ActiveHumanCallResponse = {
   enabled: boolean;

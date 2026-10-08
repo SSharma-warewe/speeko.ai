@@ -32,6 +32,7 @@ import UserToolProfilesPage from "./dashboard/user-pages/ToolProfilesPage";
 import UserIntegrationsPage from "./dashboard/user-pages/IntegrationsPage";
 import UserWhatsAppPage from "./dashboard/user-pages/WhatsAppPage";
 import UserCrmPage from "./dashboard/user-pages/CrmPage";
+import HumanCallWorkspacePage from "./dashboard/user-pages/HumanCallWorkspacePage";
 import AdminLoginPage from "./pages/AdminLoginPage";
 import UserLoginPage from "./pages/UserLoginPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
@@ -98,6 +99,7 @@ export default function App() {
         <Route path="tool-profiles" element={<UserToolProfilesPage />} />
         <Route path="whatsapp" element={<UserWhatsAppPage />} />
         <Route path="crm" element={<UserCrmPage />} />
+        <Route path="crm/call/:id" element={<HumanCallWorkspacePage />} />
         <Route path="integrations" element={<UserIntegrationsPage />} />
         <Route path="account" element={<UserAccountPage />} />
         <Route
