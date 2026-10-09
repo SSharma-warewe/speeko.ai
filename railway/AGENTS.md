@@ -33,6 +33,12 @@ For the 2026-10-07 human-call rollout, the user explicitly authorized GitHub pub
 
 ## Deployment runbook
 
+### CRM calendar appointment autofill rollout
+
+On 2026-10-09 the user authorized implementation, GitHub publication and Railway CLI deployment. Implementation `f22749f6129ec79001b8f88dc3fdd6fa68c6f1ac` was pushed to `SSharma-warewe/speeko.ai`, branch `codex/tts-cache-rollout`. An exact Git archive (SHA-256 `35B0B3AD6DA2C58D7C0AD3B503F80E0077FA278EB419A4C2E1F74D95307DA329`) was uploaded with explicit project/portal/production flags against verified practical-spontaneity / production and `Dockerfile.portal`. Portal deployment `530adc5f-fbf4-4c27-b6c7-af7d20eade1c` reached SUCCESS with a RUNNING instance. Other service deployment IDs were unchanged; no schema, wire contract or environment changes were required.
+
+Login, CRM Calendar and WhatsApp Send deep links returned 200. Shipped `/assets/index-CNjmfee1.js` contains the autofill review help, appointment date/start-time/calendar source choices, date-time mode, Message sent state and correct public API origin. Portal typecheck/build, eight helper unit tests and expanded synthetic browser scenarios passed. Checks cover named/clearly labelled positional inference, browser timezone/date boundaries, ambiguous/conflicting/missing values, editable source values, preserved overrides, text-wire payloads, rescheduled context and existing Send-page behavior. No live WhatsApp messages or CRM writes were made; authenticated production interaction and Meta delivery remain user acceptance.
+
 ### CRM calendar WhatsApp composer rollout
 
 On 2026-10-09 the user authorized GitHub publication and Railway CLI deployment. Implementation `03aa7ad713e6ada36fcea8421ac021b52236b39e` was pushed to `SSharma-warewe/speeko.ai`, branch `codex/tts-cache-rollout`. An exact Git archive (SHA-256 `600FBBE44316A17F18B7614F46BEC3564714845A09E61CBFC27157E5E0EC0E2D`) was uploaded using explicit project, portal service and production environment flags after verifying practical-spontaneity / production and `Dockerfile.portal`. Portal deployment `d893437b-a4ae-4523-9b24-9a4edcfb3df7` reached SUCCESS with a RUNNING instance. API, workers, marketing and Postgres deployment IDs were unchanged. No schema or environment changes were needed.
