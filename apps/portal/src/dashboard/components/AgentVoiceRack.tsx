@@ -123,6 +123,12 @@ function VoiceStage({
   span?: boolean;
   children: ReactNode;
 }) {
+  const descriptions: Record<string, string> = {
+    Listen: "Transcribes the caller’s audio",
+    Think: "Shapes the agent’s responses",
+    Speak: "Turns replies into spoken audio",
+    Language: "Sets the conversation language",
+  };
   return (
     <div className={span ? "ops-voice-stage is-span" : "ops-voice-stage"}>
       <div className="ops-voice-cast-head">
@@ -131,6 +137,9 @@ function VoiceStage({
           <span className="ops-desk-hint" title={hint}>{hint}</span>
         ) : null}
       </div>
+      {descriptions[kicker] ? (
+        <p className="ops-voice-stage-description">{descriptions[kicker]}</p>
+      ) : null}
       {children}
     </div>
   );
