@@ -15,6 +15,7 @@ import { ErrorBlock } from "../components/ErrorBlock";
 import { LoadingBlock } from "../components/LoadingBlock";
 import { ResourceNotFound } from "../components/ResourceNotFound";
 import { useUserAsync } from "../hooks/useAsync";
+import { useHumanTranscriptRefresh } from '../hooks/useHumanTranscriptRefresh';
 
 export default function UserCallDetailPage() {
   const { id = "" } = useParams();
@@ -24,6 +25,7 @@ export default function UserCallDetailPage() {
     [id],
   );
   const [busy, setBusy] = useState(false);
+  useHumanTranscriptRefresh(data, reload);
 
   const runAction = async (action: "cancel" | "retry" | "prioritize") => {
     setBusy(true);
@@ -43,7 +45,7 @@ export default function UserCallDetailPage() {
     }
   };
 
-  if (loading) return <LoadingBlock label="Loading call" />;
+  if (loading && !data) return <LoadingBlock label="Loading call" />;
   if (notFound || (!data && !error)) {
     return (
       <ResourceNotFound

@@ -43,6 +43,8 @@ import {
 } from '../lib/call-state-machine';
 import { pickFromNumber } from '../lib/call-phone';
 import { toCallResponse } from '../mappers/call-response.mapper';
+import { initializeHumanTranscription, endHumanTranscription } from '../lib/human-transcription';
+import { HumanCallTranscriptionRepository } from '../human-call-transcription.repository';
 
 @Injectable()
 export class HumanCallsService {
@@ -58,6 +60,7 @@ export class HumanCallsService {
     private readonly settings: OrganizationQueueSettingsService,
     private readonly config: ConfigService,
     private readonly price: PriceService,
+    private readonly transcription: HumanCallTranscriptionRepository,
   ) {}
 
   enabled() {
@@ -200,6 +203,7 @@ export class HumanCallsService {
     );
     initializeCallStatus(call, CallLifecycleEvent.START_IMMEDIATE);
     call.taskStatus = CallTaskStatus.NOT_APPLICABLE;
+    initializeHumanTranscription(call);
     const created = await this.sessions.create(
       actor,
       request,
@@ -210,7 +214,7 @@ export class HumanCallsService {
     if (!created.created) return this.response(created.session);
     const session = created.session;
     try {
-      await this.livekit.createHumanRoom(session.call.roomName!);
+      await this.livekit.createHumanRoom(session.call.roomName!, { mode: 'human_transcription', callId: session.callId, roomName: session.call.roomName! });
       const prepared = await this.sessions.mutate(
         session.id,
         session.leaseToken,
@@ -249,12 +253,13 @@ export class HumanCallsService {
     status: 'completed' | 'cancelled' | 'failed',
     token: string | null = null,
   ) {
-    return this.sessions.mutate(id, token, (session) => {
+    return this.sessions.mutate(id, token, (session, call) => {
       if (session.phase === 'ending') return;
       session.phase = 'ending';
       session.endReason = reason;
       session.terminalStatus = status;
       session.cleanupStartedAt = new Date();
+      endHumanTranscription(call);
     });
   }
   @Interval(2000)
@@ -556,8 +561,9 @@ export class HumanCallsService {
     if (result) {
       result.call.humanSession = result;
       try {
-        await this.price.fillCostIfMissing(result.call);
-        await this.calls.updateCost(result.call);
+        await this.transcription.mutate(result.callId, async (call) => {
+          await this.price.fillCostIfMissing(call);
+        });
       } catch {
         this.logger.warn(
           `Human call price estimate unavailable call=${session.callId}`,

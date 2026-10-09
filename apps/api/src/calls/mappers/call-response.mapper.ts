@@ -1,6 +1,7 @@
 import { Call, CallStatus, CallTaskStatus } from '../call.entity';
 import { CallResponseDto, TestCallResponseDto } from '../dto/call-response.dto';
 import { humanCallWorkspace } from '../lib/human-call-workspace';
+import { humanTranscription } from '../lib/human-transcription';
 
 export function toCallResponse(
   call: Call,
@@ -9,6 +10,9 @@ export function toCallResponse(
   const dto: CallResponseDto = {
     executionType: call.executionType ?? 'agent',
     humanCall: call.humanSession ? {
+      ...(humanTranscription(call) ? { transcription: {
+        status: humanTranscription(call)!.status, provider: 'sarvam' as const, model: 'saaras:v3-realtime' as const,
+      } } : {}),
       callerName: call.humanSession.callerName,
       contactName: call.humanSession.contactName,
       crmIntegrationId: call.humanSession.crmIntegrationId,
@@ -38,7 +42,7 @@ export function toCallResponse(
     voiceTaskSnapshot: call.voiceTaskSnapshot ?? null,
     taskResult: call.taskResult,
     taskStatus: resolveTaskStatus(call),
-    transcript: call.transcript,
+    transcript: call.executionType === 'human' && !call.endedAt ? null : call.transcript,
     usage: call.usage,
     sessionReport: call.sessionReport,
     toolEvents: extractToolEvents(call.sessionReport),

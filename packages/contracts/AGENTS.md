@@ -59,6 +59,10 @@ WhatsApp model is `openai/gpt-5.6-luna`; permitted GHL ids are lookupGhlContact,
 
 ## Wire definitions
 
+### Human transcription
+
+`human-transcription.ts` defines the separate `{mode:'human_transcription',callId,roomName}` worker dispatch shape. It is not AgentJobMetadata and must branch before the AI parser. Start carries roomName/jobId and returns authoritative browserIdentity/sipIdentity plus a private callbackToken. Checkpoint carries jobId/callbackToken, final segments `{id,role:'caller'|'contact',content,createdAt}`, cumulative audioDuration/listenerDuration seconds and optional partial; finish adds answered. HumanCallSummary optionally exposes `{status,provider:'sarvam',model:'saaras:v3-realtime'}`. Status IDs are pending/running/finalizing/complete/partial/unavailable/not_needed. Existing CallTranscriptItem, call lifecycle and task status contracts are unchanged. No token is persisted in reports or public history.
+
 The following source snapshots expose the complete field structure for contributors. Update these examples when changing their source contracts; source files, not Markdown examples, remain authoritative. These contain shapes only, never actual leases, credentials, recipient data, or transcript content.
 
 ### job-metadata.ts

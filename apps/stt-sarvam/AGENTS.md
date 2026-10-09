@@ -4,6 +4,8 @@ Scope: `apps/stt-sarvam`. Inherit the [root instructions](../../AGENTS.md). This
 
 ## Protocol and ownership
 
+- Optional `mode` accepts transcribe/translate/verbatim/translit/codemix and defaults to transcribe. Human-call listeners use language=auto, stream_type=balanced, mode=codemix; existing AI/SIP defaults stay fast/transcribe. On `{event:end}`, end upstream input and continue pumping final speech/usage for at most five seconds before closing. Successful drain emits `{type:drained}`; timeout emits a non-retryable error. The Node adapter understands this terminal event and also bounds drain to five seconds. Update both sides together. Python tests cover mode validation and final speech/usage that arrives only after end_input.
+
 - `run.py`/`stt_sarvam/__main__.py` start the server; `server.py` owns loopback HTTP/WebSocket I/O; `plugin.py` configures the official plugin/PCM frames; `wire.py` maps speech events.
 - Bind loopback `127.0.0.1:8091` by default. `GET /health` reports `{ ok: true, plugin: "sarvam.STTRealtime" }`; `WS /stt` accepts s16le PCM, 16 kHz mono, and emits JSON start/interim/final/end/usage/error events.
 - Preserve requestId, text/language/timing and audioDuration fields when mapping plugin events. Unknown event types become errors rather than fabricated transcripts.

@@ -3,6 +3,7 @@ import {
   Controller,
   HttpCode,
   HttpStatus,
+  Header,
   Param,
   Post,
   UseGuards,
@@ -20,6 +21,8 @@ import { CallWorkerService } from './services/call-worker.service';
 import { CallResponseDto } from './dto/call-response.dto';
 import { CompleteCallDto } from './dto/complete-call.dto';
 import { EnsureInboundCallDto } from './dto/ensure-inbound-call.dto';
+import { HumanCallTranscriptionService } from './services/human-call-transcription.service';
+import { HumanTranscriptionStartDto, HumanTranscriptionCheckpointDto, HumanTranscriptionFinishDto } from './dto/human-transcription.dto';
 
 @ApiTags('internal-calls')
 @ApiHeader({
@@ -31,7 +34,32 @@ import { EnsureInboundCallDto } from './dto/ensure-inbound-call.dto';
 @UseGuards(WorkerSecretGuard)
 @Controller('internal/calls')
 export class InternalCallsController {
-  constructor(private readonly callWorker: CallWorkerService) {}
+  constructor(private readonly callWorker: CallWorkerService, private readonly transcription: HumanCallTranscriptionService) {}
+
+  @Post(':id/human/transcription/start')
+  @Header('Cache-Control', 'no-store')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Claim a silent human-call transcription job' })
+  @ApiOkResponse()
+  startHumanTranscription(@Param('id', ParseResourceIdPipe('Call')) id: string, @Body() dto: HumanTranscriptionStartDto) {
+    return this.transcription.start(id, dto);
+  }
+
+  @Post(':id/human/transcription/checkpoint')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Checkpoint final human speech and measured usage' })
+  @ApiOkResponse()
+  checkpointHumanTranscription(@Param('id', ParseResourceIdPipe('Call')) id: string, @Body() dto: HumanTranscriptionCheckpointDto) {
+    return this.transcription.checkpoint(id, dto);
+  }
+
+  @Post(':id/human/transcription/finish')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Finalize human speech after hang-up without changing call lifecycle' })
+  @ApiOkResponse()
+  finishHumanTranscription(@Param('id', ParseResourceIdPipe('Call')) id: string, @Body() dto: HumanTranscriptionFinishDto) {
+    return this.transcription.finish(id, dto);
+  }
 
   @Post('inbound')
   @HttpCode(HttpStatus.OK)

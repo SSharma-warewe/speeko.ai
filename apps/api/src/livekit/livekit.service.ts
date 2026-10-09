@@ -266,8 +266,11 @@ export class LivekitService {
     if (await this.observeHumanRoom(roomName) !== null) throw new Error('Human call room cleanup is unconfirmed');
   }
 
-  async createHumanRoom(name: string): Promise<void> {
-    await this.bounded(this.humanRoomClient.createRoom({ name, emptyTimeout: 180, departureTimeout: 30, maxParticipants: 2 }));
+  async createHumanRoom(name: string, transcription?: import('@call-agent/contracts').HumanTranscriptionJob): Promise<void> {
+    await this.bounded(this.humanRoomClient.createRoom({ name, emptyTimeout: 180, departureTimeout: 30,
+      maxParticipants: transcription ? 3 : 2,
+      ...(transcription ? { agents: [new RoomAgentDispatch({ agentName: this.agentName, metadata: JSON.stringify(transcription) })] } : {}),
+    }));
   }
 
   private isMissingRoom(error: unknown): boolean {

@@ -26,6 +26,7 @@ export type SarvamPluginSttOptions = {
   apiKey: string;
   language: string;
   streamType?: 'fast' | 'balanced' | 'simulated';
+  mode?: 'transcribe' | 'translate' | 'verbatim' | 'translit' | 'codemix';
 };
 
 export function sarvamPluginSttHeaders(
@@ -54,6 +55,7 @@ export function buildSarvamPluginSttWsUrl(
     'stream_type',
     opts.streamType ?? TELEPHONY_DEFAULTS.streamType,
   );
+  if (opts.mode) url.searchParams.set('mode', opts.mode);
   url.searchParams.set(
     'vad_min_silence_ms',
     String(TELEPHONY_DEFAULTS.vadMinSilenceMs),
@@ -85,6 +87,7 @@ export class SarvamPluginSTT extends stt.STT {
       apiKey: opts.apiKey.trim(),
       language: opts.language,
       streamType: opts.streamType ?? 'fast',
+      mode: opts.mode,
     };
   }
 
@@ -173,6 +176,8 @@ class SarvamPluginSpeechStream extends stt.SpeechStream {
       }
     };
 
+    let inputEnded = false;
+    let drained = false;
     const sendTask = async () => {
       const samplesPerChunk = Math.max(
         Math.floor((SAMPLE_RATE * AUDIO_CHUNK_MS) / 1000),
@@ -189,7 +194,13 @@ class SarvamPluginSpeechStream extends stt.SpeechStream {
         while (!this.closed) {
           const result = await Promise.race([this.input.next(), abortPromise]);
           if (result === undefined) return;
-          if (result.done) break;
+          if (result.done) {
+            for (const frame of byteStream.flush()) {
+              if (ws.readyState === WebSocket.OPEN) ws.send(Buffer.from(frame.data.buffer, frame.data.byteOffset, frame.data.byteLength));
+            }
+            inputEnded = true;
+            break;
+          }
 
           const data = result.value;
           let frames;
@@ -237,6 +248,7 @@ class SarvamPluginSpeechStream extends stt.SpeechStream {
         } catch {
           return;
         }
+        if ((payload as { type?: string })?.type === 'drained') { drained = true; resolve(); return; }
         const action = applyPluginSttWireEvent(state, payload);
         if (action.type === 'emit') {
           for (const event of action.events) put(event);
@@ -253,12 +265,21 @@ class SarvamPluginSpeechStream extends stt.SpeechStream {
           );
         }
       });
-      ws.once('close', () => resolve());
+      ws.once('close', () => inputEnded && drained ? resolve() : reject(new APIStatusError({ message: 'Sarvam stream closed before final transcripts drained', options: { statusCode: -1, retryable: false } })));
       ws.once('error', (err: Error) => reject(err));
     });
 
     try {
-      await Promise.race([sendTask(), listenTask]);
+      const sending = sendTask();
+      await Promise.race([sending, listenTask]);
+      if (inputEnded) {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          await Promise.race([listenTask, new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new APIStatusError({ message: 'Sarvam final transcript drain timed out', options: { statusCode: -1, retryable: false } })), 5000);
+          })]);
+        } finally { if (timer) clearTimeout(timer); }
+      }
     } finally {
       if (ws.readyState === WebSocket.OPEN) {
         ws.close();

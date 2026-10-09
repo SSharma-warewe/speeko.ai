@@ -417,7 +417,18 @@ function priceHumanAttempt(input: PriceAttemptInput, config: PriceRuntimeConfig)
   add('sip', 'Third-party SIP minutes', sipMinutes, rates.sipUsdPerMinute);
   if (config.sipVendorUsdPerMin > 0) add('sip_vendor', 'SIP carrier (estimate)', sipMinutes, config.sipVendorUsdPerMin);
   if (input.krispEnabled) add('krisp', 'Voice isolation (Krisp)', sipMinutes, rates.krispUsdPerMinute);
-  return { attempt: Math.max(1, input.attempt || 1), billedMinutes: roundUsd(sipMinutes), totalUsd: sumUsd(lines.map(line => line.amountUsd)), lines, unknownModels: [] };
+  const listenerMinutes = input.listenerDuration && input.listenerDuration > 0 ? billedMinutesFromMs(input.listenerDuration * 1000, ROOM_MIN_SECONDS) : 0;
+  if (listenerMinutes) {
+    if (config.agentDeployed) add('agent_session', 'Deployed transcription listener', listenerMinutes, rates.agentSessionUsdPerMinute);
+    else add('webrtc', 'WebRTC participant (transcription listener)', listenerMinutes, rates.webrtcUsdPerMinute);
+  }
+  const unknownModels: string[] = [];
+  for (const row of extractUsageModels(input.usage)) {
+    if (isStt(row) && modelRef(row).toLowerCase().includes('sarvam')) {
+      lines.push(...priceStt(row, config.plan, 0, unknownModels));
+    }
+  }
+  return { attempt: Math.max(1, input.attempt || 1), billedMinutes: roundUsd(sipMinutes), totalUsd: sumUsd(lines.map(line => line.amountUsd)), lines, unknownModels };
 }
 
 function lineMergeKey(line: CallCostLine): string {

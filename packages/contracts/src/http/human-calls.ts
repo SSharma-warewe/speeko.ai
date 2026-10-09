@@ -17,6 +17,7 @@ export type CreateHumanCallRequest = {
   selectedTools?: HumanCallToolId[];
 };
 export type HumanCallSummary = {
+  transcription?: import('../human-transcription.js').HumanTranscriptionSummary;
   callerName: string;
   contactName: string;
   crmIntegrationId: string | null;

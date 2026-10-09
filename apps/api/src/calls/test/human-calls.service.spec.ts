@@ -160,6 +160,7 @@ function harness() {
     settings as never,
     config as never,
     price as never,
+    { mutate: jest.fn(async (_id, action) => action(call, session)) } as never,
   );
   return {
     service,

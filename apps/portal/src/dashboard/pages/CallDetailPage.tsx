@@ -5,6 +5,7 @@ import { ErrorBlock } from "../components/ErrorBlock";
 import { LoadingBlock } from "../components/LoadingBlock";
 import { ResourceNotFound } from "../components/ResourceNotFound";
 import { useAsync } from "../hooks/useAsync";
+import { useHumanTranscriptRefresh } from '../hooks/useHumanTranscriptRefresh';
 
 export default function CallDetailPage() {
   const { id = "" } = useParams();
@@ -13,7 +14,8 @@ export default function CallDetailPage() {
     [id],
   );
 
-  if (loading) return <LoadingBlock label="Loading call" />;
+  useHumanTranscriptRefresh(data, reload);
+  if (loading && !data) return <LoadingBlock label="Loading call" />;
   if (notFound || (!data && !error)) {
     return (
       <ResourceNotFound

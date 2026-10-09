@@ -103,6 +103,8 @@ Secret updates use Railway's secret UI/references or a private stdin-based varia
 
 ## Select affected services and configure environment
 
+CRM human-call transcription requires **worker/sidecar → API → portal** deployment order. Confirm every worker instance supports the `human_transcription` job before deploying the API; older workers must never receive it. It reuses SARVAM_API_KEY, loopback SARVAM_STT_PLUGIN_URL, API_BASE_URL and WORKER_CALLBACK_SECRET; requires realtime Sarvam subscription access. No schema migration or new environment variable is needed. Check sidecar health and LiveKit registration independently, then perform a user-selected bilingual human call and inspect saved Caller/Contact segments, the last sentence and measured usage after hang-up. Local mocks/fixtures do not prove production audio/provider acceptance. Monitor transcription supervision warnings and partial/unavailable rates. Rollback API dispatch changes first, retain compatible workers through active call drain, and preserve transcript/report history.
+
 | Change | Services |
 | --- | --- |
 | API routes/entities/queue/SIP/integrations/harness/price | api |

@@ -303,6 +303,18 @@ export class AgentJob {
  * (no Cloud, no real SIP, no Inference). defineAgent still wires this as `entry`.
  */
 export async function runAgentJob(ctx: JobContext): Promise<void> {
+  let job: unknown;
+  try { job = JSON.parse(ctx.job.metadata); } catch { /* existing parser handles legacy metadata */ }
+  if (job && typeof job === 'object' && (job as { mode?: string }).mode === 'human_transcription') {
+    const meta = job as import('@call-agent/contracts').HumanTranscriptionJob;
+    if (typeof meta.callId !== 'string' || !meta.callId || typeof meta.roomName !== 'string' || !meta.roomName) {
+      ctx.shutdown('invalid_transcription_job');
+      return;
+    }
+    const { HumanTranscriptionJobRunner } = await import('./session/human-transcription-job.js');
+    await new HumanTranscriptionJobRunner(ctx, meta).run();
+    return;
+  }
   return new AgentJob(ctx).run();
 }
 

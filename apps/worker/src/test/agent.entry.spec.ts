@@ -54,6 +54,7 @@ jest.mock('../callbacks/call-callbacks', () => {
 });
 
 import type { JobContext } from '@livekit/agents';
+jest.mock('../session/human-transcription-job', () => ({ HumanTranscriptionJobRunner: jest.fn().mockImplementation(() => ({ run: jest.fn().mockResolvedValue(undefined) })) }));
 import { runAgentJob } from '../agent';
 import { buildAgentRuntime } from '../builders/agent-builder';
 import type { CompleteCallPayload } from '../callbacks/call-callbacks';
@@ -204,6 +205,21 @@ describe('runAgentJob', () => {
     await runAgentJob(ctx as unknown as JobContext);
     await ctx.runShutdown();
   }
+
+  it('routes human transcription metadata before the AI parser and never constructs AI runtime', async () => {
+    const ctx = makeCtx(metadata());
+    ctx.job.metadata = JSON.stringify({ mode: 'human_transcription', callId: 'call', roomName: ctx.job.room.name });
+    await runJob(ctx);
+    expect(buildAgentRuntimeMock).not.toHaveBeenCalled();
+    expect(postCallCompleteMock).not.toHaveBeenCalled();
+    expect(jest.requireMock('../session/human-transcription-job').HumanTranscriptionJobRunner).toHaveBeenCalledWith(ctx, expect.objectContaining({ mode: 'human_transcription' }));
+  });
+  it('rejects malformed human jobs without falling back to an AI greeting', async () => {
+    const ctx = makeCtx(metadata()); ctx.job.metadata = JSON.stringify({ mode: 'human_transcription' });
+    await runJob(ctx);
+    expect(ctx.shutdown).toHaveBeenCalledWith('invalid_transcription_job');
+    expect(buildAgentRuntimeMock).not.toHaveBeenCalled();
+  });
 
   function delay(ms: number): Promise<void> {
     return new Promise((resolve) => {

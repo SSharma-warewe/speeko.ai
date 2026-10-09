@@ -6,6 +6,7 @@ import { formatDateTime, formatRelative, formatUsd, shortId } from "../../lib/fo
 import { CallCostPanel } from "./CallCostPanel";
 import { PageHeader } from "./PageHeader";
 import { StatusBadge } from "./StatusBadge";
+import { humanTranscriptMessage } from '../../lib/human-transcript';
 
 type Props = {
   call: CallRecord;
@@ -37,7 +38,8 @@ export function CallDetailView({
   orgHref,
   actions,
 }: Props) {
-  const transcript = call.transcript ?? [];
+  const transcript = call.executionType === 'human' && !call.endedAt ? [] : call.transcript ?? [];
+  const transcriptMessage = humanTranscriptMessage(call);
   const toolEvents = resolveToolEvents(call);
   const context = asRecord(call.context);
   const partyFacts = contextFacts(context);
@@ -133,10 +135,11 @@ export function CallDetailView({
             </span>
           </div>
           <div className="ops-panel-body ops-call-talk-body">
+            {transcript.length > 0 && transcriptMessage && <p className="ops-muted">{transcriptMessage}</p>}
             {transcript.length === 0 ? (
               <p className="ops-muted ops-call-empty">
                 {call.executionType === 'human'
-                  ? "Human calls are not recorded or transcribed."
+                  ? transcriptMessage
                   : live || call.status === "pending"
                   ? "No transcript yet. It appears after the worker completes the call."
                   : "No transcript was recorded for this call."}
@@ -144,10 +147,10 @@ export function CallDetailView({
             ) : (
               <div className="ops-transcript ops-call-transcript">
                 {transcript.map((row, i) => {
-                  const role = mapTranscriptRole(row.role);
+                  const role = call.executionType === 'human' ? { label: row.role === 'caller' ? 'Caller' : 'Contact', agent: row.role === 'caller' } : mapTranscriptRole(row.role);
                   return (
                     <div
-                      key={row.createdAt?.toString() ?? i}
+                      key={row.id ?? i}
                       className={`ops-transcript-row${role.agent ? " is-agent" : ""}`}
                     >
                       <span className="ops-transcript-role">{role.label}</span>

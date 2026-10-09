@@ -151,6 +151,14 @@ describe('LivekitService', () => {
   });
 
   describe('human call adapter', () => {
+    it('attaches a silent transcription dispatch with room capacity for three participants', async () => {
+      const metadata = { mode: 'human_transcription' as const, callId: 'call', roomName: 'human-room' };
+      await service.createHumanRoom('human-room', metadata);
+      const options = roomClientInstances[1].createRoom.mock.calls[0][0];
+      expect(options.maxParticipants).toBe(3);
+      expect(options.agents[0].agentName).toBe('call-agent');
+      expect(JSON.parse(options.agents[0].metadata)).toEqual(metadata);
+    });
     it('issues microphone-only room-scoped ten-minute tokens with no SIP/admin grants', async () => {
       await service.createHumanParticipantToken('human-user', 'Caller', 'human-room');
       const token = accessTokenInstances.at(-1)!;

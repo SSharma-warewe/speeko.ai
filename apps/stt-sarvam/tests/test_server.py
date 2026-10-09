@@ -1,4 +1,5 @@
 import json
+import asyncio
 import os
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -51,6 +52,50 @@ class _FakeStt:
 
 
 class HealthAndSttTests(AioHTTPTestCase):
+    async def test_codemix_and_balanced_are_forwarded_without_changing_defaults(self):
+        with patch.dict(os.environ, {"SARVAM_API_KEY": "test-placeholder"}):
+            async with self.client.ws_connect("/stt?language=auto&stream_type=balanced&mode=codemix") as ws:
+                await ws.send_json({"event": "end"})
+                async for msg in ws:
+                    if msg.json().get("type") == "drained":
+                        break
+        self.assertEqual(self.factory_kwargs["mode"], "codemix")
+        self.assertEqual(self.factory_kwargs["stream_type"], "balanced")
+
+    async def test_invalid_mode_is_rejected_before_websocket(self):
+        with patch.dict(os.environ, {"SARVAM_API_KEY": "test-placeholder"}):
+            resp = await self.client.get("/stt?mode=unsupported")
+        self.assertEqual(resp.status, 400)
+        self.assertIsNone(self.factory_kwargs)
+
+    async def test_final_speech_and_usage_are_drained_after_end_input(self):
+        ended = asyncio.Event()
+        class DelayedStream(_FakeStream):
+            def end_input(self):
+                super().end_input()
+                ended.set()
+
+            def __aiter__(self):
+                return self.events()
+
+            async def events(self):
+                await ended.wait()
+                await asyncio.sleep(0.01)
+                yield SimpleNamespace(type="FINAL_TRANSCRIPT", alternatives=[SimpleNamespace(text="नमस्ते hello", language="hi-IN")])
+                yield SimpleNamespace(type="RECOGNITION_USAGE", recognition_usage=SimpleNamespace(audio_duration=1.5))
+
+        self.stream = DelayedStream([])
+        self.stt._stream = self.stream
+        with patch.dict(os.environ, {"SARVAM_API_KEY": "test-placeholder"}):
+            async with self.client.ws_connect("/stt?mode=codemix") as ws:
+                await ws.send_json({"event": "end"})
+                messages = [msg.json() async for msg in ws]
+        self.assertEqual([m["type"] for m in messages], ["final", "usage", "drained"])
+        self.assertEqual(messages[0]["text"], "नमस्ते hello")
+        self.assertEqual(messages[1]["audioDuration"], 1.5)
+        self.assertTrue(self.stream.ended)
+        self.assertTrue(self.stream.closed)
+
     async def get_application(self):
         self.stream = _FakeStream(
             [

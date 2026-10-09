@@ -305,6 +305,7 @@ export class PriceService {
   private inputFromCall(call: Call, krispEnabled: boolean): PriceAttemptInput {
     return {
       executionType: call.executionType ?? 'agent',
+      listenerDuration: Number((call.sessionReport?.transcription as { listenerDuration?: number } | undefined)?.listenerDuration ?? 0),
       browserJoinedAt: call.humanSession?.browserJoinedAt,
       attempt: Math.max(1, call.attemptCount || 1),
       medium: call.medium ?? CallMedium.WEB,

@@ -15,6 +15,9 @@ import { OrganizationQueueSettings } from '../../queue/organization-queue-settin
 import { QueueAdmission } from '../../queue/queue-admission.entity';
 import { newCallRow } from '../lib/call-row';
 import { HumanCallWorkspaceService } from '../services/human-call-workspace.service';
+import { HumanCallTranscriptionRepository } from '../human-call-transcription.repository';
+import { HumanCallTranscriptionService } from '../services/human-call-transcription.service';
+import { initializeHumanTranscription } from '../lib/human-transcription';
 
 jest.setTimeout(30000);
 (securityDatabaseUrl ? describe : describe.skip)(
@@ -139,6 +142,38 @@ jest.setTimeout(30000);
         isActive: true,
       });
     }
+    it('serializes transcript callbacks against supervisor/workspace writes and finalizes after session finish', async () => {
+      const input = request(); await seedConnection(input.crmIntegrationId);
+      const call = newHumanCall(); call.roomName = `human-${randomUUID()}`; initializeHumanTranscription(call);
+      const { session } = await sessions.create(actor, input, call, 'Contact');
+      await db.getRepository(HumanCallSession).update(session.id, { phase: 'connected' });
+      const repo = new HumanCallTranscriptionRepository(db), replicaRepo = new HumanCallTranscriptionRepository(replica);
+      const price = { replaceCost: jest.fn() }, config = { getOrThrow: () => 'test-placeholder' };
+      const a = new HumanCallTranscriptionService(repo, config as never, price as never), b = new HumanCallTranscriptionService(replicaRepo, config as never, price as never);
+      const claim = { roomName: call.roomName, jobId: 'test-job' };
+      const started = await a.start(session.callId, claim);
+      await expect(b.start(session.callId, { ...claim, jobId: 'other' })).rejects.toThrow(ConflictException);
+      await expect(b.start(session.callId, { ...claim, roomName: 'foreign-room' })).rejects.toThrow(ConflictException);
+      const segment = { id: randomUUID(), role: 'caller' as const, content: 'हाँ hello', createdAt: new Date().toISOString() };
+      const payload = { jobId: claim.jobId, callbackToken: started.callbackToken, segments: [segment], audioDuration: 3, listenerDuration: 4 };
+      await Promise.all([
+        a.checkpoint(session.callId, payload), b.checkpoint(session.callId, payload),
+        sessions.mutate(session.id, null, (current, row) => { current.phase = 'ending'; row.answeredAt = new Date(); row.status = 'completed'; }),
+        other.mutateWorkspace(session.callId, actor, current => { current.workspace.notes = 'Keep these notes'; }),
+      ]);
+      await sessions.mutate(session.id, null, (current, row) => { current.finishedAt = new Date(); current.phase = 'ended'; row.endedAt = new Date(); });
+      const final = { ...payload, answered: true, segments: [{ ...segment, id: randomUUID(), role: 'contact' as const, content: 'Goodbye' }] };
+      await Promise.all([a.finish(session.callId, final), b.finish(session.callId, final)]);
+      const saved = await sessions.find(session.id);
+      expect(saved!.call.transcript).toHaveLength(2);
+      expect(saved!.call.status).toBe('completed');
+      expect(saved!.workspace.notes).toBe('Keep these notes');
+      expect(saved!.call.sessionReport?.transcription).toMatchObject({ status: 'complete', audioDuration: 3 });
+      expect(price.replaceCost).toHaveBeenCalledTimes(1);
+      await expect(replicaRepo.mutate(randomUUID(), () => {})).rejects.toThrow(NotFoundException);
+      const ai = newHumanCall(); ai.executionType = 'agent'; await db.getRepository(Call).save(ai);
+      await expect(repo.mutate(ai.id, () => {})).rejects.toThrow(NotFoundException);
+    });
     it('replays request IDs without a second call and fences join/end ownership', async () => {
       const input = request();
       await seedConnection(input.crmIntegrationId);

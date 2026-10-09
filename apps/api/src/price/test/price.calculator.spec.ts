@@ -10,6 +10,26 @@ const SHIP: PriceRuntimeConfig = {
   sipVendorUsdPerMin: 0,
 };
 
+describe('human-call transcription pricing', () => {
+  it('uses the deployed agent rate without double-counting listener WebRTC transport', () => {
+    const result = priceAttempt({ executionType: 'human', attempt: 1, medium: 'sip',
+      browserJoinedAt: '2026-10-09T10:00:00Z', answeredAt: '2026-10-09T10:00:00Z', endedAt: '2026-10-09T10:01:00Z', listenerDuration: 60,
+    }, { ...SHIP, agentDeployed: true });
+    expect(result.lines.filter(l => l.key === 'webrtc')).toHaveLength(1);
+    expect(result.lines.filter(l => l.key === 'agent_session')).toHaveLength(1);
+  });
+  it('prices measured Sarvam audio and listener transport without LLM/TTS or extra attempts', () => {
+    const result = priceAttempt({ executionType: 'human', attempt: 1, medium: 'sip',
+      browserJoinedAt: '2026-10-09T10:00:00Z', answeredAt: '2026-10-09T10:00:00Z', endedAt: '2026-10-09T10:01:00Z', listenerDuration: 65,
+      usage: { models: [{ type: 'stt_usage', provider: 'sarvam', model: 'saaras:v3-realtime', audioDurationMs: 120000 }, { type: 'llm_usage', inputTokens: 100 }] },
+    }, SHIP);
+    expect(result.lines.some(l => l.key === 'stt' && l.quantity === 2 && l.amountUsd > 0)).toBe(true);
+    expect(result.lines.filter(l => l.key === 'webrtc')).toHaveLength(2);
+    expect(result.lines.some(l => l.key === 'llm' || l.key === 'tts')).toBe(false);
+    expect(result.attempt).toBe(1);
+  });
+});
+
 function session(overrides: Partial<PriceAttemptInput> = {}): PriceAttemptInput {
   return {
     attempt: 1,

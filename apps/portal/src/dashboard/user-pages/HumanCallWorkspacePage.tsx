@@ -128,6 +128,7 @@ function Workspace({ id }: { id: string }) {
           {isActive ? <HumanCallControls /> : <div className="human-ended-state"><span><CallIcon name="check" size={20} /></span><strong>Call ended</strong><p>Call ended. Your selected tools remain available for wrap-up.</p></div>}
         </section>
         <section className="human-context-card"><h2>Call details</h2><dl><div><dt>Outbound line</dt><dd>{call.fromNumber ?? '—'}</dd></div><div><dt>Caller</dt><dd>{session.callerName}</dd></div></dl>
+          {!isActive && <Link className="human-text-button" to={`/dashboard/calls/${id}`}>View saved transcript<CallIcon name="external" size={13} /></Link>}
           {session.crmIntegrationId && <Link className="human-text-button" to={contactsUrl + '&contact=' + encodeURIComponent(session.crmContactId)}>Open CRM contact<CallIcon name="external" size={13} /></Link>}
         </section>
         <p className="human-call-footnote"><CallIcon name="headphones" size={14} />Keep this window open during the call.</p>

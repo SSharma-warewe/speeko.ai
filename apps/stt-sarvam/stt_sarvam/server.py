@@ -23,6 +23,7 @@ from .wire import speech_event_to_wire
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8091
 SUPPORTED_STREAM_TYPES = {"fast", "balanced", "simulated"}
+SUPPORTED_MODES = {"transcribe", "translate", "verbatim", "translit", "codemix"}
 SUPPORTED_LANGUAGES = {
     "en-IN",
     "hi-IN",
@@ -142,6 +143,9 @@ async def stt_ws(request: web.Request) -> web.WebSocketResponse:
 
     language = _language(request.query.get("language"))
     stream_type = _stream_type(request.query.get("stream_type"))
+    mode = request.query.get("mode", "transcribe").strip()
+    if mode not in SUPPORTED_MODES:
+        raise web.HTTPBadRequest(text="unsupported mode")
     vad_min_silence_ms = _int_query(
         request.query.get("vad_min_silence_ms"),
         "vad_min_silence_ms",
@@ -172,6 +176,7 @@ async def stt_ws(request: web.Request) -> web.WebSocketResponse:
         language=language,
         api_key=api_key,
         stream_type=stream_type,
+        mode=mode,
         endpointing="vad",
         vad_min_silence_ms=vad_min_silence_ms,
         vad_min_speech_ms=vad_min_speech_ms,
@@ -215,6 +220,14 @@ async def stt_ws(request: web.Request) -> web.WebSocketResponse:
                 stream.end_input()
         except Exception:
             logger.debug("end_input failed", exc_info=True)
+        # end_input finalizes the upstream stream; keep forwarding finals and usage.
+        try:
+            await asyncio.wait_for(asyncio.shield(pump), timeout=5.0)
+            if not ws.closed:
+                await ws.send_json({"type": "drained"})
+        except asyncio.TimeoutError:
+            if not ws.closed:
+                await ws.send_json({"type": "error", "message": "Final transcript drain timed out", "retryable": False})
         try:
             if hasattr(stream, "aclose"):
                 await stream.aclose()
