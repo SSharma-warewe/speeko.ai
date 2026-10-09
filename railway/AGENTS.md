@@ -33,6 +33,14 @@ For the 2026-10-07 human-call rollout, the user explicitly authorized GitHub pub
 
 ## Deployment runbook
 
+### Configurable tool waiting speech rollout
+
+On 2026-10-09 the user authorized GitHub publication and Railway CLI deployment. Implementation `f265596` was pushed to `SSharma-warewe/speeko.ai`, branch `codex/tts-cache-rollout`. Uploads used an exact Git archive (SHA-256 `5672AFC902DBA4E685F240281B4C0183B9ED34FFE3E722E95719536E85B8BBA8`), excluding unrelated local tooling, against verified practical-spontaneity / production. Compatible worker `62f9ecb0-9225-40b1-a3b3-605d554de7d6` was verified before API `b96989b3-e60b-401e-9fc5-473bb47c99ef`, followed by portal `42345c47-0a67-4424-8e08-a78ccc4b15b0`. All reached SUCCESS with RUNNING instances; marketing, WhatsApp worker and Postgres deployment IDs were unchanged.
+
+Worker registration, loopback worker health and Sarvam health passed. Deployed pure checks confirmed waiting-speech support, valid task configuration and exclusion of tool-only text from LLM instructions without opening a provider stream or call. API Swagger includes per-tool waiting configuration; unauthenticated task access remains 401 and DATABASE_SYNCHRONIZE remains false. Portal login and user/admin task deep links returned 200; shipped `/assets/index-DdCo8ToW.js` contains “While tools are working”, its enable switch, waiting configuration and the correct public API origin.
+
+No schema migration, environment update, task publication, preference change or external business write was performed during rollout. Existing tasks remain unchanged until users enable waiting messages and publish a task version. Native speech playback is deferred. Local verification passed 535 tests (including nine isolated PostgreSQL task scenarios), two desktop/mobile browser scenarios and affected contracts/worker/API/portal builds/typechecks. Caller-audible filler timing, actual cache reuse and live interruption acceptance remain for user-initiated calls. Keep a compatible worker while configured task snapshots can dispatch; disabling the section and publishing a new version stops future filler playback without changing historical snapshots.
+
 ## Services and build context
 
 Recorded project is `practical-spontaneity`, environment `production`; recorded region was typically `sfo` (reconfirm current Railway region/settings). CLI uploads use the monorepo root and service-specific root Dockerfiles. Do not assume GitHub autodeploy. Config files below express intended settings; confirm the config selection in each live service.
