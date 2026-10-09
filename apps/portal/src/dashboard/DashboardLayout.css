@@ -3608,8 +3608,8 @@
 }
 
 .ops-desk-pane.is-voice .ops-voice-rack {
-  flex: 1 1 auto;
-  min-height: 0;
+  /* Preserve content sizing so controls never overlap. */
+  flex: 0 0 auto;
 }
 
 .ops-desk-pane[hidden] {
@@ -4094,7 +4094,8 @@
 .ops-voice-rack {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.75rem;
+  grid-auto-rows: max-content;
+  gap: 0.5rem;
   align-items: stretch;
   align-content: start;
   min-height: 0;
@@ -4123,6 +4124,8 @@
 
 .ops-voice-strip .ca-segment__btn {
   white-space: nowrap;
+  padding: 0.4rem 0.65rem;
+  min-height: 0;
 }
 
 .ops-voice-strip .ops-desk-hint {
@@ -4131,13 +4134,14 @@
 
 .ops-voice-stages {
   display: grid;
-  grid-template-columns: minmax(9rem, 0.85fr) minmax(11rem, 1fr) minmax(12.5rem, 1.25fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
   gap: 0.6rem;
-  align-items: start;
+  align-items: stretch;
 }
 
 .ops-voice-stages.is-language {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .ops-voice-stages.is-realtime {
@@ -4147,9 +4151,9 @@
 .ops-voice-stage {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.4rem;
   min-width: 0;
-  padding: 0.7rem 0.75rem 0.8rem;
+  padding: 0.6rem;
   border: 1px solid var(--ops-line);
   border-radius: 12px;
   background:
@@ -4180,6 +4184,24 @@
 .ops-voice-stage .ca-select,
 .ops-voice-stage .ca-segment {
   width: 100%;
+}
+
+.ops-voice-stage .ops-voice-cast-head {
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.ops-voice-stage .ops-desk-hint {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ops-voice-rack .ca-select {
+  min-height: 2rem;
+  padding: 0.4rem 1.8rem 0.4rem 0.55rem;
+  font-size: 0.8rem;
 }
 
 .ops-voice-stage .ca-segment__btn {
@@ -4239,7 +4261,8 @@
 
 .ops-voice-mix {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 0.6rem;
   align-items: stretch;
 }
@@ -4247,16 +4270,18 @@
 .ops-voice-mix > .ca-slider,
 .ops-voice-mix > .ops-voice-delivery {
   min-height: 0;
-  padding: 0.85rem 0.9rem 0.8rem;
+  padding: 0.65rem;
+  gap: 0.4rem;
+  align-content: start;
 }
 
 .ops-voice-cast {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.45rem;
   min-width: 0;
   min-height: 0;
-  padding: 0.8rem 0.85rem 0.9rem;
+  padding: 0.6rem;
   border: 1px solid var(--ops-line);
   border-radius: 14px;
   background:
@@ -4281,9 +4306,9 @@
 
 .ops-voice-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(9.25rem, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 0.5rem;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   align-content: start;
   min-height: 0;
 }
@@ -4291,11 +4316,11 @@
 .ops-voice-tile {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.7rem;
+  gap: 0.45rem;
   align-items: center;
   margin: 0;
-  min-height: 4.1rem;
-  padding: 0.75rem 0.85rem;
+  min-height: 2.8rem;
+  padding: 0.4rem 0.5rem;
   text-align: left;
   font: inherit;
   color: var(--ops-ink);
@@ -4329,8 +4354,8 @@
 .ops-voice-tile-mark {
   display: grid;
   place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 1.75rem;
+  height: 1.75rem;
   border-radius: 8px;
   background: #0a0a0a;
   color: #fde68a;
@@ -4352,15 +4377,41 @@
   gap: 0.18rem;
 }
 
+.ops-voice-tile-name,
+.ops-voice-tile-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ops-voice-mix .ops-voice-delivery-label,
+.ops-voice-mix .ca-slider__label {
+  font-size: 0.72rem;
+}
+
+.ops-voice-mix .ops-voice-delivery-hint,
+.ops-voice-mix .ca-slider__hint {
+  font-size: 0.65rem;
+  line-height: 1.35;
+}
+
+.ops-voice-mix .ca-slider__head {
+  gap: 0.35rem;
+}
+
+.ops-voice-mix .ca-slider__value {
+  font-size: 1.15rem;
+}
+
 .ops-voice-tile-name {
-  font-size: 0.92rem;
+  font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.15;
 }
 
 .ops-voice-tile-line {
-  font-size: 0.72rem;
+  font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.01em;
   line-height: 1.3;
@@ -4465,6 +4516,16 @@
 }
 
 @container voice-pane (max-width: 40rem) {
+  .ops-voice-tile-mark {
+    display: none;
+  }
+
+  .ops-voice-tile {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container voice-pane (max-width: 32rem) {
   .ops-voice-strip {
     grid-template-columns: auto minmax(0, 1fr);
   }
@@ -4474,15 +4535,40 @@
   }
 
   .ops-voice-stages,
-  .ops-voice-stages.is-language,
+  .ops-voice-stages.is-language {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ops-voice-tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .ops-voice-mix {
-    grid-template-columns: 1fr;
+    grid-auto-flow: row;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @container voice-compact (max-width: 32rem) {
   .ops-voice-compact-mix {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 961px) and (max-height: 800px) {
+  .ops-voice-rack {
+    gap: 0.35rem;
+  }
+
+  .ops-voice-strip {
+    padding: 0.3rem 0.6rem;
+  }
+
+  .ops-voice-stage,
+  .ops-voice-cast,
+  .ops-voice-mix > .ca-slider,
+  .ops-voice-mix > .ops-voice-delivery {
+    padding: 0.45rem;
   }
 }
 

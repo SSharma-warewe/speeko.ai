@@ -127,7 +127,9 @@ function VoiceStage({
     <div className={span ? "ops-voice-stage is-span" : "ops-voice-stage"}>
       <div className="ops-voice-cast-head">
         <span className="ops-desk-kicker">{kicker}</span>
-        {hint ? <span className="ops-desk-hint">{hint}</span> : null}
+        {hint ? (
+          <span className="ops-desk-hint" title={hint}>{hint}</span>
+        ) : null}
       </div>
       {children}
     </div>
@@ -155,41 +157,6 @@ function CompactField({
         {label}
       </label>
       {children}
-    </div>
-  );
-}
-
-function ModelChips<T extends string>({
-  options,
-  value,
-  disabled,
-  ariaLabel,
-  onChange,
-}: {
-  options: { value: T; label: string }[];
-  value: T;
-  disabled?: boolean;
-  ariaLabel: string;
-  onChange: (value: T) => void;
-}) {
-  return (
-    <div className="ops-voice-models" role="radiogroup" aria-label={ariaLabel}>
-      {options.map((opt) => {
-        const selected = opt.value === value;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            className={selected ? "ops-voice-model is-on" : "ops-voice-model"}
-            disabled={disabled}
-            onClick={() => onChange(opt.value)}
-          >
-            {opt.label}
-          </button>
-        );
-      })}
     </div>
   );
 }
@@ -248,32 +215,19 @@ export function AgentVoiceRack({
   );
 
   const llmControl = realtime ? (
-    compact ? (
-      <Select
-        id="agent-llm-select"
-        aria-label="Realtime model"
-        value={selectedLlm}
-        disabled={disabled}
-        onChange={(e) => onChange(switchLlmModel(e.target.value as LlmModelId))}
-      >
-        {REALTIME_LLM_OPTIONS.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </Select>
-    ) : (
-      <ModelChips
-        ariaLabel="Realtime model"
-        value={selectedLlm}
-        disabled={disabled}
-        options={REALTIME_LLM_OPTIONS.map((opt) => ({
-          value: opt.value,
-          label: opt.label,
-        }))}
-        onChange={(value) => onChange(switchLlmModel(value))}
-      />
-    )
+    <Select
+      id="agent-llm-select"
+      aria-label="Realtime model"
+      value={selectedLlm}
+      disabled={disabled}
+      onChange={(e) => onChange(switchLlmModel(e.target.value as LlmModelId))}
+    >
+      {REALTIME_LLM_OPTIONS.map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </Select>
   ) : (
     <Select
       id="agent-llm-select"
@@ -290,7 +244,7 @@ export function AgentVoiceRack({
     </Select>
   );
 
-  const ttsControl = compact ? (
+  const ttsControl = (
     <Select
       id="agent-tts-select"
       aria-label="Speech model"
@@ -304,17 +258,6 @@ export function AgentVoiceRack({
         </option>
       ))}
     </Select>
-  ) : (
-    <ModelChips
-      ariaLabel="Speech model"
-      value={selectedTts}
-      disabled={disabled}
-      options={TTS_MODEL_OPTIONS.map((opt) => ({
-        value: opt.value,
-        label: opt.label,
-      }))}
-      onChange={(value) => onChange(switchTtsModel(value))}
-    />
   );
 
   const sttControl = compact ? (
@@ -325,16 +268,20 @@ export function AgentVoiceRack({
       onChange={(value) => onChange(switchSttModel(value as SttModelId))}
     />
   ) : (
-    <ModelChips
-      ariaLabel="Listen model"
+    <Select
+      aria-label="Listen model"
       value={selectedStt}
       disabled={disabled}
-      options={STT_MODEL_OPTIONS.map((opt) => ({
-        value: opt.value,
-        label: opt.label,
-      }))}
-      onChange={(value) => onChange(switchSttModel(value))}
-    />
+      onChange={(event) =>
+        onChange(switchSttModel(event.target.value as SttModelId))
+      }
+    >
+      {STT_MODEL_OPTIONS.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </Select>
   );
 
   const languageControl = (
@@ -403,7 +350,7 @@ export function AgentVoiceRack({
         <p id="agent-speech-cache-hint" className="ops-voice-delivery-hint">
           {realtime
             ? "Unsupported for native realtime speech. Your preference is preserved."
-            : `Effective: ${resolveTtsCacheEnabled(ttsCacheEnabled, ttsCacheDefaultEnabled, model) ? "On" : "Off"}. Eligible repeated speech may reuse audio. Authorized cross-call reuse can last up to 24 hours.`}
+            : `Effective: ${resolveTtsCacheEnabled(ttsCacheEnabled, ttsCacheDefaultEnabled, model) ? "On" : "Off"}. Eligible speech may reuse authorized recordings across calls for up to 24 hours.`}
         </p>
       </div>
       <div className="ops-voice-delivery">
@@ -436,7 +383,7 @@ export function AgentVoiceRack({
         <p id="agent-prepared-speech-hint" className="ops-voice-delivery-hint">
           {realtime
             ? 'Unsupported for native realtime speech. Your preference is preserved.'
-            : `Effective: ${resolveTtsPreparedSpeechEnabled(ttsPreparedSpeechEnabled, ttsPreparedSpeechDefaultEnabled, model) ? 'On' : 'Off'}. Prepares fixed sentences while the call opens, independently of Speech caching. Authorized recordings may be reused across calls for up to 24 hours.`}
+            : `Effective: ${resolveTtsPreparedSpeechEnabled(ttsPreparedSpeechEnabled, ttsPreparedSpeechDefaultEnabled, model) ? 'On' : 'Off'}. Independently prepares fixed lines as calls open. Authorized reuse lasts up to 24 hours.`}
         </p>
       </div>
       {!realtime && ttsSpec.controls.speakingRate ? (
@@ -481,7 +428,7 @@ export function AgentVoiceRack({
           <p className="ops-voice-delivery-hint">
             {compact
               ? "TTS variation. Reply temperature is the LLM, not the voice."
-              : "Stable is even. Creative lets the voice wander. TTS-2 ignores temperature here."}
+              : "Stable is even; Creative varies delivery. TTS-2 ignores temperature."}
           </p>
         </div>
       ) : null}
@@ -546,11 +493,17 @@ export function AgentVoiceRack({
     );
   }
 
-  const featuredVoices = voices.filter((v) => {
-    if (v.storedId === null) return true;
-    if (extraVoices.length === 0) return true;
-    return !extraVoices.some((x) => x.id === v.id);
-  });
+  const featuredVoices = voices
+    .filter((v) => {
+      if (v.storedId === null) return true;
+      if (extraVoices.length === 0) return true;
+      return !extraVoices.some((x) => x.id === v.id);
+    })
+    .slice(0, 6);
+  const moreVoices = voices.filter(
+    (v) => v.storedId !== null &&
+      !featuredVoices.some((featured) => featured.storedId === v.storedId),
+  );
 
   return (
     <div className="ops-voice-rack">
@@ -624,18 +577,18 @@ export function AgentVoiceRack({
                   {v.initial}
                 </span>
                 <span className="ops-voice-tile-copy">
-                  <span className="ops-voice-tile-name">{v.name}</span>
-                  <span className="ops-voice-tile-line">{v.line}</span>
+                  <span className="ops-voice-tile-name" title={v.name}>{v.name}</span>
+                  <span className="ops-voice-tile-line" title={v.line}>{v.line}</span>
                 </span>
               </button>
             );
           })}
         </div>
-        {extraVoices.length > 0 ? (
+        {moreVoices.length > 0 ? (
           <Select
             aria-label="More voices"
             value={
-              extraVoices.some((v) => v.id === voice) ? (voice ?? "") : ""
+              moreVoices.some((v) => v.storedId === voice) ? (voice ?? "") : ""
             }
             disabled={disabled}
             onChange={(e) => {
@@ -643,8 +596,8 @@ export function AgentVoiceRack({
             }}
           >
             <option value="">More voices…</option>
-            {extraVoices.map((v) => (
-              <option key={v.id} value={v.id}>
+            {moreVoices.map((v) => (
+              <option key={v.storedId} value={v.storedId ?? ""}>
                 {v.name} — {v.line}
               </option>
             ))}
