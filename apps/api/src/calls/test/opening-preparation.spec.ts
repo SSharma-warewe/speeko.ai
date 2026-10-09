@@ -12,7 +12,7 @@ function fixture() {
   });
   let stored = h.makeCall({ status: CallStatus.CREATING });
   h.callsRepository.save.mockImplementation(
-    async (row) => (stored = { ...row }),
+    async (row) => (stored = { ...row, id: row.id ?? stored.id }),
   );
   h.callsRepository.findById.mockImplementation(async () => ({ ...stored }));
   h.callsRepository.updateOpeningPreparationUsage.mockImplementation(

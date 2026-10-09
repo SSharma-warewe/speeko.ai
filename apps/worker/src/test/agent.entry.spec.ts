@@ -1,14 +1,7 @@
 jest.mock('@livekit/agents', () => ({
   defineAgent: (def: { entry: unknown }) => def,
   voice: { AgentSessionEventTypes: { Close: 'close' } },
-  metrics: {
-    ModelUsageCollector: class {
-      collect() {}
-      flatten() {
-        return [];
-      }
-    },
-  },
+  metrics: jest.requireActual('@livekit/agents').metrics,
 }));
 
 jest.mock('../builders/model-builder', () => ({
@@ -264,6 +257,7 @@ describe('runAgentJob', () => {
     const prepare = jest
       .spyOn(TtsCacheRuntime.prototype, 'prepareOpening')
       .mockImplementation(async () => {
+        provider.emit('metrics_collected', { type: 'tts_metrics', metadata: { modelProvider: 'sarvam', modelName: 'bulbul:v3' }, charactersCount: 25, audioDurationMs: 1000 });
         entered();
         await new Promise<void>((resolve) => {
           finish = resolve;
@@ -290,6 +284,7 @@ describe('runAgentJob', () => {
     expect(builder.mock.calls.at(-1)[2]).toBeInstanceOf(TtsCacheRuntime);
     expect(builder.mock.calls.at(-1)[2].provider).toBe(provider);
     await ctx.runShutdown();
+    expect(postCallCompleteMock.mock.calls.at(-1)[1].usage.models).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'tts_usage', charactersCount: 25, audioDurationMs: 1000 })]));
     expect(provider.close).toHaveBeenCalledTimes(1);
     expect(provider.listenerCount('metrics_collected')).toBe(0);
     prepare.mockRestore();
