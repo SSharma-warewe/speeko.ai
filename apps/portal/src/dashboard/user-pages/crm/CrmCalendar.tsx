@@ -332,6 +332,9 @@ export default function CrmCalendar({
         <AppointmentWhatsApp
           key={str(messageEvent.id)}
           connectionId={connectionId}
+          calendarName={label(
+            options.find((c) => str(c.id) === selected) ?? {},
+          )}
           event={messageEvent}
           hasWhatsApp={hasWhatsApp}
           onClose={() => setMessageEvent(null)}

@@ -76,6 +76,7 @@ try {
     noTemplates = false,
     contactFailure = false,
     sendFailure = false;
+  let templateBody = 'Hello {{1}}, meeting {{2}}';
   const payloads = [],
     lookups = [],
     errors = [];
@@ -146,8 +147,15 @@ try {
             language: 'en',
             category: 'UTILITY',
             sendable: true,
-            bodyText: 'Hello {{1}}, meeting {{2}}',
-            bodyVariables: [{ key: '1' }, { key: '2' }],
+            bodyText: templateBody,
+            bodyVariables: Array.from(
+              new Set(
+                Array.from(
+                  templateBody.matchAll(/\{\{([A-Za-z0-9_]+)\}\}/g),
+                  (match) => match[1],
+                ),
+              ),
+            ).map((key) => ({ key })),
             urlButtonVariable: null,
           },
         ],
@@ -255,14 +263,22 @@ try {
     );
     await wait('document.querySelector("#wa-template")');
   };
-  await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+  await send('Emulation.setDeviceMetricsOverride', {
+    width: 1440,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
   await open();
   assert.equal(await evaluate(button('WhatsApp message') + '.disabled'), true);
   whatsapp = true;
   await open();
   assert.equal(await evaluate(button('WhatsApp message') + '.disabled'), false);
   await compose();
-  await writeFile(new URL('../../../tmp/calendar-whatsapp-desktop.png', import.meta.url), Buffer.from((await send('Page.captureScreenshot')).data, 'base64'));
+  await writeFile(
+    new URL('../../../tmp/calendar-whatsapp-desktop.png', import.meta.url),
+    Buffer.from((await send('Page.captureScreenshot')).data, 'base64'),
+  );
   assert.equal(lookups.at(-1), appointment.contactId);
   await evaluate(button('Send to 1 contact') + '.click()');
   assert.equal(payloads.length, 0);
@@ -293,7 +309,10 @@ try {
     ),
     true,
   );
-  await writeFile(new URL('../../../tmp/calendar-whatsapp-mobile.png', import.meta.url), Buffer.from((await send('Page.captureScreenshot')).data, 'base64'));
+  await writeFile(
+    new URL('../../../tmp/calendar-whatsapp-mobile.png', import.meta.url),
+    Buffer.from((await send('Page.captureScreenshot')).data, 'base64'),
+  );
   await evaluate(
     'document.querySelector("dialog .crm-drawer-header button").click()',
   );
@@ -361,9 +380,130 @@ try {
     ),
     true,
   );
+  // Appointment mode fills clear positional slots; unknown slots remain reviewable.
+  const inputValue = (key) =>
+    evaluate(
+      'document.getElementById(' +
+        JSON.stringify('wa-var-' + key) +
+        ').parentElement.querySelector("input")?.value',
+    );
+  const changeSource = (key, mode) =>
+    evaluate(
+      '(()=>{const select=document.getElementById(' +
+        JSON.stringify('wa-var-' + key) +
+        ');select.value=' +
+        JSON.stringify(mode) +
+        ';select.dispatchEvent(new Event("change",{bubbles:true}))})()',
+    );
+  const changeInput = (key, value) =>
+    evaluate(
+      '(()=>{const input=document.getElementById(' +
+        JSON.stringify('wa-var-' + key) +
+        ').parentElement.querySelector("input");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(input,' +
+        JSON.stringify(value) +
+        ');input.dispatchEvent(new Event("input",{bubbles:true}))})()',
+    );
+  await open();
+  await compose();
+  await changeSource('2', 'appointmentDate');
+  await wait(
+    'document.querySelector("#wa-var-2").parentElement.querySelector("input").value.length > 0',
+  );
+  assert.equal(
+    await evaluate('document.querySelector("#wa-var-2").value'),
+    'appointmentDate',
+  );
+  templateBody =
+    'Hello {{1}}, your appointment for {{2}} is confirmed on {{3}} at {{4}}.';
+  await open();
+  await compose();
+  await wait('document.querySelector("#wa-var-4")');
+  assert.equal(await inputValue('2'), 'Consultation');
+  const expectedDate = await evaluate(
+    'new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone}).format(new Date(' +
+      JSON.stringify(appointment.startTime) +
+      '))',
+  );
+  const expectedTime = await evaluate(
+    'new Intl.DateTimeFormat(undefined,{timeStyle:"short",timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone}).format(new Date(' +
+      JSON.stringify(appointment.startTime) +
+      '))',
+  );
+  assert.equal(await inputValue('3'), expectedDate);
+  assert.equal(await inputValue('4'), expectedTime);
+  assert.equal(payloads.length, 2, 'Autofill does not send automatically');
+  await changeInput('2', 'Edited consultation');
+  await changeSource('4', 'appointmentEndTime');
+  assert.equal(
+    await inputValue('2'),
+    'Edited consultation',
+    'Changing another field preserves edits',
+  );
+  await changeSource('4', 'appointmentTime');
+  await evaluate(button('Send to 1 contact') + '.click()');
+  await wait('document.body.textContent.includes("Sent 1, failed 0")');
+  assert.equal(payloads.length, 3);
+  assert.deepEqual(payloads[2].bodyVariables['3'], {
+    type: 'text',
+    text: expectedDate,
+  });
+  assert.deepEqual(payloads[2].bodyVariables['4'], {
+    type: 'text',
+    text: expectedTime,
+  });
+  assert.deepEqual(payloads[2].bodyVariables['2'], {
+    type: 'text',
+    text: 'Edited consultation',
+  });
+  assert.equal(payloads[2].bodyVariables['1'].field, 'firstName');
+  templateBody =
+    '{{customer_name}}, {{appointment_date}} at {{start_time}}. Calendar: {{calendar_name}}. Location: {{address}}.';
+  await open();
+  await compose();
+  await wait('document.querySelector("#wa-var-address")');
+  assert.equal(await inputValue('appointment_date'), expectedDate);
+  assert.equal(await inputValue('start_time'), expectedTime);
+  assert.equal(await inputValue('calendar_name'), 'Appointments');
+  assert.equal(
+    await inputValue('address'),
+    '',
+    'Missing appointment location stays empty',
+  );
+  await evaluate(button('Send to 1 contact') + '.click()');
+  await wait(
+    'document.body.textContent.includes("Enter text for {{address}}")',
+  );
+  assert.equal(payloads.length, 3);
+  appointment.startTime = '2026-10-12T04:30:00Z';
+  appointment.endTime = '2026-10-12T05:00:00Z';
+  await open();
+  await compose();
+  const newDate = await evaluate(
+    'new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone}).format(new Date(' +
+      JSON.stringify(appointment.startTime) +
+      '))',
+  );
+  assert.equal(
+    await inputValue('appointment_date'),
+    newDate,
+    'New composer uses the rescheduled appointment',
+  );
+  await writeFile(
+    new URL(
+      '../../../tmp/calendar-whatsapp-autofill-mobile.png',
+      import.meta.url,
+    ),
+    Buffer.from((await send('Page.captureScreenshot')).data, 'base64'),
+  );
+  assert.equal(
+    await evaluate(
+      'document.querySelector("dialog").scrollWidth <= document.querySelector("dialog").clientWidth',
+    ),
+    true,
+  );
   assert.deepEqual(errors, []);
   console.log(
-    'Passed: WhatsApp connection gating, exact contact lookup, variable validation and preview, single recipient send, success duplicate prevention, mobile width, focus restoration, DND/no-phone blocking, template failure, scope failure without logout, no approved templates, failed-send draft preservation without retries, existing Send page recipient selection.',
+    'Passed: WhatsApp connection gating, exact contact lookup, variable validation and preview, single recipient send, success duplicate prevention, mobile width, focus restoration, DND/no-phone blocking, template failure, scope failure without logout, no approved templates, failed-send draft preservation without retries, existing Send page recipient selection, positional/named appointment autofill, editable appointment source values, preserved overrides, text-wire payloads, missing context validation and rescheduled appointment context.',
   );
 } finally {
   socket?.close();

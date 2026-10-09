@@ -26,11 +26,18 @@ import { EmptyState } from "../components/EmptyState";
 import { LoadingBlock } from "../components/LoadingBlock";
 import { StatusBadge } from "../components/StatusBadge";
 
+import {
+  APPOINTMENT_FIELDS,
+  appointmentSources,
+  isContactField,
+  type AppointmentContext,
+  type SourceMode,
+  type SourceState,
+} from "../../lib/whatsapp-appointment";
+
 const MAX_RECIPIENTS = 50;
 
 type ContactField = (typeof WHATSAPP_CONTACT_FIELDS)[number];
-type SourceMode = ContactField | "text";
-type SourceState = { mode: SourceMode; text: string };
 
 const FIELD_LABEL: Record<ContactField, string> = {
   firstName: "First name",
@@ -65,9 +72,9 @@ function contactFieldValue(
 }
 
 function toSource(state: SourceState): WhatsAppVariableSource {
-  return state.mode === "text"
-    ? { type: "text", text: state.text.trim() }
-    : { type: "field", field: state.mode };
+  return isContactField(state.mode)
+    ? { type: "field", field: state.mode }
+    : { type: "text", text: state.text.trim() };
 }
 
 function defaultSources(
@@ -93,12 +100,14 @@ function SourcePicker({
   state,
   disabled,
   onChange,
+  appointment,
 }: {
   id: string;
   label: string;
   state: SourceState;
   disabled: boolean;
   onChange: (next: SourceState) => void;
+  appointment?: AppointmentContext;
 }) {
   return (
     <Field label={label} htmlFor={id}>
@@ -107,24 +116,48 @@ function SourcePicker({
           id={id}
           value={state.mode}
           disabled={disabled}
-          onChange={(e) =>
-            onChange({ ...state, mode: e.target.value as SourceMode })
-          }
+          onChange={(e) => {
+            const mode = e.target.value as SourceMode;
+            onChange({
+              mode,
+              text:
+                appointment && mode in appointment
+                  ? appointment[mode as keyof AppointmentContext]
+                  : state.text,
+            });
+          }}
         >
           {WHATSAPP_CONTACT_FIELDS.map((field) => (
             <option key={field} value={field}>
               {FIELD_LABEL[field]}
             </option>
           ))}
+          {appointment &&
+            Object.entries(APPOINTMENT_FIELDS).map(([key, name]) => (
+              <option
+                key={key}
+                value={key}
+                disabled={!appointment[key as keyof AppointmentContext]}
+              >
+                {name}
+                {!appointment[key as keyof AppointmentContext]
+                  ? " (unavailable)"
+                  : ""}
+              </option>
+            ))}
           <option value="text">Custom text</option>
         </Select>
-        {state.mode === "text" ? (
+        {!isContactField(state.mode) ? (
           <Input
             aria-label={`${label} custom text`}
             value={state.text}
             disabled={disabled}
             onChange={(e) => onChange({ ...state, text: e.target.value })}
-            placeholder="Same text for everyone"
+            placeholder={
+              appointment
+                ? "Review or enter appointment details"
+                : "Same text for everyone"
+            }
           />
         ) : null}
       </div>
@@ -139,6 +172,7 @@ type Props = {
   onGoConnections: () => void;
   onSent: () => void;
   fixedRecipient?: GhlContactRow;
+  appointment?: AppointmentContext;
   onSendingChange?: (sending: boolean) => void;
 };
 
@@ -149,6 +183,7 @@ export default function WhatsAppSendTab({
   onGoConnections,
   onSent,
   fixedRecipient,
+  appointment,
   onSendingChange,
 }: Props) {
   const { logout } = useUserAuth();
@@ -252,10 +287,14 @@ export default function WhatsAppSendTab({
 
   useEffect(() => {
     if (!template) return;
-    setBodySources(defaultSources(template));
+    setBodySources(
+      appointment
+        ? appointmentSources(template, appointment)
+        : defaultSources(template),
+    );
     setUrlSource({ mode: "text", text: "" });
     setSendError(null);
-  }, [template]);
+  }, [template, appointment]);
 
   const loadContacts = useCallback(
     async (query: string, cursor?: string) => {
@@ -358,7 +397,7 @@ export default function WhatsAppSendTab({
         if (!variable) return whole;
         const state = bodySources[key];
         if (!state) return whole;
-        if (state.mode === "text") return state.text.trim() || whole;
+        if (!isContactField(state.mode)) return state.text.trim() || whole;
         if (previewContact) {
           return contactFieldValue(previewContact, state.mode) || whole;
         }
@@ -383,16 +422,16 @@ export default function WhatsAppSendTab({
     }
     for (const variable of template.bodyVariables) {
       const state = bodySources[variable.key];
-      if (state?.mode === "text" && !state.text.trim()) {
+      if (!state || (!isContactField(state.mode) && !state.text.trim())) {
         setSendError(
-          `Enter text for {{${variable.key}}} or pick a contact field.`,
+          `Enter text for {{${variable.key}}} or pick a ${appointment ? "contact or appointment" : "contact"} field.`,
         );
         return;
       }
     }
     if (
       template.urlButtonVariable &&
-      urlSource.mode === "text" &&
+      !isContactField(urlSource.mode) &&
       !urlSource.text.trim()
     ) {
       setSendError(
@@ -560,6 +599,7 @@ export default function WhatsAppSendTab({
                       key={variable.key}
                       id={`wa-var-${variable.key}`}
                       label={`{{${variable.key}}}${variable.example ? ` · e.g. ${variable.example}` : ""}`}
+                      appointment={appointment}
                       state={
                         bodySources[variable.key] ?? { mode: "text", text: "" }
                       }
@@ -576,6 +616,7 @@ export default function WhatsAppSendTab({
                     <SourcePicker
                       id="wa-url-var"
                       label="URL button variable"
+                      appointment={appointment}
                       state={urlSource}
                       disabled={sending}
                       onChange={setUrlSource}

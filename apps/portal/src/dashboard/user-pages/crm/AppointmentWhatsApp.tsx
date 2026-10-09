@@ -11,15 +11,18 @@ import {
   useCrmApi,
   type Row,
 } from './CrmUi';
+import { appointmentContext } from '../../../lib/whatsapp-appointment';
 import type { GhlContactRow } from '../../../lib/api';
 
 export default function AppointmentWhatsApp({
   connectionId,
+  calendarName,
   event,
   hasWhatsApp,
   onClose,
 }: {
   connectionId: string;
+  calendarName: string;
   event: Row;
   hasWhatsApp: boolean;
   onClose: () => void;
@@ -27,6 +30,11 @@ export default function AppointmentWhatsApp({
   const { api } = useCrmApi(connectionId);
   const [sending, setSending] = useState(false);
   const contactId = str(event.contactId);
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const appointment = useMemo(
+    () => appointmentContext(event, calendarName, timezone),
+    [event, calendarName, timezone],
+  );
   const contactState = useUserAsync(
     () => api('contacts.get', { id: contactId }),
     [connectionId, contactId],
@@ -60,7 +68,9 @@ export default function AppointmentWhatsApp({
         {dateLabel(event.startTime)} – {dateLabel(event.endTime)}
       </p>
       <p className="ops-desk-note">
-        Use Custom text to fill template variables with these meeting details.
+        Recognized fields are auto-filled from this appointment in {timezone}.
+        Review the preview before sending; use appointment fields or Custom text
+        for any remaining variables.
       </p>
       <LoadState state={contactState}>
         {contact ? (
@@ -69,6 +79,7 @@ export default function AppointmentWhatsApp({
             hasWhatsApp={hasWhatsApp}
             hasContacts={false}
             fixedRecipient={contact}
+            appointment={appointment}
             onSendingChange={setSending}
             onGoConnections={onClose}
             onSent={() => {}}
