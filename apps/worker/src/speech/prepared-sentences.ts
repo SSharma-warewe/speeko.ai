@@ -3,7 +3,7 @@ import {
   type AgentJobMetadata,
   savedSpeechHookText,
 } from '@call-agent/contracts';
-import { cannedClosingLine } from '../builders/prompt-builder.js';
+import { cannedClosingLine, resolveExactOpening } from '../builders/prompt-builder.js';
 import {
   demoBookingCacheLines,
   isOutboundDemoBooking,
@@ -13,12 +13,22 @@ import {
   inboundScriptCacheLines,
 } from '../tasks/inbound-service-tracks.js';
 
-/** Exact finite speech only. Prompts and LLM-generated questions are not recordings. */
+/** Foreground opening eligibility is separate from speculative preparation. */
+export function preparedOpeningText(meta: AgentJobMetadata): string | undefined {
+  if (meta.ttsPreparedSpeechEnabled !== true) return undefined;
+  const opening = resolveExactOpening(meta);
+  if (typeof opening !== 'string') return undefined;
+  const speech = meta.voiceTask?.definition.savedSpeech;
+  if (savedSpeechHookText(speech, 'opening') === undefined) return opening;
+  return speech?.sentences.some((s) => s.text === opening && s.prepare) ? opening : undefined;
+}
+
+/** Exact finite speech only. The opening always has foreground priority. */
 export function preparedSentences(meta: AgentJobMetadata): string[] {
   if (isRealtimeLlmModel(meta.model)) return [];
   const lines: string[] = [];
   const speech = meta.voiceTask?.definition.savedSpeech;
-  const opening = savedSpeechHookText(speech, 'opening');
+  const opening = resolveExactOpening(meta);
   if (speech)
     lines.push(
       ...speech.sentences
@@ -37,5 +47,5 @@ export function preparedSentences(meta: AgentJobMetadata): string[] {
       speech?.sentences.find((s) => s.key === closingHook.key)?.prepare)
   )
     lines.push(closing);
-  return [...new Set(lines)];
+  return [...new Set(lines)].filter((line) => line !== opening);
 }

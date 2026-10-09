@@ -1,5 +1,6 @@
 import type { AgentJobMetadata } from '../../session/job-metadata';
 import {
+  resolveExactOpening,
   COMPLETE_AFTER_LAST_ANSWER_RULE,
   HINDI_DEVANAGARI_TURN_RULE,
   OPENING_ALREADY_SPOKEN_RULE,
@@ -13,6 +14,7 @@ import {
   shouldParentSpeakOpening,
   REALTIME_TURN_RULE_BODY,
 } from '../../builders/prompt-builder';
+import { VOICE_TASK_STARTERS } from '@call-agent/contracts';
 
 function meta(
   overrides: Partial<AgentJobMetadata> & {
@@ -34,6 +36,45 @@ function meta(
     ...rest,
   };
 }
+
+describe('configured exact opening', () => {
+  const opening = 'Hi! I can help you schedule an appointment.';
+  const openingMeta = (extra: Partial<AgentJobMetadata> = {}) => meta({
+    prompt: { systemPrompt: 'Hindi persona', onEnterInstructions: opening },
+    ttsPreparedSpeechEnabled: true,
+    ...extra,
+  });
+  it('uses the saved text without caller context, clock, or language rewriting', () => {
+    const m = openingMeta({ context: { firstName: 'Caller' } });
+    expect(resolveExactOpening(m)).toBe(opening);
+    expect(buildOpeningInstructions(m)).toBe(`Say exactly this opening and nothing else: ${JSON.stringify(opening)}`);
+  });
+  it.each([false, undefined, null, 'true', 1])('keeps generation for disabled/malformed %s', (enabled) => {
+    const m = openingMeta({ ttsPreparedSpeechEnabled: enabled as boolean });
+    expect(resolveExactOpening(m)).toBeUndefined();
+    expect(buildOpeningInstructions(m)).toContain('AUTHORITATIVE CLOCK');
+  });
+  it.each([null, undefined, '   '])('keeps the default greeting for %s', (value) => {
+    const m = openingMeta({ prompt: { systemPrompt: 'Fixture', onEnterInstructions: value } });
+    expect(resolveExactOpening(m)).toBeUndefined();
+    expect(buildOpeningInstructions(m)).toContain('AUTHORITATIVE CLOCK');
+  });
+  it('preserves raw wording and explicit silence', () => {
+    expect(resolveExactOpening(openingMeta({ prompt: { systemPrompt: 'Fixture', onEnterInstructions: ` ${opening} ` } }))).toBe(` ${opening} `);
+    expect(resolveExactOpening(openingMeta({ prompt: { systemPrompt: 'Fixture', onEnterInstructions: '' } }))).toBeNull();
+  });
+  it.each(['openai/gpt-realtime-2.1-mini', 'xai/grok-voice-think-fast-2.0'])('keeps native %s on its generated path', (model) => {
+    const m = openingMeta({ model });
+    expect(resolveExactOpening(m)).toBeUndefined();
+    expect(buildOpeningInstructions(m)).toContain('AUTHORITATIVE CLOCK');
+  });
+  it.each(['sentence', 'silent', 'agent'] as const)('honors task opening mode %s', (mode) => {
+    const definition = structuredClone(VOICE_TASK_STARTERS.real_estate_receptionist);
+    definition.savedSpeech!.opening = mode === 'sentence' ? { mode, key: 'buy_location' } : { mode };
+    const m = openingMeta({ voiceTask: { schemaVersion: 1, taskId: '58e8e268-373a-4c21-9371-70ad71d0112f', version: 1, definition } });
+    expect(resolveExactOpening(m)).toBe(mode === 'sentence' ? definition.savedSpeech!.sentences[0].text : mode === 'silent' ? null : opening);
+  });
+});
 
 describe('buildClosingSpeech', () => {
   it('silent empty string → no speech', () => {

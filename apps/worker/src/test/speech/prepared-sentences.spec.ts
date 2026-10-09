@@ -5,7 +5,8 @@ import type { tts } from '@livekit/agents';
 import type { AgentJobMetadata } from '@call-agent/contracts';
 import { resolveTtsConfiguration } from '../../builders/model-builder';
 import { TtsCacheRuntime } from '../../speech/tts-cache-runtime';
-import { preparedSentences } from '../../speech/prepared-sentences';
+import { preparedOpeningText, preparedSentences } from '../../speech/prepared-sentences';
+import type { TtsCacheEntry } from '../../speech/tts-cache-envelope';
 import { sayCached } from '../../speech/tts-cache';
 import type { TtsSharedCache } from '../../speech/tts-shared-cache-client';
 
@@ -22,7 +23,7 @@ const meta = (extra: Partial<AgentJobMetadata> = {}): AgentJobMetadata => ({
 });
 const frame = () => new AudioFrame(new Int16Array([7, 7]), 24000, 1, 2);
 const caches: TtsCacheRuntime[] = [];
-function fixture(automaticEnabled = false, shared?: TtsSharedCache) {
+function fixture(automaticEnabled = false, shared?: TtsSharedCache, extra: Partial<AgentJobMetadata> = {}) {
   const provider = Object.assign(new EventEmitter(), {
     sampleRate: 24000,
     numChannels: 1,
@@ -30,8 +31,8 @@ function fixture(automaticEnabled = false, shared?: TtsSharedCache) {
     synthesize: jest.fn(() => clip()),
   }) as unknown as tts.TTS;
   const cache = new TtsCacheRuntime(
-    meta(),
-    resolveTtsConfiguration(meta()),
+    meta(extra),
+    resolveTtsConfiguration(meta(extra)),
     provider,
     { automaticEnabled },
     Date.now,
@@ -91,6 +92,64 @@ describe('parallel prepared sentences and cleanup', () => {
         }),
       ),
     ).toEqual([]);
+  });
+  it('registers the configured opening for foreground playback and excludes matching speculative text', () => {
+    const opening = 'Hello, how can I help?';
+    const m = meta({ ttsPreparedSpeechEnabled: true, prompt: { systemPrompt: 'Fixture', onEnterInstructions: opening, onExitInstructions: opening } });
+    expect(preparedOpeningText(m)).toBe(opening);
+    expect(preparedSentences(m)).not.toContain(opening);
+    expect(preparedOpeningText({ ...m, ttsPreparedSpeechEnabled: false })).toBeUndefined();
+    expect(preparedOpeningText({ ...m, model: 'openai/gpt-realtime-2.1-mini' })).toBeUndefined();
+  });
+  it.each([false, true])('reuses the exact opening across disposed calls without new TTS (automatic: %s)', async (automatic) => {
+    const recordings = new Map<string, TtsCacheEntry>();
+    const shared: TtsSharedCache = {
+      lookup: jest.fn(async (key) => recordings.get(key)),
+      publish: jest.fn((key, entry) => recordings.set(key, entry)),
+      dispose: jest.fn(),
+    };
+    const m = meta({ direction: 'outbound', ttsPreparedSpeechEnabled: true, prompt: { systemPrompt: 'Fixture', onEnterInstructions: 'Hello, how can I help?' } });
+    const text = preparedOpeningText(m)!;
+    const cold = fixture(automatic, shared, m);
+    cold.cache.registerPreparedTexts([text]);
+    expect(await drain(cold.cache.finiteAudio(text))).toBe(1);
+    expect(cold.synthesize).toHaveBeenCalledTimes(1);
+    expect(recordings.size).toBe(1);
+    cold.cache.dispose();
+    const warm = fixture(automatic, shared, m);
+    warm.cache.registerPreparedTexts([text]);
+    expect(await drain(warm.cache.finiteAudio(text))).toBe(1);
+    expect(warm.synthesize).not.toHaveBeenCalled();
+    expect(warm.cache.stats.sharedHits).toBe(1);
+    expect(warm.cache.stats.active).toBe(0);
+    expect(warm.cache.stats.captureBytes).toBe(0);
+  });
+  it.each([
+    { organizationId: 'other-organization' },
+    { voice: 'shubh' },
+    { ttsModel: 'openai/gpt-4o-mini-tts', voice: 'coral' },
+    { speechLanguage: 'hi-IN' },
+    { prompt: { systemPrompt: 'Fixture', onEnterInstructions: 'Different opening' } },
+  ] as Partial<AgentJobMetadata>[])('does not reuse an opening after identity changes: %j', async (changed) => {
+    const recordings = new Map<string, TtsCacheEntry>();
+    const shared: TtsSharedCache = {
+      lookup: jest.fn(async (key) => recordings.get(key)),
+      publish: jest.fn((key, entry) => recordings.set(key, entry)),
+      dispose: jest.fn(),
+    };
+    const m = meta({ ttsPreparedSpeechEnabled: true, prompt: { systemPrompt: 'Fixture', onEnterInstructions: 'Hello, how can I help?' } });
+    const cold = fixture(false, shared, m);
+    const text = preparedOpeningText(m)!;
+    cold.cache.registerPreparedTexts([text]);
+    await drain(cold.cache.finiteAudio(text));
+    cold.cache.dispose();
+    const next = { ...m, ...changed };
+    const warm = fixture(false, shared, next);
+    const nextText = preparedOpeningText(next)!;
+    warm.cache.registerPreparedTexts([nextText]);
+    await drain(warm.cache.finiteAudio(nextText));
+    expect(warm.synthesize).toHaveBeenCalledTimes(1);
+    expect(warm.cache.stats.sharedHits).toBe(0);
   });
   it('runs only two preparation sources, then replays without new synthesis', async () => {
     const { cache, synthesize } = fixture(true);

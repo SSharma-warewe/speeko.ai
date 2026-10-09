@@ -310,6 +310,14 @@ Incident evidence: the user’s preceding call joined the browser at `2026-10-08
 
 ## Prepared-sentence implementation rollout prerequisites
 
+### Exact configured opening and selected-organization sharing
+
+On 2026-10-09 the user authorized implementation and production rollout for organization `27db0119-0c7d-46cc-bba7-0ffce504f57d`. Pipeline agents with Prepared sentences On speak nonempty configured opening text verbatim through finite cached playback, without an opening LLM request. Task sentence/silent openings retain priority. Preparation Off/default-Off and native realtime retain generation guidance. The worker also fixes generated-speech provider checks to resolve the session's inherited provider rather than only the hook's agent override.
+
+This release adds no physical schema or wire fields and does not change task assignments, prompts, models or saved preferences. Preserve DATABASE_SYNCHRONIZE=false. Deploy compatible worker, API and portal from an isolated reviewed Git archive. Set worker/API TTS_SHARED_CACHE_ENABLED=true with --skip-deploys before their respective upload; set API TTS_SHARED_CACHE_ORGANIZATION_IDS to this organization only. Existing persisted policies still authorize each purpose independently. Other tenants remain denied.
+
+The existing 25 ms complete lookup deadline stays unchanged. The private API path measured approximately 7–12 ms on warmed connections during preflight; the initial fresh-process request exceeded that budget. Cold/late lookups deliberately use live synthesis, so first-call playback and repeat-call sharing remain best effort until measured on user-initiated calls. Verify exact opening/no opening LLM request, complete publication, repeated shared hits, answer-to-first-audio timing, unchanged external-tool behavior and disposal after cancellation. Do not automatically place calls or create calendar writes for verification. Rollback sharing via the organization allowlist/flags while retaining compatible code and saved preferences.
+
 This change has not been deployed. Both settings default off; existing server sharing flags/allowlists are unchanged. Before deploying the affected worker/API/portal, complete canonical Erflow synchronization for the new prepared-sentence columns, review/apply [additive SQL](../apps/api/docs/tts-prepared-speech-schema.sql) against the confirmed target with DATABASE_SYNCHRONIZE=false, and use compatible consumers. The earlier cache-release schema deferral does not cover this new delta. Preparation remains useful locally when sharing is disabled; cross-call reuse additionally requires both services' existing TTS_SHARED_CACHE_ENABLED and the API organization allowlist. Verify real inbound pickup/outbound answer ordering, cache reuse and post-call memory before enabling broadly.
 
 ### Task saved speech rollout prerequisites

@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Alert, Button, Field, Input, Select, Textarea } from "@call-agent/ui";
 import { AgentVoiceRack } from "../components/AgentVoiceRack";
+import { openingSpeechHint } from "../../lib/speech-cache-settings";
 import {
   DEFAULT_DELIVERY_MODE,
   DEFAULT_SPEAKING_RATE,
@@ -387,7 +388,7 @@ export default function UserAgentDetailPage() {
                 <div className="ops-hook">
                   <div className="ops-hook-head">
                     <label className="ops-hook-label" htmlFor="ua-on-enter">
-                      On start
+                      Opening message
                     </label>
                     <label className="ops-check ops-check-inline">
                       <input
@@ -401,12 +402,16 @@ export default function UserAgentDetailPage() {
                   </div>
                   <Textarea
                     id="ua-on-enter"
+                    aria-describedby="ua-opening-hint"
                     value={onEnterInstructions}
                     onChange={(e) => setOnEnterInstructions(e.target.value)}
                     rows={4}
                     disabled={submitting || silentStart}
                     placeholder="Empty = built-in greeting"
                   />
+                  <p id="ua-opening-hint" className="ops-form-hint">
+                    {openingSpeechHint(ttsPreparedSpeechEnabled, data.agent.ttsPreparedSpeechDefaultEnabled ?? false, model)}
+                  </p>
                 </div>
                 <div className="ops-hook">
                   <div className="ops-hook-head">

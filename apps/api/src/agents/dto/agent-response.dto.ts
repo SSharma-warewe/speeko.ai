@@ -11,7 +11,7 @@ export class AgentPromptDto {
   @ApiPropertyOptional({
     nullable: true,
     description:
-      'LiveKit Agent onEnter generateReply instructions. null = built-in default; empty string = skip opening speech.',
+      'Opening guidance; pipeline Prepared sentences On speaks nonempty text verbatim. Task sentence/silent opening takes priority. null = built-in default; empty string = skip opening speech.',
   })
   onEnterInstructions!: string | null;
 

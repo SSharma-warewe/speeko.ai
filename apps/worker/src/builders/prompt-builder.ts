@@ -325,12 +325,23 @@ export function hookMode(value: string | null | undefined): HookMode {
   return 'default';
 }
 
-/**
- * LiveKit parent Agent onEnter generateReply instructions.
- * null = skip speech for this hook.
- */
-export function buildOpeningInstructions(meta: AgentJobMetadata): string | null {
+/** Pipeline finite opening; undefined leaves the existing generated path intact. */
+export function resolveExactOpening(meta: AgentJobMetadata): string | null | undefined {
+  if (isRealtimeLlmModel(meta.model)) return undefined;
   const saved = savedSpeechHookText(meta.voiceTask?.definition.savedSpeech, 'opening');
+  if (saved !== undefined) return saved;
+  const custom = meta.prompt.onEnterInstructions;
+  if (custom === '') return null;
+  if (meta.ttsPreparedSpeechEnabled === true && typeof custom === 'string' && custom.trim()) {
+    return custom;
+  }
+  return undefined;
+}
+
+/** Generated opening guidance, or an exact task opening for native realtime. */
+export function buildOpeningInstructions(meta: AgentJobMetadata): string | null {
+  const exact = resolveExactOpening(meta);
+  const saved = exact !== undefined ? exact : savedSpeechHookText(meta.voiceTask?.definition.savedSpeech, 'opening');
   if (saved === null) return null;
   if (saved !== undefined) return `Say exactly this opening and nothing else: ${JSON.stringify(saved)}`;
   const custom = meta.prompt.onEnterInstructions;

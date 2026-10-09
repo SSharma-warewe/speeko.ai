@@ -59,6 +59,8 @@ Production release verified 2026-10-08 from `857c86c`: API deployment `968a71c2-
 
 ## Prepared sentences
 
+- On pipeline agents with effective Prepared sentences On, nonempty `onEnterInstructions` is exact opening text rather than model guidance. Task-defined sentence/silent openings take priority; null/default and empty/silent semantics remain. With preparation Off or native realtime, it remains generation guidance. This changes no columns or wire properties; use the existing nullable preference and worker-resolved boolean.
+
 - agents and organization_agents add nullable boolean tts_prepared_speech_enabled, default null. Null inherits template then false; explicit false overrides true. Assignments inherit and clones preserve raw preference. resolveTtsPreparedSpeechEnabled follows the same native-realtime exclusion as automatic caching without coupling the settings.
 - Existing template/admin-org/user-org PATCH accepts optional boolean/null ttsPreparedSpeechEnabled. Responses expose raw preference, ttsPreparedSpeechDefaultEnabled and effectiveTtsPreparedSpeechEnabled. resolveVoiceRuntime dispatches the resolved boolean through all job packers.
 - Shared-cache lookup/publish optionally accepts purpose automatic/prepared (missing = automatic). Each request reads the corresponding live persisted preference independently. Tenant, call/room, active-resource, pipeline-model, global flag and organization allowlist restrictions remain mandatory. The namespace/digest/audio store and existing quotas/24-hour expiry remain shared; enabling preparation never authorizes arbitrary automatic speech access.
@@ -280,7 +282,7 @@ Aligned with LiveKit’s separation of **Instructions**, **Tasks**, **Tools**, a
 | Concern | Where it lives | What it is |
 |---------|----------------|------------|
 | **Persona** | `agents.system_prompt` / `organization_agents.system_prompt` → metadata `prompt.systemPrompt` | Who the agent is, company, tone, policies, safety. **No** call-specific workflow steps. Portal edits this only. Worker `buildPersonaPrompt` **appends** a platform runtime layer (voice rules, direction, **current date/time/day** from the worker clock, safety) that is **not** in the portal. LiveKit `AgentTask.run()` **replaces** the parent agent, so tasks copy this via `composeTaskInstructions` (persona + workflow). Do not rely on the parent prompt surviving the handoff. |
-| **Call open / close** | `on_enter_instructions` / `on_exit_instructions` → metadata `prompt.onEnterInstructions` / `onExitInstructions` | LiveKit parent **Agent** hooks: `onEnter` → `session.generateReply({ instructions })`; `onExit` → `session.say(text)` (verbatim, no second LLM turn). `null` = built-in default; `""` = skip speech. Pipeline opening is parent-owned; native realtime tasks generate the opening after handoff (see voice runtime). |
+| **Call open / close** | `on_enter_instructions` / `on_exit_instructions` → metadata `prompt.onEnterInstructions` / `onExitInstructions` | Pipeline parent `onEnter` uses exact `sayCached` for nonempty configured text with Prepared sentences On; otherwise `generateReply`. Task sentence/silent opening takes priority. `onExit` → verbatim `session.say(text)`. `null` = built-in default; `""` = skip speech. Native realtime tasks generate the opening after handoff. |
 | **Workflow** | Worker `TaskRegistry` (LiveKit `AgentTask`) selected by metadata `task` | Objective, completion conditions, structured result (e.g. appointment CONFIRMED). **Inbound:** org agent `default_task_key` (required). **Outbound:** call / integration `task` (not on the agent). |
 | **Capabilities** | Worker `ToolRegistry` hard-coded implementations; enabled by `tool_profiles` → metadata `enabledTools`, **intersected with `organizations.allowed_tool_ids`** | Executable actions (`endCall`, `booking`, …). Admin assigns which ids an org may use. New orgs: `endCall` only. Existing orgs stay `null` (full catalog) until an admin saves Tools. Orgs create/select profiles of those **ids** (not implementations). |
 | **Runtime context** | Call request `context` + ids in metadata | CRM fields, bookingId, phoneNumber, etc. Never executable code. |
@@ -578,7 +580,7 @@ Agent APIs return persona + capability profile (not JSON tool schemas):
 
 - Platform templates: `key` is the template key; no `slug` / `organizationId` / `calendarIntegrationId`.
 - Org-owned rows: `name` + `slug` are org-owned; `key` / `templateKey` are the platform template key; also `organizationId` + `agentId` (template id) + optional `calendarIntegrationId` (Nylas or GHL). Multiple org rows may share the same template. **`defaultTaskKey` is required on inbound org agents; outbound org agents return `null`** (set task on the call or integration).
-- Hook fields: `null` = worker default opening/closing; `""` = silent for that hook; non-empty onEnter = custom `generateReply` instructions; non-empty onExit = verbatim `session.say` line.
+- Hook fields: `null` = worker default opening/closing; `""` = silent for that hook; non-empty onEnter = exact `sayCached` text on pipeline jobs with Prepared sentences On, otherwise custom `generateReply` instructions; non-empty onExit = verbatim `session.say` line. Task-defined sentence/silent opening takes priority.
 
 ### Job metadata shape (API → worker)
 

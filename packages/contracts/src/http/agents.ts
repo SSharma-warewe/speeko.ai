@@ -3,7 +3,7 @@ import type { DeliveryMode } from '../delivery.js';
 
 export type AgentPrompt = {
   systemPrompt: string;
-  /** null = built-in default; empty string = skip speech. */
+  /** Pipeline preparation On speaks nonempty text verbatim; otherwise generation guidance. Task sentence/silent opening wins. null = default; empty = silent. */
   onEnterInstructions?: string | null;
   /** null = built-in default; empty string = skip speech. */
   onExitInstructions?: string | null;

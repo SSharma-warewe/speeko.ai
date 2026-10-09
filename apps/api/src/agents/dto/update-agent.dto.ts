@@ -26,7 +26,7 @@ export class UpdateAgentDto extends VoiceSettingsDto {
   @ApiPropertyOptional({
     nullable: true,
     description:
-      'LiveKit onEnter instructions. null = default; empty string = silent start.',
+      'Opening guidance; pipeline Prepared sentences On speaks nonempty text verbatim. Task sentence/silent opening takes priority. null = default; empty string = silent start.',
   })
   @IsOptional()
   @IsString()

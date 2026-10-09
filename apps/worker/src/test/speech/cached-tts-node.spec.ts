@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { ReadableStream } from 'node:stream/web';
 import { AudioFrame } from '@livekit/rtc-node';
-import { voice, tts, tokenize } from '@livekit/agents';
+import { initializeLogger, voice, tts, tokenize } from '@livekit/agents';
 import type { AgentJobMetadata } from '../../session/job-metadata';
 import { resolveTtsConfiguration } from '../../builders/model-builder';
 import { TtsCacheRuntime } from '../../speech/tts-cache-runtime';
@@ -41,6 +41,8 @@ function fixture(
     session: { _expressive: false },
   } as Parameters<NonNullable<voice.AgentHooks['ttsNode']>>[0];
   const node = createCachedTtsNode(cache);
+  agent.getActivityOrThrow = () =>
+    ({ tts: ctx.tts }) as ReturnType<voice.Agent['getActivityOrThrow']>;
   const run = async (input: AsyncIterable<string>) =>
     (await node(ctx, input, {}))![Symbol.asyncIterator]();
   return { cache, provider, ctx, run };
@@ -86,7 +88,54 @@ async function drain(iterator: AsyncIterator<AudioFrame>) {
 }
 
 describe('generated speech cache node', () => {
+  beforeAll(() => initializeLogger({ pretty: false, level: 'silent' }));
   afterEach(() => jest.restoreAllMocks());
+  it.each(['parent', 'task'] as const)(
+    'caches the session-inherited provider through the real %s SDK hook context',
+    async (kind) => {
+      const { cache, provider } = fixture('sarvam/bulbul-v3-realtime');
+      const options = {
+        instructions: 'Test',
+        ttsNode: createCachedTtsNode(cache),
+      };
+      const agent = kind === 'parent'
+        ? voice.Agent.create(options)
+        : voice.AgentTask.create(options);
+      // Production sets TTS on the session, leaving agent.tts / ctx.tts unset.
+      expect(agent.tts).toBeUndefined();
+      jest.spyOn(agent, 'getActivityOrThrow').mockReturnValue({
+        tts: provider,
+        agentSession: { tts: provider, _expressive: false },
+      } as unknown as ReturnType<voice.Agent['getActivityOrThrow']>);
+      const sdk = jest.spyOn(voice.Agent.default, 'ttsNode')
+        .mockImplementation(async (_agent, input) =>
+          audio(frame(1, await inputText(input))),
+        );
+      const run = async () => {
+        const stream = await agent.ttsNode(words(firstSentence), {});
+        const reader = stream!.getReader();
+        const frames: AudioFrame[] = [];
+        try {
+          while (true) {
+            const next = await reader.read();
+            if (next.done) return frames;
+            frames.push(next.value);
+          }
+        } finally {
+          reader.releaseLock();
+        }
+      };
+      try {
+        expect(await run()).toHaveLength(1);
+        expect(await run()).toHaveLength(1);
+        expect(sdk).toHaveBeenCalledTimes(1);
+        expect(cache.stats.hits).toBe(1);
+        expect(cache.stats.bypasses).toBe(0);
+      } finally {
+        cache.dispose();
+      }
+    },
+  );
   it('releases a node interrupted before synthesis starts', async () => {
     const { cache, run } = fixture();
     const sdk = jest.spyOn(voice.Agent.default, 'ttsNode');

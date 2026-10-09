@@ -5,7 +5,8 @@ import type { DeliveryMode } from './delivery.js';
 export type AgentJobPrompt = {
   systemPrompt: string;
   /**
-   * LiveKit onEnter generateReply instructions.
+   * Opening guidance for generateReply; pipeline Prepared sentences On speaks
+   * nonempty text verbatim. Explicit task sentence/silent openings take priority.
    * undefined/null = built-in default; empty string = skip opening speech.
    */
   onEnterInstructions?: string | null;

@@ -16,6 +16,7 @@ import { AgentRuntimeBuilder } from '../../builders/agent-builder';
 import { buildModels } from '../../builders/model-builder';
 import { buildAgentSession } from '../../builders/voice-builder';
 import { buildTools } from '../../builders/tool-builder';
+import * as taskBuilder from '../../builders/task-builder';
 import { createWorkflowTask } from '../../tasks/workflow-task';
 import { TtsSharedCacheClient } from '../../speech/tts-shared-cache-client';
 import { TtsCacheRuntime } from '../../speech/tts-cache-runtime';
@@ -51,6 +52,58 @@ describe('agent-builder job cache integration', () => {
     jest.mocked(buildTools).mockResolvedValue({});
   });
   afterEach(() => jest.restoreAllMocks());
+
+  it.each([false, true])('plays the configured opening without LLM generation or duplicate preparation (automatic cache: %s)', async (automatic) => {
+    const opening = 'Hi! I can help you schedule an appointment. What date and time would you prefer?';
+    jest.mocked(buildModels).mockReturnValue({ kind: 'pipeline', tts: providerFixture() } as never);
+    const prepare = jest.spyOn(TtsCacheRuntime.prototype, 'prepare').mockImplementation(() => new Promise(() => {}));
+    const handoff = jest.spyOn(taskBuilder, 'buildTask').mockReturnValue({ run: async () => { throw new Error('test shutdown'); } } as never);
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const meta = metadata({ ttsCacheEnabled: automatic, ttsPreparedSpeechEnabled: true, prompt: { systemPrompt: 'Fixture', onEnterInstructions: opening, onExitInstructions: opening } });
+    const runtime = await new AgentRuntimeBuilder(meta).build();
+    let finish!: () => void;
+    const say = jest.fn(() => ({ waitForPlayout: () => new Promise<void>((resolve) => { finish = resolve; }) }));
+    const generateReply = jest.fn();
+    const hooks = jest.mocked(voice.Agent.create).mock.calls[0][0];
+    try {
+      const entered = hooks.onEnter!({ session: { say, generateReply }, agent: { chatCtx: { copy: () => ({}) } } } as never);
+      expect(say).toHaveBeenCalledWith(opening, expect.objectContaining({ audio: expect.anything(), allowInterruptions: false, addToChatCtx: true }));
+      expect(generateReply).not.toHaveBeenCalled();
+      expect(runtime.userData.ttsCache!.canCacheFinite(opening)).toBe(true);
+      expect(prepare.mock.calls[0][0]).not.toContain(opening);
+      expect(say.mock.invocationCallOrder[0]).toBeLessThan(prepare.mock.invocationCallOrder[0]);
+      expect(handoff).not.toHaveBeenCalled();
+      finish();
+      await entered;
+      expect(handoff).toHaveBeenCalledTimes(1);
+    } finally {
+      runtime.userData.savedSpeechState?.dispose();
+      runtime.userData.ttsCache?.dispose();
+    }
+  });
+
+  it('aborts opening capture when playout fails and lets the task proceed', async () => {
+    jest.mocked(buildModels).mockReturnValue({ kind: 'pipeline', tts: providerFixture() } as never);
+    jest.spyOn(TtsCacheRuntime.prototype, 'prepare').mockResolvedValue();
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const handoff = jest.spyOn(taskBuilder, 'buildTask').mockReturnValue({ run: async () => { throw new Error('test shutdown'); } } as never);
+    let signal: AbortSignal | undefined;
+    jest.spyOn(TtsCacheRuntime.prototype, 'finiteAudio').mockImplementation((_text, options) => {
+      signal = options?.signal;
+      return new ReadableStream();
+    });
+    const runtime = await new AgentRuntimeBuilder(metadata({ ttsPreparedSpeechEnabled: true, prompt: { systemPrompt: 'Fixture', onEnterInstructions: 'Saved opening' } })).build();
+    try {
+      const hooks = jest.mocked(voice.Agent.create).mock.calls[0][0];
+      const say = jest.fn(() => ({ waitForPlayout: async () => { throw new Error('playout failed'); } }));
+      await hooks.onEnter!({ session: { say }, agent: { chatCtx: { copy: () => ({}) } } } as never);
+      expect(signal?.aborted).toBe(true);
+      expect(handoff).toHaveBeenCalledTimes(1);
+    } finally {
+      runtime.userData.savedSpeechState?.dispose();
+      runtime.userData.ttsCache?.dispose();
+    }
+  });
 
   it('schedules exact opening first without waiting for preparation and registers eligible foreground text', async () => {
     const provider = providerFixture();

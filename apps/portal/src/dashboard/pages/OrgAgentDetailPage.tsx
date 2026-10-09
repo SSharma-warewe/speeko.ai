@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Alert, Button, Field, Input, Textarea } from "@call-agent/ui";
 import { AgentVoiceRack } from "../components/AgentVoiceRack";
+import { openingSpeechHint } from "../../lib/speech-cache-settings";
 import {
   DEFAULT_DELIVERY_MODE,
   DEFAULT_SPEAKING_RATE,
@@ -263,9 +264,9 @@ export default function OrgAgentDetailPage() {
               />
             </Field>
             <Field
-              label="On-start instructions (LiveKit onEnter)"
+              label="Opening message"
               htmlFor="oa-on-enter"
-              hint="Spoken when the call starts. Leave empty for built-in default. Check silent to skip."
+              hint={openingSpeechHint(ttsPreparedSpeechEnabled, data.ttsPreparedSpeechDefaultEnabled ?? false, model)}
             >
               <Textarea
                 id="oa-on-enter"
@@ -273,7 +274,7 @@ export default function OrgAgentDetailPage() {
                 onChange={(e) => setOnEnterInstructions(e.target.value)}
                 rows={4}
                 disabled={submitting || silentStart}
-                placeholder="e.g. Greet the caller as Acme support and ask how you can help."
+                placeholder="Enter opening text or greeting instructions"
               />
             </Field>
             <label style={{ display: "flex", gap: "0.5rem", alignItems: "center", fontSize: "0.88rem" }}>

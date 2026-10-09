@@ -55,7 +55,10 @@ export function createCachedTtsNode<UserData = unknown>(
         const expressive = ctx.agent.expressive ?? ctx.session._expressive;
         const reason = !cache.automaticEnabled
           ? 'disabled'
-          : ctx.tts !== cache.provider
+          // Hook context exposes only the agent override. The activity resolves
+          // session inheritance, explicit null and text-only sessions, just as
+          // Agent.default.ttsNode does before synthesis.
+          : ctx.agent.getActivityOrThrow().tts !== cache.provider
             ? 'provider-mismatch'
             : cache.config.backend === 'xai-plugin'
               ? 'word-streaming'

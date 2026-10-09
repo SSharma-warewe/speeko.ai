@@ -68,7 +68,7 @@ export class OrganizationAgent {
   systemPrompt!: string;
 
   /**
-   * LiveKit parent Agent onEnter generateReply instructions.
+   * Opening guidance; pipeline preparation On speaks nonempty text verbatim.
    * null = built-in default; empty string = skip opening speech.
    */
   @Column({ name: 'on_enter_instructions', type: 'text', nullable: true })

@@ -4,6 +4,8 @@ Scope: `packages/contracts`. Inherit the [root instructions](../../AGENTS.md). `
 
 ## Structure and compatibility
 
+- `AgentJobPrompt.onEnterInstructions` remains the existing optional nullable string. With resolved `ttsPreparedSpeechEnabled=true` on a pipeline job, nonempty text is spoken verbatim; task-defined sentence/silent opening wins. Preparation Off/native realtime retains generation guidance. No new metadata field or schema version is introduced.
+
 - `src/index.ts` exports domain catalogs/types; `src/http/index.ts` exports HTTP request/response types. Keep types grouped by existing domain and exported through the public barrel.
 - Define new tool ids, task keys, call states/failure codes, integration providers, price wire shapes, delivery modes, speech/model/voice catalogs, metadata fields, and lead-quality helpers here first.
 - Voice jobs use `AgentJobMetadata`; callbacks use `CompleteCallPayload`/inbound types. WhatsApp uses distinct versioned turn/session/task contracts. Do not conflate LiveKit task keys with WhatsApp tasks.

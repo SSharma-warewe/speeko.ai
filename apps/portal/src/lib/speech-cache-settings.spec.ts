@@ -3,9 +3,23 @@ import {
   resolveTtsPreparedSpeechEnabled,
 } from '@call-agent/contracts';
 import {
+  openingSpeechHint,
   speechCachePreference,
   speechCacheSelection,
 } from './speech-cache-settings';
+
+describe('opening editor behavior', () => {
+  it('explains exact text using the effective inherited preparation setting', () => {
+    expect(openingSpeechHint(null, true)).toContain('plays verbatim');
+    expect(openingSpeechHint(true, false)).toContain('plays verbatim');
+    expect(openingSpeechHint(false, true)).toContain('model to generate');
+    expect(openingSpeechHint(null, false)).toContain('model to generate');
+  });
+  it('retains generated guidance for native realtime despite a saved On preference', () => {
+    expect(openingSpeechHint(true, true, 'openai/gpt-realtime-2.1-mini')).toContain('model to generate');
+    expect(openingSpeechHint(true, true, 'xai/grok-voice-think-fast-2.0')).toContain('model to generate');
+  });
+});
 
 describe('speech-cache editor state and save payload', () => {
   it.each([true, false, null])(

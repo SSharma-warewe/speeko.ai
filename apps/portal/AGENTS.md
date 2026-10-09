@@ -29,6 +29,8 @@ Scope: `apps/portal`. Inherit the [root instructions](../../AGENTS.md). This app
 
 ## Domain behavior
 
+- All three agent editors label `onEnterInstructions` as Opening message and explain its effective behavior from the draft Prepared sentences preference, inherited default and model. On pipeline agents with preparation On, enter actual words: the configured opening plays verbatim without opening LLM generation. Off/default-Off and native realtime retain model guidance. Task sentence/silent opening takes priority; empty/default and explicit Silent remain distinct. Enabling shared reuse still requires service flags and organization allowlist, independent of saved UI preferences.
+
 Speech-caching portal rollout verified 2026-10-08: source `857c86c`, deployment `41504f26-6aa4-4310-bb62-359fe5c302b7`, SUCCESS with one RUNNING instance. Public login/admin/org agent deep links and shipped `index-CaB-4azP.js` passed control/default-source/raw-preference/native-unsupported/API-origin checks. Earlier synthetic browser checks exercised all three editors; live authenticated interaction and speech acceptance remain with the user. All persisted preferences remain null/off and shared flags disabled. See [rollout record](../../railway/AGENTS.md#shared-tts-cache-rollout).
 
 - Org users run named org agent configurations; admins manage tenants, members, assigned tools, and platform templates. Human member role `agent` is not an AI template. Stored org roles are not currently a separate API permission system.
@@ -59,6 +61,7 @@ Speech-caching portal rollout verified 2026-10-08: source `857c86c`, deployment 
 - Update contracts first when HTTP shapes/catalogs change, and coordinate API/worker consumers. For UI-only work, keep server ownership and principal boundaries intact.
 - From repo root: `npm run typecheck:portal`, `npm run build:portal`. Check affected org/admin routes, missing resources, loading/failure states, responsive layouts, and correct principal redirects. Existing mapper test: `npx jest --testPathPatterns=portal/src/lib/call-outcome --no-coverage`.
 - Speech-cache editor state/payload tests: `npx jest --testPathPatterns=portal/src/lib/speech-cache-settings --no-coverage`. On 2026-10-08, headless Edge with synthetic local API fixtures verified all three actual editors for nullable inheritance, explicit Off save/reload, retained native realtime preference, failed-save drafts, keyboard selection and 390px layout screenshots. Portal typecheck/build passed. Real PostgreSQL API policy tests are recorded in [API guidance](../api/AGENTS.md#shared-tts-cache); no production agent settings were changed.
+- Exact-opening editor browser checks: run `node apps/portal/test/agent-opening.browser.mjs` against loopback Vite with VITE_API_URL=/api. Set PLAYWRIGHT_MODULE to an available Playwright index.mjs and optionally AGENT_OPENING_TEST_URL (default http://127.0.0.1:5185). All API traffic is synthetic and external requests are blocked. Covers template/admin-org/user-org inheritance, preparation draft changes, unchanged opening wording in save/reload, retained preferences on native realtime, and desktop/390px layouts.
 - Local development: `npm run start:portal:dev` on port 5174. Hosting keeps `serve -s dist`; Vite variable changes require a rebuild. Read [deployment instructions](../../railway/AGENTS.md).
 
 ## Regression scenarios
@@ -112,7 +115,7 @@ Keep auth-provider boundaries intact during loading and refresh. A user token ca
 
 Org configs have their own name and unique-per-org slug plus template key/id. Many configs may share one inbound/outbound template. Create/clone copies the chosen source; later template edits do not rewrite saved org personas. Preserve effective template fallback for null voice settings.
 
-Legacy inbound defaultTaskKey is required and legacy outbound defaultTaskKey is null. Configured defaultVoiceTaskId supports both directions; calls/batches/dial endpoints can override it. Persona controls company/tone/policies; onEnterInstructions is opening generation guidance and onExitInstructions is a spoken closing line. Null means built-in default and empty means silent. Do not trim silent hooks into null.
+Legacy inbound defaultTaskKey is required and legacy outbound defaultTaskKey is null. Configured defaultVoiceTaskId supports both directions; calls/batches/dial endpoints can override it. Persona controls company/tone/policies; onEnterInstructions is exact opening text on pipeline agents with Prepared sentences On, otherwise generation guidance. Task sentence/silent opening takes priority. onExitInstructions is a spoken closing line. Null means built-in default and empty means silent. Do not trim silent hooks into null.
 
 Voice UI uses the shared model/voice/language catalogs. Native realtime speech ignores pipeline STT/TTS choices; changing TTS or realtime model changes allowed voices. Speaking-rate controls apply only to supported models and Inworld alone supports delivery mode. Org tools are selected from the API's assigned catalog, never blindly from every exported worker id.
 

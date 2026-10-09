@@ -1,4 +1,3 @@
-import { savedSpeechHookText } from '@call-agent/contracts';
 import { createSavedSpeechState } from '../speech/saved-speech.js';
 import { voice } from '@livekit/agents';
 import { hangUpCall } from '../speech/hangup.js';
@@ -7,7 +6,7 @@ import { resolveSarvamRealtimePluginUrl } from '../sarvam/plugin-stt.js';
 import type { SessionUserData } from '../tools/types.js';
 import { startDemoCrmPrefetch } from '../tasks/demo-booking-crm.js';
 import { sayCached } from '../speech/tts-cache.js';
-import { preparedSentences } from '../speech/prepared-sentences.js';
+import { preparedOpeningText, preparedSentences } from '../speech/prepared-sentences.js';
 import { TtsCacheRuntime } from '../speech/tts-cache-runtime.js';
 import { TtsSharedCacheClient } from '../speech/tts-shared-cache-client.js';
 import { createCachedTtsNode } from '../speech/cached-tts-node.js';
@@ -21,6 +20,7 @@ import {
   buildOpeningInstructions,
   buildPersonaPrompt,
   hookMode,
+  resolveExactOpening,
   shouldParentSpeakOpening,
   snapshotCallClock,
 } from './prompt-builder.js';
@@ -76,9 +76,8 @@ export class AgentRuntimeBuilder {
       userData.ttsCache = this.ttsCache;
       if (this.meta.ttsPreparedSpeechEnabled === true) {
         this.ttsCache.registerPreparedTexts(preparedSentences(this.meta));
-        const opening = savedSpeechHookText(this.meta.voiceTask?.definition.savedSpeech, 'opening');
-        const entry = this.meta.voiceTask?.definition.savedSpeech?.sentences.find(s => s.text === opening && s.prepare);
-        if (entry?.prepare && opening) this.ttsCache.registerPreparedTexts([opening]);
+        const opening = preparedOpeningText(this.meta);
+        if (opening !== undefined) this.ttsCache.registerPreparedTexts([opening]);
       }
 
     }
@@ -154,10 +153,25 @@ export class AgentRuntimeBuilder {
         );
         return;
       }
-      const exact = savedSpeechHookText(this.meta.voiceTask?.definition.savedSpeech, 'opening');
+      const exact = resolveExactOpening(this.meta);
+      if (exact === null) {
+        console.log('[agent] onEnter silent (no opening speech)');
+        return;
+      }
       if (typeof exact === 'string') {
-        const handle = sayCached(ctx.session, this.ttsCache, exact, { allowInterruptions: false, addToChatCtx: true }) as { waitForPlayout?: () => Promise<void> };
-        await handle.waitForPlayout?.();
+        const controller = new AbortController();
+        console.log(`[agent] onEnter opening mode=exact callId=${this.meta.callId ?? 'n/a'}`);
+        try {
+          const handle = sayCached(ctx.session, this.ttsCache, exact, {
+            allowInterruptions: false,
+            addToChatCtx: true,
+            signal: controller.signal,
+          }) as { waitForPlayout?: () => Promise<void> };
+          await handle.waitForPlayout?.();
+          console.log(`[agent] onEnter opening playout done callId=${this.meta.callId ?? 'n/a'}`);
+        } finally {
+          controller.abort();
+        }
         return;
       }
       const opening = buildOpeningInstructions(this.meta);
