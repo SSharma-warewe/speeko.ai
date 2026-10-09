@@ -7,6 +7,9 @@ export function sentenceReferenced(
   return (
     !!key &&
     (definition.phases.some((p) => p.sentenceKeys?.includes(key)) ||
+      Object.values(definition.savedSpeech?.toolWaiting?.tools ?? {}).some(
+        (c) => c.mode !== 'off' && c.sentenceKey === key,
+      ) ||
       (['opening', 'closing'] as const).some((kind) => {
         const hook = definition.savedSpeech?.[kind];
         return hook?.mode === 'sentence' && hook.key === key;
@@ -46,6 +49,21 @@ export function renameSentence(
     })),
     savedSpeech: {
       ...speech,
+      ...(speech.toolWaiting
+        ? {
+            toolWaiting: {
+              ...speech.toolWaiting,
+              tools: Object.fromEntries(
+                Object.entries(speech.toolWaiting.tools).map(([id, c]) => [
+                  id,
+                  updateReferences && c.mode !== 'off' && c.sentenceKey === from
+                    ? { ...c, sentenceKey: to }
+                    : c,
+                ]),
+              ),
+            },
+          }
+        : {}),
       sentences: speech.sentences.map((s, i) =>
         (sentenceIndex === undefined ? s.key === from : i === sentenceIndex)
           ? { ...s, key: to }

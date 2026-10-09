@@ -1,4 +1,5 @@
-import type { ToolContextEntry } from '@livekit/agents';
+import { llm, type ToolContextEntry } from '@livekit/agents';
+import { withToolWaiting } from '../speech/tool-waiting.js';
 import { createBookingTool } from './booking.tool.js';
 import { createCancelBookingTool } from './cancel-booking.tool.js';
 import { createCancelCalendarEventTool } from './cancel-calendar-event.tool.js';
@@ -34,7 +35,10 @@ const factories = new Map<string, ToolFactory>([
 ]);
 
 function toolEntryKey(entry: ToolContextEntry, fallback: string): string {
-  if ('name' in entry && typeof (entry as { name?: string }).name === 'string') {
+  if (
+    'name' in entry &&
+    typeof (entry as { name?: string }).name === 'string'
+  ) {
     return (entry as { name: string }).name;
   }
   if ('id' in entry && typeof (entry as { id?: string }).id === 'string') {
@@ -84,8 +88,22 @@ export class ToolRegistry {
       const built = await factory(ctx);
       const list = Array.isArray(built) ? built : [built];
       for (const entry of list) {
+        if (
+          ctx.meta.voiceTask?.definition.savedSpeech?.toolWaiting &&
+          llm.isFunctionTool(entry)
+        ) {
+          const execute = entry.execute;
+          entry.execute = (args, opts) =>
+            withToolWaiting(ctx.meta, ctx.userData, id, opts, () =>
+              execute.call(entry, args, opts),
+            );
+        }
         const key = toolEntryKey(entry, id);
-        if (key === 'end_call' || key === 'endCall' || id === TOOL_IDS.endCall) {
+        if (
+          key === 'end_call' ||
+          key === 'endCall' ||
+          id === TOOL_IDS.endCall
+        ) {
           hasEndCall = true;
         }
         tools.push(entry);

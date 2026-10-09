@@ -1,4 +1,6 @@
 import { SavedSpeechEditor } from './SavedSpeechEditor';
+import { ToolWaitingEditor } from './ToolWaitingEditor';
+import { syncToolWaiting } from '../../lib/tool-waiting';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -92,7 +94,7 @@ const toggled = <T,>(values: T[], item: T) =>
 const editorSections = [
   { id: 'overview', title: 'Overview', detail: 'Purpose & direction' },
   { id: 'phases', title: 'Conversation', detail: 'Guide each phase' },
-  { id: 'speech', title: 'Saved speech', detail: 'Exact keyed sentences' },
+  { id: 'speech', title: 'Saved speech', detail: 'Sentences and tool waiting' },
   { id: 'fields', title: 'Data collection', detail: 'Context & results' },
   { id: 'outcomes', title: 'Completion', detail: 'Outcomes & requirements' },
   { id: 'tools', title: 'Capabilities', detail: 'Available actions' },
@@ -535,7 +537,10 @@ export default function TaskStudio({
     return row;
   };
   const patch = (change: Partial<TaskEditorDefinition>) =>
-    setDraft((d) => ({ ...d, ...change }));
+    setDraft((d) => {
+      const next = { ...d, ...change };
+      return whatsapp ? next : syncToolWaiting(voiceDefinition(next));
+    });
   const updateFields = (
     kind: 'contextFields' | 'resultFields',
     next: VoiceTaskField[],
@@ -1222,8 +1227,9 @@ export default function TaskStudio({
                           {!whatsapp && (
                             <div>
                               Saved sentences:{' '}
-                              {(draft.savedSpeech?.sentences ?? []).map(
-                                (sentence, index) => (
+                              {(draft.savedSpeech?.sentences ?? [])
+                                .filter((s) => s.purpose !== 'toolWaiting')
+                                .map((sentence, index) => (
                                   <label
                                     key={index}
                                     className="voice-task-option"
@@ -1253,8 +1259,7 @@ export default function TaskStudio({
                                     />{' '}
                                     {sentence.key}
                                   </label>
-                                ),
-                              )}
+                                ))}
                             </div>
                           )}
                           <div>
@@ -1298,6 +1303,12 @@ export default function TaskStudio({
                           savedSpeech: next.savedSpeech,
                           phases: next.phases,
                         })
+                      }
+                    />
+                    <ToolWaitingEditor
+                      definition={voiceDefinition(draft)}
+                      onChange={(next) =>
+                        patch({ savedSpeech: next.savedSpeech })
                       }
                     />
                   </div>

@@ -340,6 +340,7 @@ export class AgentJob {
       this.preparedCache,
     ).build();
     this.ctx.addShutdownCallback(async () => {
+      runtime.userData.toolWaitingState?.dispose();
       runtime.userData.savedSpeechState?.dispose();
       runtime.userData.ttsCache?.dispose();
     });
@@ -365,6 +366,7 @@ export class AgentJob {
 
   private async handleJobError(err: unknown): Promise<void> {
     this.preparedCache?.dispose();
+    this.userData?.toolWaitingState?.dispose();
     this.userData?.savedSpeechState?.dispose();
     this.userData?.ttsCache?.dispose();
     this.failedEarly = true;

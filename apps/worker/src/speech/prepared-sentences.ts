@@ -3,7 +3,10 @@ import {
   type AgentJobMetadata,
   savedSpeechHookText,
 } from '@call-agent/contracts';
-import { cannedClosingLine, resolveExactOpening } from '../builders/prompt-builder.js';
+import {
+  cannedClosingLine,
+  resolveExactOpening,
+} from '../builders/prompt-builder.js';
 import {
   demoBookingCacheLines,
   isOutboundDemoBooking,
@@ -14,13 +17,17 @@ import {
 } from '../tasks/inbound-service-tracks.js';
 
 /** Foreground opening eligibility is separate from speculative preparation. */
-export function preparedOpeningText(meta: AgentJobMetadata): string | undefined {
+export function preparedOpeningText(
+  meta: AgentJobMetadata,
+): string | undefined {
   if (meta.ttsPreparedSpeechEnabled !== true) return undefined;
   const opening = resolveExactOpening(meta);
   if (typeof opening !== 'string') return undefined;
   const speech = meta.voiceTask?.definition.savedSpeech;
   if (savedSpeechHookText(speech, 'opening') === undefined) return opening;
-  return speech?.sentences.some((s) => s.text === opening && s.prepare) ? opening : undefined;
+  return speech?.sentences.some((s) => s.text === opening && s.prepare)
+    ? opening
+    : undefined;
 }
 
 /** Exact finite speech only. The opening always has foreground priority. */
@@ -32,7 +39,12 @@ export function preparedSentences(meta: AgentJobMetadata): string[] {
   if (speech)
     lines.push(
       ...speech.sentences
-        .filter((s) => s.prepare && s.text !== opening)
+        .filter(
+          (s) =>
+            s.prepare &&
+            s.text !== opening &&
+            (s.purpose !== 'toolWaiting' || speech.toolWaiting?.enabled),
+        )
         .map((s) => s.text),
     );
   if (!meta.voiceTask && meta.direction === 'inbound') {

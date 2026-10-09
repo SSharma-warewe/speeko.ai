@@ -3,6 +3,7 @@ import { llm, voice } from '@livekit/agents';
 import { z } from 'zod';
 import {
   compileVoiceTaskInstructions,
+  conversationalSentences,
   isVoiceTaskSnapshot,
   isRealtimeLlmModel,
   type VoiceTaskDefinition,
@@ -142,7 +143,7 @@ export const createConfigurableTask: TaskFactory = ({
     tools: [
       ...tools,
       ...(!isRealtimeLlmModel(meta.model) &&
-      definition.savedSpeech?.sentences.length
+      conversationalSentences(definition.savedSpeech).length
         ? [
             llm.tool({
               name: 'speak_saved_sentence',
@@ -151,18 +152,17 @@ export const createConfigurableTask: TaskFactory = ({
               parameters: z
                 .object({
                   key: z.enum(
-                    definition.savedSpeech.sentences.map((s) => s.key) as [
-                      string,
-                      ...string[],
-                    ],
+                    conversationalSentences(definition.savedSpeech).map(
+                      (s) => s.key,
+                    ) as [string, ...string[]],
                   ),
                 })
                 .strict(),
               flags: llm.ToolFlag.CANCELLABLE,
               execute: async ({ key }, opts) => {
-                const sentence = definition.savedSpeech!.sentences.find(
-                  (s) => s.key === key,
-                );
+                const sentence = conversationalSentences(
+                  definition.savedSpeech,
+                ).find((s) => s.key === key);
                 if (!sentence)
                   throw new llm.ToolError('Unknown saved sentence.');
                 await userData.savedSpeechState?.speak(

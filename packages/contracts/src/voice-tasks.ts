@@ -301,7 +301,9 @@ export function voiceTaskDefinitionErrors(value: unknown): string[] {
     )
       errors.push(`Outcome ${key} needs a real calendar booking tool`);
   }
-  errors.push(...savedSpeechErrors(value.savedSpeech, lists.phases));
+  errors.push(
+    ...savedSpeechErrors(value.savedSpeech, lists.phases, lists.toolIds),
+  );
   if (JSON.stringify(value).length > 48000)
     errors.push('Task definition exceeds 48 KB');
   return errors;

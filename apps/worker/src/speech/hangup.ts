@@ -34,6 +34,7 @@ export function hangUpCall(
     return;
   }
   hangupStarted.add(session);
+  options.userData?.toolWaitingState?.dispose();
   options.userData?.savedSpeechState?.dispose();
   options.userData?.ttsCache?.beginShutdown();
 

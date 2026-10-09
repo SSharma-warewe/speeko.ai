@@ -1,4 +1,7 @@
-import { isRealtimeLlmModel } from '@call-agent/contracts';
+import {
+  isRealtimeLlmModel,
+  conversationalSentences,
+} from '@call-agent/contracts';
 import type { llm, ToolContextEntry } from '@livekit/agents';
 import { voice } from '@livekit/agents';
 import type { AgentJobMetadata } from '@call-agent/contracts';
@@ -61,7 +64,8 @@ export function createWorkflowTask<ResultT>(
     instructions: options.instructions,
     chatCtx: options.chatCtx,
     tools: options.tools,
-    ...(!realtime && meta.voiceTask?.definition.savedSpeech?.sentences.length
+    ...(!realtime &&
+    conversationalSentences(meta.voiceTask?.definition.savedSpeech).length
       ? { llmNode: savedSpeechLlmNode }
       : {}),
     ...(!realtime && options.userData?.ttsCache?.automaticEnabled

@@ -4,6 +4,8 @@ Scope: `packages/contracts`. Inherit the [root instructions](../../AGENTS.md). `
 
 ## Structure and compatibility
 
+- Voice task `savedSpeech.toolWaiting` optionally stores an enabled flag and per-selected-tool Default/Custom/Off configurations. Active configurations reference unique `purpose: 'toolWaiting'` saved sentences and delays of 400/700/1000/1500/2000 ms; all saved speech shares the 20-sentence limit. Tool-only sentences cannot be conversational hooks/phase references or LLM speech choices. Default wording is saved in the pinned task snapshot. Missing configuration preserves legacy behavior; worker support must ship before API/portal expose the new configuration.
+
 - `opening-preparation.ts` owns the shared exact-opening resolver and outbound pre-dial classification, optional version-1 `openingPreparation {version,attemptId,deadline}` dispatch field and `speeko.openingPreparation` participant readiness report (status and bounded usage only). Producer/worker changes must be deployed worker first. CallFailureCode adds terminal `opening_preparation_failed`; no public readiness endpoint or new call state is introduced.
 
 - `AgentJobPrompt.onEnterInstructions` remains the existing optional nullable string. With resolved `ttsPreparedSpeechEnabled=true` on a pipeline job, nonempty text is spoken verbatim; task-defined sentence/silent opening wins. Preparation Off/native realtime retains generation guidance. No new metadata field or schema version is introduced.

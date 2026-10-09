@@ -15,6 +15,9 @@ export function SavedSpeechEditor({
   onChange: (value: VoiceTaskDefinition) => void;
 }) {
   const speech = definition.savedSpeech ?? { sentences: [] };
+  const visibleIndices = speech.sentences.flatMap((s, i) =>
+    s.purpose === 'toolWaiting' ? [] : [i],
+  );
   const patch = (change: Partial<typeof speech>) =>
     onChange({ ...definition, savedSpeech: { ...speech, ...change } });
   const update = (i: number, change: Partial<SavedSentence>) =>
@@ -81,7 +84,7 @@ export function SavedSpeechEditor({
                 <option value="agent">Agent default</option>
                 <option value="silent">Silent</option>
                 {speech.sentences
-                  .filter((s) => s.key)
+                  .filter((s) => s.key && s.purpose !== 'toolWaiting')
                   .map((s, i) => (
                     <option key={i} value={`sentence:${s.key}`}>
                       Saved sentence: {s.key}
@@ -91,99 +94,110 @@ export function SavedSpeechEditor({
             </Field>
           );
         })}
-        {!speech.sentences.length && (
+        {!visibleIndices.length && (
           <p className="ops-muted">
             No saved sentences. Existing generated speech and agent hooks
             continue unchanged.
           </p>
         )}
-        {speech.sentences.map((sentence, i) => (
-          <fieldset key={i} className="voice-task-card">
-            <legend>Sentence {i + 1}</legend>
-            <Field label="Key">
-              <Input
-                aria-label={`Sentence ${i + 1} key`}
-                maxLength={64}
-                value={sentence.key}
-                onChange={(e) =>
-                  onChange(
-                    renameSentence(definition, sentence.key, e.target.value, i),
-                  )
-                }
-              />
-            </Field>
-            <Field label="Exact text">
-              <Textarea
-                aria-label={`Sentence ${i + 1} text`}
-                rows={3}
-                maxLength={500}
-                value={sentence.text}
-                onChange={(e) => update(i, { text: e.target.value })}
-              />
-            </Field>
-            <Field label="When to use">
-              <Textarea
-                aria-label={`Sentence ${i + 1} usage`}
-                rows={2}
-                maxLength={1000}
-                value={sentence.whenToUse}
-                onChange={(e) => update(i, { whenToUse: e.target.value })}
-              />
-            </Field>
-            <label className="voice-task-option">
-              <input
-                type="checkbox"
-                aria-label={`Prepare sentence ${i + 1}`}
-                checked={sentence.prepare}
-                onChange={(e) => update(i, { prepare: e.target.checked })}
-              />{' '}
-              Prepare audio during calls
-            </label>
-            <div className="ops-chip-row">
-              {[-1, 1].map((delta) => (
+        {visibleIndices.map((i) => {
+          const sentence = speech.sentences[i];
+          return (
+            <fieldset key={i} className="voice-task-card">
+              <legend>Sentence {i + 1}</legend>
+              <Field label="Key">
+                <Input
+                  aria-label={`Sentence ${i + 1} key`}
+                  maxLength={64}
+                  value={sentence.key}
+                  onChange={(e) =>
+                    onChange(
+                      renameSentence(
+                        definition,
+                        sentence.key,
+                        e.target.value,
+                        i,
+                      ),
+                    )
+                  }
+                />
+              </Field>
+              <Field label="Exact text">
+                <Textarea
+                  aria-label={`Sentence ${i + 1} text`}
+                  rows={3}
+                  maxLength={500}
+                  value={sentence.text}
+                  onChange={(e) => update(i, { text: e.target.value })}
+                />
+              </Field>
+              <Field label="When to use">
+                <Textarea
+                  aria-label={`Sentence ${i + 1} usage`}
+                  rows={2}
+                  maxLength={1000}
+                  value={sentence.whenToUse}
+                  onChange={(e) => update(i, { whenToUse: e.target.value })}
+                />
+              </Field>
+              <label className="voice-task-option">
+                <input
+                  type="checkbox"
+                  aria-label={`Prepare sentence ${i + 1}`}
+                  checked={sentence.prepare}
+                  onChange={(e) => update(i, { prepare: e.target.checked })}
+                />{' '}
+                Prepare audio during calls
+              </label>
+              <div className="ops-chip-row">
+                {[-1, 1].map((delta) => (
+                  <Button
+                    key={delta}
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    aria-label={`Move sentence ${i + 1} ${delta < 0 ? 'up' : 'down'}`}
+                    disabled={
+                      visibleIndices.indexOf(i) + delta < 0 ||
+                      visibleIndices.indexOf(i) + delta >= visibleIndices.length
+                    }
+                    onClick={() => {
+                      const sentences = [...speech.sentences];
+                      const target =
+                        visibleIndices[visibleIndices.indexOf(i) + delta];
+                      [sentences[i], sentences[target]] = [
+                        sentences[target],
+                        sentences[i],
+                      ];
+                      patch({ sentences });
+                    }}
+                  >
+                    {delta < 0 ? 'Move up' : 'Move down'}
+                  </Button>
+                ))}
                 <Button
-                  key={delta}
                   type="button"
                   size="sm"
-                  variant="secondary"
-                  aria-label={`Move sentence ${i + 1} ${delta < 0 ? 'up' : 'down'}`}
-                  disabled={
-                    i + delta < 0 || i + delta >= speech.sentences.length
+                  variant="dangerGhost"
+                  disabled={sentenceReferenced(definition, sentence.key)}
+                  onClick={() =>
+                    patch({
+                      sentences: speech.sentences.filter((_, n) => n !== i),
+                    })
                   }
-                  onClick={() => {
-                    const sentences = [...speech.sentences];
-                    [sentences[i], sentences[i + delta]] = [
-                      sentences[i + delta],
-                      sentences[i],
-                    ];
-                    patch({ sentences });
-                  }}
                 >
-                  {delta < 0 ? 'Move up' : 'Move down'}
+                  Remove sentence
                 </Button>
-              ))}
-              <Button
-                type="button"
-                size="sm"
-                variant="dangerGhost"
-                disabled={sentenceReferenced(definition, sentence.key)}
-                onClick={() =>
-                  patch({
-                    sentences: speech.sentences.filter((_, n) => n !== i),
-                  })
-                }
-              >
-                Remove sentence
-              </Button>
-            </div>
-            {sentenceReferenced(definition, sentence.key) && (
-              <p className="ops-muted">
-                Clear opening, closing, and phase references before removing
-                this sentence.
-              </p>
-            )}
-          </fieldset>
-        ))}
+              </div>
+              {sentenceReferenced(definition, sentence.key) && (
+                <p className="ops-muted">
+                  Clear opening, closing, and phase references before removing
+                  this sentence.
+                </p>
+              )}
+            </fieldset>
+          );
+        })}
       </div>
     </section>
   );

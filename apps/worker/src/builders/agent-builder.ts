@@ -6,7 +6,9 @@ import { resolveSarvamRealtimePluginUrl } from '../sarvam/plugin-stt.js';
 import type { SessionUserData } from '../tools/types.js';
 import { startDemoCrmPrefetch } from '../tasks/demo-booking-crm.js';
 import { sayCached } from '../speech/tts-cache.js';
-import { preparedOpeningText, preparedSentences ,
+import {
+  preparedOpeningText,
+  preparedSentences,
 } from '../speech/prepared-sentences.js';
 import { TtsCacheRuntime } from '../speech/tts-cache-runtime.js';
 import { TtsSharedCacheClient } from '../speech/tts-shared-cache-client.js';
@@ -48,7 +50,7 @@ export class AgentRuntimeBuilder {
   constructor(
     private readonly meta: AgentJobMetadata,
     private readonly roomName?: string,
-  private readonly preparedCache?: TtsCacheRuntime,
+    private readonly preparedCache?: TtsCacheRuntime,
   ) {}
 
   async build(): Promise<BuiltAgentRuntime> {
@@ -56,7 +58,8 @@ export class AgentRuntimeBuilder {
     userData.savedSpeechState = createSavedSpeechState(userData);
     this.logCallInfo();
 
-    const models = buildModels(this.meta,
+    const models = buildModels(
+      this.meta,
       undefined,
       this.preparedCache?.provider,
     );
@@ -66,26 +69,27 @@ export class AgentRuntimeBuilder {
       (this.meta.ttsCacheEnabled === true ||
         this.meta.ttsPreparedSpeechEnabled === true)
     ) {
-      this.ttsCache = this.preparedCache ??
+      this.ttsCache =
+        this.preparedCache ??
         new TtsCacheRuntime(
-        this.meta,
-        resolveTtsConfiguration(this.meta),
-        models.tts,
-        { automaticEnabled: this.meta.ttsCacheEnabled === true },
-        Date.now,
-        TtsSharedCacheClient.create(
-          this.meta.callId,
-          this.meta.organizationId,
-          this.roomName,
-        ),
-      );
+          this.meta,
+          resolveTtsConfiguration(this.meta),
+          models.tts,
+          { automaticEnabled: this.meta.ttsCacheEnabled === true },
+          Date.now,
+          TtsSharedCacheClient.create(
+            this.meta.callId,
+            this.meta.organizationId,
+            this.roomName,
+          ),
+        );
       userData.ttsCache = this.ttsCache;
       if (this.meta.ttsPreparedSpeechEnabled === true) {
         this.ttsCache.registerPreparedTexts(preparedSentences(this.meta));
         const opening = preparedOpeningText(this.meta);
-        if (opening !== undefined) this.ttsCache.registerPreparedTexts([opening]);
+        if (opening !== undefined)
+          this.ttsCache.registerPreparedTexts([opening]);
       }
-
     }
 
     try {
@@ -95,12 +99,14 @@ export class AgentRuntimeBuilder {
       });
       const agent = this.createAgent(userData, tools);
       session.on(voice.AgentSessionEventTypes.Close, () => {
+        userData.toolWaitingState?.dispose();
         userData.savedSpeechState?.dispose();
         this.ttsCache?.dispose();
       });
 
       return { session, agent, userData };
     } catch (error) {
+      userData.toolWaitingState?.dispose();
       userData.savedSpeechState?.dispose();
       this.ttsCache?.dispose();
       throw error;
@@ -166,7 +172,8 @@ export class AgentRuntimeBuilder {
       }
       if (typeof exact === 'string') {
         const controller = new AbortController();
-        console.log(`[agent] onEnter opening mode=exact callId=${this.meta.callId ?? 'n/a'}`,
+        console.log(
+          `[agent] onEnter opening mode=exact callId=${this.meta.callId ?? 'n/a'}`,
         );
         try {
           const handle = sayCached(ctx.session, this.ttsCache, exact, {
@@ -175,7 +182,8 @@ export class AgentRuntimeBuilder {
             signal: controller.signal,
           }) as { waitForPlayout?: () => Promise<void> };
           await handle.waitForPlayout?.();
-          console.log(`[agent] onEnter opening playout done callId=${this.meta.callId ?? 'n/a'}`,
+          console.log(
+            `[agent] onEnter opening playout done callId=${this.meta.callId ?? 'n/a'}`,
           );
         } finally {
           controller.abort();

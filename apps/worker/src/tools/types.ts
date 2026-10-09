@@ -11,6 +11,7 @@ import type { TtsCacheRuntime } from '../speech/tts-cache-runtime.js';
 export type { ToolEvent };
 
 export type SessionUserData = {
+  toolWaitingState?: import('../speech/tool-waiting.js').ToolWaitingState;
   savedSpeechState?: import('../speech/saved-speech.js').SavedSpeechState;
   voiceTaskSnapshot?: import('@call-agent/contracts').VoiceTaskSnapshot;
   bookingReceipt?: {

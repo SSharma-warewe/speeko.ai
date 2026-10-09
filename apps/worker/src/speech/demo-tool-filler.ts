@@ -18,7 +18,11 @@ export async function withDemoToolFiller<T>(
   kind: 'check' | 'book',
   fn: () => Promise<T>,
 ): Promise<T> {
-  if (!isOutboundDemoPipeline(meta) || !userData.saySession) {
+  if (
+    meta.voiceTask?.definition.savedSpeech?.toolWaiting ||
+    !isOutboundDemoPipeline(meta) ||
+    !userData.saySession
+  ) {
     return fn();
   }
   const line = kind === 'check' ? demoCheckLine(meta) : demoBookLine(meta);

@@ -13,6 +13,8 @@ Scope: `apps/api`. Inherit the [root instructions](../../AGENTS.md). Nest API ow
 
 ## HTTP and authorization
 
+- Voice task draft/publish validation accepts opt-in `savedSpeech.toolWaiting` using the shared contract validator. Waiting messages and their tool-only sentences stay inside existing task/version JSONB snapshots, including draft tests and clones; no new endpoint/column is needed. Published calls keep the exact selected text/delay. Unknown/unselected tool ids, unsupported end/transfer waiting speech, malformed delays and conversational references to tool-only sentences are rejected.
+
 - Global prefix is `/api`; Swagger is `/docs` and `/docs-json`. Validate bodies with class-validator DTOs, document success/errors, and reuse contracts catalogs. CRM action params use strict per-action Zod schemas after DTO validation.
 - Admin/user are separate principals (`JWT.typ=admin|user`). Protected controllers use `JwtAuthGuard` plus the appropriate `AdminGuard`/`UserGuard`. Org routes derive tenant id through [orgIdFrom](src/auth/org-id.ts); never accept a client org id as authority.
 - JWT strategy reloads principal and org from DB on every authenticated request. Missing/inactive principals or inactive orgs are rejected; live profile fields replace stale claims. Member roles are stored but not enforced as additional permission tiers.
