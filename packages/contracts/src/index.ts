@@ -231,3 +231,4 @@ export * from './configurable-whatsapp-tasks.js';
 export * from './saved-speech.js';
 export type * from './human-transcription.js';
 export { HUMAN_CALL_TOOL_IDS } from './http/human-call-workspace.js';
+export * from './opening-preparation.js';

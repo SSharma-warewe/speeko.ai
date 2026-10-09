@@ -1,6 +1,21 @@
 jest.mock('@livekit/agents', () => ({
   defineAgent: (def: { entry: unknown }) => def,
   voice: { AgentSessionEventTypes: { Close: 'close' } },
+  metrics: {
+    ModelUsageCollector: class {
+      collect() {}
+      flatten() {
+        return [];
+      }
+    },
+  },
+}));
+
+jest.mock('../builders/model-builder', () => ({
+  createTts: jest.fn(),
+  resolveTtsConfiguration: jest
+    .fn()
+    .mockReturnValue({ backend: 'sarvam-plugin' }),
 }));
 
 jest.mock('../builders/agent-builder', () => {
@@ -54,8 +69,18 @@ jest.mock('../callbacks/call-callbacks', () => {
 });
 
 import type { JobContext } from '@livekit/agents';
-jest.mock('../session/human-transcription-job', () => ({ HumanTranscriptionJobRunner: jest.fn().mockImplementation(() => ({ run: jest.fn().mockResolvedValue(undefined) })) }));
+jest.mock('../session/human-transcription-job', () => ({
+  HumanTranscriptionJobRunner: jest
+    .fn()
+    .mockImplementation(() => ({
+      run: jest.fn().mockResolvedValue(undefined),
+    })),
+}));
 import { runAgentJob } from '../agent';
+import { EventEmitter } from 'node:events';
+import { createTts } from '../builders/model-builder';
+import { TtsCacheRuntime } from '../speech/tts-cache-runtime';
+import { OPENING_PREPARATION_ATTRIBUTE } from '@call-agent/contracts';
 import { buildAgentRuntime } from '../builders/agent-builder';
 import type { CompleteCallPayload } from '../callbacks/call-callbacks';
 import type { AgentJobMetadata } from '../session/job-metadata';
@@ -206,16 +231,142 @@ describe('runAgentJob', () => {
     await ctx.runShutdown();
   }
 
+  it('prepares before waiting for SIP and transfers the same cache to the post-answer runtime', async () => {
+    const gate = {
+      version: 1 as const,
+      attemptId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      deadline: Date.now() + 30000,
+    };
+    const meta = metadata({
+      ttsPreparedSpeechEnabled: true,
+      openingPreparation: gate,
+      prompt: { systemPrompt: 'Test', onEnterInstructions: 'Exact opening' },
+    });
+    const ctx = makeCtx(meta);
+    const setAttributes = jest.fn().mockResolvedValue(undefined);
+    ctx.room = {
+      name: 'room',
+      localParticipant: { setAttributes },
+      on: jest.fn(),
+      off: jest.fn(),
+    };
+    const provider = Object.assign(new EventEmitter(), {
+      sampleRate: 24000,
+      numChannels: 1,
+      close: jest.fn().mockResolvedValue(undefined),
+    });
+    jest.mocked(createTts).mockReturnValue(provider as never);
+    let finish!: () => void;
+    let entered!: () => void;
+    const started = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const prepare = jest
+      .spyOn(TtsCacheRuntime.prototype, 'prepareOpening')
+      .mockImplementation(async () => {
+        entered();
+        await new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+      });
+    buildAgentRuntimeMock.mockResolvedValue(makeRuntime(meta) as never);
+    const done = runAgentJob(ctx as unknown as JobContext);
+    await started;
+    expect(ctx.waitForParticipant).not.toHaveBeenCalled();
+    expect(buildAgentRuntimeMock).not.toHaveBeenCalled();
+    finish();
+    await done;
+    const reports = setAttributes.mock.calls.map(([value]) =>
+      JSON.parse(value[OPENING_PREPARATION_ATTRIBUTE]),
+    );
+    expect(reports.map((report) => report.status)).toEqual([
+      'preparing',
+      'ready',
+    ]);
+    expect(ctx.waitForParticipant).toHaveBeenCalledTimes(1);
+    const builder = jest.requireMock(
+      '../builders/agent-builder',
+    ).AgentRuntimeBuilder;
+    expect(builder.mock.calls.at(-1)[2]).toBeInstanceOf(TtsCacheRuntime);
+    expect(builder.mock.calls.at(-1)[2].provider).toBe(provider);
+    await ctx.runShutdown();
+    expect(provider.close).toHaveBeenCalledTimes(1);
+    expect(provider.listenerCount('metrics_collected')).toBe(0);
+    prepare.mockRestore();
+  });
+
+  it('signals failed preparation and never starts a session or waits for SIP', async () => {
+    jest.useFakeTimers();
+    const gate = {
+      version: 1 as const,
+      attemptId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      deadline: Date.now() + 30000,
+    };
+    const meta = metadata({
+      ttsPreparedSpeechEnabled: true,
+      openingPreparation: gate,
+      prompt: { systemPrompt: 'Test', onEnterInstructions: 'Exact opening' },
+    });
+    const ctx = makeCtx(meta);
+    const setAttributes = jest.fn().mockResolvedValue(undefined);
+    ctx.room = {
+      name: 'room',
+      localParticipant: { setAttributes },
+      on: jest.fn(),
+      off: jest.fn(),
+    };
+    jest
+      .mocked(createTts)
+      .mockReturnValue(
+        Object.assign(new EventEmitter(), {
+          sampleRate: 24000,
+          numChannels: 1,
+          close: jest.fn(),
+        }) as never,
+      );
+    const prepare = jest
+      .spyOn(TtsCacheRuntime.prototype, 'prepareOpening')
+      .mockRejectedValue(new Error('provider error'));
+    try {
+      const done = runAgentJob(ctx as unknown as JobContext);
+      await jest.advanceTimersByTimeAsync(2001);
+      await done;
+      expect(
+        setAttributes.mock.calls.map(
+          ([value]) => JSON.parse(value[OPENING_PREPARATION_ATTRIBUTE]).status,
+        ),
+      ).toEqual(['preparing', 'failed']);
+      expect(ctx.waitForParticipant).not.toHaveBeenCalled();
+      expect(buildAgentRuntimeMock).not.toHaveBeenCalled();
+      expect(postCallCompleteMock).not.toHaveBeenCalled();
+      await ctx.runShutdown();
+    } finally {
+      prepare.mockRestore();
+      jest.useRealTimers();
+    }
+  });
+
   it('routes human transcription metadata before the AI parser and never constructs AI runtime', async () => {
     const ctx = makeCtx(metadata());
-    ctx.job.metadata = JSON.stringify({ mode: 'human_transcription', callId: 'call', roomName: ctx.job.room.name });
+    ctx.job.metadata = JSON.stringify({
+      mode: 'human_transcription',
+      callId: 'call',
+      roomName: ctx.job.room.name,
+    });
     await runJob(ctx);
     expect(buildAgentRuntimeMock).not.toHaveBeenCalled();
     expect(postCallCompleteMock).not.toHaveBeenCalled();
-    expect(jest.requireMock('../session/human-transcription-job').HumanTranscriptionJobRunner).toHaveBeenCalledWith(ctx, expect.objectContaining({ mode: 'human_transcription' }));
+    expect(
+      jest.requireMock('../session/human-transcription-job')
+        .HumanTranscriptionJobRunner,
+    ).toHaveBeenCalledWith(
+      ctx,
+      expect.objectContaining({ mode: 'human_transcription' }),
+    );
   });
   it('rejects malformed human jobs without falling back to an AI greeting', async () => {
-    const ctx = makeCtx(metadata()); ctx.job.metadata = JSON.stringify({ mode: 'human_transcription' });
+    const ctx = makeCtx(metadata());
+    ctx.job.metadata = JSON.stringify({ mode: 'human_transcription' });
     await runJob(ctx);
     expect(ctx.shutdown).toHaveBeenCalledWith('invalid_transcription_job');
     expect(buildAgentRuntimeMock).not.toHaveBeenCalled();

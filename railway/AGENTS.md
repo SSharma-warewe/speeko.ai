@@ -310,6 +310,12 @@ Incident evidence: the user’s preceding call joined the browser at `2026-10-08
 
 ## Prepared-sentence implementation rollout prerequisites
 
+### Pre-dial cached opening gate
+
+Outbound pipeline AI calls with Prepared sentences On and an exact opening must retain complete opening audio before API submits SIP. Deploy compatible worker first, then API. No physical schema or portal change is needed; preserve DATABASE_SYNCHRONIZE=false, current cache/preparation preferences, sharing flags and tenant allowlist. Legacy workers time out rather than allowing a gated dial.
+
+Verify worker registration/sidecar health, then API health and readiness adapter compatibility. On user-initiated cold/repeated calls, verify preparation ready precedes SIP submission, the same worker/cache/provider survives through answer, and opening playback makes no additional synthesis request. Preparation failure/timeout/cancellation must produce no SIP leg; opening_preparation_failed is terminal without automatic retry. Record measured preparation usage and timing separately from caller-audible latency. Do not automatically place calls or change customer preferences for acceptance. Rollback API gating first while keeping the compatible worker through active-call drain.
+
 ### Exact configured opening and selected-organization sharing
 
 On 2026-10-09 the user authorized implementation and production rollout for organization `27db0119-0c7d-46cc-bba7-0ffce504f57d`. Pipeline agents with Prepared sentences On speak nonempty configured opening text verbatim through finite cached playback, without an opening LLM request. Task sentence/silent openings retain priority. Preparation Off/default-Off and native realtime retain generation guidance. The worker also fixes generated-speech provider checks to resolve the session's inherited provider rather than only the hook's agent override.

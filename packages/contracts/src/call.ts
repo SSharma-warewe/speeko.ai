@@ -47,6 +47,7 @@ export type CallExecutionType = (typeof CallExecutionType)[keyof typeof CallExec
 
 /** Dial / session failure classification for queue retry policy. */
 export const CallFailureCode = {
+  OPENING_PREPARATION_FAILED: 'opening_preparation_failed',
   NO_ANSWER: 'no_answer',
   BUSY: 'busy',
   SIP_ERROR: 'sip_error',

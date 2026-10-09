@@ -425,6 +425,90 @@ describe('job-local TTS cache', () => {
   );
 });
 
+describe('strict opening preparation', () => {
+  function stream(
+    provider: tts.TTS,
+    events: () => AsyncGenerator<{ frame: AudioFrame }>,
+  ) {
+    jest
+      .mocked(provider.synthesize)
+      .mockReturnValue({
+        abortSignal: new AbortController().signal,
+        close: jest.fn(),
+        [Symbol.asyncIterator]: events,
+      } as unknown as ReturnType<tts.TTS['synthesize']>);
+  }
+  it('requires completion, pins through expiry and replays once without another synthesis', async () => {
+    let now = 1000;
+    const { cache, provider } = fixture(
+      {},
+      { automaticEnabled: false, ttlMs: 10 },
+      () => now,
+    );
+    let finish!: () => void;
+    let produced!: () => void;
+    const started = new Promise<void>((resolve) => {
+      produced = resolve;
+    });
+    stream(provider, async function* () {
+      yield { frame: frame(7) };
+      produced();
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+    });
+    let ready = false;
+    const preparing = cache
+      .prepareOpening('Opening', new AbortController().signal)
+      .then(() => {
+        ready = true;
+      });
+    await started;
+    expect(ready).toBe(false);
+    finish();
+    await preparing;
+    now += 1000;
+    expect((await drain(cache.finiteAudio('Opening')))[0].data[0]).toBe(7);
+    expect(provider.synthesize).toHaveBeenCalledTimes(1);
+    expect(cache.stats.entries).toBe(0);
+    cache.dispose();
+    expect(provider.close).not.toHaveBeenCalled();
+  });
+  it.each(['empty', 'partial', 'oversized'])(
+    'rejects %s audio instead of signaling readiness',
+    async (mode) => {
+      const { cache, provider } = fixture(
+        {},
+        mode === 'oversized' ? { maxEntryBytes: 1 } : {},
+      );
+      stream(provider, async function* () {
+        if (mode !== 'empty') yield { frame: frame() };
+        if (mode === 'partial') throw new Error('provider failure');
+      });
+      await expect(
+        cache.prepareOpening('Opening', new AbortController().signal),
+      ).rejects.toThrow();
+      expect(cache.stats.entries).toBe(0);
+      cache.dispose();
+    },
+  );
+  it('cancels a stalled provider without retaining frames or listeners', async () => {
+    const { cache, provider } = fixture();
+    stream(provider, async function* () {
+      await new Promise(() => {});
+      yield { frame: frame() };
+    });
+    const controller = new AbortController();
+    const preparing = cache.prepareOpening('Opening', controller.signal);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    controller.abort();
+    await expect(preparing).rejects.toThrow();
+    cache.dispose();
+    expect(cache.stats.entries).toBe(0);
+    expect(provider.listenerCount('error')).toBe(0);
+  });
+});
+
 describe('resolved cache identity', () => {
   it('canonicalizes aliases, voices and known rate defaults', () => {
     const a = fixture({ ttsModel: null, voice: null });

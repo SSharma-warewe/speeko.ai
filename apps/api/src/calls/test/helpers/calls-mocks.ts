@@ -98,9 +98,15 @@ export const queueSettings = {
 
 export function createCallsHarness() {
   let callSeq = 0;
-  const voiceTasks = { resolve: jest.fn().mockResolvedValue(null), snapshot: jest.fn(), prepare: (...args: Parameters<VoiceTasksService["prepare"]>) => new VoiceTasksService({} as never).prepare(...args) };
+  const voiceTasks = {
+    resolve: jest.fn().mockResolvedValue(null),
+    snapshot: jest.fn(),
+    prepare: (...args: Parameters<VoiceTasksService['prepare']>) =>
+      new VoiceTasksService({} as never).prepare(...args),
+  };
 
   const callsRepository = {
+    updateOpeningPreparationUsage: jest.fn(),
     updateIfStatus: jest.fn(),
     create: jest.fn((data) => ({ ...data }) as Call),
     save: jest.fn(async (row: Call) => ({
@@ -124,17 +130,38 @@ export function createCallsHarness() {
     findByOrganization: jest.fn(),
   };
 
-  callsRepository.updateIfStatus = jest.fn(async (id, organizationId, status, patch) => {
-    const call = await callsRepository.findByIdAndOrganization(id, organizationId);
-    return call ? { ...call, ...patch } : null;
-  });
-  const queueAdmission = { beginDial: jest.fn(), admitImmediate: jest.fn(async (_orgId: string, id: string) => {
-    const saved = await Promise.all(callsRepository.save.mock.results.map(result => result.value as Promise<Call>));
-    const call = saved.find(row => row.id === id)!;
-    return { ...call, status: CallStatus.DIALING, dialStartedAt: new Date(), attemptCount: 1 };
-  }) };
+  callsRepository.updateIfStatus = jest.fn(
+    async (id, organizationId, status, patch) => {
+      const call = await callsRepository.findByIdAndOrganization(
+        id,
+        organizationId,
+      );
+      return call ? { ...call, ...patch } : null;
+    },
+  );
+  const queueAdmission = {
+    beginDial: jest.fn(),
+    admitImmediate: jest.fn(async (_orgId: string, id: string) => {
+      const saved = await Promise.all(
+        callsRepository.save.mock.results.map(
+          (result) => result.value as Promise<Call>,
+        ),
+      );
+      const call = saved.find((row) => row.id === id)!;
+      return {
+        ...call,
+        status: CallStatus.DIALING,
+        dialStartedAt: new Date(),
+        attemptCount: 1,
+      };
+    }),
+  };
   const admitCall = (call: Call) => {
-    queueAdmission.beginDial.mockResolvedValueOnce({ ...call, status: CallStatus.DIALING, queueLockedAt: null });
+    queueAdmission.beginDial.mockResolvedValueOnce({
+      ...call,
+      status: CallStatus.DIALING,
+      queueLockedAt: null,
+    });
     return `admission-${call.id}`;
   };
   const agentsService = {
@@ -143,7 +170,10 @@ export function createCallsHarness() {
   };
 
   const organizationAgentsService = {
-    prepareVoiceTask: jest.fn(async (row, snapshot, tools, context) => voiceTasks.prepare(snapshot, row.agent.direction, tools, context, "ghl")),
+    isOrganizationActive: jest.fn().mockResolvedValue(true),
+    prepareVoiceTask: jest.fn(async (row, snapshot, tools, context) =>
+      voiceTasks.prepare(snapshot, row.agent.direction, tools, context, 'ghl'),
+    ),
     getEntityWithTemplate: jest
       .fn()
       .mockResolvedValue({ ...orgAgent, agent: template }),
@@ -214,6 +244,7 @@ export function createCallsHarness() {
   };
 
   const livekit = {
+    openingPreparationReport: jest.fn(),
     getAgentName: jest.fn().mockReturnValue('call-agent'),
     getUrl: jest.fn().mockReturnValue('wss://test.livekit.cloud'),
     createRoom: jest.fn().mockResolvedValue({ name: 'room' }),
@@ -381,7 +412,8 @@ export function createCallsHarness() {
   }
 
   return {
-    queueAdmission, admitCall,
+    queueAdmission,
+    admitCall,
     voiceTasks,
     callsRepository,
     agentsService,

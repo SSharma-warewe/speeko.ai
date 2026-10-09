@@ -19,8 +19,13 @@ import {
   SIPMediaConfig,
   SIPTransport,
   TrackSource,
+  ParticipantInfo_Kind,
 } from '@livekit/protocol';
 import { livekitHttpHost } from './livekit-url.util';
+import {
+  OPENING_PREPARATION_ATTRIBUTE,
+  type OpeningPreparationReport,
+} from '@call-agent/contracts';
 
 /**
  * LiveKit hangs up a SIP call if no RTP arrives within 30s of the media
@@ -122,22 +127,132 @@ export class LivekitService {
   private readonly sipClient: SipClient;
   private readonly humanRoomClient: RoomServiceClient;
   private readonly humanSipClient: SipClient;
+  private readonly preparationRoomClient: RoomServiceClient;
+  private readonly preparationDispatchClient: AgentDispatchClient;
 
   constructor(private readonly config: ConfigService) {
     this.livekitUrl = this.config.getOrThrow<string>('LIVEKIT_URL');
     this.apiKey = this.config.getOrThrow<string>('LIVEKIT_API_KEY');
     this.apiSecret = this.config.getOrThrow<string>('LIVEKIT_API_SECRET');
-    this.agentName = this.config.get<string>('LIVEKIT_AGENT_NAME', 'call-agent');
+    this.agentName = this.config.get<string>(
+      'LIVEKIT_AGENT_NAME',
+      'call-agent',
+    );
     const host = livekitHttpHost(this.livekitUrl);
     this.roomClient = new RoomServiceClient(host, this.apiKey, this.apiSecret);
-    this.dispatchClient = new AgentDispatchClient(host, this.apiKey, this.apiSecret);
+    this.dispatchClient = new AgentDispatchClient(
+      host,
+      this.apiKey,
+      this.apiSecret,
+    );
     this.sipClient = new SipClient(host, this.apiKey, this.apiSecret);
-    this.humanRoomClient = new RoomServiceClient(host, this.apiKey, this.apiSecret, { requestTimeout: 5, failover: false });
-    this.humanSipClient = new SipClient(host, this.apiKey, this.apiSecret, { requestTimeout: 10, failover: false });
+    this.humanRoomClient = new RoomServiceClient(
+      host,
+      this.apiKey,
+      this.apiSecret,
+      { requestTimeout: 5, failover: false },
+    );
+    this.humanSipClient = new SipClient(host, this.apiKey, this.apiSecret, {
+      requestTimeout: 10,
+      failover: false,
+    });
+    this.preparationRoomClient = new RoomServiceClient(
+      host,
+      this.apiKey,
+      this.apiSecret,
+      { requestTimeout: 1, failover: false },
+    );
+    this.preparationDispatchClient = new AgentDispatchClient(
+      host,
+      this.apiKey,
+      this.apiSecret,
+      { requestTimeout: 1, failover: false },
+    );
   }
 
   getUrl(): string {
     return this.livekitUrl;
+  }
+
+  /** Read only the agent belonging to this dispatch, never a browser/SIP participant. */
+  async openingPreparationReport(
+    roomName: string,
+    dispatchId: string,
+    attemptId: string,
+  ): Promise<OpeningPreparationReport | undefined> {
+    const [dispatch, participants] = await Promise.all([
+      this.preparationDispatchClient.getDispatch(dispatchId, roomName),
+      this.preparationRoomClient.listParticipants(roomName),
+    ]);
+    const identities = new Set(
+      dispatch?.state?.jobs
+        .map((job) => job.state?.participantIdentity)
+        .filter(Boolean),
+    );
+    for (const participant of participants) {
+      if (
+        participant.kind !== ParticipantInfo_Kind.AGENT ||
+        !identities.has(participant.identity)
+      )
+        continue;
+      const raw = participant.attributes[OPENING_PREPARATION_ATTRIBUTE];
+      if (!raw || raw.length > 4096) continue;
+      try {
+        const report = JSON.parse(raw) as OpeningPreparationReport;
+        if (
+          report.version !== 1 ||
+          report.attemptId !== attemptId ||
+          !['preparing', 'ready', 'failed'].includes(report.status)
+        )
+          continue;
+        const models = report.usage?.models;
+        if (!Array.isArray(models) || models.length > 4) continue;
+        const clean = models.map((item) => {
+          const value = item as Record<string, unknown> | undefined;
+          if (
+            !value ||
+            value.type !== 'tts_usage' ||
+            typeof value.provider !== 'string' ||
+            typeof value.model !== 'string' ||
+            value.provider.length > 128 ||
+            value.model.length > 128
+          )
+            throw new Error('Invalid usage');
+          const counters: Record<string, number> = {};
+          for (const key of [
+            'inputTokens',
+            'outputTokens',
+            'charactersCount',
+            'audioDurationMs',
+          ]) {
+            const amount = value[key];
+            if (
+              typeof amount !== 'number' ||
+              !Number.isFinite(amount) ||
+              amount < 0 ||
+              amount > 1e9
+            )
+              throw new Error('Invalid usage');
+            counters[key] = amount;
+          }
+          return {
+            type: 'tts_usage',
+            provider: value.provider,
+            model: value.model,
+            ...counters,
+          };
+        });
+        return {
+          version: 1,
+          attemptId,
+          status: report.status,
+          usage: { models: clean },
+        };
+      } catch {
+        /* malformed readiness never permits dialing */
+      }
+    }
+    return undefined;
   }
 
   getAgentName(): string {
@@ -180,7 +295,9 @@ export class LivekitService {
       const expected = options?.expectedIdentity?.trim().toLowerCase();
       if (expected) {
         if (
-          participants.some((p) => (p.identity ?? '').toLowerCase() === expected)
+          participants.some(
+            (p) => (p.identity ?? '').toLowerCase() === expected,
+          )
         ) {
           return true;
         }
@@ -224,7 +341,9 @@ export class LivekitService {
     };
   }
 
-  async createParticipantToken(params: CreateParticipantTokenParams): Promise<string> {
+  async createParticipantToken(
+    params: CreateParticipantTokenParams,
+  ): Promise<string> {
     const at = new AccessToken(this.apiKey, this.apiSecret, {
       identity: params.identity,
       name: params.name,
@@ -247,30 +366,70 @@ export class LivekitService {
     );
   }
 
-  async createHumanParticipantToken(identity: string, name: string, roomName: string): Promise<string> {
-    const token = new AccessToken(this.apiKey, this.apiSecret, { identity, name, ttl: '10m' });
-    token.addGrant({ roomJoin: true, room: roomName, canSubscribe: true,
-      canPublishSources: [TrackSource.MICROPHONE], canPublishData: false });
+  async createHumanParticipantToken(
+    identity: string,
+    name: string,
+    roomName: string,
+  ): Promise<string> {
+    const token = new AccessToken(this.apiKey, this.apiSecret, {
+      identity,
+      name,
+      ttl: '10m',
+    });
+    token.addGrant({
+      roomJoin: true,
+      room: roomName,
+      canSubscribe: true,
+      canPublishSources: [TrackSource.MICROPHONE],
+      canPublishData: false,
+    });
     return token.toJwt();
   }
 
   /** Reads must distinguish an absent room from an unavailable provider. */
   async observeHumanRoom(roomName: string) {
-    try { return await this.bounded(this.humanRoomClient.listParticipants(roomName)); }
-    catch (error) { if (this.isMissingRoom(error)) return null; throw error; }
+    try {
+      return await this.bounded(
+        this.humanRoomClient.listParticipants(roomName),
+      );
+    } catch (error) {
+      if (this.isMissingRoom(error)) return null;
+      throw error;
+    }
   }
 
   async deleteHumanRoom(roomName: string): Promise<void> {
-    try { await this.bounded(this.humanRoomClient.deleteRoom(roomName)); }
-    catch (error) { if (!this.isMissingRoom(error)) throw error; }
-    if (await this.observeHumanRoom(roomName) !== null) throw new Error('Human call room cleanup is unconfirmed');
+    try {
+      await this.bounded(this.humanRoomClient.deleteRoom(roomName));
+    } catch (error) {
+      if (!this.isMissingRoom(error)) throw error;
+    }
+    if ((await this.observeHumanRoom(roomName)) !== null)
+      throw new Error('Human call room cleanup is unconfirmed');
   }
 
-  async createHumanRoom(name: string, transcription?: import('@call-agent/contracts').HumanTranscriptionJob): Promise<void> {
-    await this.bounded(this.humanRoomClient.createRoom({ name, emptyTimeout: 180, departureTimeout: 30,
-      maxParticipants: transcription ? 3 : 2,
-      ...(transcription ? { agents: [new RoomAgentDispatch({ agentName: this.agentName, metadata: JSON.stringify(transcription) })] } : {}),
-    }));
+  async createHumanRoom(
+    name: string,
+    transcription?: import('@call-agent/contracts').HumanTranscriptionJob,
+  ): Promise<void> {
+    await this.bounded(
+      this.humanRoomClient.createRoom({
+        name,
+        emptyTimeout: 180,
+        departureTimeout: 30,
+        maxParticipants: transcription ? 3 : 2,
+        ...(transcription
+          ? {
+              agents: [
+                new RoomAgentDispatch({
+                  agentName: this.agentName,
+                  metadata: JSON.stringify(transcription),
+                }),
+              ],
+            }
+          : {}),
+      }),
+    );
   }
 
   private isMissingRoom(error: unknown): boolean {
@@ -280,9 +439,19 @@ export class LivekitService {
 
   private async bounded<T>(promise: Promise<T>): Promise<T> {
     let timer: ReturnType<typeof setTimeout>;
-    try { return await Promise.race([promise, new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error('LiveKit observation timed out')), 5000);
-    })]); } finally { clearTimeout(timer!); }
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('LiveKit observation timed out')),
+            5000,
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer!);
+    }
   }
 
   async createSipOutboundTrunk(params: CreateSipOutboundTrunkParams): Promise<{
@@ -331,7 +500,12 @@ export class LivekitService {
   }
 
   async listSipOutboundTrunks(): Promise<
-    Array<{ sipTrunkId: string; name: string; address: string; numbers: string[] }>
+    Array<{
+      sipTrunkId: string;
+      name: string;
+      address: string;
+      numbers: string[];
+    }>
   > {
     const trunks = await this.sipClient.listSipOutboundTrunk();
     return trunks.map((t) => ({
@@ -443,7 +617,9 @@ export class LivekitService {
 
   async deleteSipDispatchRule(livekitDispatchRuleId: string): Promise<void> {
     await this.sipClient.deleteSipDispatchRule(livekitDispatchRuleId);
-    this.logger.log(`Deleted LiveKit SIP dispatch rule ${livekitDispatchRuleId}`);
+    this.logger.log(
+      `Deleted LiveKit SIP dispatch rule ${livekitDispatchRuleId}`,
+    );
   }
 
   async createSipParticipant(params: CreateSipParticipantParams): Promise<{
@@ -477,7 +653,9 @@ export class LivekitService {
       });
     }
 
-    const participant = await (params.humanCall ? this.humanSipClient : this.sipClient).createSipParticipant(
+    const participant = await (
+      params.humanCall ? this.humanSipClient : this.sipClient
+    ).createSipParticipant(
       params.sipTrunkId,
       params.phoneNumber,
       params.roomName,

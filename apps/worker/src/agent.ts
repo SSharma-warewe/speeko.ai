@@ -1,4 +1,11 @@
-import { type JobContext, defineAgent, voice } from '@livekit/agents';
+import { type JobContext, defineAgent, voice, metrics } from '@livekit/agents';
+import {
+  OPENING_PREPARATION_ATTRIBUTE,
+  requiresOpeningPreparation,
+  resolveExactOpening,
+  type OpeningPreparationReport,
+} from '@call-agent/contracts';
+import type { TtsCacheRuntime } from './speech/tts-cache-runtime.js';
 import {
   AgentRuntimeBuilder,
   type BuiltAgentRuntime,
@@ -27,6 +34,9 @@ export class AgentJob {
   private shutdownRegistered = false;
   private sipParticipant: SipAnswerParticipant | undefined;
   private session: BuiltAgentRuntime['session'] | undefined;
+  private preparedCache?: TtsCacheRuntime;
+  private preparationUsage?: metrics.ModelUsageCollector;
+  private openingPrepared = false;
   private userData: BuiltAgentRuntime['userData'] | undefined;
 
   constructor(private readonly ctx: JobContext) {}
@@ -39,10 +49,90 @@ export class AgentJob {
       console.log(
         `[agent] connected room=${this.roomName} agentKey=${this.meta.agentKey} task=${this.meta.task}`,
       );
+      await this.prepareOpeningBeforeDial();
       await this.waitForSipParty();
       await this.startRuntime();
     } catch (err) {
       await this.handleJobError(err);
+    }
+  }
+
+  private async prepareOpeningBeforeDial(): Promise<void> {
+    const gate = this.meta.openingPreparation;
+    if (!gate) return;
+    const { createTts, resolveTtsConfiguration } =
+      await import('./builders/model-builder.js');
+    const { TtsCacheRuntime } = await import('./speech/tts-cache-runtime.js');
+    const { TtsSharedCacheClient } =
+      await import('./speech/tts-shared-cache-client.js');
+    this.preparationUsage = new metrics.ModelUsageCollector();
+    if (!requiresOpeningPreparation(this.meta) || gate.deadline <= Date.now())
+      throw new Error('Invalid opening preparation gate');
+    const opening = resolveExactOpening(this.meta)! as string;
+    const controller = new AbortController();
+    const report = async (status: OpeningPreparationReport['status']) => {
+      const payload: OpeningPreparationReport = {
+        version: 1,
+        attemptId: gate.attemptId,
+        status,
+        usage: { models: this.preparationUsage!.flatten() },
+      };
+      await this.ctx.room.localParticipant!.setAttributes({
+        [OPENING_PREPARATION_ATTRIBUTE]: JSON.stringify(payload),
+      });
+    };
+    const timer = setTimeout(
+      () => controller.abort(),
+      Math.min(10_000, gate.deadline - Date.now()),
+    );
+    const onDisconnect = () => controller.abort();
+    this.ctx.room.on('disconnected', onDisconnect);
+    let provider: ReturnType<typeof createTts> | undefined;
+    const collect = (event: metrics.TTSMetrics) =>
+      this.preparationUsage!.collect(event);
+    this.ctx.addShutdownCallback(async () => {
+      controller.abort();
+      this.preparedCache?.dispose();
+      await provider?.close();
+    });
+    try {
+      await report('preparing');
+      provider = createTts(this.meta);
+      provider.on('metrics_collected', collect);
+      this.preparedCache = new TtsCacheRuntime(
+        this.meta,
+        resolveTtsConfiguration(this.meta),
+        provider,
+        { automaticEnabled: this.meta.ttsCacheEnabled === true },
+        Date.now,
+        TtsSharedCacheClient.create(
+          this.meta.callId,
+          this.meta.organizationId,
+          this.roomName,
+        ),
+      );
+      await this.preparedCache.prepareOpening(opening, controller.signal);
+      if (controller.signal.aborted || Date.now() >= gate.deadline)
+        throw new Error('Opening preparation timed out');
+      await report('ready');
+      this.openingPrepared = true;
+      console.log(`[agent] opening preparation ready callId=${this.callId}`);
+    } catch {
+      controller.abort();
+      this.preparedCache?.dispose();
+      await report('failed').catch(() => {});
+      // Leave the failure/usage visible for the API's bounded readiness polling.
+      await new Promise((resolve) =>
+        setTimeout(
+          resolve,
+          Math.min(2000, Math.max(0, gate.deadline - Date.now())),
+        ),
+      );
+      throw new Error('Opening preparation failed');
+    } finally {
+      clearTimeout(timer);
+      provider?.off('metrics_collected', collect);
+      this.ctx.room.off('disconnected', onDisconnect);
     }
   }
 
@@ -105,6 +195,11 @@ export class AgentJob {
           completeSession.history,
         );
         const usage = this.jobMeta.serializeUsage(completeSession.usage);
+        if (usage)
+          usage.models = [
+            ...(this.preparationUsage?.flatten() ?? []),
+            ...(usage.models as unknown[]),
+          ];
         let sessionReport: Record<string, unknown> | null = null;
         try {
           const report = this.ctx.makeSessionReport(completeSession);
@@ -242,6 +337,7 @@ export class AgentJob {
         ...(this.callId ? { callId: this.callId } : {}),
       },
       this.roomName,
+      this.preparedCache,
     ).build();
     this.ctx.addShutdownCallback(async () => {
       runtime.userData.savedSpeechState?.dispose();
@@ -268,6 +364,7 @@ export class AgentJob {
   }
 
   private async handleJobError(err: unknown): Promise<void> {
+    this.preparedCache?.dispose();
     this.userData?.savedSpeechState?.dispose();
     this.userData?.ttsCache?.dispose();
     this.failedEarly = true;
@@ -278,11 +375,17 @@ export class AgentJob {
     console.error(`[agent] ${stage} failed room=${this.roomName}: ${message}`);
     await this.ensureInboundCall(this.sipParticipant);
     if (this.callId) {
+      // API owns a gated attempt's pre-dial failure; do not race its status/usage write.
+      if (this.meta.openingPreparation && !this.openingPrepared) {
+        this.ctx.shutdown('opening_preparation_failed');
+        return;
+      }
       await this.callbacks.postCallComplete(this.callId, {
         status: 'failed',
         failureCode: stage === 'join/wait' ? 'no_answer' : 'agent_error',
         errorMessage: `Agent failed (${stage}): ${message}`,
         endedAt: new Date().toISOString(),
+        usage: { models: this.preparationUsage?.flatten() ?? [] },
         taskCompleted: false,
         taskResult: {
           task: this.meta.task,
@@ -304,14 +407,28 @@ export class AgentJob {
  */
 export async function runAgentJob(ctx: JobContext): Promise<void> {
   let job: unknown;
-  try { job = JSON.parse(ctx.job.metadata); } catch { /* existing parser handles legacy metadata */ }
-  if (job && typeof job === 'object' && (job as { mode?: string }).mode === 'human_transcription') {
+  try {
+    job = JSON.parse(ctx.job.metadata);
+  } catch {
+    /* existing parser handles legacy metadata */
+  }
+  if (
+    job &&
+    typeof job === 'object' &&
+    (job as { mode?: string }).mode === 'human_transcription'
+  ) {
     const meta = job as import('@call-agent/contracts').HumanTranscriptionJob;
-    if (typeof meta.callId !== 'string' || !meta.callId || typeof meta.roomName !== 'string' || !meta.roomName) {
+    if (
+      typeof meta.callId !== 'string' ||
+      !meta.callId ||
+      typeof meta.roomName !== 'string' ||
+      !meta.roomName
+    ) {
       ctx.shutdown('invalid_transcription_job');
       return;
     }
-    const { HumanTranscriptionJobRunner } = await import('./session/human-transcription-job.js');
+    const { HumanTranscriptionJobRunner } =
+      await import('./session/human-transcription-job.js');
     await new HumanTranscriptionJobRunner(ctx, meta).run();
     return;
   }

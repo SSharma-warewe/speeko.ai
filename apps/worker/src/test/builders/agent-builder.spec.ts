@@ -53,25 +53,58 @@ describe('agent-builder job cache integration', () => {
   });
   afterEach(() => jest.restoreAllMocks());
 
+  it('reuses the pre-dial cache and TTS provider instead of creating another cache', async () => {
+    const provider = providerFixture();
+    jest
+      .mocked(buildModels)
+      .mockReturnValue({ kind: 'pipeline', tts: provider } as never);
+    const meta = metadata({ ttsPreparedSpeechEnabled: true });
+    const prepared = new TtsCacheRuntime(
+      meta,
+      { backend: 'sarvam-plugin' } as never,
+      provider,
+    );
+    try {
+      const runtime = await new AgentRuntimeBuilder(
+        meta,
+        'room',
+        prepared,
+      ).build();
+      expect(buildModels).toHaveBeenCalledWith(meta, undefined, provider);
+      expect(runtime.userData.ttsCache).toBe(prepared);
+      runtime.userData.savedSpeechState?.dispose();
+    } finally {
+      prepared.dispose();
+    }
+  });
+
   it.each([false, true])('plays the configured opening without LLM generation or duplicate preparation (automatic cache: %s)', async (automatic) => {
     const opening = 'Hi! I can help you schedule an appointment. What date and time would you prefer?';
     jest.mocked(buildModels).mockReturnValue({ kind: 'pipeline', tts: providerFixture() } as never);
     const prepare = jest.spyOn(TtsCacheRuntime.prototype, 'prepare').mockImplementation(() => new Promise(() => {}));
-    const handoff = jest.spyOn(taskBuilder, 'buildTask').mockReturnValue({ run: async () => { throw new Error('test shutdown'); } } as never);
+    const handoff = jest.spyOn(taskBuilder, 'buildTask').mockReturnValue({ run: async () => { throw new Error('test shutdown'); } ,
+      } as never);
     jest.spyOn(console, 'warn').mockImplementation(() => {});
-    const meta = metadata({ ttsCacheEnabled: automatic, ttsPreparedSpeechEnabled: true, prompt: { systemPrompt: 'Fixture', onEnterInstructions: opening, onExitInstructions: opening } });
+    const meta = metadata({ ttsCacheEnabled: automatic, ttsPreparedSpeechEnabled: true, prompt: { systemPrompt: 'Fixture', onEnterInstructions: opening, onExitInstructions: opening ,
+        } ,
+      });
     const runtime = await new AgentRuntimeBuilder(meta).build();
     let finish!: () => void;
-    const say = jest.fn(() => ({ waitForPlayout: () => new Promise<void>((resolve) => { finish = resolve; }) }));
+    const say = jest.fn(() => ({ waitForPlayout: () => new Promise<void>((resolve) => { finish = resolve; }) ,
+      }));
     const generateReply = jest.fn();
     const hooks = jest.mocked(voice.Agent.create).mock.calls[0][0];
     try {
-      const entered = hooks.onEnter!({ session: { say, generateReply }, agent: { chatCtx: { copy: () => ({}) } } } as never);
-      expect(say).toHaveBeenCalledWith(opening, expect.objectContaining({ audio: expect.anything(), allowInterruptions: false, addToChatCtx: true }));
+      const entered = hooks.onEnter!({ session: { say, generateReply }, agent: { chatCtx: { copy: () => ({}) } } ,
+        } as never);
+      expect(say).toHaveBeenCalledWith(opening, expect.objectContaining({ audio: expect.anything(), allowInterruptions: false, addToChatCtx: true ,
+          }),
+        );
       expect(generateReply).not.toHaveBeenCalled();
       expect(runtime.userData.ttsCache!.canCacheFinite(opening)).toBe(true);
       expect(prepare.mock.calls[0][0]).not.toContain(opening);
-      expect(say.mock.invocationCallOrder[0]).toBeLessThan(prepare.mock.invocationCallOrder[0]);
+      expect(say.mock.invocationCallOrder[0]).toBeLessThan(prepare.mock.invocationCallOrder[0],
+        );
       expect(handoff).not.toHaveBeenCalled();
       finish();
       await entered;
@@ -80,23 +113,30 @@ describe('agent-builder job cache integration', () => {
       runtime.userData.savedSpeechState?.dispose();
       runtime.userData.ttsCache?.dispose();
     }
-  });
+  },
+  );
 
   it('aborts opening capture when playout fails and lets the task proceed', async () => {
     jest.mocked(buildModels).mockReturnValue({ kind: 'pipeline', tts: providerFixture() } as never);
     jest.spyOn(TtsCacheRuntime.prototype, 'prepare').mockResolvedValue();
     jest.spyOn(console, 'warn').mockImplementation(() => {});
-    const handoff = jest.spyOn(taskBuilder, 'buildTask').mockReturnValue({ run: async () => { throw new Error('test shutdown'); } } as never);
+    const handoff = jest.spyOn(taskBuilder, 'buildTask').mockReturnValue({ run: async () => { throw new Error('test shutdown'); } ,
+    } as never);
     let signal: AbortSignal | undefined;
     jest.spyOn(TtsCacheRuntime.prototype, 'finiteAudio').mockImplementation((_text, options) => {
       signal = options?.signal;
       return new ReadableStream();
     });
-    const runtime = await new AgentRuntimeBuilder(metadata({ ttsPreparedSpeechEnabled: true, prompt: { systemPrompt: 'Fixture', onEnterInstructions: 'Saved opening' } })).build();
+    const runtime = await new AgentRuntimeBuilder(metadata({ ttsPreparedSpeechEnabled: true, prompt: { systemPrompt: 'Fixture', onEnterInstructions: 'Saved opening' ,
+        } ,
+      }),
+    ).build();
     try {
       const hooks = jest.mocked(voice.Agent.create).mock.calls[0][0];
-      const say = jest.fn(() => ({ waitForPlayout: async () => { throw new Error('playout failed'); } }));
-      await hooks.onEnter!({ session: { say }, agent: { chatCtx: { copy: () => ({}) } } } as never);
+      const say = jest.fn(() => ({ waitForPlayout: async () => { throw new Error('playout failed'); } ,
+      }));
+      await hooks.onEnter!({ session: { say }, agent: { chatCtx: { copy: () => ({}) } } ,
+      } as never);
       expect(signal?.aborted).toBe(true);
       expect(handoff).toHaveBeenCalledTimes(1);
     } finally {
@@ -108,24 +148,35 @@ describe('agent-builder job cache integration', () => {
   it('schedules exact opening first without waiting for preparation and registers eligible foreground text', async () => {
     const provider = providerFixture();
     jest.mocked(buildModels).mockReturnValue({ kind: 'pipeline', tts: provider } as never);
-    const definition = structuredClone(VOICE_TASK_STARTERS.real_estate_receptionist);
+    const definition = structuredClone(VOICE_TASK_STARTERS.real_estate_receptionist,
+    );
     definition.savedSpeech!.opening = { mode: 'sentence', key: 'buy_location' };
     definition.savedSpeech!.sentences[0].prepare = false;
-    definition.savedSpeech!.sentences.push({ ...definition.savedSpeech!.sentences[0], key: 'same_opening', prepare: true });
-    const meta = metadata({ ttsCacheEnabled: false, ttsPreparedSpeechEnabled: true, voiceTask: { schemaVersion: 1, taskId: '58e8e268-373a-4c21-9371-70ad71d0112f', version: 1, definition } });
+    definition.savedSpeech!.sentences.push({ ...definition.savedSpeech!.sentences[0], key: 'same_opening', prepare: true ,
+    });
+    const meta = metadata({ ttsCacheEnabled: false, ttsPreparedSpeechEnabled: true, voiceTask: { schemaVersion: 1, taskId: '58e8e268-373a-4c21-9371-70ad71d0112f', version: 1, definition ,
+      } ,
+    });
     const preparation = jest.spyOn(TtsCacheRuntime.prototype, 'prepare').mockImplementation(() => new Promise(() => {}));
     let finish!: () => void;
-    const say = jest.fn(() => ({ waitForPlayout: () => new Promise<void>(resolve => { finish = resolve; }) }));
+    const say = jest.fn(() => ({ waitForPlayout: () => new Promise<void>((resolve ) => { finish = resolve; }) ,
+    }));
     const runtime = await new AgentRuntimeBuilder(meta).build();
     const ctx = { session: { say, generateReply: jest.fn() } };
     const agentOptions = jest.mocked(voice.Agent.create).mock.calls[0][0] as any;
     const entered = agentOptions.onEnter(ctx);
-    expect(say).toHaveBeenCalledWith(definition.savedSpeech!.sentences[0].text, expect.objectContaining({ allowInterruptions: false, addToChatCtx: true }));
+    expect(say).toHaveBeenCalledWith(definition.savedSpeech!.sentences[0].text, expect.objectContaining({ allowInterruptions: false, addToChatCtx: true ,
+      }),
+    );
     expect(ctx.session.generateReply).not.toHaveBeenCalled();
     expect(preparation).toHaveBeenCalledTimes(1);
-    expect(say.mock.invocationCallOrder[0]).toBeLessThan(preparation.mock.invocationCallOrder[0]);
-    expect(runtime.userData.ttsCache!.canCacheFinite(definition.savedSpeech!.sentences[0].text)).toBe(true);
-    expect(preparation.mock.calls[0][0]).not.toContain(definition.savedSpeech!.sentences[0].text);
+    expect(say.mock.invocationCallOrder[0]).toBeLessThan(preparation.mock.invocationCallOrder[0],
+    );
+    expect(runtime.userData.ttsCache!.canCacheFinite(definition.savedSpeech!.sentences[0].text,
+      ),
+    ).toBe(true);
+    expect(preparation.mock.calls[0][0]).not.toContain(definition.savedSpeech!.sentences[0].text,
+    );
     finish(); await entered;
     runtime.userData.savedSpeechState?.dispose(); runtime.userData.ttsCache?.dispose();
   });

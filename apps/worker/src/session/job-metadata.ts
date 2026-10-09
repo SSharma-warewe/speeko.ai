@@ -3,6 +3,7 @@ import {
   CallMedium,
   isDeliveryMode,
   isVoiceTaskSnapshot,
+  isOpeningPreparation,
   type AgentJobMetadata,
   type CompleteCallPayload,
 } from '@call-agent/contracts';
@@ -15,7 +16,7 @@ const FALLBACK_SYSTEM = [
   'Follow company policies and never invent facts.',
 ].join(' ');
 
-//common function 
+//common function
 function parseDirection(value: unknown): AgentDirection {
   return value === AgentDirection.OUTBOUND
     ? AgentDirection.OUTBOUND
@@ -30,7 +31,7 @@ export class JobMeta{
   return undefined;
 }
 private parseHookField(
-  value: unknown,
+  value: unknown
 ): string | null | undefined {
   if (value === undefined) return undefined;
   if (value === null) return null;
@@ -49,7 +50,7 @@ private parseHookField(
     medium: dispatched.medium ?? live.medium,
     direction: dispatched.direction,
     participantIdentity: dispatched.participantIdentity,
-    context: live.voiceTask ? { ...dispatched.context, ...live.context } : dispatched.voiceTask ? live.context : dispatched.context ?? live.context,
+    context: live.voiceTask ? { ...dispatched.context, ...live.context } : dispatched.voiceTask ? live.context : (dispatched.context ?? live.context),
   };
 }
   parseJobMetadata(raw: string | undefined | null): AgentJobMetadata {
@@ -89,7 +90,11 @@ private parseHookField(
       tools?: unknown;
     };
     configured = parsed.voiceTask != null;
-    if (configured && !isVoiceTaskSnapshot(parsed.voiceTask)) throw new Error('Invalid or unsupported voice task snapshot');
+    if (parsed.openingPreparation !== undefined &&
+        !isOpeningPreparation(parsed.openingPreparation)
+      )
+        throw new Error('Invalid opening preparation');
+      if (configured && !isVoiceTaskSnapshot(parsed.voiceTask)) throw new Error('Invalid or unsupported voice task snapshot');
     const systemPrompt =
       typeof parsed.prompt?.systemPrompt === 'string' &&
       parsed.prompt.systemPrompt.trim()
@@ -109,7 +114,8 @@ private parseHookField(
 
     return {
       callId: typeof parsed.callId === 'string' ? parsed.callId : undefined,
-      organizationId:
+      openingPreparation: parsed.openingPreparation,
+        organizationId:
         typeof parsed.organizationId === 'string'
           ? parsed.organizationId
           : undefined,
@@ -127,8 +133,10 @@ private parseHookField(
           : 'general',
       prompt: {
         systemPrompt,
-        onEnterInstructions: this.parseHookField(parsed.prompt?.onEnterInstructions),
-        onExitInstructions: this.parseHookField(parsed.prompt?.onExitInstructions),
+        onEnterInstructions: this.parseHookField(parsed.prompt?.onEnterInstructions,
+          ),
+        onExitInstructions: this.parseHookField(parsed.prompt?.onExitInstructions,
+          ),
       },
       enabledTools,
       context:
@@ -161,7 +169,8 @@ private parseHookField(
       ttsPreparedSpeechEnabled: parsed.ttsPreparedSpeechEnabled === true,
     };
   } catch (err) {
-    if (configured || raw.includes('\"voiceTask\"')) throw err;
+    if (configured || raw.includes('\"voiceTask\"') ||
+        raw.includes('\"openingPreparation\"')) throw err;
     return {
       callId: undefined,
       organizationId: undefined,

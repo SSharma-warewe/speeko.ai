@@ -11,7 +11,7 @@ export type ListCallsFilter = {
   direction?: AgentDirection;
 };
 
-export type CallControlPatch = Partial<Pick<Call, 'status' | 'endedAt' | 'nextAttemptAt' |
+export type CallControlPatch = Partial<Pick<Call, | 'status' | 'endedAt' | 'nextAttemptAt' |
   'queueLockedAt' | 'lastFailureCode' | 'lastFailureAt' | 'errorMessage' | 'priority' |
   'maxAttempts' | 'roomName' | 'livekitDispatchId' | 'livekitSipCallId'>>;
 
@@ -37,16 +37,27 @@ export class CallsRepository {
     await this.repo.update(call.id, { cost: call.cost, costUsd: call.costUsd });
   }
 
+  /** Preparation accounting is field-only and fenced to the current dispatch. */
+  async updateOpeningPreparationUsage(call: Call): Promise<void> {
+    await this.repo.createQueryBuilder().update(Call)
+      .set({ usage: () => ':openingUsage' })
+      .where({ id: call.id, roomName: call.roomName!, livekitDispatchId: call.livekitDispatchId!, status: CallStatus.DIALING })
+      .setParameter('openingUsage', JSON.stringify(call.usage)).execute();
+  }
+
   /** Field-only control write; a stale pending view cannot undo queue admission. */
-  async updateIfStatus(id: string, organizationId: string, status: CallStatus, patch: CallControlPatch): Promise<Call | null> {
-    return this.repo.manager.transaction(async manager => {
-      const result = await manager.update(Call, { id, organizationId, status }, patch);
+  async updateIfStatus(id: string, organizationId: string, status: CallStatus, patch: CallControlPatch,
+  ): Promise<Call | null> {
+    return this.repo.manager.transaction(async (manager ) => {
+      const result = await manager.update(Call, { id, organizationId, status }, patch,
+      );
       return result.affected ? manager.findOneByOrFail(Call, { id, organizationId }) : null;
     });
   }
 
   findById(id: string): Promise<Call | null> {
-    return this.repo.findOne({ where: { id }, relations: { humanSession: true } });
+    return this.repo.findOne({ where: { id }, relations: { humanSession: true } ,
+    });
   }
 
   findByRoomName(roomName: string): Promise<Call | null> {
@@ -57,7 +68,8 @@ export class CallsRepository {
     id: string,
     organizationId: string,
   ): Promise<Call | null> {
-    return this.repo.findOne({ where: { id, organizationId }, relations: { humanSession: true } });
+    return this.repo.findOne({ where: { id, organizationId }, relations: { humanSession: true } ,
+    });
   }
 
   findRecent(limit = 50): Promise<Call[]> {

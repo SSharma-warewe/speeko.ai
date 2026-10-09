@@ -4,11 +4,7 @@ import {
   applyCallEvent,
   CallLifecycleEvent,
 } from '../calls/lib/call-state-machine';
-import {
-  Call,
-  CallFailureCode,
-  CallStatus,
-} from '../calls/call.entity';
+import { Call, CallFailureCode, CallStatus } from '../calls/call.entity';
 import {
   OrganizationQueueSettings,
   QueueBackoffStrategy,
@@ -36,7 +32,10 @@ export class QueueRetryService {
     if (call.executionType === 'human') return { action: 'fail', failureCode };
     const now = input.now ?? new Date();
 
-    if (failureCode === CallFailureCode.CANCELLED) {
+    if (
+      failureCode === CallFailureCode.CANCELLED ||
+      failureCode === CallFailureCode.OPENING_PREPARATION_FAILED
+    ) {
       return { action: 'fail', failureCode };
     }
 
@@ -49,10 +48,7 @@ export class QueueRetryService {
       return { action: 'fail', failureCode };
     }
 
-    const delaySec = this.computeBackoffSeconds(
-      settings,
-      call.attemptCount,
-    );
+    const delaySec = this.computeBackoffSeconds(settings, call.attemptCount);
     let next = new Date(now.getTime() + delaySec * 1000);
     next = this.applyQuietHours(next, settings);
 
@@ -149,7 +145,10 @@ export class QueueRetryService {
     }
   }
 
-  classifyFromSipError(message: string, sipStatusCode?: number | string): CallFailureCode {
+  classifyFromSipError(
+    message: string,
+    sipStatusCode?: number | string,
+  ): CallFailureCode {
     const code =
       typeof sipStatusCode === 'string'
         ? Number.parseInt(sipStatusCode, 10)
@@ -189,7 +188,10 @@ export class QueueRetryService {
     errorMessage?: string | null;
   }): CallFailureCode {
     const raw = (input.failureCode || '').trim().toLowerCase();
-    if (raw && Object.values(CallFailureCode).includes(raw as CallFailureCode)) {
+    if (
+      raw &&
+      Object.values(CallFailureCode).includes(raw as CallFailureCode)
+    ) {
       return raw as CallFailureCode;
     }
     const msg = (input.errorMessage || '').toLowerCase();

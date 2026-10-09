@@ -114,6 +114,27 @@ describe('worker cross-call TTS cache', () => {
     jest.useRealTimers();
     jest.restoreAllMocks();
   });
+  it('allows slower shared retrieval before dialing and retains it for local opening playback', async () => {
+    const shared: TtsSharedCache = {
+      lookup: jest.fn(async (_key, deadline) => {
+        expect(deadline - performance.now()).toBeGreaterThan(900);
+        await new Promise((resolve) => setTimeout(resolve, 40));
+        return entry();
+      }),
+      publish: jest.fn(),
+      dispose: jest.fn(),
+    };
+    const { cache, provider } = fixture(shared);
+    try {
+      await cache.prepareOpening('Fixture', new AbortController().signal);
+      expect((await drain(cache.finiteAudio('Fixture')))[0].data[0]).toBe(7);
+      expect(shared.lookup).toHaveBeenCalledTimes(1);
+      expect(provider.stream).not.toHaveBeenCalled();
+      expect(provider.synthesize).not.toHaveBeenCalled();
+    } finally {
+      cache.dispose();
+    }
+  });
   it('a second call reuses original synthesis; changed tenant/settings miss', async () => {
     const stored = new Map<string, unknown>();
     const fetcher = jest.fn(

@@ -26,6 +26,8 @@ export type AgentJobPrompt = {
  * upserts a calls row and then uses the returned id on complete.
  */
 export type AgentJobMetadata = {
+  /** API requires complete worker-local opening audio before SIP submission. */
+  openingPreparation?: import('./opening-preparation.js').OpeningPreparation;
   callId?: string;
   organizationId?: string;
   organizationAgentId?: string;

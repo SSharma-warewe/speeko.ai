@@ -1,4 +1,9 @@
-import { savedSpeechHookText, isRealtimeLlmModel } from '@call-agent/contracts';
+import {
+  savedSpeechHookText,
+  isRealtimeLlmModel,
+  resolveExactOpening,
+} from '@call-agent/contracts';
+export { resolveExactOpening } from '@call-agent/contracts';
 import type { AgentJobMetadata } from '@call-agent/contracts';
 import {
   contextField,
@@ -183,7 +188,10 @@ export function snapshotCallClock(
   const today = formatDayInTimeZone(now, timeZone);
   const tomorrowDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
   // Prefer calendar-day tomorrow in local TZ rather than +24h near DST; +24h is close enough for voice.
-  const tomorrow = formatDayInTimeZone(addLocalCalendarDays(now, timeZone, 1), timeZone);
+  const tomorrow = formatDayInTimeZone(
+    addLocalCalendarDays(now, timeZone, 1),
+    timeZone,
+  );
   const week = Array.from({ length: 7 }, (_, i) =>
     formatDayInTimeZone(addLocalCalendarDays(now, timeZone, i), timeZone),
   );
@@ -228,13 +236,7 @@ export function resolveCallTimezone(meta: AgentJobMetadata): string {
   }
 
   const phone =
-    contextField(
-      meta.context,
-      'phoneNumber',
-      'toNumber',
-      'phone',
-      'mobile',
-    ) ||
+    contextField(meta.context, 'phoneNumber', 'toNumber', 'phone', 'mobile') ||
     meta.participantIdentity ||
     '';
   const fromPhone = timezoneFromE164(phone);
@@ -282,7 +284,10 @@ function isLikelyIanaTimeZone(value: string): boolean {
   }
 }
 
-function formatDayInTimeZone(now: Date, timeZone: string): FormattedDay & { timeZone: string } {
+function formatDayInTimeZone(
+  now: Date,
+  timeZone: string,
+): FormattedDay & { timeZone: string } {
   let tz = timeZone;
   try {
     Intl.DateTimeFormat(undefined, { timeZone: tz });
@@ -326,24 +331,19 @@ export function hookMode(value: string | null | undefined): HookMode {
 }
 
 /** Pipeline finite opening; undefined leaves the existing generated path intact. */
-export function resolveExactOpening(meta: AgentJobMetadata): string | null | undefined {
-  if (isRealtimeLlmModel(meta.model)) return undefined;
-  const saved = savedSpeechHookText(meta.voiceTask?.definition.savedSpeech, 'opening');
-  if (saved !== undefined) return saved;
-  const custom = meta.prompt.onEnterInstructions;
-  if (custom === '') return null;
-  if (meta.ttsPreparedSpeechEnabled === true && typeof custom === 'string' && custom.trim()) {
-    return custom;
-  }
-  return undefined;
-}
 
 /** Generated opening guidance, or an exact task opening for native realtime. */
-export function buildOpeningInstructions(meta: AgentJobMetadata): string | null {
+export function buildOpeningInstructions(
+  meta: AgentJobMetadata,
+): string | null {
   const exact = resolveExactOpening(meta);
-  const saved = exact !== undefined ? exact : savedSpeechHookText(meta.voiceTask?.definition.savedSpeech, 'opening');
+  const saved =
+    exact !== undefined
+      ? exact
+      : savedSpeechHookText(meta.voiceTask?.definition.savedSpeech, 'opening');
   if (saved === null) return null;
-  if (saved !== undefined) return `Say exactly this opening and nothing else: ${JSON.stringify(saved)}`;
+  if (saved !== undefined)
+    return `Say exactly this opening and nothing else: ${JSON.stringify(saved)}`;
   const custom = meta.prompt.onEnterInstructions;
   // Explicit empty string → silent start.
   if (custom === '') {
@@ -353,7 +353,9 @@ export function buildOpeningInstructions(meta: AgentJobMetadata): string | null 
   if (typeof custom === 'string' && custom.trim()) {
     base = appendRuntimeContext(custom.trim(), meta);
   } else {
-    const opening = meta.voiceTask ? `Greet briefly. Task objective: ${meta.voiceTask.definition.objective}. Start the first phase with one short question: ${meta.voiceTask.definition.phases[0].instructions}. Do not reveal details before any required identity confirmation.` : defaultOpeningInstructions(meta);
+    const opening = meta.voiceTask
+      ? `Greet briefly. Task objective: ${meta.voiceTask.definition.objective}. Start the first phase with one short question: ${meta.voiceTask.definition.phases[0].instructions}. Do not reveal details before any required identity confirmation.`
+      : defaultOpeningInstructions(meta);
     base = appendRuntimeContext(opening, meta);
   }
   if (personaSpeaksHindi(meta)) {
@@ -372,7 +374,10 @@ export function buildOpeningInstructions(meta: AgentJobMetadata): string | null 
  * `''` means silent. Shared by pipeline `session.say` and realtime generateReply.
  */
 export function cannedClosingLine(meta: AgentJobMetadata): string | null {
-  const saved = savedSpeechHookText(meta.voiceTask?.definition.savedSpeech, 'closing');
+  const saved = savedSpeechHookText(
+    meta.voiceTask?.definition.savedSpeech,
+    'closing',
+  );
   if (saved !== undefined) return saved;
   const custom = meta.prompt.onExitInstructions;
   if (custom === '') {
@@ -422,7 +427,10 @@ export function buildRealtimeClosingInstructions(
   return `Say exactly this goodbye line and nothing else, then stop. Do not ask if they need help. Do not greet. Do not ask another question. Do not call tools: ${line}`;
 }
 
-function appendRuntimeContext(instructions: string, meta: AgentJobMetadata): string {
+function appendRuntimeContext(
+  instructions: string,
+  meta: AgentJobMetadata,
+): string {
   const ctx = formatContextForInstructions(meta.context);
   if (ctx === 'No additional call context was provided.') {
     return instructions;

@@ -1,5 +1,11 @@
 import { VoiceTasksService } from '../../voice-tasks/voice-tasks.service';
 import {
+  requiresOpeningPreparation,
+  OPENING_PREPARATION_TIMEOUT_MS,
+  type OpeningPreparation,
+} from '@call-agent/contracts';
+import { OpeningPreparationError } from '../lib/opening-preparation-error';
+import {
   BadRequestException,
   forwardRef,
   Inject,
@@ -96,10 +102,31 @@ export class CallDialService {
       orgAgent,
       template,
     );
-    const voiceTaskSnapshot = await this.voiceTasks?.resolve(organizationId, dto, orgAgent, template) ?? null;
+    const voiceTaskSnapshot =
+      (await this.voiceTasks?.resolve(
+        organizationId,
+        dto,
+        orgAgent,
+        template,
+      )) ?? null;
     const configuredContexts = voiceTaskSnapshot
-      ? await Promise.all(dto.calls.map(async item => (await this.organizationAgentsService.prepareVoiceTask(orgAgent, voiceTaskSnapshot, await this.toolProfilesService.resolveEnabledToolIds(orgAgent.toolProfileId ?? template.defaultToolProfileId, organizationId), item.context)).context))
-      : dto.calls.map(item => item.context);
+      ? await Promise.all(
+          dto.calls.map(
+            async (item) =>
+              (
+                await this.organizationAgentsService.prepareVoiceTask(
+                  orgAgent,
+                  voiceTaskSnapshot,
+                  await this.toolProfilesService.resolveEnabledToolIds(
+                    orgAgent.toolProfileId ?? template.defaultToolProfileId,
+                    organizationId,
+                  ),
+                  item.context,
+                )
+              ).context,
+          ),
+        )
+      : dto.calls.map((item) => item.context);
     const { trunk, fromNumber } = await this.resolveOutboundFrom(
       organizationId,
       dto.sipTrunkId,
@@ -119,7 +146,9 @@ export class CallDialService {
       organizationId,
       organizationAgentId: orgAgent.id,
       sipTrunkId: trunk.id,
-      taskKey: voiceTaskSnapshot ? `custom_${voiceTaskSnapshot.taskId}` : taskKey,
+      taskKey: voiceTaskSnapshot
+        ? `custom_${voiceTaskSnapshot.taskId}`
+        : taskKey,
       maxAttempts,
       maxConcurrent: dto.maxConcurrent ?? null,
       priority,
@@ -152,7 +181,9 @@ export class CallDialService {
             toNumber,
             context: configuredContexts[i] ?? null,
             voiceTaskSnapshot,
-            taskKey: voiceTaskSnapshot ? `custom_${voiceTaskSnapshot.taskId}` : taskKey,
+            taskKey: voiceTaskSnapshot
+              ? `custom_${voiceTaskSnapshot.taskId}`
+              : taskKey,
             maxAttempts,
             nextAttemptAt: now,
             batchId,
@@ -201,8 +232,21 @@ export class CallDialService {
       dto.organizationId,
     );
 
-    const voiceTaskSnapshot = await this.voiceTasks?.resolve(dto.organizationId, dto, orgAgent, template) ?? null;
-    const prepared = voiceTaskSnapshot ? await this.organizationAgentsService.prepareVoiceTask(orgAgent, voiceTaskSnapshot, enabledTools, dto.context) : { context: dto.context, enabledTools };
+    const voiceTaskSnapshot =
+      (await this.voiceTasks?.resolve(
+        dto.organizationId,
+        dto,
+        orgAgent,
+        template,
+      )) ?? null;
+    const prepared = voiceTaskSnapshot
+      ? await this.organizationAgentsService.prepareVoiceTask(
+          orgAgent,
+          voiceTaskSnapshot,
+          enabledTools,
+          dto.context,
+        )
+      : { context: dto.context, enabledTools };
     const toNumber = resolveToNumber(dto, this.defaultCountryCode());
     const { trunk, fromNumber } = await this.resolveOutboundFrom(
       dto.organizationId,
@@ -212,8 +256,7 @@ export class CallDialService {
     const shouldWait =
       dto.waitUntilAnswered !== undefined
         ? dto.waitUntilAnswered
-        : this.config.get<string>('LIVEKIT_SIP_WAIT_UNTIL_ANSWERED') ===
-          'true';
+        : this.config.get<string>('LIVEKIT_SIP_WAIT_UNTIL_ANSWERED') === 'true';
 
     const roomName = `out-${randomUUID().slice(0, 8)}`;
     const livekitAgentName = this.livekit.getAgentName();
@@ -234,7 +277,9 @@ export class CallDialService {
         toNumber,
         context: prepared.context ?? null,
         voiceTaskSnapshot,
-        taskKey: voiceTaskSnapshot ? `custom_${voiceTaskSnapshot.taskId}` : taskKey,
+        taskKey: voiceTaskSnapshot
+          ? `custom_${voiceTaskSnapshot.taskId}`
+          : taskKey,
         attemptCount: 0,
         dialStartedAt: null,
       }),
@@ -244,7 +289,10 @@ export class CallDialService {
 
     try {
       await this.queueSettingsService.getOrCreate(dto.organizationId);
-      call = await this.queueAdmission.admitImmediate(dto.organizationId, call.id);
+      call = await this.queueAdmission.admitImmediate(
+        dto.organizationId,
+        call.id,
+      );
       call = await this.executeSipDial({
         call,
         orgAgent,
@@ -261,6 +309,21 @@ export class CallDialService {
       return toCallResponse(call);
     } catch (err) {
       const message = this.formatSipError(err);
+      if (err instanceof OpeningPreparationError) {
+        const current = await this.callsRepository.findById(call.id);
+        if (
+          current?.status === CallStatus.DIALING &&
+          current.roomName === call.roomName
+        ) {
+          current.errorMessage = message;
+          await this.callFailure.applyFailure({
+            call: current,
+            failureCode: CallFailureCode.OPENING_PREPARATION_FAILED,
+            priceBeforeReset: true,
+          });
+        }
+        throw err;
+      }
       applyCallEvent(call, CallLifecycleEvent.DIAL_FAILED, CallStatus.FAILED);
       call.errorMessage = message;
       call.lastFailureCode = CallFailureCode.SIP_ERROR;
@@ -354,6 +417,21 @@ export class CallDialService {
         });
       } catch (err) {
         const message = this.formatSipError(err);
+        if (err instanceof OpeningPreparationError) {
+          const current = await this.callsRepository.findById(call.id);
+          if (
+            !current ||
+            current.status !== CallStatus.DIALING ||
+            current.livekitDispatchId !== call.livekitDispatchId
+          )
+            return current;
+          current.errorMessage = message;
+          return this.callFailure.applyFailure({
+            call: current,
+            failureCode: CallFailureCode.OPENING_PREPARATION_FAILED,
+            priceBeforeReset: true,
+          });
+        }
         const sipCode = this.extractSipStatusCode(err);
         const failureCode = this.queueRetryService.classifyFromSipError(
           message,
@@ -364,7 +442,10 @@ export class CallDialService {
       }
     } catch (err) {
       call.errorMessage = this.formatSipError(err);
-      return this.callFailure.applyFailure({ call, failureCode: CallFailureCode.UNKNOWN });
+      return this.callFailure.applyFailure({
+        call,
+        failureCode: CallFailureCode.UNKNOWN,
+      });
     }
   }
 
@@ -395,7 +476,14 @@ export class CallDialService {
       roomName,
     } = input;
 
-    const prepared = call.voiceTaskSnapshot ? await this.organizationAgentsService.prepareVoiceTask(orgAgent, call.voiceTaskSnapshot, enabledTools, context) : { context, enabledTools };
+    const prepared = call.voiceTaskSnapshot
+      ? await this.organizationAgentsService.prepareVoiceTask(
+          orgAgent,
+          call.voiceTaskSnapshot,
+          enabledTools,
+          context,
+        )
+      : { context, enabledTools };
     const metadata = packOrgAgentJobMetadata(orgAgent, {
       voiceTask: call.voiceTaskSnapshot,
       task: taskKey,
@@ -406,6 +494,12 @@ export class CallDialService {
       context: prepared.context,
       participantIdentity,
     });
+    if (requiresOpeningPreparation(metadata))
+      metadata.openingPreparation = {
+        version: 1,
+        attemptId: randomUUID(),
+        deadline: Date.now() + OPENING_PREPARATION_TIMEOUT_MS,
+      };
 
     this.logger.log(
       `Dial metadata callId=${call.id} orgAgent=${orgAgent.id} task=${taskKey} ` +
@@ -426,6 +520,9 @@ export class CallDialService {
       }),
     });
 
+    if (metadata.openingPreparation)
+      metadata.openingPreparation.deadline =
+        Date.now() + OPENING_PREPARATION_TIMEOUT_MS;
     const dispatch = await this.livekit.createAgentDispatch({
       roomName,
       metadata: JSON.stringify(metadata),
@@ -437,6 +534,15 @@ export class CallDialService {
     call.startedAt = call.startedAt ?? new Date();
     call.queueLockedAt = null;
     call = await this.callsRepository.save(call);
+
+    if (metadata.openingPreparation) {
+      try {
+        await this.awaitOpeningPreparation(call, metadata.openingPreparation);
+      } catch {
+        await this.livekit.deleteRoom(roomName);
+        throw new OpeningPreparationError();
+      }
+    }
 
     this.logger.log(
       `Dialing SIP trunk=${trunkLivekitId} from=${fromNumber} to=${toNumber} wait=${shouldWait} task=${taskKey} call=${call.id}`,
@@ -495,6 +601,81 @@ export class CallDialService {
     }
   }
 
+  private async awaitOpeningPreparation(
+    call: Call,
+    gate: OpeningPreparation,
+  ): Promise<void> {
+    while (Date.now() < gate.deadline) {
+      const current = await this.callsRepository.findById(call.id);
+      if (
+        !current ||
+        current.status !== CallStatus.DIALING ||
+        current.roomName !== call.roomName ||
+        current.livekitDispatchId !== call.livekitDispatchId
+      )
+        throw new OpeningPreparationError();
+      const report = await this.livekit.openingPreparationReport(
+        call.roomName!,
+        call.livekitDispatchId!,
+        gate.attemptId,
+      );
+      if (report) {
+        call.usage = report.usage;
+        await this.callsRepository.updateOpeningPreparationUsage(call);
+      }
+      if (report?.status === 'failed') throw new OpeningPreparationError();
+      if (report?.status === 'ready') {
+        const { orgAgent, template } = await requireActiveOrgAgent(
+          this.organizationAgentsService,
+          call.organizationId!,
+          call.organizationAgentId!,
+        );
+        if (
+          !template.isActive ||
+          !(await this.organizationAgentsService.isOrganizationActive(
+            call.organizationId!,
+          ))
+        )
+          throw new OpeningPreparationError();
+        const latest = await this.callsRepository.findById(call.id);
+        if (
+          !latest ||
+          latest.status !== CallStatus.DIALING ||
+          latest.roomName !== call.roomName ||
+          latest.livekitDispatchId !== call.livekitDispatchId ||
+          Date.now() >= gate.deadline
+        )
+          throw new OpeningPreparationError();
+        const confirmed = await this.livekit.openingPreparationReport(
+          call.roomName!,
+          call.livekitDispatchId!,
+          gate.attemptId,
+        );
+        if (confirmed?.status !== 'ready' || Date.now() >= gate.deadline)
+          throw new OpeningPreparationError();
+        const final = await this.callsRepository.findById(call.id);
+        if (
+          !final ||
+          final.status !== CallStatus.DIALING ||
+          final.roomName !== call.roomName ||
+          final.livekitDispatchId !== call.livekitDispatchId
+        )
+          throw new OpeningPreparationError();
+        this.logger.log(
+          `Opening preparation ready call=${call.id}; SIP submission permitted`,
+        );
+        return;
+      }
+      await new Promise((resolve) =>
+        setTimeout(
+          resolve,
+          Math.min(250, Math.max(0, gate.deadline - Date.now())),
+        ),
+      );
+    }
+    throw new OpeningPreparationError();
+  }
+
   private formatSipError(err: unknown): string {
     if (!err || typeof err !== 'object') {
       return String(err);
@@ -528,10 +709,7 @@ export class CallDialService {
       organizationId,
       sipTrunkId,
     );
-    const fromNumber = pickFromNumber(
-      trunk.numbers,
-      this.defaultCountryCode(),
-    );
+    const fromNumber = pickFromNumber(trunk.numbers, this.defaultCountryCode());
     if (!fromNumber) {
       throw new BadRequestException(
         `SIP trunk has no from numbers configured: ${trunk.id}`,

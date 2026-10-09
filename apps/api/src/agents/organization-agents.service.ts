@@ -56,11 +56,10 @@ export class OrganizationAgentsService {
     organizationId: string,
     id: string,
   ): Promise<OrganizationAgent> {
-    const row =
-      await this.organizationAgentsRepository.findByIdAndOrgWithAgent(
-        organizationId,
-        id,
-      );
+    const row = await this.organizationAgentsRepository.findByIdAndOrgWithAgent(
+      organizationId,
+      id,
+    );
     if (!row) {
       throw new NotFoundException(
         `Organization agent not found: ${id} (org ${organizationId})`,
@@ -82,11 +81,10 @@ export class OrganizationAgentsService {
     slug: string,
     excludeId?: string,
   ): Promise<void> {
-    const existing =
-      await this.organizationAgentsRepository.findByOrgAndSlug(
-        organizationId,
-        slug,
-      );
+    const existing = await this.organizationAgentsRepository.findByOrgAndSlug(
+      organizationId,
+      slug,
+    );
     if (existing && existing.id !== excludeId) {
       throw new ConflictException(
         `Organization agent slug already in use: ${slug}`,
@@ -142,6 +140,10 @@ export class OrganizationAgentsService {
     return this.loadWithTemplate(organizationId, id);
   }
 
+  async isOrganizationActive(organizationId: string): Promise<boolean> {
+    return (await this.organizationsService.findById(organizationId)).isActive;
+  }
+
   /**
    * Live inbound job metadata for a published dispatch rule.
    * SIP dispatch snapshots this at publish; the worker re-fetches it on
@@ -156,7 +158,8 @@ export class OrganizationAgentsService {
       organizationAgentId,
     );
     const template = orgAgent.agent;
-    if (!orgAgent.isActive || !template?.isActive) throw new BadRequestException('Inbound agent is inactive');
+    if (!orgAgent.isActive || !template?.isActive)
+      throw new BadRequestException('Inbound agent is inactive');
     const preferred = orgAgentDefaultTaskKey(orgAgent, template);
     const taskKey =
       preferred && isKnownTaskKey(preferred)
@@ -168,8 +171,15 @@ export class OrganizationAgentsService {
       orgAgent.toolProfileId,
       organizationId,
     );
-    const voiceTask = await this.voiceTasks?.resolve(organizationId, {}, orgAgent, template);
-    const prepared = voiceTask ? await this.prepareVoiceTask(orgAgent, voiceTask, enabledTools) : { enabledTools, context: undefined };
+    const voiceTask = await this.voiceTasks?.resolve(
+      organizationId,
+      {},
+      orgAgent,
+      template,
+    );
+    const prepared = voiceTask
+      ? await this.prepareVoiceTask(orgAgent, voiceTask, enabledTools)
+      : { enabledTools, context: undefined };
     return packOrgAgentJobMetadata(orgAgent, {
       voiceTask,
       context: prepared.context,
@@ -185,7 +195,8 @@ export class OrganizationAgentsService {
    * Multiple configs may share the same template (inbound/outbound).
    */
   async assign(organizationId: string, dto: AssignAgentDto) {
-    if (dto.defaultVoiceTaskId && dto.defaultTaskKey) throw new BadRequestException('Choose one default task selector');
+    if (dto.defaultVoiceTaskId && dto.defaultTaskKey)
+      throw new BadRequestException('Choose one default task selector');
     await this.organizationsService.findById(organizationId);
     const template = await this.agentsService.findById(dto.agentId);
 
@@ -226,7 +237,11 @@ export class OrganizationAgentsService {
       onExitInstructions: template.onExitInstructions ?? null,
       toolProfileId,
       calendarIntegrationId,
-      defaultVoiceTaskId: dto.defaultTaskKey ? null : dto.defaultVoiceTaskId === undefined ? template.defaultVoiceTaskId ?? null : dto.defaultVoiceTaskId,
+      defaultVoiceTaskId: dto.defaultTaskKey
+        ? null
+        : dto.defaultVoiceTaskId === undefined
+          ? (template.defaultVoiceTaskId ?? null)
+          : dto.defaultVoiceTaskId,
       defaultTaskKey: storedDefaultTaskKey(
         template.direction,
         dto.defaultTaskKey,
@@ -342,8 +357,12 @@ export class OrganizationAgentsService {
         row.calendarIntegrationId = dto.calendarIntegrationId;
       }
     }
-    if (dto.defaultVoiceTaskId && dto.defaultTaskKey) throw new BadRequestException('Choose defaultTaskKey or defaultVoiceTaskId, not both');
-    if (dto.defaultVoiceTaskId !== undefined) row.defaultVoiceTaskId = dto.defaultVoiceTaskId;
+    if (dto.defaultVoiceTaskId && dto.defaultTaskKey)
+      throw new BadRequestException(
+        'Choose defaultTaskKey or defaultVoiceTaskId, not both',
+      );
+    if (dto.defaultVoiceTaskId !== undefined)
+      row.defaultVoiceTaskId = dto.defaultVoiceTaskId;
     if (dto.defaultTaskKey !== undefined) row.defaultVoiceTaskId = null;
     const direction = row.agent?.direction;
     if (direction === AgentDirection.OUTBOUND) {
@@ -388,17 +407,52 @@ export class OrganizationAgentsService {
     }
   }
 
-  async prepareVoiceTask(row: OrganizationAgent, snapshot: VoiceTaskSnapshot, tools: string[], context: Record<string, unknown> = {}, validateContext = true) {
-    const calendar = row.calendarIntegrationId ? await this.organizationIntegrationRepo.findOne({ where: { id: row.calendarIntegrationId, organizationId: row.organizationId, isActive: true } }) : null;
-    return this.voiceTasks!.prepare(snapshot, row.agent.direction, tools, context, calendar?.provider, validateContext);
+  async prepareVoiceTask(
+    row: OrganizationAgent,
+    snapshot: VoiceTaskSnapshot,
+    tools: string[],
+    context: Record<string, unknown> = {},
+    validateContext = true,
+  ) {
+    const calendar = row.calendarIntegrationId
+      ? await this.organizationIntegrationRepo.findOne({
+          where: {
+            id: row.calendarIntegrationId,
+            organizationId: row.organizationId,
+            isActive: true,
+          },
+        })
+      : null;
+    return this.voiceTasks!.prepare(
+      snapshot,
+      row.agent.direction,
+      tools,
+      context,
+      calendar?.provider,
+      validateContext,
+    );
   }
-  private async validateDefaultTask(row: OrganizationAgent, template: { defaultVoiceTaskId?: string | null }) {
-    const id = row.defaultVoiceTaskId ?? (row.defaultTaskKey ? null : template?.defaultVoiceTaskId);
+  private async validateDefaultTask(
+    row: OrganizationAgent,
+    template: { defaultVoiceTaskId?: string | null },
+  ) {
+    const id =
+      row.defaultVoiceTaskId ??
+      (row.defaultTaskKey ? null : template?.defaultVoiceTaskId);
     if (!id) return;
     const snapshot = await this.voiceTasks!.snapshot(row.organizationId, id);
-    const tools = await this.toolProfilesService.resolveEnabledToolIds(row.toolProfileId, row.organizationId);
+    const tools = await this.toolProfilesService.resolveEnabledToolIds(
+      row.toolProfileId,
+      row.organizationId,
+    );
     // Context requirements are checked per call; assignment checks capabilities/calendar only.
-    await this.prepareVoiceTask({ ...row, agent: row.agent ?? template } as OrganizationAgent, snapshot, tools, {}, false);
+    await this.prepareVoiceTask(
+      { ...row, agent: row.agent ?? template } as OrganizationAgent,
+      snapshot,
+      tools,
+      {},
+      false,
+    );
   }
 
   private async assertCalendarIntegration(

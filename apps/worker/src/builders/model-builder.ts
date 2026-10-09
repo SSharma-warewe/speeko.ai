@@ -402,6 +402,7 @@ export function createStt(
 export function buildModels(
   meta: AgentJobMetadata,
   env: NodeJS.ProcessEnv = process.env,
+preparedTts?: tts.TTS,
 ) {
   if (isRealtimeLlmModel(meta.model)) {
     return {
@@ -414,7 +415,7 @@ export function buildModels(
     kind: 'pipeline' as const,
     stt: createStt(meta, env),
     llm: createLlm(meta, env),
-    tts: createTts(meta, env),
+    tts: preparedTts ?? createTts(meta, env),
     // Cloud audio EOT (turn-detector-v1) for every pipeline STT, including
     // Sarvam saaras:v3-realtime. STT START/END are transcription only —
     // do not switch this path to turnDetection: 'stt' (that skips v1).

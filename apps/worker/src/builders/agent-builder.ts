@@ -6,7 +6,8 @@ import { resolveSarvamRealtimePluginUrl } from '../sarvam/plugin-stt.js';
 import type { SessionUserData } from '../tools/types.js';
 import { startDemoCrmPrefetch } from '../tasks/demo-booking-crm.js';
 import { sayCached } from '../speech/tts-cache.js';
-import { preparedOpeningText, preparedSentences } from '../speech/prepared-sentences.js';
+import { preparedOpeningText, preparedSentences ,
+} from '../speech/prepared-sentences.js';
 import { TtsCacheRuntime } from '../speech/tts-cache-runtime.js';
 import { TtsSharedCacheClient } from '../speech/tts-shared-cache-client.js';
 import { createCachedTtsNode } from '../speech/cached-tts-node.js';
@@ -47,6 +48,7 @@ export class AgentRuntimeBuilder {
   constructor(
     private readonly meta: AgentJobMetadata,
     private readonly roomName?: string,
+  private readonly preparedCache?: TtsCacheRuntime,
   ) {}
 
   async build(): Promise<BuiltAgentRuntime> {
@@ -54,14 +56,18 @@ export class AgentRuntimeBuilder {
     userData.savedSpeechState = createSavedSpeechState(userData);
     this.logCallInfo();
 
-    const models = buildModels(this.meta);
+    const models = buildModels(this.meta,
+      undefined,
+      this.preparedCache?.provider,
+    );
     this.logModelInfo(models);
     if (
       models.kind === 'pipeline' &&
       (this.meta.ttsCacheEnabled === true ||
         this.meta.ttsPreparedSpeechEnabled === true)
     ) {
-      this.ttsCache = new TtsCacheRuntime(
+      this.ttsCache = this.preparedCache ??
+        new TtsCacheRuntime(
         this.meta,
         resolveTtsConfiguration(this.meta),
         models.tts,
@@ -160,7 +166,8 @@ export class AgentRuntimeBuilder {
       }
       if (typeof exact === 'string') {
         const controller = new AbortController();
-        console.log(`[agent] onEnter opening mode=exact callId=${this.meta.callId ?? 'n/a'}`);
+        console.log(`[agent] onEnter opening mode=exact callId=${this.meta.callId ?? 'n/a'}`,
+        );
         try {
           const handle = sayCached(ctx.session, this.ttsCache, exact, {
             allowInterruptions: false,
@@ -168,7 +175,8 @@ export class AgentRuntimeBuilder {
             signal: controller.signal,
           }) as { waitForPlayout?: () => Promise<void> };
           await handle.waitForPlayout?.();
-          console.log(`[agent] onEnter opening playout done callId=${this.meta.callId ?? 'n/a'}`);
+          console.log(`[agent] onEnter opening playout done callId=${this.meta.callId ?? 'n/a'}`,
+          );
         } finally {
           controller.abort();
         }

@@ -1,5 +1,10 @@
 import { ConfigService } from '@nestjs/config';
-import { SIPTransport, TrackSource } from '@livekit/protocol';
+import {
+  SIPTransport,
+  TrackSource,
+  ParticipantInfo_Kind,
+} from '@livekit/protocol';
+import { OPENING_PREPARATION_ATTRIBUTE } from '@call-agent/contracts';
 
 type RoomClientMock = {
   createRoom: jest.Mock;
@@ -9,6 +14,7 @@ type RoomClientMock = {
 
 type DispatchClientMock = {
   createDispatch: jest.Mock;
+  getDispatch: jest.Mock;
 };
 
 type SipClientMock = {
@@ -49,6 +55,7 @@ jest.mock('livekit-server-sdk', () => {
 
   class AgentDispatchClient {
     createDispatch = jest.fn();
+    getDispatch = jest.fn();
     constructor(
       public host: string,
       public apiKey: string,
@@ -134,14 +141,16 @@ describe('LivekitService', () => {
     } as unknown as ConfigService;
   }
 
-  function makeService(env?: Record<string, string | undefined>): LivekitService {
+  function makeService(
+    env?: Record<string, string | undefined>,
+  ): LivekitService {
     roomClientInstances.length = 0;
     dispatchClientInstances.length = 0;
     sipClientInstances.length = 0;
     accessTokenInstances.length = 0;
     const svc = new LivekitService(makeConfig(env));
     roomClient = roomClientInstances[0];
-    dispatchClient = dispatchClientInstances[dispatchClientInstances.length - 1];
+    dispatchClient = dispatchClientInstances[0];
     sipClient = sipClientInstances[0];
     return svc;
   }
@@ -150,9 +159,75 @@ describe('LivekitService', () => {
     service = makeService();
   });
 
+  describe('opening readiness', () => {
+    const attemptId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const ready = {
+      version: 1,
+      attemptId,
+      status: 'ready',
+      usage: { models: [] },
+    };
+    function reports(
+      payload: unknown = ready,
+      kind = ParticipantInfo_Kind.AGENT,
+      identity = 'agent-one',
+    ) {
+      dispatchClientInstances[1].getDispatch.mockResolvedValue({
+        state: { jobs: [{ state: { participantIdentity: 'agent-one' } }] },
+      });
+      roomClientInstances[2].listParticipants.mockResolvedValue([
+        {
+          identity,
+          kind,
+          attributes: {
+            [OPENING_PREPARATION_ATTRIBUTE]: JSON.stringify(payload),
+          },
+        },
+      ]);
+    }
+    it('accepts readiness only from the current dispatch agent', async () => {
+      reports();
+      expect(
+        await service.openingPreparationReport('room', 'dispatch', attemptId),
+      ).toEqual(ready);
+    });
+    it.each([
+      ['browser', ready, ParticipantInfo_Kind.STANDARD, 'agent-one'],
+      ['other-dispatch', ready, ParticipantInfo_Kind.AGENT, 'agent-two'],
+      [
+        'stale-attempt',
+        { ...ready, attemptId: 'old' },
+        ParticipantInfo_Kind.AGENT,
+        'agent-one',
+      ],
+      [
+        'malformed-usage',
+        {
+          ...ready,
+          usage: {
+            models: [
+              { type: 'tts_usage', provider: 'x', model: 'y', inputTokens: -1 },
+            ],
+          },
+        },
+        ParticipantInfo_Kind.AGENT,
+        'agent-one',
+      ],
+    ])('rejects %s readiness', async (_name, payload, kind, identity) => {
+      reports(payload, kind as ParticipantInfo_Kind, identity as string);
+      expect(
+        await service.openingPreparationReport('room', 'dispatch', attemptId),
+      ).toBeUndefined();
+    });
+  });
+
   describe('human call adapter', () => {
     it('attaches a silent transcription dispatch with room capacity for three participants', async () => {
-      const metadata = { mode: 'human_transcription' as const, callId: 'call', roomName: 'human-room' };
+      const metadata = {
+        mode: 'human_transcription' as const,
+        callId: 'call',
+        roomName: 'human-room',
+      };
       await service.createHumanRoom('human-room', metadata);
       const options = roomClientInstances[1].createRoom.mock.calls[0][0];
       expect(options.maxParticipants).toBe(3);
@@ -160,30 +235,69 @@ describe('LivekitService', () => {
       expect(JSON.parse(options.agents[0].metadata)).toEqual(metadata);
     });
     it('issues microphone-only room-scoped ten-minute tokens with no SIP/admin grants', async () => {
-      await service.createHumanParticipantToken('human-user', 'Caller', 'human-room');
+      await service.createHumanParticipantToken(
+        'human-user',
+        'Caller',
+        'human-room',
+      );
       const token = accessTokenInstances.at(-1)!;
-      expect(token.ctorArgs[2]).toMatchObject({ ttl: '10m', identity: 'human-user' });
-      expect(token.addGrant).toHaveBeenCalledWith({ roomJoin: true, room: 'human-room', canSubscribe: true, canPublishSources: [TrackSource.MICROPHONE], canPublishData: false });
+      expect(token.ctorArgs[2]).toMatchObject({
+        ttl: '10m',
+        identity: 'human-user',
+      });
+      expect(token.addGrant).toHaveBeenCalledWith({
+        roomJoin: true,
+        room: 'human-room',
+        canSubscribe: true,
+        canPublishSources: [TrackSource.MICROPHONE],
+        canPublishData: false,
+      });
     });
     it('does not mistake failed observations for an absent room', async () => {
-      roomClientInstances[1].listParticipants.mockRejectedValueOnce(new Error('network'));
-      await expect(service.observeHumanRoom('human-room')).rejects.toThrow('network');
-      roomClientInstances[1].listParticipants.mockRejectedValueOnce({ code: 'not_found' });
+      roomClientInstances[1].listParticipants.mockRejectedValueOnce(
+        new Error('network'),
+      );
+      await expect(service.observeHumanRoom('human-room')).rejects.toThrow(
+        'network',
+      );
+      roomClientInstances[1].listParticipants.mockRejectedValueOnce({
+        code: 'not_found',
+      });
       await expect(service.observeHumanRoom('human-room')).resolves.toBeNull();
     });
     it('cleanup propagates failure and requires verified room removal', async () => {
       const client = roomClientInstances[1];
       client.deleteRoom.mockRejectedValueOnce(new Error('network'));
-      await expect(service.deleteHumanRoom('human-room')).rejects.toThrow('network');
-      client.deleteRoom.mockResolvedValue(undefined); client.listParticipants.mockResolvedValue([]);
-      await expect(service.deleteHumanRoom('human-room')).rejects.toThrow('unconfirmed');
+      await expect(service.deleteHumanRoom('human-room')).rejects.toThrow(
+        'network',
+      );
+      client.deleteRoom.mockResolvedValue(undefined);
+      client.listParticipants.mockResolvedValue([]);
+      await expect(service.deleteHumanRoom('human-room')).rejects.toThrow(
+        'unconfirmed',
+      );
       client.listParticipants.mockRejectedValue({ code: 'not_found' });
-      await expect(service.deleteHumanRoom('human-room')).resolves.toBeUndefined();
+      await expect(
+        service.deleteHumanRoom('human-room'),
+      ).resolves.toBeUndefined();
     });
     it('human SIP dial uses its dedicated no-failover client', async () => {
-      sipClientInstances[1].createSipParticipant.mockResolvedValue({ participantId: 'p', participantIdentity: 'sip', roomName: 'human-room', sipCallId: 's' });
-      await service.createSipParticipant({ humanCall: true, sipTrunkId: 'ST_test', phoneNumber: '+15551234567', roomName: 'human-room' });
-      expect(sipClient.createSipParticipant).not.toHaveBeenCalled(); expect(sipClientInstances[1].createSipParticipant).toHaveBeenCalledTimes(1);
+      sipClientInstances[1].createSipParticipant.mockResolvedValue({
+        participantId: 'p',
+        participantIdentity: 'sip',
+        roomName: 'human-room',
+        sipCallId: 's',
+      });
+      await service.createSipParticipant({
+        humanCall: true,
+        sipTrunkId: 'ST_test',
+        phoneNumber: '+15551234567',
+        roomName: 'human-room',
+      });
+      expect(sipClient.createSipParticipant).not.toHaveBeenCalled();
+      expect(sipClientInstances[1].createSipParticipant).toHaveBeenCalledTimes(
+        1,
+      );
     });
   });
 
@@ -699,7 +813,9 @@ describe('LivekitService', () => {
           timeout: undefined,
         }),
       );
-      expect(sipClient.createSipParticipant.mock.calls[0][3].media).toBeUndefined();
+      expect(
+        sipClient.createSipParticipant.mock.calls[0][3].media,
+      ).toBeUndefined();
       expect(result).toEqual({
         participantId: 'p1',
         participantIdentity: '+1555',

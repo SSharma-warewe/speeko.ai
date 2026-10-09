@@ -59,6 +59,16 @@ Production release verified 2026-10-08 from `857c86c`: API deployment `968a71c2-
 
 ## Prepared sentences
 
+### Outbound opening readiness
+
+For outbound SIP AI calls with effective Prepared sentences On and an exact opening, CallDialService dispatches the worker but does not call CreateSIPParticipant until complete worker-local opening audio is ready. API and worker share the pure exact-opening resolver, preserving task sentence/silent priority and existing generated/native/inbound/web/human behavior. Other sentences do not block dialing.
+
+The existing admitted attempt remains dialing/in_progress during preparation and retains organization/batch capacity and attempt/rate accounting. Optional version-1 openingPreparation job metadata contains a fresh attempt UUID and 30-second deadline. LivekitService polls the actual dispatch's AGENT participant attributes every 250 ms using dedicated one-second, no-failover clients; foreign participants, other jobs, malformed reports and old attempt UUIDs cannot authorize SIP. Calls remain API-owned; no process-local callback waiter or schema change is introduced.
+
+Before SIP submission, recheck current call room/dispatch/status, active organization/agent/template and readiness. Failure or timeout deletes the unused room and sets opening_preparation_failed, always terminal even if included in retryOn. Preserve cancellation and later attempts. Readiness reports carry only bounded validated TTS usage; repository updates that usage field fenced to the dialing call/room/dispatch. PriceService retains preparation spend through existing attempt pricing. Report payloads/attempt UUIDs are not logged; diagnostics record call id and preparation-ready/SIP-submit ordering.
+
+Deploy the compatible voice worker before API. Older workers supply no readiness and fail closed. Preserve saved policies, sharing flags/allowlist and DATABASE_SYNCHRONIZE=false; no migration or portal behavior change is required. Verify cold/shared-hit/user-cancelled calls without automatically placing a production call.
+
 - On pipeline agents with effective Prepared sentences On, nonempty `onEnterInstructions` is exact opening text rather than model guidance. Task-defined sentence/silent openings take priority; null/default and empty/silent semantics remain. With preparation Off or native realtime, it remains generation guidance. This changes no columns or wire properties; use the existing nullable preference and worker-resolved boolean.
 
 - Selected-organization sharing verified 2026-10-09: source `e904794`, API deployment `ebc542c5-26ff-4ede-998d-64c3ad503a09`, SUCCESS/Online. API/worker sharing flags are true, API allowlist contains only `27db0119-0c7d-46cc-bba7-0ffce504f57d`, startup synchronization remains false, and fingerprints preserve all organization-agent/template configs. Swagger exact-opening semantics, 401/no-store and authenticated nonexistent-call 404/no-store passed. No new schema or automatic live call was introduced; see the [rollout record](../../railway/AGENTS.md#exact-configured-opening-and-selected-organization-sharing).

@@ -123,6 +123,7 @@ export class TtsCacheRuntime {
   readonly config: ResolvedTtsConfiguration;
   private readonly scope: string;
   private readonly entries = new Map<string, Entry>();
+  private pinnedOpeningKey?: string;
   private readonly pending = new Map<string, Pending>();
   private readonly operations = new Set<Operation>();
   private residentBytes = 0;
@@ -195,6 +196,7 @@ export class TtsCacheRuntime {
     this.shared?.dispose();
   }
   private remove(key: string): void {
+    if (key === this.pinnedOpeningKey) return;
     const entry = this.entries.get(key);
     if (!entry) return;
     this.entries.delete(key);
@@ -202,7 +204,7 @@ export class TtsCacheRuntime {
   }
   private sweepExpired(): void {
     for (const [key, entry] of this.entries) {
-      if (entry.expires <= this.now()) {
+      if (key !== this.pinnedOpeningKey && entry.expires <= this.now()) {
         this.remove(key);
         this.counts.evictions++;
       }
@@ -314,7 +316,7 @@ export class TtsCacheRuntime {
   private lookup(key: string): Entry | undefined {
     const hit = this.entries.get(key);
     if (!hit) return;
-    if (hit.expires <= this.now()) {
+    if (key !== this.pinnedOpeningKey && hit.expires <= this.now()) {
       this.entries.delete(key);
       this.residentBytes -= hit.bytes;
       this.counts.evictions++;
@@ -329,15 +331,16 @@ export class TtsCacheRuntime {
     if (existing) return existing;
     if (this.disposed || entry.bytes > this.policy.maxBytes) return;
     for (const [candidate, value] of this.entries) {
-      if (value.expires <= this.now()) {
+      if (candidate !== this.pinnedOpeningKey && value.expires <= this.now()) {
         this.entries.delete(candidate);
         this.residentBytes -= value.bytes;
         this.counts.evictions++;
       }
     }
     while (this.residentBytes + entry.bytes > this.policy.maxBytes) {
-      const oldest = this.entries.entries().next().value;
-      if (!oldest) break;
+      const oldest = [...this.entries.entries()].find(([entryKey])=> entryKey !== this.pinnedOpeningKey,
+      );
+      if (!oldest) return;
       this.entries.delete(oldest[0]);
       this.residentBytes -= oldest[1].bytes;
       this.counts.evictions++;
@@ -382,6 +385,7 @@ export class TtsCacheRuntime {
       preparation?: boolean;
       prepared?: boolean;
       releaseAfterPlayback?: boolean;
+      lookupBudgetMs?: number;
     } = {},
   ): ReadableStream<AudioFrame> {
     let key: string | undefined;
@@ -457,6 +461,8 @@ export class TtsCacheRuntime {
       reader?.releaseLock();
       iterator = undefined;
       reader = undefined;
+      if (key && !options.preparation && key === this.pinnedOpeningKey)
+        this.pinnedOpeningKey = undefined;
       if (key && options.releaseAfterPlayback) this.remove(key);
       complete = true;
     };
@@ -468,7 +474,8 @@ export class TtsCacheRuntime {
         try {
           const deadline =
             performance.now() +
-            Math.min(this.policy.dedupWaitMs, TTS_CACHE_LIMITS.lookupMs);
+            (options.lookupBudgetMs ??
+              Math.min(this.policy.dedupWaitMs, TTS_CACHE_LIMITS.lookupMs));
           let hit = this.lookup(key);
           const filling = this.pending.get(key);
           if (!hit && filling) {
@@ -683,7 +690,9 @@ export class TtsCacheRuntime {
 
   finiteAudio(
     text: string,
-    options: { signal?: AbortSignal; preparation?: boolean } = {},
+    options: { signal?: AbortSignal; preparation?: boolean ;
+      lookupBudgetMs?: number;
+    } = {},
   ): ReadableStream<AudioFrame> {
     return this.open(
       text,
@@ -718,6 +727,42 @@ export class TtsCacheRuntime {
       },
     );
   }
+  /** Strict pre-dial fill: unlike background preparation, failure blocks dialing. */
+  async prepareOpening(text: string, signal: AbortSignal): Promise<void> {
+    this.registerPreparedTexts([text]);
+    const reader = this.finiteAudio(text, {
+      signal,
+      preparation: true,
+      lookupBudgetMs: 1000,
+    }).getReader();
+    try {
+      while (!(await reader.read()).done) {
+        /* retain only complete captured audio */
+      }
+      const key = this.identity(
+        text,
+        this.finiteTransport(),
+        'finite-plain-v1',
+      );
+      const entry = this.lookup(key);
+      if (
+        signal.aborted ||
+        !this.enabled ||
+        !entry?.frames.length ||
+        entry.frames.length > TTS_CACHE_LIMITS.maxFrames ||
+        !entry.frames.every(
+          (frame) =>
+            frame.samplesPerChannel > 0 &&
+            frame.data.length === frame.samplesPerChannel * frame.channels,
+        )
+      )
+        throw new Error('Opening preparation unavailable');
+      this.pinnedOpeningKey = key;
+    } finally {
+      void reader.cancel().catch(() => {});
+      reader.releaseLock();
+    }
+  }
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
@@ -731,6 +776,7 @@ export class TtsCacheRuntime {
     this.preparedTexts.clear();
     console.log('[agent] tts-cache ' + JSON.stringify(this.stats));
     this.entries.clear();
+    this.pinnedOpeningKey = undefined;
     this.residentBytes = 0;
     this.provider.off('error', this.onError);
   }
