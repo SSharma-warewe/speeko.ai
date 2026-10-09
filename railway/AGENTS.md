@@ -33,6 +33,12 @@ For the 2026-10-07 human-call rollout, the user explicitly authorized GitHub pub
 
 ## Deployment runbook
 
+### CRM calendar WhatsApp composer rollout
+
+On 2026-10-09 the user authorized GitHub publication and Railway CLI deployment. Implementation `03aa7ad713e6ada36fcea8421ac021b52236b39e` was pushed to `SSharma-warewe/speeko.ai`, branch `codex/tts-cache-rollout`. An exact Git archive (SHA-256 `600FBBE44316A17F18B7614F46BEC3564714845A09E61CBFC27157E5E0EC0E2D`) was uploaded using explicit project, portal service and production environment flags after verifying practical-spontaneity / production and `Dockerfile.portal`. Portal deployment `d893437b-a4ae-4523-9b24-9a4edcfb3df7` reached SUCCESS with a RUNNING instance. API, workers, marketing and Postgres deployment IDs were unchanged. No schema or environment changes were needed.
+
+Login, CRM Calendar and WhatsApp Send deep links returned 200. Shipped `/assets/index-BBP-35fY.js` contains the appointment composer, WhatsApp message button, disconnected help, Message sent state and correct public API origin. Local portal typecheck/build and synthetic headless Edge scenarios passed connection gating, exact contact lookup, variable validation/preview, single-recipient payloads, successful-send duplicate prevention, mobile/focus behavior, DND/no-phone/scope/template failures, failed-send draft retention without retries and existing Send-page recipient selection. No live WhatsApp message or CRM write was made. Authenticated production interaction and Meta delivery remain for user acceptance.
+
 ### Configurable tool waiting speech rollout
 
 On 2026-10-09 the user authorized GitHub publication and Railway CLI deployment. Implementation `f265596` was pushed to `SSharma-warewe/speeko.ai`, branch `codex/tts-cache-rollout`. Uploads used an exact Git archive (SHA-256 `5672AFC902DBA4E685F240281B4C0183B9ED34FFE3E722E95719536E85B8BBA8`), excluding unrelated local tooling, against verified practical-spontaneity / production. Compatible worker `62f9ecb0-9225-40b1-a3b3-605d554de7d6` was verified before API `b96989b3-e60b-401e-9fc5-473bb47c99ef`, followed by portal `42345c47-0a67-4424-8e08-a78ccc4b15b0`. All reached SUCCESS with RUNNING instances; marketing, WhatsApp worker and Postgres deployment IDs were unchanged.
