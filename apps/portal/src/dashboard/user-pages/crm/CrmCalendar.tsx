@@ -1,3 +1,4 @@
+import AppointmentWhatsApp from "./AppointmentWhatsApp";
 import { useState } from "react";
 import { Button, Field, Input, Select } from "@call-agent/ui";
 import { useUserAsync } from "../../hooks/useAsync";
@@ -25,14 +26,17 @@ function dayInput(date: Date) {
 }
 export default function CrmCalendar({
   connectionId,
+  hasWhatsApp,
 }: {
   connectionId: string;
+  hasWhatsApp: boolean;
 }) {
   const { api, busy, error, notice, mutate, clear } = useCrmApi(connectionId);
   const [calendarId, setCalendarId] = useState("");
   const [start, setStart] = useState(dayInput(new Date()));
   const [end, setEnd] = useState(dayInput(new Date(Date.now() + 7 * 86400000)));
   const [range, setRange] = useState({ start, end });
+  const [messageEvent, setMessageEvent] = useState<Row | null>(null);
   const [editor, setEditor] = useState<Row | null>(null);
   const [contactId, setContactId] = useState("");
   const [slots, setSlots] = useState<string[] | null>(null);
@@ -103,6 +107,7 @@ export default function CrmCalendar({
                 value={selected}
                 onChange={(e) => {
                   setCalendarId(e.target.value);
+                  setMessageEvent(null);
                   setEditor(null);
                   setSlots(null);
                 }}
@@ -140,6 +145,11 @@ export default function CrmCalendar({
             Times shown in {timezone}. Appointments follow your calendar’s
             availability and notification rules.
           </p>
+          {!hasWhatsApp && (
+            <p id="crm-whatsapp-unavailable" className="ops-desk-note">
+              Connect WhatsApp to message appointment contacts.
+            </p>
+          )}
           {!options.length ? (
             <p>No calendars in this location.</p>
           ) : (
@@ -231,6 +241,29 @@ export default function CrmCalendar({
                         <p className="crm-text">{str(event.description)}</p>
                       </div>
                       <div className="ops-row-actions">
+                        <span
+                          title={
+                            !hasWhatsApp
+                              ? "Connect WhatsApp to message this contact"
+                              : !str(event.contactId)
+                                ? "This appointment has no contact"
+                                : undefined
+                          }
+                        >
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            aria-describedby={
+                              !hasWhatsApp
+                                ? "crm-whatsapp-unavailable"
+                                : undefined
+                            }
+                            disabled={!hasWhatsApp || !str(event.contactId)}
+                            onClick={() => setMessageEvent(event)}
+                          >
+                            WhatsApp message
+                          </Button>
+                        </span>
                         <Button
                           size="sm"
                           variant="secondary"
@@ -295,6 +328,15 @@ export default function CrmCalendar({
           )}
         </LoadState>
       </Panel>
+      {messageEvent && (
+        <AppointmentWhatsApp
+          key={str(messageEvent.id)}
+          connectionId={connectionId}
+          event={messageEvent}
+          hasWhatsApp={hasWhatsApp}
+          onClose={() => setMessageEvent(null)}
+        />
+      )}
       {editor && (
         <RecordForm
           key={str(editor.id) || `new-${str(editor.startTime)}`}

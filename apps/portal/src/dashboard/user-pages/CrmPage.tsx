@@ -140,7 +140,14 @@ export default function CrmPage() {
             tabIndex={0}
           >
             {tab === "contacts" && <CrmContacts connectionId={connection.id} />}
-            {tab === "calendar" && <CrmCalendar connectionId={connection.id} />}
+            {tab === "calendar" && (
+              <CrmCalendar
+                connectionId={connection.id}
+                hasWhatsApp={state.data.some(
+                  (c) => c.provider === "whatsapp" && c.isActive,
+                )}
+              />
+            )}
             {tab === "opportunities" && (
               <CrmOpportunities connectionId={connection.id} />
             )}

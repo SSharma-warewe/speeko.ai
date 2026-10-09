@@ -138,6 +138,8 @@ type Props = {
   hasContacts: boolean;
   onGoConnections: () => void;
   onSent: () => void;
+  fixedRecipient?: GhlContactRow;
+  onSendingChange?: (sending: boolean) => void;
 };
 
 export default function WhatsAppSendTab({
@@ -146,6 +148,8 @@ export default function WhatsAppSendTab({
   hasContacts,
   onGoConnections,
   onSent,
+  fixedRecipient,
+  onSendingChange,
 }: Props) {
   const { logout } = useUserAuth();
   const [contactSourceId, setContactSourceId] = useState(
@@ -180,6 +184,10 @@ export default function WhatsAppSendTab({
 
   /* ── send ── */
   const [sending, setSending] = useState(false);
+  const sendInFlight = useRef(false);
+  useEffect(() => {
+    onSendingChange?.(sending);
+  }, [sending, onSendingChange]);
   const [sendError, setSendError] = useState<string | null>(null);
   const [lastSend, setLastSend] = useState<SendWhatsAppTemplateResponse | null>(
     null,
@@ -282,7 +290,8 @@ export default function WhatsAppSendTab({
   );
 
   useEffect(() => {
-    setSelected({});
+    setSelected(fixedRecipient ? { [fixedRecipient.id]: fixedRecipient } : {});
+    if (fixedRecipient) return;
     if (!hasContacts) {
       setContacts([]);
       setNextCursor(null);
@@ -292,9 +301,12 @@ export default function WhatsAppSendTab({
     return () => {
       contactRequest.current++;
     };
-  }, [hasContacts, loadContacts]);
+  }, [hasContacts, loadContacts, fixedRecipient]);
 
-  const selectedList = useMemo(() => Object.values(selected), [selected]);
+  const selectedList = useMemo(
+    () => (fixedRecipient ? [fixedRecipient] : Object.values(selected)),
+    [selected, fixedRecipient],
+  );
   const selectedCount = selectedList.length;
   const atLimit = selectedCount >= MAX_RECIPIENTS;
 
@@ -356,7 +368,14 @@ export default function WhatsAppSendTab({
   }, [template, bodySources, previewContact]);
 
   const handleSend = async () => {
-    if (!template) return;
+    if (
+      !template ||
+      !hasWhatsApp ||
+      sendInFlight.current ||
+      (fixedRecipient &&
+        (fixedRecipient.dnd || !fixedRecipient.phone || lastSend?.sent))
+    )
+      return;
     setSendError(null);
     if (selectedCount === 0) {
       setSendError("Select at least one contact.");
@@ -400,6 +419,7 @@ export default function WhatsAppSendTab({
       dnd: c.dnd,
     }));
 
+    sendInFlight.current = true;
     setSending(true);
     try {
       const result = await sendUserWhatsAppTemplate({
@@ -437,6 +457,7 @@ export default function WhatsAppSendTab({
       const message = handleError(err, "Could not send the template.");
       if (message) setSendError(message);
     } finally {
+      sendInFlight.current = false;
       setSending(false);
     }
   };
@@ -477,6 +498,36 @@ export default function WhatsAppSendTab({
             />
           ) : (
             <>
+              {fixedRecipient && (
+                <p>
+                  {fixedRecipient.name || "Unnamed contact"} ·{" "}
+                  {fixedRecipient.phone || "No phone"}
+                </p>
+              )}
+              {fixedRecipient &&
+                (fixedRecipient.dnd || !fixedRecipient.phone) && (
+                  <Alert tone="warn">
+                    {fixedRecipient.dnd
+                      ? "This contact has DND enabled."
+                      : "This contact has no phone number."}
+                  </Alert>
+                )}
+              {fixedRecipient && lastSend && (
+                <Alert
+                  tone={
+                    lastSend.failed > 0 || lastSend.skipped > 0
+                      ? "warn"
+                      : "info"
+                  }
+                >
+                  Sent {lastSend.sent}, failed {lastSend.failed}, skipped{" "}
+                  {lastSend.skipped}.{" "}
+                  {problems
+                    .map((r) => r.error)
+                    .filter(Boolean)
+                    .join(" ")}
+                </Alert>
+              )}
               {sendError ? <Alert tone="error">{sendError}</Alert> : null}
 
               <Field
@@ -546,12 +597,23 @@ export default function WhatsAppSendTab({
                       type="button"
                       variant="primary"
                       loading={sending}
-                      disabled={sending || selectedCount === 0}
+                      disabled={
+                        sending ||
+                        selectedCount === 0 ||
+                        Boolean(
+                          fixedRecipient &&
+                          (fixedRecipient.dnd ||
+                            !fixedRecipient.phone ||
+                            lastSend?.sent),
+                        )
+                      }
                       onClick={() => void handleSend()}
                     >
-                      {selectedCount > 0
-                        ? `Send to ${selectedCount} contact${selectedCount === 1 ? "" : "s"}`
-                        : "Select contacts to send"}
+                      {fixedRecipient && lastSend?.sent
+                        ? "Message sent"
+                        : selectedCount > 0
+                          ? `Send to ${selectedCount} contact${selectedCount === 1 ? "" : "s"}`
+                          : "Select contacts to send"}
                     </Button>
                   </div>
                 </>
@@ -561,207 +623,212 @@ export default function WhatsAppSendTab({
         </div>
       </section>
 
-      <section className="ops-panel ops-desk-list">
-        <div className="ops-desk-list-bar">
-          <div className="ops-desk-list-bar-main">
-            <span className="ops-desk-kicker">GoHighLevel contacts</span>
-            <span className="ops-desk-hint">
-              {selectedCount} selected
-              {atLimit ? ` (max ${MAX_RECIPIENTS})` : ""}
-              {total !== null ? ` · ${total} in CRM` : ""}
-            </span>
-          </div>
-          {hasContacts ? (
-            <form className="ops-wa-search" onSubmit={handleSearch}>
-              <Select
-                aria-label="CRM contact source"
-                value={contactSourceId}
-                disabled={sending}
-                onChange={(e) => {
-                  contactRequest.current++;
-                  setContacts([]);
-                  setSelected({});
-                  setNextCursor(null);
-                  setTotal(null);
-                  setSearchInput("");
-                  setActiveQuery("");
-                  setContactsLoading(true);
-                  setContactSourceId(e.target.value);
-                }}
-              >
-                {contactSources.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </Select>
-              <Input
-                aria-label="Search contacts"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search name, email, phone"
-              />
-              <Button
-                type="submit"
-                variant="secondary"
-                size="sm"
-                disabled={contactsLoading}
-              >
-                Search
-              </Button>
-              {selectedCount > 0 ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelected({})}
-                >
-                  Clear
-                </Button>
-              ) : null}
-            </form>
-          ) : null}
-        </div>
-        <div className="ops-panel-body is-flush ops-desk-list-body">
-          {lastSend ? (
-            <div className="ops-wa-result">
-              <Alert tone={lastSend.failed > 0 ? "warn" : "info"}>
-                Sent {lastSend.sent}, failed {lastSend.failed}, skipped{" "}
-                {lastSend.skipped}.{" "}
-                <button
-                  type="button"
-                  className="ops-wa-link"
-                  onClick={() => setLastSend(null)}
-                >
-                  Dismiss
-                </button>
-              </Alert>
-              {problems.length > 0 ? (
-                <ul className="ops-wa-problems">
-                  {problems.map((r, i) => (
-                    <li key={`${r.phone}-${i}`}>
-                      <StatusBadge
-                        status={r.status === "failed" ? "failed" : "warn"}
-                        label={r.status}
-                      />
-                      <span>{r.name || r.phone}</span>
-                      <span className="ops-faint">{r.error}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
+      {!fixedRecipient && (
+        <section className="ops-panel ops-desk-list">
+          <div className="ops-desk-list-bar">
+            <div className="ops-desk-list-bar-main">
+              <span className="ops-desk-kicker">GoHighLevel contacts</span>
+              <span className="ops-desk-hint">
+                {selectedCount} selected
+                {atLimit ? ` (max ${MAX_RECIPIENTS})` : ""}
+                {total !== null ? ` · ${total} in CRM` : ""}
+              </span>
             </div>
-          ) : null}
-
-          {!hasContacts ? (
-            <EmptyState
-              title="Connect GoHighLevel to import contacts"
-              description="Add a Private Integration Token with contacts.readonly and your location ID."
-              action={
+            {hasContacts ? (
+              <form className="ops-wa-search" onSubmit={handleSearch}>
+                <Select
+                  aria-label="CRM contact source"
+                  value={contactSourceId}
+                  disabled={sending}
+                  onChange={(e) => {
+                    contactRequest.current++;
+                    setContacts([]);
+                    setSelected({});
+                    setNextCursor(null);
+                    setTotal(null);
+                    setSearchInput("");
+                    setActiveQuery("");
+                    setContactsLoading(true);
+                    setContactSourceId(e.target.value);
+                  }}
+                >
+                  {contactSources.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
+                <Input
+                  aria-label="Search contacts"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="Search name, email, phone"
+                />
                 <Button
-                  type="button"
+                  type="submit"
                   variant="secondary"
                   size="sm"
-                  onClick={onGoConnections}
+                  disabled={contactsLoading}
                 >
-                  Open connections
+                  Search
                 </Button>
-              }
-            />
-          ) : contactsError ? (
-            <div className="ops-wa-result">
-              <Alert tone="error">{contactsError}</Alert>
-            </div>
-          ) : contactsLoading && contacts.length === 0 ? (
-            <LoadingBlock label="Loading contacts" />
-          ) : contacts.length === 0 ? (
-            <EmptyState
-              title={activeQuery ? "No matching contacts" : "No contacts"}
-              description={
-                activeQuery
-                  ? "Try a different name, email, or phone."
-                  : "This GoHighLevel location has no contacts yet."
-              }
-            />
-          ) : (
-            <>
-              <div className="ops-table-wrap">
-                <table className="ops-table ops-desk-table">
-                  <thead>
-                    <tr>
-                      <th className="ops-check-col">
-                        <input
-                          type="checkbox"
-                          aria-label="Select all contacts on this page"
-                          checked={allOnPageSelected}
-                          disabled={selectableOnPage.length === 0}
-                          onChange={toggleAllOnPage}
+                {selectedCount > 0 ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelected({})}
+                  >
+                    Clear
+                  </Button>
+                ) : null}
+              </form>
+            ) : null}
+          </div>
+          <div className="ops-panel-body is-flush ops-desk-list-body">
+            {lastSend ? (
+              <div className="ops-wa-result">
+                <Alert tone={lastSend.failed > 0 ? "warn" : "info"}>
+                  Sent {lastSend.sent}, failed {lastSend.failed}, skipped{" "}
+                  {lastSend.skipped}.{" "}
+                  <button
+                    type="button"
+                    className="ops-wa-link"
+                    onClick={() => setLastSend(null)}
+                  >
+                    Dismiss
+                  </button>
+                </Alert>
+                {problems.length > 0 ? (
+                  <ul className="ops-wa-problems">
+                    {problems.map((r, i) => (
+                      <li key={`${r.phone}-${i}`}>
+                        <StatusBadge
+                          status={r.status === "failed" ? "failed" : "warn"}
+                          label={r.status}
                         />
-                      </th>
-                      <th>Contact</th>
-                      <th>Phone</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {contacts.map((c) => {
-                      const on = Boolean(selected[c.id]);
-                      const selectable = isSelectable(c);
-                      return (
-                        <tr key={c.id} className={on ? "is-live" : undefined}>
-                          <td className="ops-check-col">
-                            <input
-                              type="checkbox"
-                              aria-label={`Select ${c.name || c.phone || c.id}`}
-                              checked={on}
-                              disabled={!selectable || (!on && atLimit)}
-                              onChange={() => toggleContact(c)}
-                            />
-                          </td>
-                          <td>
-                            <div className="ops-desk-entity">
-                              <span className="ops-desk-entity-name">
-                                {c.name || "Unnamed contact"}
-                              </span>
-                              <span className="ops-desk-entity-meta">
-                                {c.email || c.company || "—"}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="ops-mono">{c.phone ?? "—"}</td>
-                          <td>
-                            {c.dnd ? (
-                              <StatusBadge status="failed" label="DND" />
-                            ) : !c.phone ? (
-                              <StatusBadge status="inactive" label="No phone" />
-                            ) : (
-                              <StatusBadge status="active" label="OK" />
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                        <span>{r.name || r.phone}</span>
+                        <span className="ops-faint">{r.error}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </div>
-              {nextCursor ? (
-                <div className="ops-wa-more">
+            ) : null}
+
+            {!hasContacts ? (
+              <EmptyState
+                title="Connect GoHighLevel to import contacts"
+                description="Add a Private Integration Token with contacts.readonly and your location ID."
+                action={
                   <Button
                     type="button"
                     variant="secondary"
                     size="sm"
-                    loading={contactsLoading}
-                    disabled={contactsLoading}
-                    onClick={() => void loadContacts(activeQuery, nextCursor)}
+                    onClick={onGoConnections}
                   >
-                    Load more
+                    Open connections
                   </Button>
+                }
+              />
+            ) : contactsError ? (
+              <div className="ops-wa-result">
+                <Alert tone="error">{contactsError}</Alert>
+              </div>
+            ) : contactsLoading && contacts.length === 0 ? (
+              <LoadingBlock label="Loading contacts" />
+            ) : contacts.length === 0 ? (
+              <EmptyState
+                title={activeQuery ? "No matching contacts" : "No contacts"}
+                description={
+                  activeQuery
+                    ? "Try a different name, email, or phone."
+                    : "This GoHighLevel location has no contacts yet."
+                }
+              />
+            ) : (
+              <>
+                <div className="ops-table-wrap">
+                  <table className="ops-table ops-desk-table">
+                    <thead>
+                      <tr>
+                        <th className="ops-check-col">
+                          <input
+                            type="checkbox"
+                            aria-label="Select all contacts on this page"
+                            checked={allOnPageSelected}
+                            disabled={selectableOnPage.length === 0}
+                            onChange={toggleAllOnPage}
+                          />
+                        </th>
+                        <th>Contact</th>
+                        <th>Phone</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {contacts.map((c) => {
+                        const on = Boolean(selected[c.id]);
+                        const selectable = isSelectable(c);
+                        return (
+                          <tr key={c.id} className={on ? "is-live" : undefined}>
+                            <td className="ops-check-col">
+                              <input
+                                type="checkbox"
+                                aria-label={`Select ${c.name || c.phone || c.id}`}
+                                checked={on}
+                                disabled={!selectable || (!on && atLimit)}
+                                onChange={() => toggleContact(c)}
+                              />
+                            </td>
+                            <td>
+                              <div className="ops-desk-entity">
+                                <span className="ops-desk-entity-name">
+                                  {c.name || "Unnamed contact"}
+                                </span>
+                                <span className="ops-desk-entity-meta">
+                                  {c.email || c.company || "—"}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="ops-mono">{c.phone ?? "—"}</td>
+                            <td>
+                              {c.dnd ? (
+                                <StatusBadge status="failed" label="DND" />
+                              ) : !c.phone ? (
+                                <StatusBadge
+                                  status="inactive"
+                                  label="No phone"
+                                />
+                              ) : (
+                                <StatusBadge status="active" label="OK" />
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-              ) : null}
-            </>
-          )}
-        </div>
-      </section>
+                {nextCursor ? (
+                  <div className="ops-wa-more">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      loading={contactsLoading}
+                      disabled={contactsLoading}
+                      onClick={() => void loadContacts(activeQuery, nextCursor)}
+                    >
+                      Load more
+                    </Button>
+                  </div>
+                ) : null}
+              </>
+            )}
+          </div>
+        </section>
+      )}
     </>
   );
 }
